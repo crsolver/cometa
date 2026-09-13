@@ -1,0 +1,18 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run Hacha Extension",
+      "type": "extensionHost",
+      "request": "launch",
+      "preLaunchTask": "build Hacha extension",
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}",
+        "${workspaceFolder}/examples"
+      ],
+      "outFiles": [
+        "${workspaceFolder}/out/**/*.js"
+      ]
+    }
+  ]
+}

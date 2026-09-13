@@ -1,0 +1,66 @@
+package main
+
+import "fmt"
+
+type Usuario struct {
+	Nombre   string
+	Edad     float64
+	Activo   bool
+	Referido *Usuario
+	Amigos   []*Usuario
+}
+
+func (_self *Usuario) Sumar(a float64, b float64) float64 {
+	return (a + b)
+}
+
+func (_self *Usuario) Activar(activar bool) {
+	fmt.Println("activando")
+	_self.Activo = activar
+	if _self.Edad < 18 {
+		_self.Activo = false
+	} else {
+		_self.Activo = true
+	}
+	_self.Activo = func() bool {
+		if _self.Edad < 18 {
+			return true
+		}
+		return false
+	}()
+}
+
+func (_self *Usuario) Devolver(numero float64) float64 {
+	if _self.Edad < 10 {
+		return numero
+	} else if _self.Edad != 4 {
+		return 4
+	} else {
+		if true {
+			return 1
+		} else {
+			return 0
+		}
+	}
+}
+
+func Procesar_usuario(usuario *Usuario) {
+	usuario.Activar(true)
+}
+
+func Procesar_lista(usuarios []*Usuario) {
+	fmt.Println(usuarios)
+}
+
+func main() {
+	usuario1 := &Usuario{}
+	_ = usuario1
+	usuario2 := &Usuario{}
+	_ = usuario2
+	lista := []*Usuario{usuario1, usuario2}
+	_ = lista
+	x := lista[int(4)]
+	_ = x
+	Procesar_lista(lista)
+	Procesar_usuario(lista[int(0)])
+}

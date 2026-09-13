@@ -1,0 +1,76 @@
+
+enum Direccion
+	Izquierda
+	Arriba
+	Derecha
+	Abajo
+
+
+fn inicio()
+	var direccion = Direccion.Izquierda
+
+	casos direccion // Las ramas se indentan y deben cubrir todas las variantes.
+		.Izquierda => imprimir("izquierda")
+		.Arriba    => imprimir("arriba")
+		.Derecha   => imprimir("derecha")
+		_         => imprimir("abajo")
+
+	var boton = Buton_Presionado {caracter: "a"}
+	var evento = Evento.Buton_Presionado(boton)
+
+	boton.caracter = "b" // El enum conserva la referencia al mismo objeto.
+	imprimir(describir(evento))
+	mostrar_evento(Evento.Cargar_Pagina)
+	mostrar_evento(evento)
+	mostrar_ips()
+
+
+tipo Buton_Presionado
+	caracter cadena
+
+
+enum Evento
+	Cargar_Pagina
+	Buton_Presionado Buton_Presionado
+	Texto cadena
+	Cantidad num
+	Activado bool
+
+
+fn mostrar_evento(evento Evento)
+	casos evento |e|
+		.Cargar_Pagina    => imprimir("cargando pagina")
+		.Buton_Presionado => 
+			imprimir("buton presionado:")
+			imprimir(e.caracter)
+		_ => imprimir("otro evento")
+
+
+fn describir(evento Evento) cadena
+	var texto = casos evento |e|
+		.Cargar_Pagina => "cargando pagina"
+		.Buton_Presionado =>
+			imprimir("leyendo el boton:")
+			e.caracter
+		.Texto => e
+		_ => "otro evento"
+	texto
+
+enum IP
+	V4
+	V6
+
+fn a_cadena(ip IP) cadena
+	casos ip
+		IP.V4 => "v4"
+		IP.V6 => "v6"
+
+fn a_cadena2(ip IP) cadena
+	casos ip
+		.V4 => "v4" // . should trigger suggestions for ip type
+		.V6 => "v6"
+
+
+fn mostrar_ips()
+	imprimir(a_cadena(.V4)) // a_cadena expects IP so no need to write IP, . should trigger suggestions
+	imprimir(a_cadena(.V6))

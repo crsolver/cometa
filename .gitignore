@@ -1,0 +1,9 @@
+/.gocache/
+/.cache/
+/.gomodcache/
+/.gotmp/
+/hacha.exe
+/bin/
+/node_modules/
+/out/
+*.vsix

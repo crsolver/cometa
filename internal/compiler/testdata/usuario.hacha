@@ -1,0 +1,33 @@
+tipo Usuario
+	nombre cadena
+	edad num
+	activo bool
+	referido Usuario
+	amigos [Usuario]
+	fn sumar(a num, b num) num a + b
+	fn activar(activar bool)
+		imprimir("activando")
+		@activo = activar
+		si @edad < 18 @activo = falso
+		sino @activo = verdadero
+		@activo = si @edad < 18 verdadero sino falso
+	fn devolver(numero num) num
+		si @edad < 10 numero
+		osi @edad != 4 4
+		sino
+			si verdadero 1
+			sino 0
+
+fn procesar_usuario(usuario Usuario)
+	usuario.activar(verdadero)
+
+fn procesar_lista(usuarios [Usuario])
+	imprimir(usuarios)
+
+fn inicio()
+	var usuario1 = Usuario {}
+	var usuario2 = Usuario {}
+	var lista = [usuario1, usuario2]
+	var x = lista[4]
+	procesar_lista(lista)
+	procesar_usuario(lista[0])

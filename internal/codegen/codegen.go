@@ -1,0 +1,472 @@
+package codegen
+
+import (
+	"bytes"
+	"fmt"
+	goast "go/ast"
+	"go/format"
+	"go/importer"
+	"go/parser"
+	"go/token"
+	"go/types"
+	"strings"
+	"unicode"
+
+	"hacha/internal/ast"
+	"hacha/internal/sema"
+)
+
+type generator struct {
+	buffer    bytes.Buffer
+	model     *sema.Model
+	nextName  int
+	loopLabel string
+}
+
+func Generate(filename string, program *ast.Program, model *sema.Model) ([]byte, error) {
+	g := &generator{model: model}
+	g.line(0, "package main")
+	g.line(0, "")
+	if usesPrint(program) {
+		g.line(0, `import "fmt"`)
+		g.line(0, "")
+	}
+
+	for _, decl := range program.Decls {
+		if enumDecl, ok := decl.(*ast.EnumDecl); ok {
+			g.emitEnum(enumDecl)
+		}
+		if typeDecl, ok := decl.(*ast.TypeDecl); ok {
+			g.emitType(typeDecl)
+		}
+	}
+	for _, decl := range program.Decls {
+		switch declaration := decl.(type) {
+		case *ast.TypeDecl:
+			for _, method := range declaration.Methods {
+				g.emitFunction(method)
+			}
+		case *ast.FuncDecl:
+			g.emitFunction(declaration)
+		}
+	}
+
+	formatted, err := format.Source(g.buffer.Bytes())
+	if err != nil {
+		return nil, fmt.Errorf("no se pudo formatear el Go generado: %w\n%s", err, g.buffer.String())
+	}
+	if err = validate(filename, formatted); err != nil {
+		return nil, err
+	}
+	return formatted, nil
+}
+
+func (g *generator) emitType(decl *ast.TypeDecl) {
+	g.line(0, "type %s struct {", exported(decl.Name))
+	info := g.model.Types[decl.Name]
+	for _, field := range decl.Fields {
+		g.line(1, "%s %s", exported(field.Name), goType(info.Fields[field.Name].Type))
+	}
+	g.line(0, "}")
+	g.line(0, "")
+}
+
+func (g *generator) emitFunction(decl *ast.FuncDecl) {
+	var signature sema.FuncInfo
+	if decl.Receiver != "" {
+		signature = g.model.Types[decl.Receiver].Methods[decl.Name]
+		g.write("func (_self *%s) %s(", exported(decl.Receiver), exported(decl.Name))
+	} else {
+		signature = g.model.Functions[decl.Name]
+		name := exported(decl.Name)
+		if decl.Name == "inicio" {
+			name = "main"
+		}
+		g.write("func %s(", name)
+	}
+	for index, param := range decl.Params {
+		if index > 0 {
+			g.write(", ")
+		}
+		g.write("%s %s", localName(param.Name), goType(signature.Params[index]))
+	}
+	g.write(")")
+	if signature.Return.Kind != sema.Void {
+		g.write(" %s", goType(signature.Return))
+	}
+	g.write(" {\n")
+	g.emitBlock(decl.Body, 1, signature.Return.Kind != sema.Void)
+	g.line(0, "}")
+	g.line(0, "")
+}
+
+func (g *generator) emitBlock(body []ast.Stmt, indent int, returnFinal bool) {
+	for index, stmt := range body {
+		g.emitStmt(stmt, indent, returnFinal && index == len(body)-1)
+	}
+}
+
+func (g *generator) emitStmt(stmt ast.Stmt, indent int, returnValue bool) {
+	switch statement := stmt.(type) {
+	case *ast.MatchStmt:
+		g.emitMatch(statement.Match, indent, returnValue)
+	case *ast.ExprStmt:
+		expression := g.expr(statement.Expr)
+		_, constructor := g.model.Constructors[statement.Expr]
+		if returnValue {
+			g.line(indent, "return %s", expression)
+		} else if _, call := statement.Expr.(*ast.CallExpr); call && !constructor {
+			g.line(indent, "%s", expression)
+		} else {
+			g.line(indent, "_ = %s", expression)
+		}
+	case *ast.AssignStmt:
+		g.line(indent, "%s = %s", g.expr(statement.Target), g.expr(statement.Value))
+	case *ast.VarDeclStmt:
+		name := localName(statement.Name)
+		value := g.expr(statement.Value)
+		if g.model.VarTypes[statement].Kind == sema.Number {
+			value = "float64(" + value + ")"
+		}
+		g.line(indent, "%s := %s", name, value)
+		g.line(indent, "_ = %s", name)
+	case *ast.IfStmt:
+		g.emitIf(statement, indent, returnValue)
+	case *ast.RepeatStmt:
+		g.emitRepeat(statement, indent)
+	case *ast.ContinueStmt:
+		g.line(indent, "continue")
+	case *ast.BreakStmt:
+		if g.loopLabel != "" {
+			g.line(indent, "break %s", g.loopLabel)
+		} else {
+			g.line(indent, "break")
+		}
+	}
+}
+
+func (g *generator) emitRepeat(stmt *ast.RepeatStmt, indent int) {
+	outerLabel := g.loopLabel
+	g.loopLabel = ""
+	defer func() { g.loopLabel = outerLabel }()
+	if needsLoopLabel(stmt.Body, false) {
+		g.loopLabel = g.freshName()
+		g.line(indent, "%s:", g.loopLabel)
+	}
+	if stmt.Iterable == nil {
+		g.line(indent, "for {")
+		g.emitBlock(stmt.Body, indent+1, false)
+		g.line(indent, "}")
+		return
+	}
+
+	element := localName(stmt.Element)
+	if stmt.Index == "" {
+		g.line(indent, "for _, %s := range %s {", element, g.expr(stmt.Iterable))
+	} else {
+		index := localName(stmt.Index)
+		g.line(indent, "for %s, %s := range %s {", index, element, g.expr(stmt.Iterable))
+		g.line(indent+1, "%s := float64(%s)", index, index)
+		g.line(indent+1, "_ = %s", index)
+	}
+	g.line(indent+1, "_ = %s", element)
+	g.emitBlock(stmt.Body, indent+1, false)
+	g.line(indent, "}")
+}
+
+func (g *generator) emitIf(stmt *ast.IfStmt, indent int, returnValue bool) {
+	for index, branch := range stmt.Branches {
+		prefix := "if"
+		if index > 0 {
+			prefix = "} else if"
+		}
+		g.line(indent, "%s %s {", prefix, g.expr(branch.Condition))
+		g.emitBlock(branch.Body, indent+1, returnValue)
+	}
+	if len(stmt.Else) > 0 {
+		g.line(indent, "} else {")
+		g.emitBlock(stmt.Else, indent+1, returnValue)
+	}
+	g.line(indent, "}")
+}
+
+func (g *generator) expr(expr ast.Expr) string {
+	if constructor, ok := g.model.Constructors[expr]; ok {
+		fields := fmt.Sprintf("tag: %d", constructor.Variant.Tag)
+		if call, ok := expr.(*ast.CallExpr); ok {
+			fields += fmt.Sprintf(", payload%d: %s", constructor.Variant.Tag, g.expr(call.Args[0]))
+		}
+		return "(&" + exported(constructor.Enum.Decl.Name) + "{" + fields + "})"
+	}
+	switch expression := expr.(type) {
+	case *ast.MatchExpr:
+		child := &generator{model: g.model, nextName: g.nextName}
+		child.line(0, "func() %s {", goType(g.model.ExprTypes[expr]))
+		child.emitMatch(expression, 1, true)
+		child.line(0, "}()")
+		g.nextName = child.nextName
+		return strings.TrimSpace(child.buffer.String())
+	case *ast.IdentExpr:
+		return localName(expression.Name)
+	case *ast.ReceiverExpr:
+		return "_self." + exported(expression.Name)
+	case *ast.MemberExpr:
+		return g.expr(expression.Object) + "." + exported(expression.Name)
+	case *ast.IndexExpr:
+		return g.expr(expression.Object) + "[int(" + g.expr(expression.Index) + ")]"
+	case *ast.LiteralExpr:
+		if expression.Kind == "bool" {
+			if expression.Value == "verdadero" {
+				return "true"
+			}
+			return "false"
+		}
+		return expression.Value
+	case *ast.UnaryExpr:
+		return "(" + expression.Operator + g.expr(expression.Value) + ")"
+	case *ast.BinaryExpr:
+		return "(" + g.expr(expression.Left) + " " + expression.Operator + " " + g.expr(expression.Right) + ")"
+	case *ast.CallExpr:
+		var callee string
+		switch called := expression.Callee.(type) {
+		case *ast.IdentExpr:
+			if called.Name == "imprimir" {
+				callee = "fmt.Println"
+			} else if called.Name == "inicio" {
+				callee = "main"
+			} else {
+				callee = exported(called.Name)
+			}
+		case *ast.ReceiverExpr:
+			callee = "_self." + exported(called.Name)
+		case *ast.MemberExpr:
+			callee = g.expr(called)
+		}
+		args := make([]string, len(expression.Args))
+		for index, arg := range expression.Args {
+			args[index] = g.expr(arg)
+		}
+		return callee + "(" + strings.Join(args, ", ") + ")"
+	case *ast.StructLiteralExpr:
+		typeInfo := g.model.ExprTypes[expr]
+		fields := make([]string, len(expression.Fields))
+		for index, field := range expression.Fields {
+			fields[index] = exported(field.Name) + ": " + g.expr(field.Value)
+		}
+		return "&" + exported(typeInfo.Name) + "{" + strings.Join(fields, ", ") + "}"
+	case *ast.ListLiteralExpr:
+		typeInfo := g.model.ExprTypes[expr]
+		elements := make([]string, len(expression.Elements))
+		for index, element := range expression.Elements {
+			elements[index] = g.expr(element)
+		}
+		return goType(typeInfo) + "{" + strings.Join(elements, ", ") + "}"
+	case *ast.IfExpr:
+		resultType := goType(g.model.ExprTypes[expr])
+		var out strings.Builder
+		out.WriteString("func() ")
+		out.WriteString(resultType)
+		out.WriteString(" { ")
+		for index, branch := range expression.Branches {
+			if index == 0 {
+				out.WriteString("if ")
+			} else {
+				out.WriteString(" else if ")
+			}
+			out.WriteString(g.expr(branch.Condition))
+			out.WriteString(" { return ")
+			out.WriteString(g.expr(branch.Value))
+			out.WriteString(" }")
+		}
+		out.WriteString("; return ")
+		out.WriteString(g.expr(expression.Else))
+		out.WriteString(" }()")
+		return out.String()
+	default:
+		panic(fmt.Sprintf("unsupported expression %T", expr))
+	}
+}
+
+func goType(t sema.Type) string {
+	switch t.Kind {
+	case sema.Number:
+		return "float64"
+	case sema.String:
+		return "string"
+	case sema.Boolean:
+		return "bool"
+	case sema.Named, sema.Enum:
+		return "*" + exported(t.Name)
+	case sema.Slice:
+		return "[]" + goType(*t.Elem)
+	default:
+		panic("invalid Go type")
+	}
+}
+
+var goKeywords = map[string]bool{
+	"break": true, "default": true, "func": true, "interface": true, "select": true,
+	"case": true, "defer": true, "go": true, "map": true, "struct": true,
+	"chan": true, "else": true, "goto": true, "package": true, "switch": true,
+	"const": true, "fallthrough": true, "if": true, "range": true, "type": true,
+	"continue": true, "for": true, "import": true, "return": true, "var": true,
+}
+
+func exported(name string) string {
+	runes := []rune(name)
+	if len(runes) == 0 {
+		return name
+	}
+	runes[0] = unicode.ToUpper(runes[0])
+	result := string(runes)
+	if goKeywords[result] {
+		return "H_" + result
+	}
+	return result
+}
+
+func localName(name string) string {
+	if goKeywords[name] || name == "_self" {
+		return "h_" + name
+	}
+	return name
+}
+
+func usesPrint(program *ast.Program) bool {
+	for _, decl := range program.Decls {
+		switch declaration := decl.(type) {
+		case *ast.FuncDecl:
+			if blockUsesPrint(declaration.Body) {
+				return true
+			}
+		case *ast.TypeDecl:
+			for _, method := range declaration.Methods {
+				if blockUsesPrint(method.Body) {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+func blockUsesPrint(body []ast.Stmt) bool {
+	for _, stmt := range body {
+		switch statement := stmt.(type) {
+		case *ast.MatchStmt:
+			if exprUsesPrint(statement.Match) {
+				return true
+			}
+		case *ast.ExprStmt:
+			if exprUsesPrint(statement.Expr) {
+				return true
+			}
+		case *ast.AssignStmt:
+			if exprUsesPrint(statement.Value) {
+				return true
+			}
+		case *ast.VarDeclStmt:
+			if exprUsesPrint(statement.Value) {
+				return true
+			}
+		case *ast.IfStmt:
+			for _, branch := range statement.Branches {
+				if exprUsesPrint(branch.Condition) || blockUsesPrint(branch.Body) {
+					return true
+				}
+			}
+			if blockUsesPrint(statement.Else) {
+				return true
+			}
+		case *ast.RepeatStmt:
+			if statement.Iterable != nil && exprUsesPrint(statement.Iterable) {
+				return true
+			}
+			if blockUsesPrint(statement.Body) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func exprUsesPrint(expr ast.Expr) bool {
+	switch expression := expr.(type) {
+	case *ast.MatchExpr:
+		if exprUsesPrint(expression.Value) {
+			return true
+		}
+		for _, arm := range expression.Arms {
+			if blockUsesPrint(arm.Body) {
+				return true
+			}
+		}
+	case *ast.IndexExpr:
+		return exprUsesPrint(expression.Object) || exprUsesPrint(expression.Index)
+	case *ast.CallExpr:
+		if ident, ok := expression.Callee.(*ast.IdentExpr); ok && ident.Name == "imprimir" {
+			return true
+		}
+		if exprUsesPrint(expression.Callee) {
+			return true
+		}
+		for _, arg := range expression.Args {
+			if exprUsesPrint(arg) {
+				return true
+			}
+		}
+	case *ast.UnaryExpr:
+		return exprUsesPrint(expression.Value)
+	case *ast.BinaryExpr:
+		return exprUsesPrint(expression.Left) || exprUsesPrint(expression.Right)
+	case *ast.IfExpr:
+		for _, branch := range expression.Branches {
+			if exprUsesPrint(branch.Condition) || exprUsesPrint(branch.Value) {
+				return true
+			}
+		}
+		return exprUsesPrint(expression.Else)
+	case *ast.MemberExpr:
+		return exprUsesPrint(expression.Object)
+	case *ast.StructLiteralExpr:
+		for _, field := range expression.Fields {
+			if exprUsesPrint(field.Value) {
+				return true
+			}
+		}
+	case *ast.ListLiteralExpr:
+		for _, element := range expression.Elements {
+			if exprUsesPrint(element) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func validate(filename string, source []byte) error {
+	set := token.NewFileSet()
+	file, err := parser.ParseFile(set, filename+".go", source, parser.AllErrors)
+	if err != nil {
+		return fmt.Errorf("el Go generado no es válido: %w", err)
+	}
+	var typeErrors []string
+	config := types.Config{
+		Importer: importer.Default(),
+		Error:    func(err error) { typeErrors = append(typeErrors, err.Error()) },
+	}
+	if _, err = config.Check("main", set, []*goast.File{file}, nil); err != nil {
+		return fmt.Errorf("el Go generado no pasa la verificación de tipos: %s", strings.Join(typeErrors, "; "))
+	}
+	return nil
+}
+
+func (g *generator) write(format string, args ...any) {
+	fmt.Fprintf(&g.buffer, format, args...)
+}
+
+func (g *generator) line(indent int, format string, args ...any) {
+	g.buffer.WriteString(strings.Repeat("\t", indent))
+	fmt.Fprintf(&g.buffer, format, args...)
+	g.buffer.WriteByte('\n')
+}

@@ -1,0 +1,763 @@
+package lspserver
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"unicode"
+
+	"github.com/owenrumney/go-lsp/document"
+	"github.com/owenrumney/go-lsp/lsp"
+	"github.com/owenrumney/go-lsp/server"
+
+	"hacha/internal/ast"
+	"hacha/internal/compiler"
+	"hacha/internal/lexer"
+	"hacha/internal/parser"
+	"hacha/internal/sema"
+	"hacha/internal/token"
+)
+
+const serverVersion = "0.1.0"
+
+type Handler struct {
+	documents *document.Store
+	client    *server.Client
+}
+
+func NewHandler() *Handler {
+	return &Handler{documents: document.NewStore()}
+}
+
+func Run(ctx context.Context) error {
+	srv := server.NewServer(NewHandler())
+	return srv.Run(ctx, server.RunStdio())
+}
+
+func (h *Handler) SetClient(client *server.Client) {
+	h.client = client
+}
+
+func (h *Handler) Initialize(_ context.Context, _ *lsp.InitializeParams) (*lsp.InitializeResult, error) {
+	return &lsp.InitializeResult{
+		ServerInfo: &lsp.ServerInfo{Name: "hacha", Version: serverVersion},
+		Capabilities: lsp.ServerCapabilities{
+			CompletionProvider: &lsp.CompletionOptions{TriggerCharacters: []string{".", "@"}},
+		},
+	}, nil
+}
+
+func (h *Handler) Shutdown(_ context.Context) error { return nil }
+
+func (h *Handler) DidOpen(ctx context.Context, params *lsp.DidOpenTextDocumentParams) error {
+	if params.TextDocument.LanguageID != "" && params.TextDocument.LanguageID != "hacha" {
+		return nil
+	}
+	if _, err := h.documents.Open(params); err != nil {
+		return err
+	}
+	return h.publishDiagnostics(ctx, params.TextDocument.URI)
+}
+
+func (h *Handler) DidChange(ctx context.Context, params *lsp.DidChangeTextDocumentParams) error {
+	if _, err := h.documents.Change(params); err != nil {
+		return err
+	}
+	return h.publishDiagnostics(ctx, params.TextDocument.URI)
+}
+
+func (h *Handler) DidSave(ctx context.Context, params *lsp.DidSaveTextDocumentParams) error {
+	return h.publishDiagnostics(ctx, params.TextDocument.URI)
+}
+
+func (h *Handler) DidClose(ctx context.Context, params *lsp.DidCloseTextDocumentParams) error {
+	h.documents.Close(params)
+	if h.client == nil {
+		return nil
+	}
+	return h.client.PublishDiagnostics(ctx, &lsp.PublishDiagnosticsParams{
+		URI:         params.TextDocument.URI,
+		Diagnostics: []lsp.Diagnostic{},
+	})
+}
+
+// Completion offers fields and methods after a dot or the receiver marker @.
+// The current line is made syntactically complete before analysis so
+// completion still works while a member name is incomplete.
+func (h *Handler) Completion(_ context.Context, params *lsp.CompletionParams) (*lsp.CompletionList, error) {
+	text, ok := h.documents.Text(params.TextDocument.URI)
+	if !ok {
+		return &lsp.CompletionList{}, nil
+	}
+	lines := strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n")
+	lineIndex := params.Position.Line
+	if lineIndex < 0 || lineIndex >= len(lines) {
+		return &lsp.CompletionList{}, nil
+	}
+	prefix := utf16Prefix(lines[lineIndex], params.Position.Character)
+	if !completionCodePosition(prefix) {
+		return &lsp.CompletionList{}, nil
+	}
+	dot := strings.LastIndex(prefix, ".")
+	at := strings.LastIndex(prefix, "@")
+	if at > dot {
+		return receiverCompletion(string(params.TextDocument.URI), lines, lineIndex, prefix, at), nil
+	}
+	if dot < 0 {
+		return &lsp.CompletionList{}, nil
+	}
+	end := dot
+	start := end
+	for start > 0 && isIdentifierRune(rune(prefix[start-1])) {
+		start--
+	}
+	receiverName := prefix[start:end]
+	if list, handled := contextualCompletion(string(params.TextDocument.URI), lines, lineIndex, prefix, dot, start); handled {
+		return list, nil
+	}
+	if receiverName == "" {
+		return &lsp.CompletionList{}, nil
+	}
+	indentEnd := 0
+	for indentEnd < len(lines[lineIndex]) && lines[lineIndex][indentEnd] == '\t' {
+		indentEnd++
+	}
+	replacement := lines[lineIndex][:indentEnd]
+	if arrow := strings.Index(prefix, "=>"); arrow >= 0 {
+		replacement = prefix[:arrow+2] + " "
+	}
+	replacement += receiverName
+	model := completionModel(string(params.TextDocument.URI), lines, lineIndex, replacement)
+	if model == nil {
+		return &lsp.CompletionList{}, nil
+	}
+	var receiverType sema.Type
+	for expression, expressionType := range model.ExprTypes {
+		ident, isIdent := expression.(*ast.IdentExpr)
+		if isIdent && ident.Name == receiverName && ident.Pos.Line == lineIndex+1 {
+			receiverType = expressionType
+		}
+	}
+	if receiverType.Kind != sema.Named {
+		if receiverType.Kind == sema.Invalid {
+			if info := model.Enums[receiverName]; info != nil {
+				return enumCompletionItems(info), nil
+			}
+		}
+		return &lsp.CompletionList{}, nil
+	}
+	return memberCompletionItems(model.Types[receiverType.Name].Decl), nil
+}
+
+func receiverCompletion(filename string, lines []string, lineIndex int, prefix string, at int) *lsp.CompletionList {
+	for _, value := range prefix[at+1:] {
+		if !isIdentifierRune(value) {
+			return &lsp.CompletionList{}
+		}
+	}
+	indentEnd := 0
+	for indentEnd < len(lines[lineIndex]) && lines[lineIndex][indentEnd] == '\t' {
+		indentEnd++
+	}
+	if indentEnd == 0 {
+		return &lsp.CompletionList{}
+	}
+
+	analysisLines := append([]string(nil), lines...)
+	if indentEnd == 1 && strings.HasPrefix(strings.TrimSpace(lines[lineIndex]), "fn ") {
+		// @ may be typed as the inline body of a method declaration.
+		analysisLines[lineIndex] = prefix[:at] + "imprimir(verdadero)"
+	} else if indentEnd >= 2 {
+		analysisLines[lineIndex] = strings.Repeat("\t", indentEnd) + "imprimir(verdadero)"
+	} else {
+		return &lsp.CompletionList{}
+	}
+	tokens, err := lexer.Lex(filename, strings.Join(analysisLines, "\n"))
+	if err != nil {
+		return &lsp.CompletionList{}
+	}
+	program, err := parser.Parse(filename, tokens)
+	if err != nil {
+		return &lsp.CompletionList{}
+	}
+	typeDecl := enclosingTypeAt(program, lineIndex+1)
+	if typeDecl == nil {
+		return &lsp.CompletionList{}
+	}
+	return memberCompletionItems(typeDecl)
+}
+
+func enclosingTypeAt(program *ast.Program, line int) *ast.TypeDecl {
+	var enclosing ast.Decl
+	for _, declaration := range program.Decls {
+		if declaration.Position().Line > line {
+			break
+		}
+		enclosing = declaration
+	}
+	typeDecl, _ := enclosing.(*ast.TypeDecl)
+	return typeDecl
+}
+
+func memberCompletionItems(typeDecl *ast.TypeDecl) *lsp.CompletionList {
+	items := make([]lsp.CompletionItem, 0, len(typeDecl.Fields)+len(typeDecl.Methods))
+	fieldKind := lsp.CompletionItemKindField
+	for _, field := range typeDecl.Fields {
+		items = append(items, lsp.CompletionItem{Label: field.Name, Kind: &fieldKind, Detail: typeRefString(field.Type)})
+	}
+	methodKind := lsp.CompletionItemKindMethod
+	for _, method := range typeDecl.Methods {
+		items = append(items, lsp.CompletionItem{Label: method.Name, Kind: &methodKind, Detail: functionDetail(method)})
+	}
+	return &lsp.CompletionList{Items: items}
+}
+
+// Hover reports the compiler-inferred type of variables and the declaration
+// of functions. A function's immediately preceding // comment block is shown
+// as documentation, matching the convention used by Go tooling.
+func (h *Handler) Hover(_ context.Context, params *lsp.HoverParams) (*lsp.Hover, error) {
+	text, ok := h.documents.Text(params.TextDocument.URI)
+	if !ok {
+		return nil, nil
+	}
+	program, model, err := compiler.Analyze(string(params.TextDocument.URI), []byte(text))
+	if err != nil || program == nil || model == nil {
+		return nil, nil
+	}
+	normalized := strings.ReplaceAll(strings.ReplaceAll(text, "\r\n", "\n"), "\r", "\n")
+	lines := strings.Split(normalized, "\n")
+	tokens, err := lexer.Lex(string(params.TextDocument.URI), normalized)
+	if err != nil {
+		return nil, nil
+	}
+	identifier, hoverRange, ok := identifierAt(tokens, lines, params.Position)
+	if !ok {
+		return nil, nil
+	}
+	info, ok := resolveHover(program, model, identifier.Pos, lines)
+	if !ok {
+		return nil, nil
+	}
+	value := "```hacha\n" + info.detail + "\n```"
+	if info.documentation != "" {
+		value += "\n\n" + info.documentation
+	}
+	return &lsp.Hover{Contents: lsp.NewHoverContents(lsp.Markdown, value), Range: &hoverRange}, nil
+}
+
+type hoverInfo struct {
+	detail        string
+	documentation string
+}
+
+func identifierAt(tokens []token.Token, lines []string, position lsp.Position) (token.Token, lsp.Range, bool) {
+	for _, candidate := range tokens {
+		if candidate.Kind != token.Ident || candidate.Pos.Line-1 != position.Line {
+			continue
+		}
+		lineIndex := candidate.Pos.Line - 1
+		if lineIndex < 0 || lineIndex >= len(lines) {
+			continue
+		}
+		lineRunes := []rune(lines[lineIndex])
+		startRune := candidate.Pos.Column - 1
+		endRune := startRune + len([]rune(candidate.Lexeme))
+		if startRune < 0 || endRune > len(lineRunes) {
+			continue
+		}
+		start := utf16Length(string(lineRunes[:startRune]))
+		end := utf16Length(string(lineRunes[:endRune]))
+		if position.Character < start || position.Character >= end {
+			continue
+		}
+		hoverRange := lsp.Range{
+			Start: lsp.Position{Line: lineIndex, Character: start},
+			End:   lsp.Position{Line: lineIndex, Character: end},
+		}
+		return candidate, hoverRange, true
+	}
+	return token.Token{}, lsp.Range{}, false
+}
+
+func resolveHover(program *ast.Program, model *sema.Model, position ast.Pos, lines []string) (hoverInfo, bool) {
+	if info, ok := enumHover(model, position); ok {
+		return info, true
+	}
+	// Identifier expressions are the common case and already carry their exact
+	// inferred type in the semantic model.
+	for expression, expressionType := range model.ExprTypes {
+		if identifier, ok := expression.(*ast.IdentExpr); ok && identifier.Pos == position {
+			return variableHover(identifier.Name, expressionType), true
+		}
+	}
+
+	for _, declaration := range program.Decls {
+		switch decl := declaration.(type) {
+		case *ast.TypeDecl:
+			for _, method := range decl.Methods {
+				if info, ok := hoverInFunction(method, model.Types[decl.Name].Methods[method.Name], model, position, lines); ok {
+					return info, true
+				}
+			}
+		case *ast.FuncDecl:
+			if info, ok := hoverInFunction(decl, model.Functions[decl.Name], model, position, lines); ok {
+				return info, true
+			}
+		}
+	}
+	return hoverInfo{}, false
+}
+
+func hoverInFunction(function *ast.FuncDecl, signature sema.FuncInfo, model *sema.Model, position ast.Pos, lines []string) (hoverInfo, bool) {
+	if function.NamePos == position {
+		return functionHover(signature, lines), true
+	}
+	for index, param := range function.Params {
+		if param.Pos == position {
+			return variableHover(param.Name, signature.Params[index]), true
+		}
+	}
+	return hoverInStatements(function.Body, model, position, lines, function.Receiver)
+}
+
+func hoverInStatements(statements []ast.Stmt, model *sema.Model, position ast.Pos, lines []string, receiverName string) (hoverInfo, bool) {
+	for _, statement := range statements {
+		switch stmt := statement.(type) {
+		case *ast.MatchStmt:
+			if info, ok := hoverInExpression(stmt.Match, model, position, lines, receiverName); ok {
+				return info, true
+			}
+		case *ast.ExprStmt:
+			if info, ok := hoverInExpression(stmt.Expr, model, position, lines, receiverName); ok {
+				return info, true
+			}
+		case *ast.AssignStmt:
+			if info, ok := hoverInExpression(stmt.Target, model, position, lines, receiverName); ok {
+				return info, true
+			}
+			if info, ok := hoverInExpression(stmt.Value, model, position, lines, receiverName); ok {
+				return info, true
+			}
+		case *ast.VarDeclStmt:
+			if stmt.NamePos == position {
+				if variableType, exists := model.VarTypes[stmt]; exists {
+					return variableHover(stmt.Name, variableType), true
+				}
+			}
+			if info, ok := hoverInExpression(stmt.Value, model, position, lines, receiverName); ok {
+				return info, true
+			}
+		case *ast.IfStmt:
+			for _, branch := range stmt.Branches {
+				if info, ok := hoverInExpression(branch.Condition, model, position, lines, receiverName); ok {
+					return info, true
+				}
+				if info, ok := hoverInStatements(branch.Body, model, position, lines, receiverName); ok {
+					return info, true
+				}
+			}
+			if info, ok := hoverInStatements(stmt.Else, model, position, lines, receiverName); ok {
+				return info, true
+			}
+		case *ast.RepeatStmt:
+			if info, ok := hoverInExpression(stmt.Iterable, model, position, lines, receiverName); ok {
+				return info, true
+			}
+			if iterableType, exists := model.ExprTypes[stmt.Iterable]; exists && iterableType.Kind == sema.Slice {
+				if stmt.ElementPos == position {
+					return variableHover(stmt.Element, *iterableType.Elem), true
+				}
+				if stmt.IndexPos == position {
+					return variableHover(stmt.Index, sema.Type{Kind: sema.Number}), true
+				}
+			}
+			if info, ok := hoverInStatements(stmt.Body, model, position, lines, receiverName); ok {
+				return info, true
+			}
+		}
+	}
+	return hoverInfo{}, false
+}
+
+func hoverInExpression(expression ast.Expr, model *sema.Model, position ast.Pos, lines []string, receiverName string) (hoverInfo, bool) {
+	if expression == nil {
+		return hoverInfo{}, false
+	}
+	if identifier, ok := expression.(*ast.IdentExpr); ok && identifier.Pos == position {
+		if variableType, exists := model.ExprTypes[identifier]; exists {
+			return variableHover(identifier.Name, variableType), true
+		}
+	}
+	switch expr := expression.(type) {
+	case *ast.MatchExpr:
+		if info, ok := hoverInExpression(expr.Value, model, position, lines, receiverName); ok {
+			return info, true
+		}
+		for _, arm := range expr.Arms {
+			if arm.Qualifier != "" && arm.QualifierPos == position {
+				return hoverInfo{detail: "enum " + arm.Qualifier}, true
+			}
+			if arm.NamePos == position && arm.Pattern != "_" {
+				if enum := model.Enums[model.ExprTypes[expr.Value].Name]; enum != nil {
+					return variantHover(enum, enum.Variants[arm.Pattern]), true
+				}
+			}
+			if info, ok := hoverInStatements(arm.Body, model, position, lines, receiverName); ok {
+				return info, true
+			}
+		}
+	case *ast.UnaryExpr:
+		return hoverInExpression(expr.Value, model, position, lines, receiverName)
+	case *ast.BinaryExpr:
+		if info, ok := hoverInExpression(expr.Left, model, position, lines, receiverName); ok {
+			return info, true
+		}
+		return hoverInExpression(expr.Right, model, position, lines, receiverName)
+	case *ast.CallExpr:
+		switch callee := expr.Callee.(type) {
+		case *ast.IdentExpr:
+			if callee.Pos == position {
+				if function, exists := model.Functions[callee.Name]; exists {
+					return functionHover(function, lines), true
+				}
+			}
+		case *ast.MemberExpr:
+			if callee.NamePos == position {
+				if receiverType, exists := model.ExprTypes[callee.Object]; exists && receiverType.Kind == sema.Named {
+					if method, exists := model.Types[receiverType.Name].Methods[callee.Name]; exists {
+						return functionHover(method, lines), true
+					}
+				}
+			}
+		case *ast.ReceiverExpr:
+			if callee.NamePos == position && receiverName != "" {
+				if typeInfo, exists := model.Types[receiverName]; exists {
+					if method, exists := typeInfo.Methods[callee.Name]; exists {
+						return functionHover(method, lines), true
+					}
+				}
+			}
+		}
+		if info, ok := hoverInExpression(expr.Callee, model, position, lines, receiverName); ok {
+			return info, true
+		}
+		for _, argument := range expr.Args {
+			if info, ok := hoverInExpression(argument, model, position, lines, receiverName); ok {
+				return info, true
+			}
+		}
+	case *ast.MemberExpr:
+		return hoverInExpression(expr.Object, model, position, lines, receiverName)
+	case *ast.IndexExpr:
+		if info, ok := hoverInExpression(expr.Object, model, position, lines, receiverName); ok {
+			return info, true
+		}
+		return hoverInExpression(expr.Index, model, position, lines, receiverName)
+	case *ast.StructLiteralExpr:
+		for _, field := range expr.Fields {
+			if info, ok := hoverInExpression(field.Value, model, position, lines, receiverName); ok {
+				return info, true
+			}
+		}
+	case *ast.ListLiteralExpr:
+		for _, element := range expr.Elements {
+			if info, ok := hoverInExpression(element, model, position, lines, receiverName); ok {
+				return info, true
+			}
+		}
+	case *ast.IfExpr:
+		for _, branch := range expr.Branches {
+			if info, ok := hoverInExpression(branch.Condition, model, position, lines, receiverName); ok {
+				return info, true
+			}
+			if info, ok := hoverInExpression(branch.Value, model, position, lines, receiverName); ok {
+				return info, true
+			}
+		}
+		return hoverInExpression(expr.Else, model, position, lines, receiverName)
+	}
+	return hoverInfo{}, false
+}
+
+func variableHover(name string, variableType sema.Type) hoverInfo {
+	return hoverInfo{detail: "var " + name + " " + variableType.String()}
+}
+
+func functionHover(function sema.FuncInfo, lines []string) hoverInfo {
+	return hoverInfo{
+		detail:        functionDetail(function.Decl),
+		documentation: documentationBefore(lines, function.Decl.NamePos.Line),
+	}
+}
+
+func documentationBefore(lines []string, declarationLine int) string {
+	lineIndex := declarationLine - 1
+	if lineIndex <= 0 || lineIndex >= len(lines) {
+		return ""
+	}
+	declaration := lines[lineIndex]
+	indentLength := 0
+	for indentLength < len(declaration) && declaration[indentLength] == '\t' {
+		indentLength++
+	}
+	indent := declaration[:indentLength]
+	var reversed []string
+	for index := lineIndex - 1; index >= 0; index-- {
+		raw := lines[index]
+		if !strings.HasPrefix(raw, indent+"//") {
+			break
+		}
+		comment := strings.TrimPrefix(raw[len(indent):], "//")
+		comment = strings.TrimPrefix(comment, " ")
+		reversed = append(reversed, comment)
+	}
+	for left, right := 0, len(reversed)-1; left < right; left, right = left+1, right-1 {
+		reversed[left], reversed[right] = reversed[right], reversed[left]
+	}
+	return strings.Join(reversed, "\n")
+}
+
+func isIdentifierRune(value rune) bool {
+	return value == '_' || value >= 'a' && value <= 'z' || value >= 'A' && value <= 'Z' || value >= '0' && value <= '9' || value > 127
+}
+
+func utf16Prefix(value string, units int) string {
+	if units <= 0 {
+		return ""
+	}
+	used := 0
+	for byteIndex, r := range value {
+		width := 1
+		if r > 0xFFFF {
+			width = 2
+		}
+		if used+width > units {
+			return value[:byteIndex]
+		}
+		used += width
+		if used == units {
+			return value[:byteIndex+len(string(r))]
+		}
+	}
+	return value
+}
+
+func (h *Handler) publishDiagnostics(ctx context.Context, uri lsp.DocumentURI) error {
+	if h.client == nil {
+		return fmt.Errorf("el cliente LSP no está conectado")
+	}
+	text, ok := h.documents.Text(uri)
+	if !ok {
+		return nil
+	}
+	_, _, analysisErr := compiler.Analyze(string(uri), []byte(text))
+	diagnostics := []lsp.Diagnostic{}
+	if analysisErr != nil {
+		diagnostics = append(diagnostics, diagnosticFromError(analysisErr, text))
+	}
+	params := &lsp.PublishDiagnosticsParams{URI: uri, Diagnostics: diagnostics}
+	if version, exists := h.documents.Version(uri); exists {
+		params.Version = &version
+	}
+	return h.client.PublishDiagnostics(ctx, params)
+}
+
+func diagnosticFromError(err error, text string) lsp.Diagnostic {
+	position := ast.Pos{Line: 1, Column: 1}
+	message := err.Error()
+	switch typed := err.(type) {
+	case *lexer.Error:
+		position, message = typed.Pos, typed.Message
+	case *parser.Error:
+		position, message = typed.Pos, typed.Message
+	case *sema.Error:
+		position, message = typed.Pos, typed.Message
+	}
+	start, end := diagnosticRange(position, text)
+	severity := lsp.SeverityError
+	return lsp.Diagnostic{
+		Range:    lsp.Range{Start: start, End: end},
+		Severity: &severity,
+		Source:   "hacha",
+		Message:  message,
+	}
+}
+
+func diagnosticRange(position ast.Pos, text string) (lsp.Position, lsp.Position) {
+	normalized := strings.ReplaceAll(strings.ReplaceAll(text, "\r\n", "\n"), "\r", "\n")
+	lines := strings.Split(normalized, "\n")
+	lineIndex := max(position.Line-1, 0)
+	runeStart := max(position.Column-1, 0)
+	if lineIndex >= len(lines) {
+		point := lsp.Position{Line: lineIndex, Character: runeStart}
+		return point, point
+	}
+
+	lineRunes := []rune(lines[lineIndex])
+	runeStart = min(runeStart, len(lineRunes))
+	runeLength := tokenRuneLengthAt(position, normalized)
+	if runeLength == 0 {
+		runeLength = fallbackTokenRuneLength(lineRunes, runeStart)
+	}
+	runeEnd := min(runeStart+runeLength, len(lineRunes))
+	start := lsp.Position{Line: lineIndex, Character: utf16Length(string(lineRunes[:runeStart]))}
+	end := lsp.Position{Line: lineIndex, Character: utf16Length(string(lineRunes[:runeEnd]))}
+	return start, end
+}
+
+// tokenRuneLengthAt uses the compiler's lexer as the source of truth whenever
+// lexing succeeds. This keeps diagnostic ranges aligned with Hacha tokens,
+// including quoted strings and Unicode identifiers.
+func tokenRuneLengthAt(position ast.Pos, source string) int {
+	tokens, err := lexer.Lex("", source)
+	if err != nil {
+		return 0
+	}
+	for _, candidate := range tokens {
+		if candidate.Pos == position && candidate.Lexeme != "" {
+			return len([]rune(candidate.Lexeme))
+		}
+	}
+	return 0
+}
+
+// fallbackTokenRuneLength handles diagnostics produced before a complete token
+// stream exists, most notably lexer errors.
+func fallbackTokenRuneLength(line []rune, start int) int {
+	if start >= len(line) {
+		return 0
+	}
+	if line[start] == ' ' || line[start] == '\t' {
+		end := start + 1
+		for end < len(line) && line[end] == line[start] {
+			end++
+		}
+		return end - start
+	}
+	if unicode.IsLetter(line[start]) || line[start] == '_' {
+		end := start + 1
+		for end < len(line) && (unicode.IsLetter(line[end]) || unicode.IsDigit(line[end]) || line[end] == '_') {
+			end++
+		}
+		return end - start
+	}
+	if unicode.IsDigit(line[start]) {
+		end := start + 1
+		for end < len(line) && (unicode.IsDigit(line[end]) || line[end] == '.') {
+			end++
+		}
+		return end - start
+	}
+	if line[start] == '"' {
+		escaped := false
+		for end := start + 1; end < len(line); end++ {
+			if line[end] == '"' && !escaped {
+				return end - start + 1
+			}
+			if line[end] == '\\' && !escaped {
+				escaped = true
+			} else {
+				escaped = false
+			}
+		}
+		return len(line) - start
+	}
+	if start+1 < len(line) {
+		switch string(line[start : start+2]) {
+		case "==", "!=", "<=", ">=", "&&", "||":
+			return 2
+		}
+	}
+	return 1
+}
+
+func (h *Handler) DocumentSymbol(_ context.Context, params *lsp.DocumentSymbolParams) ([]lsp.DocumentSymbol, error) {
+	text, ok := h.documents.Text(params.TextDocument.URI)
+	if !ok {
+		return nil, nil
+	}
+	program, _, _ := compiler.Analyze(string(params.TextDocument.URI), []byte(text))
+	if program == nil {
+		return nil, nil
+	}
+	lines := strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n")
+	var symbols []lsp.DocumentSymbol
+	for _, decl := range program.Decls {
+		switch declaration := decl.(type) {
+		case *ast.EnumDecl:
+			symbol := symbolFor(lines, declaration.Name, declaration.Pos, lsp.SymbolKindEnum, "enum")
+			for _, variant := range declaration.Variants {
+				detail := "variante"
+				if variant.Payload != nil {
+					detail = typeRefString(*variant.Payload)
+				}
+				symbol.Children = append(symbol.Children, symbolFor(lines, variant.Name, variant.Pos, lsp.SymbolKindEnumMember, detail))
+			}
+			symbols = append(symbols, symbol)
+		case *ast.TypeDecl:
+			symbol := symbolFor(lines, declaration.Name, declaration.Pos, lsp.SymbolKindStruct, "tipo")
+			for _, field := range declaration.Fields {
+				symbol.Children = append(symbol.Children, symbolFor(lines, field.Name, field.Pos, lsp.SymbolKindField, typeRefString(field.Type)))
+			}
+			for _, method := range declaration.Methods {
+				symbol.Children = append(symbol.Children, symbolFor(lines, method.Name, method.Pos, lsp.SymbolKindMethod, functionDetail(method)))
+			}
+			symbols = append(symbols, symbol)
+		case *ast.FuncDecl:
+			symbols = append(symbols, symbolFor(lines, declaration.Name, declaration.Pos, lsp.SymbolKindFunction, functionDetail(declaration)))
+		}
+	}
+	return symbols, nil
+}
+
+func symbolFor(lines []string, name string, position ast.Pos, kind lsp.SymbolKind, detail string) lsp.DocumentSymbol {
+	lineIndex := max(position.Line-1, 0)
+	lineLength := 0
+	nameStart := max(position.Column-1, 0)
+	if lineIndex < len(lines) {
+		lineLength = utf16Length(lines[lineIndex])
+		if byteIndex := strings.Index(lines[lineIndex], name); byteIndex >= 0 {
+			nameStart = utf16Length(lines[lineIndex][:byteIndex])
+		}
+	}
+	wholeLine := lsp.Range{
+		Start: lsp.Position{Line: lineIndex, Character: 0},
+		End:   lsp.Position{Line: lineIndex, Character: lineLength},
+	}
+	selection := lsp.Range{
+		Start: lsp.Position{Line: lineIndex, Character: nameStart},
+		End:   lsp.Position{Line: lineIndex, Character: nameStart + utf16Length(name)},
+	}
+	return lsp.DocumentSymbol{Name: name, Detail: detail, Kind: kind, Range: wholeLine, SelectionRange: selection}
+}
+
+func typeRefString(ref ast.TypeRef) string {
+	if ref.Element != nil {
+		return "[" + typeRefString(*ref.Element) + "]"
+	}
+	return ref.Name
+}
+
+func functionDetail(function *ast.FuncDecl) string {
+	var params []string
+	for _, param := range function.Params {
+		params = append(params, param.Name+" "+typeRefString(param.Type))
+	}
+	detail := "fn " + function.Name + "(" + strings.Join(params, ", ") + ")"
+	if function.ReturnType != nil {
+		detail += " " + typeRefString(*function.ReturnType)
+	}
+	return detail
+}
+
+func utf16Length(value string) int {
+	length := 0
+	for _, r := range value {
+		if r > 0xFFFF {
+			length += 2
+		} else {
+			length++
+		}
+	}
+	return length
+}

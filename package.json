@@ -1,0 +1,71 @@
+{
+  "name": "hacha-language",
+  "displayName": "Hacha Language",
+  "description": "Syntax highlighting and editor support for the Hacha programming language.",
+  "version": "0.0.1",
+  "publisher": "local",
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onLanguage:hacha"
+  ],
+  "engines": {
+    "vscode": "^1.106.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "hacha",
+        "aliases": [
+          "Hacha",
+          "hacha"
+        ],
+        "extensions": [
+          ".hacha"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "hacha",
+        "scopeName": "source.hacha",
+        "path": "./syntaxes/hacha.tmLanguage.json"
+      }
+    ],
+    "configurationDefaults": {
+      "[hacha]": {
+        "editor.insertSpaces": false,
+        "editor.tabSize": 4
+      }
+    },
+    "configuration": {
+      "title": "Hacha",
+      "properties": {
+        "hacha.server.path": {
+          "type": "string",
+          "default": "",
+          "scope": "machine-overridable",
+          "description": "Absolute path to a Hacha executable. When empty, the extension uses the executable in its bin directory."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "build:server": "node ./scripts/build-server.js",
+    "build": "npm run compile && npm run build:server",
+    "check": "npm run compile && npm run build:server"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^10.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.2",
+    "@types/vscode": "^1.106.0",
+    "typescript": "^7.0.2"
+  }
+}
