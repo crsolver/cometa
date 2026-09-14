@@ -56,7 +56,10 @@ The machine has two Go installations. `C:\msys64\mingw64\bin\go.exe` reports Go 
 - `casos` is exhaustive as both a statement and an expression. Arm labels are indented; `=>` introduces one inline statement/expression or an indented block. Optional `|e|` binds only explicit payload arms, never unit variants or `_`. Value arms produce a common type. Loop control cannot escape a value match to an outer loop.
 - Receiver fields and methods require `@`; bare identifiers do not fall back to receiver members.
 - `imprimir(valor)` maps to `fmt.Println(valor)`.
-- List iteration and infinite loops use `repetir`; `continuar` and `romper` control the nearest loop. Imports, nullable values, explicit references, multi-file modules, and direct executable generation remain outside the MVP.
+- Optionals use `T?`; results use `T!` (string error) or `T!E`; `!`/`!E` mean success without a payload. Constructors are `.Alguno`/`.Ninguno` and `.Ok`/`.Error`, with one implicit wrapping step under an expected type. Extraction requires `casos`, optional `si` binding, `o`, `capturar`, or `intentar`. `retornar` exits explicitly; propagation exits the enclosing Hacha function. No user-defined generics are required.
+- Omitted scalar/list/optional fields have valid defaults. Struct fields default to fresh recursive instances, but result/enum fields require explicit initialization through every required nested field. Required struct cycles are rejected; optionals and lists allow recursion. Ordinary declared references cannot be nil in Hacha.
+- Discarded wrapper expressions and unread local wrapper variables are errors. Parameter defaults cannot contain `retornar` or `intentar`.
+- List iteration and infinite loops use `repetir`; `continuar` and `romper` control the nearest loop. Imports, standalone null values, explicit references, user-defined generics, multi-file modules, and direct executable generation remain outside the MVP.
 
 ## Architecture
 
@@ -66,6 +69,7 @@ The machine has two Go installations. `C:\msys64\mingw64\bin\go.exe` reports Go 
 - `internal/ast`: declarations, statements, expressions, types, and source positions.
 - `internal/sema`: symbol collection, type checking, receiver checks, call validation, and implicit-return validation.
 - `internal/codegen`: exported Go name mapping, conditional lowering, `go/format`, and generated-Go type validation.
+- `internal/codegen/flow.go`: statement-level lowering for wrappers and explicit exits; preserves evaluation order and laziness without returning from generated expression helper functions.
 - `internal/compiler`: `Analyze` runs the frontend for in-memory tooling; `Compile` additionally generates Go.
 - `internal/lspserver`: go-lsp handler, incremental document store, live diagnostics, UTF-16 position conversion, and hierarchical document symbols.
 - `src/extension.ts`: VS Code language client. It launches the configured/default executable with `lsp` and explicit stdio transport.

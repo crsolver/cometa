@@ -22,26 +22,31 @@ type ConstructorInfo struct {
 }
 
 func (c *checker) checkContextualVariant(expr *ast.ContextualVariantExpr, call *ast.CallExpr, expected *Type) (Type, error) {
-	if expected == nil || expected.Kind != Enum {
-		return Type{}, c.fail(expr.Pos, "no se puede inferir el enum de .%s; se requiere un tipo enum esperado", expr.Name)
+	if call != nil {
+		if err := c.plainArguments(call); err != nil {
+			return Type{}, err
+		}
 	}
-	info := c.model.Enums[expected.Name]
+	if expected == nil || expected.Kind != Enum && !expected.Wrapped() {
+		return Type{}, c.fail(expr.Pos, "no se puede inferir el enum de .%s; se requiere un tipo enum, opcional o resultado esperado", expr.Name)
+	}
+	info := c.model.EnumFor(*expected)
 	variant, exists := info.Variants[expr.Name]
 	if !exists {
-		return Type{}, c.fail(expr.NamePos, "la variante %q no existe en %s", expr.Name, expected.Name)
+		return Type{}, c.fail(expr.NamePos, "la variante %q no existe en %s", expr.Name, expected.String())
 	}
 	var node ast.Expr = expr
 	if call == nil {
 		if variant.Payload.Kind != Void {
-			return Type{}, c.fail(expr.NamePos, "la variante %s.%s requiere un payload", expected.Name, expr.Name)
+			return Type{}, c.fail(expr.NamePos, "la variante %s.%s requiere un payload", expected.String(), expr.Name)
 		}
 	} else {
 		node = call
 		if variant.Payload.Kind == Void {
-			return Type{}, c.fail(expr.Pos, "la variante %s.%s no acepta paréntesis ni payload", expected.Name, expr.Name)
+			return Type{}, c.fail(expr.Pos, "la variante %s.%s no acepta paréntesis ni payload", expected.String(), expr.Name)
 		}
 		if len(call.Args) != 1 {
-			return Type{}, c.fail(expr.Pos, "la variante %s.%s espera exactamente un payload", expected.Name, expr.Name)
+			return Type{}, c.fail(expr.Pos, "la variante %s.%s espera exactamente un payload", expected.String(), expr.Name)
 		}
 		actual, err := c.checkExprExpected(call.Args[0], &variant.Payload)
 		if err != nil {
@@ -84,15 +89,17 @@ func cloneVars(vars map[string]Type) map[string]Type {
 }
 
 func (c *checker) checkMatch(m *ast.MatchExpr, value bool, expected *Type) (Type, error) {
+	defer c.bindingScope()()
+	outerBindings := c.bindings
 	c.model.LocalNames[m.Binding] = true
 	t, err := c.checkExpr(m.Value)
 	if err != nil {
 		return Type{}, err
 	}
-	if t.Kind != Enum {
-		return Type{}, c.fail(m.Pos, "casos requiere un enum, no %s", t.String())
+	if t.Kind != Enum && !t.Wrapped() {
+		return Type{}, c.fail(m.Pos, "casos requiere un enum, opcional o resultado, no %s", t.String())
 	}
-	info := c.model.Enums[t.Name]
+	info := c.model.EnumFor(t)
 	outer, depth := c.vars, c.loopDepth
 	defer func() { c.vars, c.loopDepth = outer, depth }()
 	// Value matches lower to a function and cannot transfer control out of it.
@@ -108,6 +115,7 @@ func (c *checker) checkMatch(m *ast.MatchExpr, value bool, expected *Type) (Type
 	wildcard := false
 	result := Type{Kind: Void}
 	for index, arm := range m.Arms {
+		c.bindings = cloneBindings(outerBindings)
 		c.model.PatternTypes[arm] = t
 		if arm.Qualifier != "" && arm.Qualifier != t.Name {
 			return Type{}, c.fail(arm.QualifierPos, "el patrón debe pertenecer a %s, no %s", t.Name, arm.Qualifier)
@@ -142,6 +150,8 @@ func (c *checker) checkMatch(m *ast.MatchExpr, value bool, expected *Type) (Type
 			}
 			if index == 0 {
 				result = actual
+			} else if result.Kind == Never {
+				result = actual
 			} else if !result.Equal(actual) {
 				return Type{}, c.fail(arm.Pos, "las ramas producen %s y %s", result.String(), actual.String())
 			}
@@ -171,6 +181,7 @@ func (c *checker) checkMatch(m *ast.MatchExpr, value bool, expected *Type) (Type
 // Check final expressions with their expected type before asking for a block
 // result, so contextual struct/list literals work through nested branches.
 func (c *checker) checkValueBlock(body []ast.Stmt, expected *Type) (Type, error) {
+	defer c.bindingScope()()
 	outer := c.vars
 	c.vars = cloneVars(outer)
 	defer func() { c.vars = outer }()
@@ -178,6 +189,9 @@ func (c *checker) checkValueBlock(body []ast.Stmt, expected *Type) (Type, error)
 		if index < len(body)-1 {
 			if err := c.checkStmt(stmt); err != nil {
 				return Type{}, err
+			}
+			if c.model.Terminates(stmt) {
+				return Type{Kind: Never}, nil
 			}
 			continue
 		}
@@ -198,22 +212,22 @@ func (c *checker) checkValueBlock(body []ast.Stmt, expected *Type) (Type, error)
 			}
 			var common Type
 			for i, branch := range final.Branches {
-				condition, err := c.checkExpr(branch.Condition)
-				if err != nil {
+				branchOuter := c.vars
+				c.vars = cloneVars(branchOuter)
+				if err := c.checkCondition(branch.Condition, branch.Binding, branch.BindingPos); err != nil {
+					c.vars = branchOuter
 					return Type{}, err
-				}
-				if condition.Kind != Boolean {
-					return Type{}, c.fail(branch.Pos, "la condición debe ser bool, no %s", condition.String())
 				}
 				branchExpected := expected
 				if branchExpected == nil && i > 0 {
 					branchExpected = &common
 				}
 				t, err := c.checkValueBlock(branch.Body, branchExpected)
+				c.vars = branchOuter
 				if err != nil {
 					return Type{}, err
 				}
-				if i == 0 {
+				if i == 0 || common.Kind == Never {
 					common = t
 				} else if !common.Equal(t) {
 					return Type{}, c.fail(branch.Pos, "las ramas producen %s y %s", common.String(), t.String())
@@ -229,6 +243,9 @@ func (c *checker) checkValueBlock(body []ast.Stmt, expected *Type) (Type, error)
 			}
 			if !common.Equal(t) {
 				return Type{}, c.fail(final.Pos, "las ramas producen %s y %s", common.String(), t.String())
+			}
+			if common.Kind == Never {
+				common = t
 			}
 			return common, nil
 		default:

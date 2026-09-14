@@ -1,0 +1,44 @@
+tipo Direccion
+	ciudad cadena
+
+tipo Usuario
+	nombre cadena
+	direccion Direccion
+	referido Usuario?
+
+enum ErrorLectura
+	NoExiste
+	Detalle cadena
+
+fn buscar(existe bool) Usuario?
+	si existe
+		Usuario {nombre: "Ana"}
+	sino
+		.Ninguno
+
+fn cargar(existe bool) Usuario!ErrorLectura
+	si existe retornar Usuario {nombre: "Luis"}
+	.Error(.Detalle("no se pudo leer el usuario"))
+
+fn nombre(existe bool) cadena!ErrorLectura
+	var usuario = intentar cargar(existe)
+	usuario.nombre
+
+fn guardar() !
+	.Ok
+
+fn inicio()
+	si buscar(verdadero) |usuario|
+		imprimir(usuario.nombre)
+	sino
+		imprimir("sin usuario")
+
+	var invitado = buscar(falso) o Usuario {nombre: "Invitado"}
+	imprimir(invitado.nombre)
+
+	var texto = nombre(falso) capturar |error|
+		casos error |detalle|
+			.NoExiste => "no existe"
+			.Detalle => detalle
+	imprimir(texto)
+	guardar() capturar |error| imprimir(error)

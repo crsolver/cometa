@@ -1,0 +1,6 @@
+fn inicio()
+	// Final exclusivo: 0, 1, 2, 3, 4.
+	repetir (0..5) |i| imprimir(i)
+	// Descendente: 5, 4, 3, 2, 1.
+	repetir (5..0) |i|
+		imprimir(i)

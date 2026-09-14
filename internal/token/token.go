@@ -41,6 +41,8 @@ const (
 	Pipe      Kind = "|"
 	Colon     Kind = ":"
 	Dot       Kind = "."
+	Range     Kind = ".."
+	Ellipsis  Kind = "..."
 	At        Kind = "@"
 	Assign    Kind = "="
 	Plus      Kind = "+"
@@ -57,6 +59,11 @@ const (
 	And       Kind = "&&"
 	Or        Kind = "||"
 	Bang      Kind = "!"
+	Question  Kind = "?"
+	Fallback  Kind = "o"
+	Catch     Kind = "capturar"
+	Try       Kind = "intentar"
+	Return    Kind = "retornar"
 )
 
 type Token struct {

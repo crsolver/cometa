@@ -15,6 +15,9 @@ func TestContextualCompletion(t *testing.T) {
 		want         bool
 	}{
 		{"call", "fn inicio()\n\timprimir(f(.|))\n", true},
+		{"named call", "fn inicio()\n\tg(ip = .|, n = \"ok\")\n", true},
+		{"variadic call", "fn v(ips ...IP) imprimir(ips)\nfn inicio()\n\tv(IP.V4, .|)\n", true},
+		{"named variadic call", "fn v(ips ...IP) imprimir(ips)\nfn inicio()\n\tv(ips = [.|])\n", true},
 		{"unclosed call", "fn inicio()\n\timprimir(f(.|\n", true},
 		{"missing later argument", "fn h(ip IP, n num)\n\timprimir(n)\nfn inicio()\n\th(.|\n", true},
 		{"partial", "fn inicio()\n\tf(.V|4)\n", true},

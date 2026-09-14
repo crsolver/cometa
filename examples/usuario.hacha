@@ -39,11 +39,15 @@ enum Evento
 
 fn mostrar_evento(evento Evento)
 	casos evento |e|
-		.Cargar_Pagina    => imprimir("cargando pagina")
+		.Cargar_Pagina => 
+			imprimir("cargando pagina")
+
 		.Buton_Presionado => 
 			imprimir("buton presionado:")
 			imprimir(e.caracter)
-		_ => imprimir("otro evento")
+
+		_ => 
+			imprimir("otro evento")
 
 
 fn describir(evento Evento) cadena
@@ -60,17 +64,26 @@ enum IP
 	V4
 	V6
 
-fn a_cadena(ip IP) cadena
-	casos ip
-		IP.V4 => "v4"
-		IP.V6 => "v6"
+fn a_cadena(ip IP) cadena casos ip
+	IP.V4 => "v4"
+	IP.V6 => "v6"
 
-fn a_cadena2(ip IP) cadena
-	casos ip
-		.V4 => "v4" // . should trigger suggestions for ip type
-		.V6 => "v6"
+fn a_cadena2(ip IP) cadena casos ip
+	.V4 => "v4"
+	.V6 => "v6"
 
 
 fn mostrar_ips()
 	imprimir(a_cadena(.V4)) // a_cadena expects IP so no need to write IP, . should trigger suggestions
 	imprimir(a_cadena(.V6))
+
+
+enum Resultado
+	Error cadena
+	Ok num
+
+fn obt_resultado()
+	var resultado = Resultado.Ok(3)
+	casos resultado |v|
+		.Ok => imprimir(v)
+		.Error => imprimir(v)

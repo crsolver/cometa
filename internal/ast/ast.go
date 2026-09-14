@@ -71,9 +71,12 @@ type Decl interface {
 }
 
 type TypeRef struct {
-	Pos     Pos
-	Name    string
-	Element *TypeRef
+	Wrapper   string
+	Payload   *TypeRef
+	ErrorType *TypeRef
+	Pos       Pos
+	Name      string
+	Element   *TypeRef
 }
 
 func (t TypeRef) IsSlice() bool { return t.Element != nil }
@@ -111,9 +114,11 @@ func (*FuncDecl) declNode()       {}
 func (d *FuncDecl) Position() Pos { return d.Pos }
 
 type Param struct {
-	Pos  Pos
-	Name string
-	Type TypeRef
+	Default  Expr
+	Variadic bool
+	Pos      Pos
+	Name     string
+	Type     TypeRef
 }
 
 type Stmt interface {
@@ -159,16 +164,19 @@ func (*IfStmt) stmtNode()       {}
 func (s *IfStmt) Position() Pos { return s.Pos }
 
 type IfBranch struct {
-	Pos       Pos
-	Condition Expr
-	Body      []Stmt
+	Binding    string
+	BindingPos Pos
+	Pos        Pos
+	Condition  Expr
+	Body       []Stmt
 }
 
-// RepeatStmt represents either an infinite loop (Iterable is nil) or a loop
-// over a list. Element and Index are only set for list loops.
+// RepeatStmt represents an infinite loop (Iterable is nil), list iteration,
+// or a numeric range (Iterable is the start and RangeEnd is the exclusive end).
 type RepeatStmt struct {
 	Pos        Pos
 	Iterable   Expr
+	RangeEnd   Expr
 	ElementPos Pos
 	Element    string
 	IndexPos   Pos
@@ -240,9 +248,16 @@ func (*BinaryExpr) exprNode()       {}
 func (e *BinaryExpr) Position() Pos { return e.Pos }
 
 type CallExpr struct {
+	ArgInfo []ArgumentInfo // Parallel to Args, retaining source order.
+	Pos     Pos
+	Callee  Expr
+	Args    []Expr
+}
+
+type ArgumentInfo struct {
 	Pos    Pos
-	Callee Expr
-	Args   []Expr
+	Name   string
+	Spread bool
 }
 
 func (*CallExpr) exprNode()       {}
@@ -300,7 +315,46 @@ func (*IfExpr) exprNode()       {}
 func (e *IfExpr) Position() Pos { return e.Pos }
 
 type IfExprBranch struct {
-	Pos       Pos
-	Condition Expr
-	Value     Expr
+	Binding    string
+	BindingPos Pos
+	Pos        Pos
+	Condition  Expr
+	Value      Expr
 }
+
+// ReturnExpr terminates the enclosing function, including inside value blocks.
+type ReturnExpr struct {
+	Pos   Pos
+	Value Expr
+}
+
+func (*ReturnExpr) exprNode()       {}
+func (e *ReturnExpr) Position() Pos { return e.Pos }
+
+type TryExpr struct {
+	Pos   Pos
+	Value Expr
+}
+
+func (*TryExpr) exprNode()       {}
+func (e *TryExpr) Position() Pos { return e.Pos }
+
+type RecoverExpr struct {
+	Pos        Pos
+	Value      Expr
+	Error      bool
+	Binding    string
+	BindingPos Pos
+	Body       []Stmt
+}
+
+func (*RecoverExpr) exprNode()       {}
+func (e *RecoverExpr) Position() Pos { return e.Pos }
+
+type BlockExpr struct {
+	Pos  Pos
+	Body []Stmt
+}
+
+func (*BlockExpr) exprNode()       {}
+func (e *BlockExpr) Position() Pos { return e.Pos }

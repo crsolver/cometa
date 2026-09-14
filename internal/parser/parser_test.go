@@ -7,6 +7,27 @@ import (
 	"hacha/internal/lexer"
 )
 
+func TestParsesRangeLoop(t *testing.T) {
+	tokens, err := lexer.Lex("rango.hacha", "fn inicio()\n\trepetir ((1 + 2)..-5) |i| imprimir(i)\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	program, err := Parse("rango.hacha", tokens)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loop := program.Decls[0].(*ast.FuncDecl).Body[0].(*ast.RepeatStmt)
+	if _, ok := loop.Iterable.(*ast.BinaryExpr); !ok {
+		t.Fatalf("start = %T, want binary expression", loop.Iterable)
+	}
+	if _, ok := loop.RangeEnd.(*ast.UnaryExpr); !ok {
+		t.Fatalf("end = %T, want unary expression", loop.RangeEnd)
+	}
+	if loop.Element != "i" || len(loop.Body) != 1 {
+		t.Fatalf("unexpected loop: %#v", loop)
+	}
+}
+
 func TestParsesTypeMethodsAndConditionalExpression(t *testing.T) {
 	source := "tipo Usuario\n\tedad num\n\tactivo bool\n\tfn activar(valor bool)\n\t\t@activo = si (@edad < 18) verdadero sino valor\n"
 	tokens, err := lexer.Lex("usuario.hacha", source)

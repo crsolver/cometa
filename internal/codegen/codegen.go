@@ -17,14 +17,43 @@ import (
 )
 
 type generator struct {
-	buffer    bytes.Buffer
-	model     *sema.Model
-	nextName  int
-	loopLabel string
+	flow         bool
+	returnType   sema.Type
+	buffer       bytes.Buffer
+	model        *sema.Model
+	nextName     int
+	loopLabel    string
+	defaultFlags map[*ast.FuncDecl][]string
 }
 
 func Generate(filename string, program *ast.Program, model *sema.Model) ([]byte, error) {
-	g := &generator{model: model}
+	g := &generator{model: model, defaultFlags: map[*ast.FuncDecl][]string{}}
+	for expr, t := range model.ExprTypes {
+		if t.Wrapped() {
+			g.flow = true
+		}
+		switch expr.(type) {
+		case *ast.ReturnExpr, *ast.TryExpr, *ast.RecoverExpr, *ast.BlockExpr:
+			g.flow = true
+		}
+	}
+	register := func(decl *ast.FuncDecl) {
+		for _, param := range decl.Params {
+			if param.Default != nil {
+				g.defaultFlags[decl] = append(g.defaultFlags[decl], g.freshName())
+			}
+		}
+	}
+	for _, decl := range program.Decls {
+		switch d := decl.(type) {
+		case *ast.FuncDecl:
+			register(d)
+		case *ast.TypeDecl:
+			for _, method := range d.Methods {
+				register(method)
+			}
+		}
+	}
 	g.line(0, "package main")
 	g.line(0, "")
 	if usesPrint(program) {
@@ -84,18 +113,49 @@ func (g *generator) emitFunction(decl *ast.FuncDecl) {
 		}
 		g.write("func %s(", name)
 	}
+	for _, flag := range g.defaultFlags[decl] {
+		g.write("%s bool, ", flag)
+	}
 	for index, param := range decl.Params {
 		if index > 0 {
 			g.write(", ")
 		}
-		g.write("%s %s", localName(param.Name), goType(signature.Params[index]))
+		paramType := goType(signature.Params[index])
+		if param.Variadic {
+			paramType = "..." + goType(*signature.Params[index].Elem)
+		}
+		g.write("%s %s", localName(param.Name), paramType)
 	}
 	g.write(")")
 	if signature.Return.Kind != sema.Void {
 		g.write(" %s", goType(signature.Return))
 	}
 	g.write(" {\n")
-	g.emitBlock(decl.Body, 1, signature.Return.Kind != sema.Void)
+	g.returnType = signature.Return
+	flagIndex := 0
+	for _, param := range decl.Params {
+		if param.Default != nil {
+			g.line(1, "if %s {", g.defaultFlags[decl][flagIndex])
+			value := ""
+			if g.flow {
+				value = g.flowExpr(param.Default, 2)
+			} else {
+				value = g.expr(param.Default)
+			}
+			g.line(2, "%s = %s", localName(param.Name), value)
+			g.line(1, "}")
+			flagIndex++
+		}
+	}
+	if g.flow {
+		target := ""
+		if signature.Return.Kind != sema.Void {
+			target = "return"
+		}
+		g.flowBlock(decl.Body, 1, target)
+	} else {
+		g.emitBlock(decl.Body, 1, signature.Return.Kind != sema.Void)
+	}
 	g.line(0, "}")
 	g.line(0, "")
 }
@@ -149,6 +209,10 @@ func (g *generator) emitRepeat(stmt *ast.RepeatStmt, indent int) {
 	outerLabel := g.loopLabel
 	g.loopLabel = ""
 	defer func() { g.loopLabel = outerLabel }()
+	if stmt.RangeEnd != nil {
+		g.emitRange(stmt, indent)
+		return
+	}
 	if needsLoopLabel(stmt.Body, false) {
 		g.loopLabel = g.freshName()
 		g.line(indent, "%s:", g.loopLabel)
@@ -172,6 +236,31 @@ func (g *generator) emitRepeat(stmt *ast.RepeatStmt, indent int) {
 	g.line(indent+1, "_ = %s", element)
 	g.emitBlock(stmt.Body, indent+1, false)
 	g.line(indent, "}")
+}
+
+func (g *generator) emitRange(stmt *ast.RepeatStmt, indent int) {
+	current, end, step, index := g.freshName(), g.freshName(), g.freshName(), g.freshName()
+	// Evaluate bounds once, in source order, before introducing loop bindings.
+	g.line(indent, "{")
+	indent++
+	g.line(indent, "%s := float64(%s)", current, g.expr(stmt.Iterable))
+	g.line(indent, "%s := float64(%s)", end, g.expr(stmt.RangeEnd))
+	g.line(indent, "%s := float64(1)", step)
+	g.line(indent, "if %s > %s { %s = -1 }", current, end, step)
+	if needsLoopLabel(stmt.Body, false) {
+		g.loopLabel = g.freshName()
+		g.line(indent, "%s:", g.loopLabel)
+	}
+	g.line(indent, "for %s := float64(0); (%s > 0 && %s < %s) || (%s < 0 && %s > %s); %s, %s = %s + %s, %s + 1 {", index, step, current, end, step, current, end, current, index, current, step, index)
+	g.line(indent+1, "%s := %s", localName(stmt.Element), current)
+	g.line(indent+1, "_ = %s", localName(stmt.Element))
+	if stmt.Index != "" {
+		g.line(indent+1, "%s := %s", localName(stmt.Index), index)
+		g.line(indent+1, "_ = %s", localName(stmt.Index))
+	}
+	g.emitBlock(stmt.Body, indent+1, false)
+	g.line(indent, "}")
+	g.line(indent-1, "}")
 }
 
 func (g *generator) emitIf(stmt *ast.IfStmt, indent int, returnValue bool) {
@@ -242,17 +331,14 @@ func (g *generator) expr(expr ast.Expr) string {
 		case *ast.MemberExpr:
 			callee = g.expr(called)
 		}
-		args := make([]string, len(expression.Args))
-		for index, arg := range expression.Args {
-			args[index] = g.expr(arg)
-		}
-		return callee + "(" + strings.Join(args, ", ") + ")"
+		return g.call(expression, callee)
 	case *ast.StructLiteralExpr:
 		typeInfo := g.model.ExprTypes[expr]
 		fields := make([]string, len(expression.Fields))
 		for index, field := range expression.Fields {
 			fields[index] = exported(field.Name) + ": " + g.expr(field.Value)
 		}
+		fields = append(fields, g.defaultFields(typeInfo, expression.Fields)...)
 		return "&" + exported(typeInfo.Name) + "{" + strings.Join(fields, ", ") + "}"
 	case *ast.ListLiteralExpr:
 		typeInfo := g.model.ExprTypes[expr]
@@ -289,6 +375,17 @@ func (g *generator) expr(expr ast.Expr) string {
 
 func goType(t sema.Type) string {
 	switch t.Kind {
+	case sema.Void, sema.Never:
+		return "struct{}"
+	case sema.Optional, sema.Result:
+		fields := "struct { tag int"
+		if t.Elem.Kind != sema.Void {
+			fields += "; payload1 " + goType(*t.Elem)
+		}
+		if t.Kind == sema.Result {
+			fields += "; payload2 " + goType(*t.Err)
+		}
+		return fields + " }"
 	case sema.Number:
 		return "float64"
 	case sema.String:
@@ -336,18 +433,27 @@ func usesPrint(program *ast.Program) bool {
 	for _, decl := range program.Decls {
 		switch declaration := decl.(type) {
 		case *ast.FuncDecl:
-			if blockUsesPrint(declaration.Body) {
+			if functionUsesPrint(declaration) {
 				return true
 			}
 		case *ast.TypeDecl:
 			for _, method := range declaration.Methods {
-				if blockUsesPrint(method.Body) {
+				if functionUsesPrint(method) {
 					return true
 				}
 			}
 		}
 	}
 	return false
+}
+
+func functionUsesPrint(decl *ast.FuncDecl) bool {
+	for _, param := range decl.Params {
+		if param.Default != nil && exprUsesPrint(param.Default) {
+			return true
+		}
+	}
+	return blockUsesPrint(decl.Body)
 }
 
 func blockUsesPrint(body []ast.Stmt) bool {
@@ -362,7 +468,7 @@ func blockUsesPrint(body []ast.Stmt) bool {
 				return true
 			}
 		case *ast.AssignStmt:
-			if exprUsesPrint(statement.Value) {
+			if exprUsesPrint(statement.Target) || exprUsesPrint(statement.Value) {
 				return true
 			}
 		case *ast.VarDeclStmt:
@@ -379,6 +485,9 @@ func blockUsesPrint(body []ast.Stmt) bool {
 				return true
 			}
 		case *ast.RepeatStmt:
+			if statement.RangeEnd != nil && exprUsesPrint(statement.RangeEnd) {
+				return true
+			}
 			if statement.Iterable != nil && exprUsesPrint(statement.Iterable) {
 				return true
 			}
@@ -392,6 +501,14 @@ func blockUsesPrint(body []ast.Stmt) bool {
 
 func exprUsesPrint(expr ast.Expr) bool {
 	switch expression := expr.(type) {
+	case *ast.ReturnExpr:
+		return exprUsesPrint(expression.Value)
+	case *ast.TryExpr:
+		return exprUsesPrint(expression.Value)
+	case *ast.RecoverExpr:
+		return exprUsesPrint(expression.Value) || blockUsesPrint(expression.Body)
+	case *ast.BlockExpr:
+		return blockUsesPrint(expression.Body)
 	case *ast.MatchExpr:
 		if exprUsesPrint(expression.Value) {
 			return true

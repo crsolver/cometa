@@ -110,12 +110,23 @@ func (p *parser) parseFuncDecl(receiver string) (*ast.FuncDecl, error) {
 			if parseErr != nil {
 				return nil, parseErr
 			}
+			variadic := p.match(token.Ellipsis)
 			paramType, parseErr := p.parseTypeRef()
 			if parseErr != nil {
 				return nil, parseErr
 			}
-			params = append(params, ast.Param{Pos: paramName.Pos, Name: paramName.Lexeme, Type: paramType})
+			param := ast.Param{Pos: paramName.Pos, Name: paramName.Lexeme, Type: paramType, Variadic: variadic}
+			if p.match(token.Assign) {
+				param.Default, parseErr = p.parseExpression(0)
+				if parseErr != nil {
+					return nil, parseErr
+				}
+			}
+			params = append(params, param)
 			if !p.match(token.Comma) {
+				break
+			}
+			if p.at(token.RParen) {
 				break
 			}
 		}
@@ -140,6 +151,45 @@ func (p *parser) parseFuncDecl(receiver string) (*ast.FuncDecl, error) {
 }
 
 func (p *parser) parseTypeRef() (ast.TypeRef, error) {
+	var base ast.TypeRef
+	var err error
+	if p.at(token.Bang) {
+		base = ast.TypeRef{Pos: p.current().Pos, Name: "$unidad"}
+	} else {
+		base, err = p.parseTypeAtom()
+		if err != nil {
+			return base, err
+		}
+	}
+	for p.at(token.Question) || p.at(token.Bang) {
+		op := p.advance()
+		payload := base
+		base = ast.TypeRef{Pos: payload.Pos, Wrapper: op.Lexeme, Payload: &payload}
+		if op.Kind == token.Bang {
+			errorType := ast.TypeRef{Pos: op.Pos, Name: "cadena"}
+			adjacent := p.current().Pos.Line == op.Pos.Line && p.current().Pos.Column == op.Pos.Column+1
+			if adjacent && (p.at(token.Ident) || p.at(token.Num) || p.at(token.Cadena) || p.at(token.Bool) || p.at(token.LParen) || p.at(token.LBracket)) {
+				errorType, err = p.parseTypeAtom()
+				if err != nil {
+					return base, err
+				}
+			}
+			base.ErrorType = &errorType
+			return base, nil
+		}
+	}
+	return base, nil
+}
+
+func (p *parser) parseTypeAtom() (ast.TypeRef, error) {
+	if p.match(token.LParen) {
+		ref, err := p.parseTypeRef()
+		if err != nil {
+			return ref, err
+		}
+		_, err = p.expect(token.RParen, "se esperaba ')' después del tipo")
+		return ref, err
+	}
 	if p.match(token.LBracket) {
 		start := p.previous()
 		element, err := p.parseTypeRef()
@@ -228,14 +278,20 @@ func (p *parser) parseRepeatStmt() (ast.Stmt, error) {
 	start := p.advance()
 	stmt := &ast.RepeatStmt{Pos: start.Pos}
 
-	// A parenthesized expression selects list iteration. Without it, repetir
+	// Parentheses select list or range iteration. Without them, repetir
 	// introduces an infinite loop whose suite starts immediately.
 	if p.match(token.LParen) {
 		iterable, err := p.parseExpression(0)
 		if err != nil {
 			return nil, err
 		}
-		if _, err = p.expect(token.RParen, "se esperaba ')' después de la lista del ciclo"); err != nil {
+		if p.match(token.Range) {
+			stmt.RangeEnd, err = p.parseExpression(0)
+			if err != nil {
+				return nil, err
+			}
+		}
+		if _, err = p.expect(token.RParen, "se esperaba ')' después de la lista o rango del ciclo"); err != nil {
 			return nil, err
 		}
 		if _, err = p.expect(token.Pipe, "se esperaba '|' antes de las variables del ciclo"); err != nil {
@@ -314,14 +370,22 @@ func (p *parser) parseIfStmt() (ast.Stmt, error) {
 	if err != nil {
 		return nil, err
 	}
+	binding, bindingPos, err := p.parseBinding()
+	if err != nil {
+		return nil, err
+	}
 	body, err := p.parseConditionalSuite()
 	if err != nil {
 		return nil, err
 	}
-	stmt := &ast.IfStmt{Pos: start.Pos, Branches: []ast.IfBranch{{Pos: start.Pos, Condition: condition, Body: body}}}
+	stmt := &ast.IfStmt{Pos: start.Pos, Branches: []ast.IfBranch{{Pos: start.Pos, Condition: condition, Body: body, Binding: binding, BindingPos: bindingPos}}}
 	for p.at(token.Osi) {
 		branchStart := p.advance()
 		branchCondition, parseErr := p.parseExpression(0)
+		if parseErr != nil {
+			return nil, parseErr
+		}
+		binding, bindingPos, parseErr := p.parseBinding()
 		if parseErr != nil {
 			return nil, parseErr
 		}
@@ -329,7 +393,7 @@ func (p *parser) parseIfStmt() (ast.Stmt, error) {
 		if parseErr != nil {
 			return nil, parseErr
 		}
-		stmt.Branches = append(stmt.Branches, ast.IfBranch{Pos: branchStart.Pos, Condition: branchCondition, Body: branchBody})
+		stmt.Branches = append(stmt.Branches, ast.IfBranch{Pos: branchStart.Pos, Condition: branchCondition, Body: branchBody, Binding: binding, BindingPos: bindingPos})
 	}
 	if p.match(token.Sino) {
 		stmt.Else, err = p.parseConditionalSuite()
@@ -384,6 +448,30 @@ func (p *parser) parseExpression(minPrecedence int) (ast.Expr, error) {
 		if p.previous().Kind == token.Dedent {
 			break
 		}
+		if minPrecedence == 0 && (p.at(token.Fallback) || p.at(token.Catch)) {
+			op := p.advance()
+			recovery := &ast.RecoverExpr{Pos: op.Pos, Value: left, Error: op.Kind == token.Catch}
+			if recovery.Error {
+				recovery.Binding, recovery.BindingPos, err = p.parseBinding()
+				if err != nil {
+					return nil, err
+				}
+			}
+			if p.at(token.Newline) {
+				recovery.Body, err = p.parseSuite()
+			} else {
+				var value ast.Expr
+				value, err = p.parseExpression(0)
+				if err == nil {
+					recovery.Body = []ast.Stmt{&ast.ExprStmt{Pos: value.Position(), Expr: value}}
+				}
+			}
+			if err != nil {
+				return nil, err
+			}
+			left = recovery
+			continue
+		}
 		if p.at(token.LBrace) {
 			ident, ok := left.(*ast.IdentExpr)
 			if !ok {
@@ -435,6 +523,21 @@ func (p *parser) parseExpression(minPrecedence int) (ast.Expr, error) {
 func (p *parser) parsePrefix() (ast.Expr, error) {
 	current := p.current()
 	switch current.Kind {
+	case token.Try:
+		p.advance()
+		value, err := p.parseExpression(7)
+		return &ast.TryExpr{Pos: current.Pos, Value: value}, err
+	case token.Return:
+		p.advance()
+		ret := &ast.ReturnExpr{Pos: current.Pos}
+		if !p.at(token.Newline) && !p.at(token.Dedent) && !p.at(token.EOF) && !p.at(token.Sino) && !p.at(token.Osi) && !p.at(token.RParen) && !p.at(token.Comma) {
+			var err error
+			ret.Value, err = p.parseExpression(0)
+			if err != nil {
+				return nil, err
+			}
+		}
+		return ret, nil
 	case token.Dot:
 		p.advance()
 		name, err := p.expect(token.Ident, "se esperaba una variante después de '.'")
@@ -573,14 +676,25 @@ func (p *parser) parseListLiteral() (ast.Expr, error) {
 func (p *parser) parseCall(callee ast.Expr) (ast.Expr, error) {
 	start := p.advance()
 	var args []ast.Expr
+	var info []ast.ArgumentInfo
 	if !p.at(token.RParen) {
 		for {
+			meta := ast.ArgumentInfo{Pos: p.current().Pos}
+			if p.at(token.Ident) && p.peekAt(1, token.Assign) {
+				meta.Name = p.advance().Lexeme
+				p.advance()
+			}
 			arg, err := p.parseExpression(0)
 			if err != nil {
 				return nil, err
 			}
 			args = append(args, arg)
+			meta.Spread = p.match(token.Ellipsis)
+			info = append(info, meta)
 			if !p.match(token.Comma) {
+				break
+			}
+			if p.at(token.RParen) {
 				break
 			}
 		}
@@ -588,7 +702,7 @@ func (p *parser) parseCall(callee ast.Expr) (ast.Expr, error) {
 	if _, err := p.expect(token.RParen, "se esperaba ')' después de los argumentos"); err != nil {
 		return nil, err
 	}
-	return &ast.CallExpr{Pos: start.Pos, Callee: callee, Args: args}, nil
+	return &ast.CallExpr{Pos: start.Pos, Callee: callee, Args: args, ArgInfo: info}, nil
 }
 
 func (p *parser) parseIndex(object ast.Expr) (ast.Expr, error) {
@@ -604,19 +718,40 @@ func (p *parser) parseIndex(object ast.Expr) (ast.Expr, error) {
 }
 
 func (p *parser) parseIfExpr() (ast.Expr, error) {
+	startIndex := p.index
 	start := p.advance()
 	condition, err := p.parseExpression(0)
 	if err != nil {
 		return nil, err
 	}
+	binding, bindingPos, err := p.parseBinding()
+	if err != nil {
+		return nil, err
+	}
+	if p.at(token.Newline) {
+		p.index = startIndex
+		stmt, err := p.parseIfStmt()
+		if err != nil {
+			return nil, err
+		}
+		conditional := stmt.(*ast.IfStmt)
+		if len(conditional.Else) == 0 {
+			return nil, p.error(p.current(), "una expresión 'si' requiere una rama 'sino'")
+		}
+		return &ast.BlockExpr{Pos: start.Pos, Body: []ast.Stmt{stmt}}, nil
+	}
 	value, err := p.parseExpression(0)
 	if err != nil {
 		return nil, p.error(p.current(), "se esperaba el valor de la rama 'si'")
 	}
-	expr := &ast.IfExpr{Pos: start.Pos, Branches: []ast.IfExprBranch{{Pos: start.Pos, Condition: condition, Value: value}}}
+	expr := &ast.IfExpr{Pos: start.Pos, Branches: []ast.IfExprBranch{{Pos: start.Pos, Condition: condition, Value: value, Binding: binding, BindingPos: bindingPos}}}
 	for p.match(token.Osi) {
 		branchStart := p.previous()
 		branchCondition, parseErr := p.parseExpression(0)
+		if parseErr != nil {
+			return nil, parseErr
+		}
+		binding, bindingPos, parseErr := p.parseBinding()
 		if parseErr != nil {
 			return nil, parseErr
 		}
@@ -624,7 +759,7 @@ func (p *parser) parseIfExpr() (ast.Expr, error) {
 		if parseErr != nil {
 			return nil, p.error(p.current(), "se esperaba el valor de la rama 'osi'")
 		}
-		expr.Branches = append(expr.Branches, ast.IfExprBranch{Pos: branchStart.Pos, Condition: branchCondition, Value: branchValue})
+		expr.Branches = append(expr.Branches, ast.IfExprBranch{Pos: branchStart.Pos, Condition: branchCondition, Value: branchValue, Binding: binding, BindingPos: bindingPos})
 	}
 	if _, err = p.expect(token.Sino, "una expresión 'si' requiere una rama 'sino'"); err != nil {
 		return nil, err
@@ -637,7 +772,19 @@ func (p *parser) parseIfExpr() (ast.Expr, error) {
 }
 
 func (p *parser) startsDefiniteType() bool {
-	return p.at(token.Num) || p.at(token.Cadena) || p.at(token.Bool) || p.at(token.LBracket)
+	return p.at(token.Num) || p.at(token.Cadena) || p.at(token.Bool) || p.at(token.LBracket) || p.at(token.Bang) || p.at(token.LParen)
+}
+
+func (p *parser) parseBinding() (string, ast.Pos, error) {
+	if !p.match(token.Pipe) {
+		return "", ast.Pos{}, nil
+	}
+	name, err := p.expect(token.Ident, "se esperaba una variable entre '|'")
+	if err != nil {
+		return "", ast.Pos{}, err
+	}
+	_, err = p.expect(token.Pipe, "se esperaba '|' después de la variable")
+	return name.Lexeme, name.Pos, err
 }
 
 func (p *parser) current() token.Token {

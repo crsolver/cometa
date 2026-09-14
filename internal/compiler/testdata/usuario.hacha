@@ -2,7 +2,7 @@ tipo Usuario
 	nombre cadena
 	edad num
 	activo bool
-	referido Usuario
+	referido Usuario?
 	amigos [Usuario]
 	fn sumar(a num, b num) num a + b
 	fn activar(activar bool)

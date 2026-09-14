@@ -1,0 +1,15 @@
+fn sumar(base num, valores ...num) num
+	var total = base
+	repetir (valores) |valor|
+		total = total + valor
+	total
+
+fn reenviar(valores ...num) num sumar(0, valores...)
+
+fn inicio()
+	var lista = [1, 2, 3]
+	imprimir(sumar(10))
+	imprimir(sumar(10, 1, 2, 3))
+	imprimir(sumar(10, lista...))
+	imprimir(sumar(valores = lista, base = 10))
+	imprimir(reenviar(1, 2, 3))

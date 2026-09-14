@@ -78,7 +78,7 @@
     },
     "keywords": {
       "patterns": [
-        { "name": "keyword.control.conditional.hacha", "match": "\\b(?:si|osi|sino|casos)\\b" },
+        { "name": "keyword.control.conditional.hacha", "match": "\\b(?:si|osi|sino|casos|o|capturar|intentar|retornar)\\b" },
         { "name": "keyword.control.loop.hacha", "match": "\\b(?:repetir|continuar|romper)\\b" },
         { "name": "storage.type.function.hacha", "match": "\\bfn\\b" },
         { "name": "storage.type.struct.hacha", "match": "\\b(?:tipo|enum)\\b" },
@@ -127,7 +127,9 @@
     },
     "operators": {
       "patterns": [
-        { "name": "keyword.operator.hacha", "match": "=>|==|!=|<=|>=|&&|\\|\\||[+\\-*/%=<>!]" }
+        { "name": "keyword.operator.variadic.hacha", "match": "\\.\\.\\." },
+        { "name": "keyword.operator.range.hacha", "match": "\\.\\." },
+        { "name": "keyword.operator.hacha", "match": "=>|==|!=|<=|>=|&&|\\|\\||[+\\-*/%=<>!?]" }
       ]
     },
     "punctuation": {

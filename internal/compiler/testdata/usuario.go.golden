@@ -6,8 +6,11 @@ type Usuario struct {
 	Nombre   string
 	Edad     float64
 	Activo   bool
-	Referido *Usuario
-	Amigos   []*Usuario
+	Referido struct {
+		tag      int
+		payload1 *Usuario
+	}
+	Amigos []*Usuario
 }
 
 func (_self *Usuario) Sumar(a float64, b float64) float64 {

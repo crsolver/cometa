@@ -316,6 +316,11 @@ func hoverInFunction(function *ast.FuncDecl, signature sema.FuncInfo, model *sem
 		if param.Pos == position {
 			return variableHover(param.Name, signature.Params[index]), true
 		}
+		if param.Default != nil {
+			if info, ok := hoverInExpression(param.Default, model, position, lines, function.Receiver); ok {
+				return info, true
+			}
+		}
 	}
 	return hoverInStatements(function.Body, model, position, lines, function.Receiver)
 }
@@ -349,6 +354,11 @@ func hoverInStatements(statements []ast.Stmt, model *sema.Model, position ast.Po
 			}
 		case *ast.IfStmt:
 			for _, branch := range stmt.Branches {
+				if branch.Binding != "" && branch.BindingPos == position {
+					if typ := model.ExprTypes[branch.Condition]; typ.Kind == sema.Optional {
+						return variableHover(branch.Binding, *typ.Elem), true
+					}
+				}
 				if info, ok := hoverInExpression(branch.Condition, model, position, lines, receiverName); ok {
 					return info, true
 				}
@@ -360,6 +370,16 @@ func hoverInStatements(statements []ast.Stmt, model *sema.Model, position ast.Po
 				return info, true
 			}
 		case *ast.RepeatStmt:
+			if info, ok := hoverInExpression(stmt.RangeEnd, model, position, lines, receiverName); ok {
+				return info, true
+			}
+			if stmt.RangeEnd != nil && (stmt.ElementPos == position || stmt.IndexPos == position) {
+				name := stmt.Element
+				if stmt.IndexPos == position {
+					name = stmt.Index
+				}
+				return variableHover(name, sema.Type{Kind: sema.Number}), true
+			}
 			if info, ok := hoverInExpression(stmt.Iterable, model, position, lines, receiverName); ok {
 				return info, true
 			}
@@ -385,10 +405,29 @@ func hoverInExpression(expression ast.Expr, model *sema.Model, position ast.Pos,
 	}
 	if identifier, ok := expression.(*ast.IdentExpr); ok && identifier.Pos == position {
 		if variableType, exists := model.ExprTypes[identifier]; exists {
+			if wrapper, converted := model.Wraps[identifier]; converted {
+				variableType = *wrapper.Elem
+			}
 			return variableHover(identifier.Name, variableType), true
 		}
 	}
 	switch expr := expression.(type) {
+	case *ast.ReturnExpr:
+		return hoverInExpression(expr.Value, model, position, lines, receiverName)
+	case *ast.TryExpr:
+		return hoverInExpression(expr.Value, model, position, lines, receiverName)
+	case *ast.BlockExpr:
+		return hoverInStatements(expr.Body, model, position, lines, receiverName)
+	case *ast.RecoverExpr:
+		if info, ok := hoverInExpression(expr.Value, model, position, lines, receiverName); ok {
+			return info, true
+		}
+		if expr.Binding != "" && expr.BindingPos == position {
+			if typ := model.ExprTypes[expr.Value]; typ.Kind == sema.Result {
+				return variableHover(expr.Binding, *typ.Err), true
+			}
+		}
+		return hoverInStatements(expr.Body, model, position, lines, receiverName)
 	case *ast.MatchExpr:
 		if info, ok := hoverInExpression(expr.Value, model, position, lines, receiverName); ok {
 			return info, true
@@ -398,7 +437,7 @@ func hoverInExpression(expression ast.Expr, model *sema.Model, position ast.Pos,
 				return hoverInfo{detail: "enum " + arm.Qualifier}, true
 			}
 			if arm.NamePos == position && arm.Pattern != "_" {
-				if enum := model.Enums[model.ExprTypes[expr.Value].Name]; enum != nil {
+				if enum := model.EnumFor(model.ExprTypes[expr.Value]); enum != nil {
 					return variantHover(enum, enum.Variants[arm.Pattern]), true
 				}
 			}
@@ -467,6 +506,11 @@ func hoverInExpression(expression ast.Expr, model *sema.Model, position ast.Pos,
 		}
 	case *ast.IfExpr:
 		for _, branch := range expr.Branches {
+			if branch.Binding != "" && branch.BindingPos == position {
+				if typ := model.ExprTypes[branch.Condition]; typ.Kind == sema.Optional {
+					return variableHover(branch.Binding, *typ.Elem), true
+				}
+			}
 			if info, ok := hoverInExpression(branch.Condition, model, position, lines, receiverName); ok {
 				return info, true
 			}
@@ -732,6 +776,26 @@ func symbolFor(lines []string, name string, position ast.Pos, kind lsp.SymbolKin
 }
 
 func typeRefString(ref ast.TypeRef) string {
+	if ref.Wrapper != "" {
+		payload := typeRefString(*ref.Payload)
+		if ref.Payload.Name == "$unidad" {
+			payload = ""
+		}
+		if ref.Payload.Wrapper == "!" {
+			payload = "(" + payload + ")"
+		}
+		if ref.Wrapper == "?" {
+			return payload + "?"
+		}
+		if ref.ErrorType.Name == "cadena" && ref.ErrorType.Wrapper == "" {
+			return payload + "!"
+		}
+		errorType := typeRefString(*ref.ErrorType)
+		if ref.ErrorType.Wrapper != "" {
+			errorType = "(" + errorType + ")"
+		}
+		return payload + "!" + errorType
+	}
 	if ref.Element != nil {
 		return "[" + typeRefString(*ref.Element) + "]"
 	}
@@ -741,7 +805,15 @@ func typeRefString(ref ast.TypeRef) string {
 func functionDetail(function *ast.FuncDecl) string {
 	var params []string
 	for _, param := range function.Params {
-		params = append(params, param.Name+" "+typeRefString(param.Type))
+		prefix := ""
+		if param.Variadic {
+			prefix = "..."
+		}
+		detail := param.Name + " " + prefix + typeRefString(param.Type)
+		if param.Default != nil {
+			detail += " = …"
+		}
+		params = append(params, detail)
 	}
 	detail := "fn " + function.Name + "(" + strings.Join(params, ", ") + ")"
 	if function.ReturnType != nil {

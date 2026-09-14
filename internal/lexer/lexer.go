@@ -20,6 +20,7 @@ func (e *Error) Error() string {
 }
 
 var keywords = map[string]token.Kind{
+	"o": token.Fallback, "capturar": token.Catch, "intentar": token.Try, "retornar": token.Return,
 	"enum": token.Enum, "casos": token.Casos,
 	"tipo": token.Tipo, "fn": token.Fn, "si": token.Si, "osi": token.Osi,
 	"var":  token.Var,
@@ -115,7 +116,7 @@ func lexLine(filename string, lineNo, start int, runes []rune) ([]token.Token, e
 			for j < len(runes) && unicode.IsDigit(runes[j]) {
 				j++
 			}
-			if j < len(runes) && runes[j] == '.' {
+			if j < len(runes) && runes[j] == '.' && !(j+1 < len(runes) && runes[j+1] == '.') {
 				j++
 				if j >= len(runes) || !unicode.IsDigit(runes[j]) {
 					return nil, lexError(filename, lineNo, j+1, "se esperaba un dígito después del punto decimal")
@@ -151,9 +152,14 @@ func lexLine(filename string, lineNo, start int, runes []rune) ([]token.Token, e
 			continue
 		}
 
+		if i+2 < len(runes) && string(runes[i:i+3]) == "..." {
+			out = append(out, token.Token{Kind: token.Ellipsis, Lexeme: "...", Pos: pos})
+			i += 3
+			continue
+		}
 		if i+1 < len(runes) {
 			pair := string(runes[i : i+2])
-			pairs := map[string]token.Kind{"=>": token.Arrow, "==": token.Equal, "!=": token.NotEqual, "<=": token.LessEq, ">=": token.GreaterEq, "&&": token.And, "||": token.Or}
+			pairs := map[string]token.Kind{"..": token.Range, "=>": token.Arrow, "==": token.Equal, "!=": token.NotEqual, "<=": token.LessEq, ">=": token.GreaterEq, "&&": token.And, "||": token.Or}
 			if kind, ok := pairs[pair]; ok {
 				out = append(out, token.Token{Kind: kind, Lexeme: pair, Pos: pos})
 				i += 2
@@ -166,7 +172,7 @@ func lexLine(filename string, lineNo, start int, runes []rune) ([]token.Token, e
 			'|': token.Pipe,
 			'@': token.At, '=': token.Assign, '+': token.Plus, '-': token.Minus,
 			'*': token.Star, '/': token.Slash, '%': token.Percent, '<': token.Less,
-			'>': token.Greater, '!': token.Bang,
+			'>': token.Greater, '!': token.Bang, '?': token.Question,
 		}
 		kind, ok := singles[ch]
 		if !ok {

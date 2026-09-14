@@ -9,6 +9,67 @@ fn inicio()
 	imprimir("hola desde Hacha")
 ```
 
+## Variadic parameters and named arguments
+
+```hacha
+fn sumar(base num, valores ...num) num
+	var total = base
+	repetir (valores) |valor|
+		total = total + valor
+	total
+
+fn inicio()
+	imprimir(sumar(10, 1, 2))
+	var lista = [1, 2]
+	imprimir(sumar(10, lista...))
+	imprimir(sumar(valores = lista, base = 10))
+	imprimir(sumar(base = 10))
+```
+
+The final parameter may use `...T`; its body sees a `[T]` list. Calls accept zero or more elements, or one final `lista...` sharing the list's storage, as in Go. Individual variadic elements cannot be mixed with expansion.
+
+Named arguments use `name = value` in any order. Positional arguments must come first; fixed parameters without defaults are required exactly once. A named variadic argument supplies the entire list (`valores = lista`, also `valores = lista...` when last). Expressions evaluate once in source order, with the receiver evaluated first. Functions and methods support both features; `imprimir` accepts `valor = ...`, while enum payload constructors remain positional. See `examples/argumentos.hacha` for a runnable example.
+
+## Default parameter values
+
+```hacha
+fn saludar(nombre cadena = "mundo", saludo cadena = "hola " + nombre) cadena
+	saludo
+
+fn inicio()
+	imprimir(saludar())                         // hola mundo
+	imprimir(saludar("Ana"))                    // hola Ana
+	imprimir(saludar(saludo = "buenos días"))    // buenos días
+```
+
+Functions and methods accept `name Type = expression`. Required parameters must precede defaulted parameters; a final variadic parameter is allowed but cannot declare a default. Positional arguments fill parameters from left to right; named arguments can skip defaults. Explicit zero, false, and empty values override defaults.
+
+Omitted defaults evaluate once per call, in declaration order, after the receiver and all explicit arguments. Defaults are checked against the parameter type, even for unused functions, and can use earlier parameters, ordinary function calls, and `@` members in methods. They cannot reference themselves, later parameters, body locals, or caller locals. Lists and structs created by defaults are fresh on each evaluation; references to earlier parameters retain their usual sharing. See `examples/defaults.hacha`.
+
+## Optionals and errors
+
+Use `T?` for a value that may be absent, `T!` for a value or string error, and `T!E` for a typed error. `!` and `!E` represent operations with no success payload. A plain value implicitly becomes present/successful when the expected type allows one wrapping step. Absence and failure use `.Ninguno` and `.Error(error)` explicitly.
+
+```hacha
+fn buscar(existe bool) num?
+	si existe 42
+	sino .Ninguno
+
+fn cargar() num! .Error("no disponible")
+
+fn siguiente() num!
+	var valor = intentar cargar()
+	valor + 1
+
+fn inicio()
+	imprimir(buscar(falso) o 0)
+	imprimir(siguiente() capturar 0)
+```
+
+Use exhaustive `casos`, optional `si valor |payload|` bindings, lazy `o` fallbacks, or `capturar |error|` recovery. `intentar` propagates one layer of absence or a compatible error; `retornar` exits explicitly. Access to the contained value always requires extraction. Discarded wrappers and unread local wrapper variables are errors.
+
+Scalars, lists and optionals retain valid defaults. Omitted struct fields allocate fresh, recursively defaulted objects; result and enum fields require explicit initialization, including when nested. Required struct cycles are rejected: migrate a recursive `referido Usuario` to `referido Usuario?`. See [the executable example](examples/errores.hacha) and [the complete rules](specs.md).
+
 ## Try it
 
 ```console
@@ -42,6 +103,8 @@ If the server executable lives elsewhere, set `hacha.server.path` in VS Code set
 The source language and current MVP boundaries are documented in [specs.md](specs.md).
 
 Hacha also supports list loops with `repetir (lista) |elemento, indice|`, loop control through `continuar` and `romper`, and infinite inline loops such as `repetir imprimir("hola")`.
+
+Numeric ranges are available only in loops: `repetir (0..5) |i| imprimir(i)` prints `0` through `4`, and `repetir (5..0) |i| imprimir(i)` prints `5` through `1`. Bounds are `num` expressions evaluated once, with an exclusive end and an automatic step of `1` or `-1`. Equal bounds produce no iterations. An optional second binding receives the index starting at zero.
 
 ## Enums and exhaustive matches
 

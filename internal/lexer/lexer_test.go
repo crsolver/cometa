@@ -7,6 +7,22 @@ import (
 	"hacha/internal/token"
 )
 
+func TestRangeAndDecimalTokens(t *testing.T) {
+	tokens, err := Lex("rango.hacha", "0..5 0.5..2.5 1... 1.25 .Variante")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []token.Kind{token.Number, token.Range, token.Number, token.Number, token.Range, token.Number, token.Number, token.Ellipsis, token.Number, token.Dot, token.Ident, token.Newline, token.EOF}
+	if len(tokens) != len(want) {
+		t.Fatalf("tokens = %v", tokens)
+	}
+	for i, kind := range want {
+		if tokens[i].Kind != kind {
+			t.Fatalf("token %d = %v, want %v", i, tokens[i], kind)
+		}
+	}
+}
+
 func TestIndentationAndComments(t *testing.T) {
 	source := "tipo Usuario\n\tnombre cadena\n\t// comentario ignorado\n\tfn valor() num\n\t\t1\nfn inicio()\n\timprimir(\"ok\")\n"
 	tokens, err := Lex("prueba.hacha", source)

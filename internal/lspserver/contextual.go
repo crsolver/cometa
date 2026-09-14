@@ -133,10 +133,10 @@ func contextualCompletion(filename string, lines []string, line int, prefix stri
 			}
 		}
 	}
-	if expected.Kind != sema.Enum {
+	if expected.Kind != sema.Enum && !expected.Wrapped() {
 		return &lsp.CompletionList{}, true
 	}
-	list := enumCompletionItems(model.Enums[expected.Name])
+	list := enumCompletionItems(model.EnumFor(expected))
 	for i := range list.Items {
 		list.Items[i].InsertText = list.Items[i].Label
 		list.Items[i].TextEdit = lsp.NewCompletionTextEdit(lsp.TextEdit{
