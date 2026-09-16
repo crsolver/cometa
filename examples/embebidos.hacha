@@ -1,0 +1,26 @@
+interfaz Nombrado
+	fn nombreCompleto() cadena
+
+tipo Persona
+	nombre cadena
+	fn nombreCompleto() cadena @nombre
+	fn renombrar(valor cadena = "Invitado")
+		@nombre = valor
+
+tipo Empleado
+	Persona
+	puesto cadena
+	fn presentar()
+		imprimir(@nombreCompleto())
+		imprimir(@puesto)
+
+fn inicio()
+	var persona = Persona {nombre: "Ana"}
+	var empleado = Empleado {Persona: persona, puesto: "Ingeniera"}
+	empleado.presentar()
+	empleado.nombre = "Luis"
+	imprimir(persona.nombre)
+	var nombrado Nombrado = empleado
+	imprimir(nombrado.nombreCompleto())
+	empleado.renombrar()
+	imprimir(persona.nombre)

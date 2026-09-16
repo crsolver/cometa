@@ -64,3 +64,25 @@ func TestRecognizesVSCodeLSPArguments(t *testing.T) {
 		}
 	}
 }
+
+func TestRunResolvesFileModules(t *testing.T) {
+	directory := t.TempDir()
+	input := filepath.Join(directory, "inicio.hacha")
+	if err := os.WriteFile(input, []byte("usar biblioteca como b\nfn inicio() imprimir(b.valor())\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(directory, "biblioteca.hacha"), []byte("fn valor() num 42\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	output := filepath.Join(directory, "salida.go")
+	if err := run([]string{"compilar", input, "-o", output}); err != nil {
+		t.Fatal(err)
+	}
+	source, err := os.ReadFile(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(string(source), "package main") != 1 || !strings.Contains(string(source), "HachaModulo") {
+		t.Fatal(string(source))
+	}
+}

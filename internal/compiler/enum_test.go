@@ -17,6 +17,11 @@ func runHacha(t *testing.T, source, want string) []byte {
 	if err != nil {
 		t.Fatal(err)
 	}
+	return runGeneratedGo(t, generated, want)
+}
+
+func runGeneratedGo(t *testing.T, generated []byte, want string) []byte {
+	t.Helper()
 	dir := t.TempDir()
 	file := filepath.Join(dir, "main.go")
 	if err := os.WriteFile(file, generated, 0600); err != nil {

@@ -7,7 +7,17 @@ func (t Type) Wrapped() bool { return t.Kind == Optional || t.Kind == Result }
 // EnumFor exposes the same exhaustive-pattern interface for enums and wrappers.
 func (m *Model) EnumFor(t Type) *EnumInfo {
 	if !t.Wrapped() {
-		return m.Enums[t.Name]
+		base := m.Enums[t.Name]
+		if base == nil || len(t.Args) == 0 {
+			return base
+		}
+		info := &EnumInfo{Decl: base.Decl, Type: t, Variants: map[string]VariantInfo{}}
+		bindings := bindTypes(m.TypeParams[base.Decl], t.Args)
+		for n, v := range base.Variants {
+			v.Payload = substitute(v.Payload, bindings)
+			info.Variants[n] = v
+		}
+		return info
 	}
 	info := &EnumInfo{Decl: &ast.EnumDecl{Name: t.String()}, Variants: map[string]VariantInfo{}}
 	add := func(name string, tag int, payload Type) {
@@ -52,7 +62,7 @@ func (c *checker) checkReturn(e *ast.ReturnExpr) (Type, error) {
 		if err != nil {
 			return Type{}, err
 		}
-		if !t.Equal(c.returnType) {
+		if !c.model.Assignable(t, c.returnType) {
 			return Type{}, c.fail(e.Pos, "retornar requiere %s, no %s", c.returnType.String(), t.String())
 		}
 	}
@@ -108,7 +118,7 @@ func (c *checker) checkRecovery(e *ast.RecoverExpr) (Type, error) {
 		if err != nil {
 			return Type{}, err
 		}
-		if !actual.Equal(*t.Elem) {
+		if !c.model.Assignable(actual, *t.Elem) {
 			return Type{}, c.fail(e.Pos, "la recuperación debe producir %s, no %s", t.Elem.String(), actual.String())
 		}
 	}
@@ -174,6 +184,8 @@ func (m *Model) Terminates(stmt ast.Stmt) bool {
 func (m *Model) eagerExit(e ast.Expr) bool {
 	exits := func(v ast.Expr) bool { return m.ExprTypes[v].Kind == Never }
 	switch v := e.(type) {
+	case *ast.AssertExpr:
+		return exits(v.Value)
 	case *ast.CallExpr:
 		for _, arg := range v.Args {
 			if exits(arg) {
@@ -225,32 +237,28 @@ func (c *checker) checkCondition(e ast.Expr, binding string, pos ast.Pos) error 
 }
 
 func (c *checker) checkRequiredCycles(program *ast.Program) error {
-	state := map[string]int{}
-	var visit func(string) error
-	visit = func(name string) error {
-		if state[name] == 2 {
+	var visit func(Type, map[string]bool, ast.Pos) error
+	visit = func(t Type, path map[string]bool, pos ast.Pos) error {
+		if t.Kind != Named {
 			return nil
 		}
-		state[name] = 1
-		info := c.model.Types[name]
+		key := t.String()
+		if path[key] {
+			return c.fail(pos, "ciclo de campos obligatorios en %s; use un opcional o una lista", key)
+		}
+		path[key] = true
+		defer delete(path, key)
+		info := c.model.StructInfo(t)
 		for _, field := range info.Decl.Fields {
-			t := info.Fields[field.Name].Type
-			if t.Kind != Named {
-				continue
-			}
-			if state[t.Name] == 1 {
-				return c.fail(field.Pos, "ciclo de campos obligatorios en %s.%s; use un opcional o una lista", name, field.Name)
-			}
-			if err := visit(t.Name); err != nil {
+			if err := visit(info.Fields[field.Name].Type, path, field.Pos); err != nil {
 				return err
 			}
 		}
-		state[name] = 2
 		return nil
 	}
 	for _, decl := range program.Decls {
 		if d, ok := decl.(*ast.TypeDecl); ok {
-			if err := visit(d.Name); err != nil {
+			if err := visit(Type{Kind: Named, Name: d.Name, Args: c.model.TypeParams[d]}, map[string]bool{}, d.Pos); err != nil {
 				return err
 			}
 		}
@@ -259,12 +267,15 @@ func (c *checker) checkRequiredCycles(program *ast.Program) error {
 }
 
 func (c *checker) missingDefault(t Type, path string) string {
-	if t.Kind == Result || t.Kind == Enum {
+	if t.Kind == Result || t.Kind == Enum || t.Kind == Interface || t.Kind == TypeParameter {
 		return path
 	}
 	if t.Kind == Named {
-		info := c.model.Types[t.Name]
+		info := c.model.StructInfo(t)
 		for _, field := range info.Decl.Fields {
+			if c.model.Types[t.Name].Fields[field.Name].Type.Kind == TypeParameter {
+				return path + "." + field.Name
+			}
 			if missing := c.missingDefault(info.Fields[field.Name].Type, path+"."+field.Name); missing != "" {
 				return missing
 			}

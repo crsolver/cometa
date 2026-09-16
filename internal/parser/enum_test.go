@@ -35,7 +35,6 @@ func TestEnumAndMatchAST(t *testing.T) {
 
 func TestRejectsInvalidEnumAndMatchSyntax(t *testing.T) {
 	for _, source := range []string{
-		"fn inicio()\n\tcasos e\n\t\tA => 1\n",
 		"fn inicio()\n\tcasos e\n\t\tE._ => 1\n",
 		"fn inicio()\n\tcasos e\n\t\t.A(1) => 1\n",
 		"enum E\nfn inicio() imprimir(1)\n",

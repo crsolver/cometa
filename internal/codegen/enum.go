@@ -17,7 +17,7 @@ func (g *generator) freshName() string {
 }
 
 func (g *generator) emitEnum(decl *ast.EnumDecl) {
-	g.line(0, "type %s struct {", exported(decl.Name))
+	g.line(0, "type %s%s struct {", exported(decl.Name), g.typeParams(decl))
 	g.line(1, "tag int")
 	info := g.model.Enums[decl.Name]
 	for _, decl := range decl.Variants {

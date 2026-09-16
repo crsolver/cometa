@@ -19,6 +19,9 @@ func Analyze(filename string, source []byte) (*ast.Program, *sema.Model, error) 
 	if err != nil {
 		return nil, nil, err
 	}
+	if len(program.Imports) != 0 {
+		return program, nil, &sema.Error{Filename: filename, Pos: program.Imports[0].Pos, Message: "usar requiere AnalyzeProject con un cargador de módulos"}
+	}
 	model, err := sema.Check(filename, program)
 	if err != nil {
 		return program, nil, err

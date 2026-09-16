@@ -18,21 +18,37 @@ func (e *Error) Error() string {
 }
 
 type parser struct {
-	filename string
-	tokens   []token.Token
-	index    int
+	aliases            map[string]bool
+	interfaceSignature bool
+	filename           string
+	tokens             []token.Token
+	index              int
 }
 
 func Parse(filename string, tokens []token.Token) (*ast.Program, error) {
-	p := &parser{filename: filename, tokens: tokens}
+	p := &parser{filename: filename, tokens: tokens, aliases: map[string]bool{}}
 	program := &ast.Program{}
 	for !p.at(token.EOF) {
 		if p.match(token.Newline) {
 			continue
 		}
 		var decl ast.Decl
+		if p.at(token.Usar) {
+			if len(program.Decls) != 0 {
+				return nil, p.error(p.current(), "'usar' debe preceder a las declaraciones")
+			}
+			imp, err := p.parseImport()
+			if err != nil {
+				return nil, err
+			}
+			program.Imports = append(program.Imports, imp)
+			p.aliases[imp.Alias] = true
+			continue
+		}
 		var err error
 		switch p.current().Kind {
+		case token.Interfaz:
+			decl, err = p.parseInterfaceDecl()
 		case token.Enum:
 			decl, err = p.parseEnumDecl()
 		case token.Tipo:
@@ -56,13 +72,17 @@ func (p *parser) parseTypeDecl() (*ast.TypeDecl, error) {
 	if err != nil {
 		return nil, err
 	}
+	typeParams, err := p.parseTypeParams()
+	if err != nil {
+		return nil, err
+	}
 	if _, err = p.expect(token.Newline, "la declaración de tipo debe terminar en una línea nueva"); err != nil {
 		return nil, err
 	}
 	if _, err = p.expect(token.Indent, "se esperaba un bloque indentado para el tipo"); err != nil {
 		return nil, err
 	}
-	decl := &ast.TypeDecl{Pos: start.Pos, NamePos: name.Pos, Name: name.Lexeme}
+	decl := &ast.TypeDecl{Pos: start.Pos, NamePos: name.Pos, Name: name.Lexeme, TypeParams: typeParams}
 	for !p.at(token.Dedent) && !p.at(token.EOF) {
 		if p.match(token.Newline) {
 			continue
@@ -73,6 +93,21 @@ func (p *parser) parseTypeDecl() (*ast.TypeDecl, error) {
 				return nil, parseErr
 			}
 			decl.Methods = append(decl.Methods, method)
+			continue
+		}
+		// A name followed by another type starts an ordinary field. Otherwise
+		// parse the complete bare type and let semantic analysis validate embedding.
+		// Preserve named success-only result fields such as "error !".
+		attachedResult := p.peekAt(1, token.Bang) && p.tokens[p.index+1].Pos.Column == p.current().Pos.Column+len([]rune(p.current().Lexeme))
+		if !p.at(token.Ident) || p.peekAt(1, token.Newline) || p.peekAt(1, token.Less) || p.peekAt(1, token.Question) || p.peekAt(1, token.Dot) || attachedResult {
+			fieldType, parseErr := p.parseTypeRef()
+			if parseErr != nil {
+				return nil, parseErr
+			}
+			if _, parseErr = p.expect(token.Newline, "se esperaba el final del tipo embebido"); parseErr != nil {
+				return nil, parseErr
+			}
+			decl.Fields = append(decl.Fields, &ast.Field{Pos: fieldType.Pos, Name: baseName(fieldType.Name), Type: fieldType, Embedded: true})
 			continue
 		}
 		fieldName, parseErr := p.expect(token.Ident, "se esperaba un campo o método")
@@ -99,6 +134,13 @@ func (p *parser) parseFuncDecl(receiver string) (*ast.FuncDecl, error) {
 	name, err := p.expect(token.Ident, "se esperaba el nombre de la función")
 	if err != nil {
 		return nil, err
+	}
+	typeParams, err := p.parseTypeParams()
+	if err != nil {
+		return nil, err
+	}
+	if receiver != "" && len(typeParams) > 0 {
+		return nil, p.error(name, "los métodos no pueden declarar parámetros de tipo")
 	}
 	if _, err = p.expect(token.LParen, "se esperaba '(' después del nombre de la función"); err != nil {
 		return nil, err
@@ -136,18 +178,30 @@ func (p *parser) parseFuncDecl(receiver string) (*ast.FuncDecl, error) {
 	}
 
 	var returnType *ast.TypeRef
-	if p.startsDefiniteType() || p.at(token.Ident) && !p.peekAt(1, token.LParen) {
+	if p.startsDefiniteType() || p.startsNamedResult() {
 		parsed, parseErr := p.parseTypeRef()
 		if parseErr != nil {
 			return nil, parseErr
 		}
 		returnType = &parsed
 	}
+	if p.interfaceSignature {
+		for _, param := range params {
+			if param.Default != nil {
+				return nil, p.error(name, "una interfaz no admite valores predeterminados")
+			}
+		}
+		if len(typeParams) > 0 {
+			return nil, p.error(name, "los métodos no pueden declarar parámetros de tipo")
+		}
+		_, err = p.expect(token.Newline, "una firma de interfaz no admite cuerpo")
+		return &ast.FuncDecl{Pos: start.Pos, NamePos: name.Pos, Name: name.Lexeme, Params: params, ReturnType: returnType}, err
+	}
 	body, err := p.parseSuite()
 	if err != nil {
 		return nil, err
 	}
-	return &ast.FuncDecl{Pos: start.Pos, NamePos: name.Pos, Name: name.Lexeme, Params: params, ReturnType: returnType, Body: body, Receiver: receiver}, nil
+	return &ast.FuncDecl{Pos: start.Pos, NamePos: name.Pos, Name: name.Lexeme, Params: params, ReturnType: returnType, Body: body, Receiver: receiver, TypeParams: typeParams}, nil
 }
 
 func (p *parser) parseTypeRef() (ast.TypeRef, error) {
@@ -206,7 +260,22 @@ func (p *parser) parseTypeAtom() (ast.TypeRef, error) {
 		return ast.TypeRef{}, p.error(current, "se esperaba un tipo")
 	}
 	p.advance()
-	return ast.TypeRef{Pos: current.Pos, Name: current.Lexeme}, nil
+	ref := ast.TypeRef{Pos: current.Pos, Name: current.Lexeme}
+	if p.aliases[ref.Name] && p.match(token.Dot) {
+		name, err := p.expect(token.Ident, "se esperaba el nombre del tipo importado")
+		if err != nil {
+			return ref, err
+		}
+		ref.Name += "." + name.Lexeme
+	}
+	if p.at(token.Less) {
+		var err error
+		ref.Args, err = p.parseTypeArgs()
+		if err != nil {
+			return ref, err
+		}
+	}
+	return ref, nil
 }
 
 func (p *parser) parseSuite() ([]ast.Stmt, error) {
@@ -448,6 +517,24 @@ func (p *parser) parseExpression(minPrecedence int) (ast.Expr, error) {
 		if p.previous().Kind == token.Dedent {
 			break
 		}
+		if p.at(token.Como) && minPrecedence <= 5 {
+			op := p.advance()
+			target, parseErr := p.parseTypeRef()
+			if parseErr != nil {
+				return nil, parseErr
+			}
+			left = &ast.AssertExpr{Pos: op.Pos, Value: left, Target: target}
+			continue
+		}
+		if name, ok := qualifiedName(left); ok && p.at(token.Less) {
+			saved := p.index
+			args, parseErr := p.parseTypeArgs()
+			if parseErr == nil && (p.at(token.LParen) || p.at(token.LBrace) || p.at(token.Dot)) {
+				left = &ast.InstantiateExpr{Pos: qualifiedPosition(left), Name: name, Args: args}
+				continue
+			}
+			p.index = saved
+		}
 		if minPrecedence == 0 && (p.at(token.Fallback) || p.at(token.Catch)) {
 			op := p.advance()
 			recovery := &ast.RecoverExpr{Pos: op.Pos, Value: left, Error: op.Kind == token.Catch}
@@ -473,11 +560,20 @@ func (p *parser) parseExpression(minPrecedence int) (ast.Expr, error) {
 			continue
 		}
 		if p.at(token.LBrace) {
-			ident, ok := left.(*ast.IdentExpr)
+			if instance, ok := left.(*ast.InstantiateExpr); ok {
+				literal, parseErr := p.parseStructLiteral(instance.Pos, instance.Name)
+				if parseErr != nil {
+					return nil, parseErr
+				}
+				literal.(*ast.StructLiteralExpr).Type = &ast.TypeRef{Pos: instance.Pos, Name: instance.Name, Args: instance.Args}
+				left = literal
+				continue
+			}
+			name, ok := qualifiedName(left)
 			if !ok {
 				return nil, p.error(p.current(), "solo un nombre de tipo puede preceder a '{'")
 			}
-			left, err = p.parseStructLiteral(ident.Pos, ident.Name)
+			left, err = p.parseStructLiteral(qualifiedPosition(left), name)
 			if err != nil {
 				return nil, err
 			}

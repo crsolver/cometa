@@ -70,7 +70,11 @@ func enumCompletionItems(info *sema.EnumInfo) *lsp.CompletionList {
 }
 
 func variantHover(info *sema.EnumInfo, variant sema.VariantInfo) hoverInfo {
-	detail := info.Decl.Name + "." + variant.Decl.Name
+	name := info.Decl.Name
+	if info.Type.Name != "" {
+		name = info.Type.String()
+	}
+	detail := name + "." + variant.Decl.Name
 	if variant.Payload.Kind != sema.Void {
 		detail += "(" + variant.Payload.String() + ")"
 	}

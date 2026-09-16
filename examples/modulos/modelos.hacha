@@ -1,0 +1,15 @@
+// Un usuario compartido entre módulos.
+tipo Usuario
+	nombre cadena
+	fn describir() cadena @nombre
+
+interfaz Describible
+	fn describir() cadena
+
+tipo Caja<T>
+	valor T
+	fn obtener() T @valor
+
+enum Evento
+	Usuario Usuario
+	Vacio

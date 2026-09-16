@@ -28,7 +28,7 @@ func TestContextualCompletion(t *testing.T) {
 		{"list", "fn inicio()\n\tvar ips [IP] = [.|]\n", true},
 		{"field", "tipo Caja\n\tip IP\nfn inicio()\n\tvar caja Caja = {ip: .|}\n", true},
 		{"method", "tipo Caja\n\tip IP\n\tfn poner(ip IP)\n\t\t@ip = ip\nfn inicio()\n\tvar caja Caja = {ip: IP.V4}\n\tcaja.poner(.|)\n", true},
-		{"receiver method", "tipo Caja\n\tip IP\n\tfn poner(ip IP)\n\t\t@ip = ip\n\tfn usar()\n\t\t@poner(.|)\n", true},
+		{"receiver method", "tipo Caja\n\tip IP\n\tfn poner(ip IP)\n\t\t@ip = ip\n\tfn consumir()\n\t\t@poner(.|)\n", true},
 		{"branch return", "fn crear() IP\n\tsi verdadero\n\t\t.|\n\tsino\n\t\tIP.V4\n", true},
 		{"arm result", "fn crear(ip IP) IP\n\tcasos ip\n\t\t.V4 => .|\n\t\t_ => IP.V6\n", true},
 		{"label", "fn inicio()\n\tcasos IP.V4\n\t\t.|\n", true},

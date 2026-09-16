@@ -9,6 +9,90 @@ fn inicio()
 	imprimir("hola desde Hacha")
 ```
 
+## Modules and imports
+
+Each `.hacha` file is a module. Place `usar` declarations before other declarations:
+
+```hacha
+usar herramientas
+usar modelos como m
+usar interno/base_de_datos como bd
+usar ../compartido/fechas
+
+fn inicio()
+	var usuario = m.Usuario {nombre: "Ana"}
+	imprimir(herramientas.describir(usuario))
+```
+
+Paths are unquoted, use `/`, omit `.hacha`, and resolve relative to the importing file. The default namespace is the final path segment; `como` changes it. Namespace aliases must be unique and cannot conflict with top-level declarations. Local variables and parameters may shadow aliases in expressions.
+
+Functions, types, interfaces, enums, fields, methods and variants are public. Imports do not re-export other imports, execute initialization code, or require use. Access imported declarations with `m.crear()`, `m.Usuario`, `m.Caja<num>`, or `m.Evento.Texto("hola")`. Imports of the same physical file share type identity; types with the same name from different files remain distinct.
+
+The compiler loads all reachable modules and emits one formatted, checked Go file. Only the entry file may declare `fn inicio()`; importing a file that declares it is an error. Missing files, duplicate imports, alias conflicts and import cycles are errors. Paths may use `../` to leave the entry directory. There is no manifest or remote package resolution.
+
+```console
+hacha compilar examples/modulos/inicio.hacha -o modulos.go
+go run modulos.go
+```
+
+The [multi-file example](examples/modulos/inicio.hacha) combines imports, interfaces, generics, default arguments and enums. The editor analyzes unsaved dependencies, refreshes dependent diagnostics, completes qualified names and imported members, shows hover documentation, and supports go-to-definition on imports and symbols.
+
+`usar` is now reserved; rename any older function or member with that name.
+
+## Interfaces and generics
+
+```hacha
+interfaz Describible
+	fn describir() cadena
+
+tipo Usuario
+	nombre cadena
+	fn describir() cadena @nombre
+
+tipo Caja<T>
+	valor T
+	fn obtener() T @valor
+
+fn identidad<T>(valor T) T valor
+fn describir<T Describible>(valor T) cadena valor.describir()
+```
+
+Interfaces work structurally: any type with the required method signatures implements an interface automatically. Interface bodies may embed other interfaces; an empty `interfaz Cualquiera` accepts every value-bearing type. Interface calls use the signature's parameter names and require all non-variadic arguments. Concrete methods can still have their own defaults. Ordinary interfaces cannot be absent; use `I?` for absence.
+
+Structs support Go-style embedding by placing a bare struct type inside a `tipo`:
+
+```hacha
+tipo Persona
+	nombre cadena
+	fn saludar() imprimir(@nombre)
+
+tipo Empleado
+	Persona
+	puesto cadena
+
+fn inicio()
+	var empleado = Empleado {Persona: {nombre: "Ana"}, puesto: "Ingeniera"}
+	empleado.saludar()
+	empleado.nombre = "Luis"
+```
+
+Embedded fields and methods are promoted recursively, including through `@` inside methods and for structural interface conformance. Direct members shadow promoted members; the unique member at the shallowest depth wins. Multiple matches at that depth make the selector ambiguous, even if they reach the same declaration. Use an explicit path such as `empleado.Persona.nombre` to select the embedded value.
+
+Literal keys must name direct fields: initialize `Persona`, not its promoted `nombre`. Omitted embeddings receive fresh recursive defaults; required nested fields and required cycles follow the ordinary struct rules. Explicitly supplied objects retain their references. `Caja<num>` can be embedded with the implicit field name `Caja`; two instantiations of `Caja` cannot be embedded together. Only declared structs can be embedded, not interfaces, enums, primitives, lists, wrappers, or bare type parameters. See [the embedding example](examples/embebidos.hacha).
+
+Functions, structs, enums and interfaces support `<T>` parameters with optional interface constraints (`<T Describible>`). Function calls infer types from explicit arguments or accept all type arguments explicitly, such as `identidad<num>(1)`. Type uses require arguments, such as `Caja<Usuario> {valor: usuario}`. Methods inherit the struct's parameters. A field typed directly as `T` always requires initialization; `[T]` and `T?` have their usual defaults. Generic arithmetic, equality, type unions and independently generic methods are not supported.
+
+`valor como Usuario` safely tests an interface value and returns `Usuario?`. Interface `casos` accepts type patterns, binds the narrowed value, chooses the first matching arm and requires a final `_`:
+
+```hacha
+fn mostrar(valor Describible)
+	casos valor |dato|
+		Usuario => imprimir(dato.nombre)
+		_ => imprimir(valor.describir())
+```
+
+See [the runnable example](examples/interfaces_genericos.hacha) and [the language specification](specs.md). Completion and hover show interface methods, constraint methods and instantiated generic signatures.
+
 ## Variadic parameters and named arguments
 
 ```hacha
@@ -66,7 +150,7 @@ fn inicio()
 	imprimir(siguiente() capturar 0)
 ```
 
-Use exhaustive `casos`, optional `si valor |payload|` bindings, lazy `o` fallbacks, or `capturar |error|` recovery. `intentar` propagates one layer of absence or a compatible error; `retornar` exits explicitly. Access to the contained value always requires extraction. Discarded wrappers and unread local wrapper variables are errors.
+Use exhaustive `casos`, optional `si valor |payload|` bindings, lazy `o` fallbacks, or `capturar |error|` recovery. `intentar` propagates one layer of absence or a compatible error; `retornar` exits explicitly. Access to the contained value always requires extraction. Discarded wrapper expressions and unread local result variables (`T!E`) are errors. Optional locals (`T?`) may be declared, copied, and left unused.
 
 Scalars, lists and optionals retain valid defaults. Omitted struct fields allocate fresh, recursively defaulted objects; result and enum fields require explicit initialization, including when nested. Required struct cycles are rejected: migrate a recursive `referido Usuario` to `referido Usuario?`. See [the executable example](examples/errores.hacha) and [the complete rules](specs.md).
 

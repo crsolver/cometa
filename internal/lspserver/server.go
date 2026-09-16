@@ -2,8 +2,8 @@ package lspserver
 
 import (
 	"context"
-	"fmt"
 	"strings"
+	"sync"
 	"unicode"
 
 	"github.com/owenrumney/go-lsp/document"
@@ -21,6 +21,10 @@ import (
 const serverVersion = "0.1.0"
 
 type Handler struct {
+	projectMu sync.Mutex
+	projects  map[lsp.DocumentURI]*compiler.Project
+	reports   map[lsp.DocumentURI]map[lsp.DocumentURI][]lsp.Diagnostic
+	published map[lsp.DocumentURI]bool
 	documents *document.Store
 	client    *server.Client
 }
@@ -75,10 +79,7 @@ func (h *Handler) DidClose(ctx context.Context, params *lsp.DidCloseTextDocument
 	if h.client == nil {
 		return nil
 	}
-	return h.client.PublishDiagnostics(ctx, &lsp.PublishDiagnosticsParams{
-		URI:         params.TextDocument.URI,
-		Diagnostics: []lsp.Diagnostic{},
-	})
+	return h.publishProjectDiagnostics(ctx, params.TextDocument.URI)
 }
 
 // Completion offers fields and methods after a dot or the receiver marker @.
@@ -88,6 +89,9 @@ func (h *Handler) Completion(_ context.Context, params *lsp.CompletionParams) (*
 	text, ok := h.documents.Text(params.TextDocument.URI)
 	if !ok {
 		return &lsp.CompletionList{}, nil
+	}
+	if hasImports(text) {
+		return h.moduleCompletion(params, text), nil
 	}
 	lines := strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n")
 	lineIndex := params.Position.Line
@@ -105,6 +109,9 @@ func (h *Handler) Completion(_ context.Context, params *lsp.CompletionParams) (*
 	}
 	if dot < 0 {
 		return &lsp.CompletionList{}, nil
+	}
+	if dot > 0 && prefix[dot-1] == '>' {
+		return genericEnumCompletion(string(params.TextDocument.URI), lines, lineIndex, prefix, dot), nil
 	}
 	end := dot
 	start := end
@@ -138,6 +145,9 @@ func (h *Handler) Completion(_ context.Context, params *lsp.CompletionParams) (*
 			receiverType = expressionType
 		}
 	}
+	if receiverType.Kind == sema.Interface || receiverType.Kind == sema.TypeParameter {
+		return resolvedMemberItems(model, receiverType), nil
+	}
 	if receiverType.Kind != sema.Named {
 		if receiverType.Kind == sema.Invalid {
 			if info := model.Enums[receiverName]; info != nil {
@@ -146,7 +156,7 @@ func (h *Handler) Completion(_ context.Context, params *lsp.CompletionParams) (*
 		}
 		return &lsp.CompletionList{}, nil
 	}
-	return memberCompletionItems(model.Types[receiverType.Name].Decl), nil
+	return resolvedMemberItems(model, receiverType), nil
 }
 
 func receiverCompletion(filename string, lines []string, lineIndex int, prefix string, at int) *lsp.CompletionList {
@@ -184,6 +194,9 @@ func receiverCompletion(filename string, lines []string, lineIndex int, prefix s
 	if typeDecl == nil {
 		return &lsp.CompletionList{}
 	}
+	if model, _ := sema.CheckForTooling(filename, program); model != nil {
+		return resolvedMemberItems(model, sema.Type{Kind: sema.Named, Name: typeDecl.Name, Args: model.TypeParams[typeDecl]})
+	}
 	return memberCompletionItems(typeDecl)
 }
 
@@ -219,6 +232,9 @@ func (h *Handler) Hover(_ context.Context, params *lsp.HoverParams) (*lsp.Hover,
 	text, ok := h.documents.Text(params.TextDocument.URI)
 	if !ok {
 		return nil, nil
+	}
+	if hasImports(text) {
+		return h.moduleHover(params, text), nil
 	}
 	program, model, err := compiler.Analyze(string(params.TextDocument.URI), []byte(text))
 	if err != nil || program == nil || model == nil {
@@ -287,13 +303,28 @@ func resolveHover(program *ast.Program, model *sema.Model, position ast.Pos, lin
 	// inferred type in the semantic model.
 	for expression, expressionType := range model.ExprTypes {
 		if identifier, ok := expression.(*ast.IdentExpr); ok && identifier.Pos == position {
+			if raw, ok := model.RawTypes[expression]; ok {
+				expressionType = raw
+			}
 			return variableHover(identifier.Name, expressionType), true
 		}
 	}
 
 	for _, declaration := range program.Decls {
 		switch decl := declaration.(type) {
+		case *ast.InterfaceDecl:
+			if decl.NamePos == position {
+				return hoverInfo{detail: "interfaz " + decl.Name + typeParamDetail(decl.TypeParams)}, true
+			}
+			for _, method := range decl.Methods {
+				if info, ok := hoverInFunction(method, model.Interfaces[decl.Name].Methods[method.Name], model, position, lines); ok {
+					return info, true
+				}
+			}
 		case *ast.TypeDecl:
+			if decl.NamePos == position {
+				return hoverInfo{detail: "tipo " + decl.Name + typeParamDetail(decl.TypeParams)}, true
+			}
 			for _, method := range decl.Methods {
 				if info, ok := hoverInFunction(method, model.Types[decl.Name].Methods[method.Name], model, position, lines); ok {
 					return info, true
@@ -412,6 +443,11 @@ func hoverInExpression(expression ast.Expr, model *sema.Model, position ast.Pos,
 		}
 	}
 	switch expr := expression.(type) {
+	case *ast.AssertExpr:
+		if expr.Target.Pos == position {
+			return hoverInfo{detail: typeRefString(expr.Target)}, true
+		}
+		return hoverInExpression(expr.Value, model, position, lines, receiverName)
 	case *ast.ReturnExpr:
 		return hoverInExpression(expr.Value, model, position, lines, receiverName)
 	case *ast.TryExpr:
@@ -436,6 +472,9 @@ func hoverInExpression(expression ast.Expr, model *sema.Model, position ast.Pos,
 			if arm.Qualifier != "" && arm.QualifierPos == position {
 				return hoverInfo{detail: "enum " + arm.Qualifier}, true
 			}
+			if arm.NamePos == position && arm.TypePattern != nil {
+				return hoverInfo{detail: model.PatternTypes[arm].String()}, true
+			}
 			if arm.NamePos == position && arm.Pattern != "_" {
 				if enum := model.EnumFor(model.ExprTypes[expr.Value]); enum != nil {
 					return variantHover(enum, enum.Variants[arm.Pattern]), true
@@ -453,6 +492,22 @@ func hoverInExpression(expression ast.Expr, model *sema.Model, position ast.Pos,
 		}
 		return hoverInExpression(expr.Right, model, position, lines, receiverName)
 	case *ast.CallExpr:
+		callPosition := ast.Pos{}
+		switch callee := expr.Callee.(type) {
+		case *ast.IdentExpr:
+			callPosition = callee.Pos
+		case *ast.InstantiateExpr:
+			callPosition = callee.Pos
+		case *ast.MemberExpr:
+			callPosition = callee.NamePos
+		case *ast.ReceiverExpr:
+			callPosition = callee.NamePos
+		}
+		if callPosition == position {
+			if call, ok := model.Calls[expr]; ok {
+				return functionHover(call.Signature, lines), true
+			}
+		}
 		switch callee := expr.Callee.(type) {
 		case *ast.IdentExpr:
 			if callee.Pos == position {
@@ -486,7 +541,18 @@ func hoverInExpression(expression ast.Expr, model *sema.Model, position ast.Pos,
 			}
 		}
 	case *ast.MemberExpr:
+		if expr.NamePos == position {
+			if typ, ok := model.ExprTypes[expr]; ok {
+				return variableHover(expr.Name, typ), true
+			}
+		}
 		return hoverInExpression(expr.Object, model, position, lines, receiverName)
+	case *ast.ReceiverExpr:
+		if expr.NamePos == position {
+			if typ, ok := model.ExprTypes[expr]; ok {
+				return variableHover(expr.Name, typ), true
+			}
+		}
 	case *ast.IndexExpr:
 		if info, ok := hoverInExpression(expr.Object, model, position, lines, receiverName); ok {
 			return info, true
@@ -529,7 +595,7 @@ func variableHover(name string, variableType sema.Type) hoverInfo {
 
 func functionHover(function sema.FuncInfo, lines []string) hoverInfo {
 	return hoverInfo{
-		detail:        functionDetail(function.Decl),
+		detail:        signatureDetail(function),
 		documentation: documentationBefore(lines, function.Decl.NamePos.Line),
 	}
 }
@@ -587,23 +653,7 @@ func utf16Prefix(value string, units int) string {
 }
 
 func (h *Handler) publishDiagnostics(ctx context.Context, uri lsp.DocumentURI) error {
-	if h.client == nil {
-		return fmt.Errorf("el cliente LSP no está conectado")
-	}
-	text, ok := h.documents.Text(uri)
-	if !ok {
-		return nil
-	}
-	_, _, analysisErr := compiler.Analyze(string(uri), []byte(text))
-	diagnostics := []lsp.Diagnostic{}
-	if analysisErr != nil {
-		diagnostics = append(diagnostics, diagnosticFromError(analysisErr, text))
-	}
-	params := &lsp.PublishDiagnosticsParams{URI: uri, Diagnostics: diagnostics}
-	if version, exists := h.documents.Version(uri); exists {
-		params.Version = &version
-	}
-	return h.client.PublishDiagnostics(ctx, params)
+	return h.publishProjectDiagnostics(ctx, uri)
 }
 
 func diagnosticFromError(err error, text string) lsp.Diagnostic {
@@ -728,8 +778,14 @@ func (h *Handler) DocumentSymbol(_ context.Context, params *lsp.DocumentSymbolPa
 	var symbols []lsp.DocumentSymbol
 	for _, decl := range program.Decls {
 		switch declaration := decl.(type) {
+		case *ast.InterfaceDecl:
+			symbol := symbolFor(lines, declaration.Name, declaration.Pos, lsp.SymbolKindInterface, "interfaz"+typeParamDetail(declaration.TypeParams))
+			for _, method := range declaration.Methods {
+				symbol.Children = append(symbol.Children, symbolFor(lines, method.Name, method.Pos, lsp.SymbolKindMethod, functionDetail(method)))
+			}
+			symbols = append(symbols, symbol)
 		case *ast.EnumDecl:
-			symbol := symbolFor(lines, declaration.Name, declaration.Pos, lsp.SymbolKindEnum, "enum")
+			symbol := symbolFor(lines, declaration.Name, declaration.Pos, lsp.SymbolKindEnum, "enum"+typeParamDetail(declaration.TypeParams))
 			for _, variant := range declaration.Variants {
 				detail := "variante"
 				if variant.Payload != nil {
@@ -739,7 +795,7 @@ func (h *Handler) DocumentSymbol(_ context.Context, params *lsp.DocumentSymbolPa
 			}
 			symbols = append(symbols, symbol)
 		case *ast.TypeDecl:
-			symbol := symbolFor(lines, declaration.Name, declaration.Pos, lsp.SymbolKindStruct, "tipo")
+			symbol := symbolFor(lines, declaration.Name, declaration.Pos, lsp.SymbolKindStruct, "tipo"+typeParamDetail(declaration.TypeParams))
 			for _, field := range declaration.Fields {
 				symbol.Children = append(symbol.Children, symbolFor(lines, field.Name, field.Pos, lsp.SymbolKindField, typeRefString(field.Type)))
 			}
@@ -799,7 +855,15 @@ func typeRefString(ref ast.TypeRef) string {
 	if ref.Element != nil {
 		return "[" + typeRefString(*ref.Element) + "]"
 	}
-	return ref.Name
+	name := ref.Name
+	if len(ref.Args) > 0 {
+		var args []string
+		for _, arg := range ref.Args {
+			args = append(args, typeRefString(arg))
+		}
+		name += "<" + strings.Join(args, ", ") + ">"
+	}
+	return name
 }
 
 func functionDetail(function *ast.FuncDecl) string {
@@ -815,7 +879,7 @@ func functionDetail(function *ast.FuncDecl) string {
 		}
 		params = append(params, detail)
 	}
-	detail := "fn " + function.Name + "(" + strings.Join(params, ", ") + ")"
+	detail := "fn " + function.Name + typeParamDetail(function.TypeParams) + "(" + strings.Join(params, ", ") + ")"
 	if function.ReturnType != nil {
 		detail += " " + typeRefString(*function.ReturnType)
 	}

@@ -78,9 +78,9 @@ func (g *generator) flowTarget(e ast.Expr, indent int) string {
 	case *ast.IdentExpr:
 		return localName(v.Name)
 	case *ast.ReceiverExpr:
-		return "_self." + exported(v.Name)
+		return "_self." + g.fieldName(sema.Type{Kind: sema.Named, Name: g.receiver}, v.Name)
 	case *ast.MemberExpr:
-		return g.flowExpr(v.Object, indent) + "." + exported(v.Name)
+		return g.flowExpr(v.Object, indent) + "." + g.fieldName(g.model.ExprTypes[v.Object], v.Name)
 	case *ast.IndexExpr:
 		object := g.flowExpr(v.Object, indent)
 		index := g.flowExpr(v.Index, indent)
@@ -114,6 +114,10 @@ func (g *generator) flowIf(branches []ast.IfBranch, otherwise []ast.Stmt, indent
 }
 
 func (g *generator) flowMatch(m *ast.MatchExpr, indent int, target string) {
+	if g.model.ExprTypes[m.Value].Kind == sema.Interface {
+		g.flowTypeMatch(m, indent, target)
+		return
+	}
 	value := g.flowExpr(m.Value, indent)
 	info := g.model.EnumFor(g.model.ExprTypes[m.Value])
 	g.line(indent, "switch %s.tag {", value)
@@ -156,7 +160,13 @@ func (g *generator) flowExpr(e ast.Expr, indent int) string {
 	if wrapped {
 		rawType = *wrap.Elem
 	}
+	if raw, ok := g.model.RawTypes[e]; ok {
+		rawType = raw
+	}
 	value := g.flowRaw(e, rawType, indent)
+	if value != "" && rawType.Kind == sema.Number && (t.Kind == sema.Interface || wrapped && wrap.Elem.Kind == sema.Interface) {
+		value = "float64(" + value + ")"
+	}
 	if wrapped {
 		value = goType(wrap) + "{tag: 1, payload1: " + value + "}"
 	}
@@ -179,9 +189,19 @@ func (g *generator) flowRaw(e ast.Expr, t sema.Type, indent int) string {
 		if t.Wrapped() {
 			return goType(t) + "{" + fields + "}"
 		}
-		return "&" + exported(ctor.Enum.Decl.Name) + "{" + fields + "}"
+		return "&" + namedGoType(ctor.Enum.Type) + "{" + fields + "}"
 	}
 	switch v := e.(type) {
+	case *ast.AssertExpr:
+		value := g.flowExpr(v.Value, indent)
+		if value == "" {
+			return ""
+		}
+		payload, ok, result := g.freshName(), g.freshName(), g.freshName()
+		g.line(indent, "%s, %s := %s.(%s)", payload, ok, value, goType(*t.Elem))
+		g.line(indent, "var %s %s", result, goType(t))
+		g.line(indent, "if %s { %s = %s{tag: 1, payload1: %s} }", ok, result, goType(t), payload)
+		return result
 	case *ast.ReturnExpr:
 		if v.Value == nil {
 			g.line(indent, "return")
@@ -243,7 +263,7 @@ func (g *generator) flowRaw(e ast.Expr, t sema.Type, indent int) string {
 	case *ast.IdentExpr:
 		return localName(v.Name)
 	case *ast.ReceiverExpr:
-		return "_self." + exported(v.Name)
+		return "_self." + g.fieldName(sema.Type{Kind: sema.Named, Name: g.receiver}, v.Name)
 	case *ast.LiteralExpr:
 		if v.Kind == "bool" {
 			if v.Value == "verdadero" {
@@ -253,7 +273,7 @@ func (g *generator) flowRaw(e ast.Expr, t sema.Type, indent int) string {
 		}
 		return v.Value
 	case *ast.MemberExpr:
-		return g.flowExpr(v.Object, indent) + "." + exported(v.Name)
+		return g.flowExpr(v.Object, indent) + "." + g.fieldName(g.model.ExprTypes[v.Object], v.Name)
 	case *ast.IndexExpr:
 		object := g.flowExpr(v.Object, indent)
 		index := g.flowExpr(v.Index, indent)
@@ -288,10 +308,10 @@ func (g *generator) flowRaw(e ast.Expr, t sema.Type, indent int) string {
 			if value == "" {
 				return ""
 			}
-			fields = append(fields, exported(f.Name)+": "+value)
+			fields = append(fields, g.fieldName(t, f.Name)+": "+value)
 		}
 		fields = append(fields, g.defaultFields(t, v.Fields)...)
-		return "&" + exported(t.Name) + "{" + strings.Join(fields, ", ") + "}"
+		return "&" + namedGoType(t) + "{" + strings.Join(fields, ", ") + "}"
 	case *ast.ListLiteralExpr:
 		var values []string
 		for _, item := range v.Elements {
@@ -321,6 +341,8 @@ func (g *generator) flowValueBlock(body []ast.Stmt, t sema.Type, indent int) str
 func (g *generator) flowCall(call *ast.CallExpr, indent int) string {
 	callee := ""
 	switch v := call.Callee.(type) {
+	case *ast.InstantiateExpr:
+		callee = exported(v.Name)
 	case *ast.IdentExpr:
 		callee = exported(v.Name)
 		if v.Name == "imprimir" {
@@ -334,10 +356,15 @@ func (g *generator) flowCall(call *ast.CallExpr, indent int) string {
 	case *ast.MemberExpr:
 		callee = g.flowExpr(v.Object, indent) + "." + exported(v.Name)
 	}
+	info := g.model.Calls[call]
+	callee = g.promotedCallee(callee, info.Signature, call.Callee)
+	if info.Signature.Decl != nil && info.Signature.Decl.Receiver != "" && len(g.defaultFlags[info.Signature.Decl]) > 0 {
+		callee = strings.TrimSuffix(callee, exported(info.Signature.Decl.Name)) + defaultMethod(info.Signature.Decl)
+	}
+	callee += typeArguments(info.Signature.TypeArgs)
 	fn := g.freshName()
 	g.line(indent, "%s := %s", fn, callee)
 	g.line(indent, "_ = %s", fn)
-	info := g.model.Calls[call]
 	args := make([]string, len(call.Args))
 	for i, arg := range call.Args {
 		args[i] = g.flowExpr(arg, indent)
@@ -387,11 +414,11 @@ func (g *generator) defaultFields(t sema.Type, supplied []ast.FieldValue) []stri
 		seen[f.Name] = true
 	}
 	var fields []string
-	info := g.model.Types[t.Name]
+	info := g.model.StructInfo(t)
 	for _, field := range info.Decl.Fields {
 		ft := info.Fields[field.Name].Type
 		if !seen[field.Name] && ft.Kind == sema.Named {
-			fields = append(fields, exported(field.Name)+": &"+exported(ft.Name)+"{"+strings.Join(g.defaultFields(ft, nil), ", ")+"}")
+			fields = append(fields, g.fieldName(t, field.Name)+": &"+namedGoType(ft)+"{"+strings.Join(g.defaultFields(ft, nil), ", ")+"}")
 		}
 	}
 	return fields

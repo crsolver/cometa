@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"strings"
 
 	"hacha/internal/ast"
 )
@@ -22,13 +23,17 @@ const (
 	Optional
 	Result
 	Never
+	Interface
+	TypeParameter
 )
 
 type Type struct {
-	Kind Kind
-	Name string
-	Elem *Type
-	Err  *Type
+	Args  []Type
+	Owner string // Declaration identity for a type parameter.
+	Kind  Kind
+	Name  string
+	Elem  *Type
+	Err   *Type
 }
 
 func (t Type) String() string {
@@ -64,8 +69,16 @@ func (t Type) String() string {
 		return "cadena"
 	case Boolean:
 		return "bool"
-	case Named, Enum:
-		return t.Name
+	case Named, Enum, Interface, TypeParameter:
+		name := t.Name
+		if len(t.Args) > 0 {
+			var args []string
+			for _, arg := range t.Args {
+				args = append(args, arg.String())
+			}
+			name += "<" + strings.Join(args, ", ") + ">"
+		}
+		return name
 	case Slice:
 		return "[" + t.Elem.String() + "]"
 	default:
@@ -74,11 +87,13 @@ func (t Type) String() string {
 }
 
 func (t Type) Equal(other Type) bool {
-	if t.Kind == Never || other.Kind == Never {
-		return true
-	}
-	if t.Kind != other.Kind || t.Name != other.Name {
+	if t.Kind != other.Kind || t.Name != other.Name || t.Owner != other.Owner || len(t.Args) != len(other.Args) {
 		return false
+	}
+	for i := range t.Args {
+		if !t.Args[i].Equal(other.Args[i]) {
+			return false
+		}
 	}
 	if t.Kind == Slice || t.Wrapped() {
 		return t.Elem != nil && other.Elem != nil && t.Elem.Equal(*other.Elem) && (t.Kind != Result || t.Err.Equal(*other.Err))
@@ -92,9 +107,13 @@ type FieldInfo struct {
 }
 
 type FuncInfo struct {
-	Decl   *ast.FuncDecl
-	Params []Type
-	Return Type
+	EmbeddedPath []string
+	TypeParams   []Type
+	Constraints  []Type
+	TypeArgs     []Type
+	Decl         *ast.FuncDecl
+	Params       []Type
+	Return       Type
 }
 
 type TypeInfo struct {
@@ -104,6 +123,11 @@ type TypeInfo struct {
 }
 
 type Model struct {
+	Interfaces    map[string]*InterfaceInfo
+	TypeParams    map[ast.Decl][]Type
+	Constraints   map[string]Type
+	RawTypes      map[ast.Expr]Type
+	TypeRefs      map[*ast.TypeRef]Type
 	Wraps         map[ast.Expr]Type
 	Calls         map[*ast.CallExpr]CallInfo
 	LocalNames    map[string]bool
@@ -128,6 +152,9 @@ func (e *Error) Error() string {
 }
 
 type checker struct {
+	typeScope  map[string]Type
+	pending    []typeUse
+	expansions []typeEdge
 	returnType Type
 	inDefault  bool
 	bindings   map[string]*ast.VarDeclStmt
@@ -155,6 +182,7 @@ func CheckForTooling(filename string, program *ast.Program) (*Model, error) {
 
 func newChecker(filename string) *checker {
 	return &checker{filename: filename, model: &Model{
+		Interfaces: map[string]*InterfaceInfo{}, TypeParams: map[ast.Decl][]Type{}, Constraints: map[string]Type{}, RawTypes: map[ast.Expr]Type{}, TypeRefs: map[*ast.TypeRef]Type{},
 		Wraps:         map[ast.Expr]Type{},
 		Calls:         map[*ast.CallExpr]CallInfo{},
 		LocalNames:    map[string]bool{},
@@ -164,104 +192,6 @@ func newChecker(filename string) *checker {
 		Types: map[string]*TypeInfo{}, Functions: map[string]FuncInfo{}, ExprTypes: map[ast.Expr]Type{}, VarTypes: map[*ast.VarDeclStmt]Type{},
 	}}
 
-}
-
-func (c *checker) check(program *ast.Program) (*Model, error) {
-
-	for _, decl := range program.Decls {
-		if enumDecl, ok := decl.(*ast.EnumDecl); ok {
-			if c.model.Enums[enumDecl.Name] != nil || c.model.Types[enumDecl.Name] != nil {
-				return nil, c.fail(enumDecl.Pos, "el tipo %q ya fue declarado", enumDecl.Name)
-			}
-			c.model.Enums[enumDecl.Name] = &EnumInfo{Decl: enumDecl, Variants: map[string]VariantInfo{}}
-		}
-		if typeDecl, ok := decl.(*ast.TypeDecl); ok {
-			if c.model.Types[typeDecl.Name] != nil || c.model.Enums[typeDecl.Name] != nil {
-				return nil, c.fail(typeDecl.Pos, "el tipo %q ya fue declarado", typeDecl.Name)
-			}
-			c.model.Types[typeDecl.Name] = &TypeInfo{Decl: typeDecl, Fields: map[string]FieldInfo{}, Methods: map[string]FuncInfo{}}
-		}
-	}
-
-	for _, decl := range program.Decls {
-		switch declaration := decl.(type) {
-		case *ast.EnumDecl:
-			info := c.model.Enums[declaration.Name]
-			for index, variant := range declaration.Variants {
-				if _, exists := info.Variants[variant.Name]; exists || variant.Name == "_" {
-					return nil, c.fail(variant.Pos, "variante duplicada o reservada %q", variant.Name)
-				}
-				v := VariantInfo{Decl: variant, Tag: index + 1, Payload: Type{Kind: Void}}
-				if variant.Payload != nil {
-					var err error
-					v.Payload, err = c.resolveType(*variant.Payload)
-					if err != nil {
-						return nil, err
-					}
-				}
-				info.Variants[variant.Name] = v
-			}
-		case *ast.TypeDecl:
-			info := c.model.Types[declaration.Name]
-			for _, field := range declaration.Fields {
-				if _, exists := info.Fields[field.Name]; exists {
-					return nil, c.fail(field.Pos, "el campo %q ya fue declarado en %s", field.Name, declaration.Name)
-				}
-				fieldType, err := c.resolveType(field.Type)
-				if err != nil {
-					return nil, err
-				}
-				info.Fields[field.Name] = FieldInfo{Decl: field, Type: fieldType}
-			}
-			for _, method := range declaration.Methods {
-				if _, exists := info.Methods[method.Name]; exists {
-					return nil, c.fail(method.Pos, "el método %q ya fue declarado en %s", method.Name, declaration.Name)
-				}
-				if _, exists := info.Fields[method.Name]; exists {
-					return nil, c.fail(method.Pos, "el miembro %q ya fue declarado como campo en %s", method.Name, declaration.Name)
-				}
-				signature, err := c.signature(method)
-				if err != nil {
-					return nil, err
-				}
-				info.Methods[method.Name] = signature
-			}
-		case *ast.FuncDecl:
-			if c.model.Types[declaration.Name] != nil || c.model.Enums[declaration.Name] != nil {
-				return nil, c.fail(declaration.Pos, "el nombre %q ya fue declarado como tipo", declaration.Name)
-			}
-			if _, exists := c.model.Functions[declaration.Name]; exists {
-				return nil, c.fail(declaration.Pos, "la función %q ya fue declarada", declaration.Name)
-			}
-			signature, err := c.signature(declaration)
-			if err != nil {
-				return nil, err
-			}
-			if declaration.Name == "inicio" && (len(declaration.Params) != 0 || signature.Return.Kind != Void) {
-				return nil, c.fail(declaration.Pos, "inicio debe declararse como fn inicio() sin parámetros ni resultado")
-			}
-			c.model.Functions[declaration.Name] = signature
-		}
-	}
-
-	if err := c.checkRequiredCycles(program); err != nil {
-		return nil, err
-	}
-	for _, decl := range program.Decls {
-		switch declaration := decl.(type) {
-		case *ast.TypeDecl:
-			for _, method := range declaration.Methods {
-				if err := c.checkFunction(method, c.model.Types[declaration.Name]); err != nil {
-					return nil, err
-				}
-			}
-		case *ast.FuncDecl:
-			if err := c.checkFunction(declaration, nil); err != nil {
-				return nil, err
-			}
-		}
-	}
-	return c.model, nil
 }
 
 func (c *checker) signature(function *ast.FuncDecl) (FuncInfo, error) {
@@ -304,7 +234,7 @@ func (c *checker) signature(function *ast.FuncDecl) (FuncInfo, error) {
 	return info, nil
 }
 
-func (c *checker) resolveType(ref ast.TypeRef) (Type, error) {
+func (c *checker) resolveBuiltinType(ref ast.TypeRef) (Type, error) {
 	if ref.Wrapper != "" {
 		payload, err := c.resolveType(*ref.Payload)
 		if err != nil {
@@ -349,6 +279,11 @@ func (c *checker) resolveType(ref ast.TypeRef) (Type, error) {
 }
 
 func (c *checker) checkFunction(function *ast.FuncDecl, receiver *TypeInfo) error {
+	if receiver != nil {
+		c.setScope(receiver.Decl)
+	} else {
+		c.setScope(function)
+	}
 	c.bindings = map[string]*ast.VarDeclStmt{}
 	c.reads = map[*ast.VarDeclStmt]bool{}
 	c.vars = map[string]Type{}
@@ -364,7 +299,7 @@ func (c *checker) checkFunction(function *ast.FuncDecl, receiver *TypeInfo) erro
 			if err != nil {
 				return err
 			}
-			if !actual.Equal(expected) {
+			if !c.model.Assignable(actual, expected) {
 				return c.fail(param.Default.Position(), "el valor predeterminado de %q debe ser %s, no %s", param.Name, expected.String(), actual.String())
 			}
 		}
@@ -382,7 +317,7 @@ func (c *checker) checkFunction(function *ast.FuncDecl, receiver *TypeInfo) erro
 		if err != nil {
 			return err
 		}
-		if !actual.Equal(expected) {
+		if !c.model.Assignable(actual, expected) {
 			return c.fail(function.Pos, "la función %q produce %s, pero declara %s", function.Name, actual.String(), expected.String())
 		}
 	} else {
@@ -405,7 +340,7 @@ func (c *checker) checkFunction(function *ast.FuncDecl, receiver *TypeInfo) erro
 		return unread[i].Pos.Column < unread[j].Pos.Column
 	})
 	if len(unread) > 0 {
-		return c.fail(unread[0].Pos, "el valor opcional o resultado %q debe usarse o manejarse explícitamente", unread[0].Name)
+		return c.fail(unread[0].Pos, "el resultado %q debe usarse o manejarse explícitamente", unread[0].Name)
 	}
 	return nil
 }
@@ -438,7 +373,7 @@ func (c *checker) checkStmt(stmt ast.Stmt) error {
 		if err != nil {
 			return err
 		}
-		if !target.Equal(value) {
+		if !c.model.Assignable(value, target) {
 			return c.fail(statement.Pos, "no se puede asignar %s a %s", value.String(), target.String())
 		}
 		return nil
@@ -462,13 +397,13 @@ func (c *checker) checkStmt(stmt ast.Stmt) error {
 		if actual.Kind == Void {
 			return c.fail(statement.Value.Position(), "una variable requiere un valor")
 		}
-		if declared != nil && !actual.Equal(*declared) {
+		if declared != nil && !c.model.Assignable(actual, *declared) {
 			return c.fail(statement.Pos, "no se puede asignar %s a %s", actual.String(), declared.String())
 		}
 		c.vars[statement.Name] = actual
 		c.model.VarTypes[statement] = actual
 		c.bindings[statement.Name] = statement
-		if actual.Wrapped() {
+		if actual.Kind == Result {
 			c.reads[statement] = false
 		}
 		return nil
@@ -595,8 +530,12 @@ func (c *checker) assignmentTarget(expr ast.Expr) (Type, error) {
 		if c.receiver == nil {
 			return Type{}, c.fail(target.Pos, "'@%s' solo puede usarse dentro de un método", target.Name)
 		}
-		field, exists := c.receiver.Fields[target.Name]
-		if !exists {
+		member, err := c.member(c.receiverType(), target.Name, target.Pos)
+		if err != nil {
+			return Type{}, err
+		}
+		field := member.Field
+		if field.Decl == nil {
 			return Type{}, c.fail(target.Pos, "el campo %q no existe en %s", target.Name, c.receiver.Decl.Name)
 		}
 		c.model.ExprTypes[target] = field.Type
@@ -609,8 +548,12 @@ func (c *checker) assignmentTarget(expr ast.Expr) (Type, error) {
 		if objectType.Kind != Named {
 			return Type{}, c.fail(target.Pos, "%s no tiene campos", objectType.String())
 		}
-		field, exists := c.model.Types[objectType.Name].Fields[target.Name]
-		if !exists {
+		member, err := c.member(objectType, target.Name, target.Pos)
+		if err != nil {
+			return Type{}, err
+		}
+		field := member.Field
+		if field.Decl == nil {
 			return Type{}, c.fail(target.Pos, "el campo %q no existe en %s", target.Name, objectType.Name)
 		}
 		c.model.ExprTypes[target] = field.Type
@@ -625,6 +568,8 @@ func (c *checker) checkExpr(expr ast.Expr) (Type, error) {
 }
 
 func (c *checker) checkExprExpected(expr ast.Expr, expected *Type) (Type, error) {
+	delete(c.model.Wraps, expr)
+	delete(c.model.RawTypes, expr)
 	if expected != nil && expected.Kind == Never {
 		expected = nil
 	}
@@ -641,6 +586,8 @@ func (c *checker) checkExprExpected(expr ast.Expr, expected *Type) (Type, error)
 	var result Type
 	var err error
 	switch expression := expr.(type) {
+	case *ast.AssertExpr:
+		result, err = c.checkAssertion(expression)
 	case *ast.ReturnExpr:
 		result, err = c.checkReturn(expression)
 	case *ast.TryExpr:
@@ -680,9 +627,14 @@ func (c *checker) checkExprExpected(expr ast.Expr, expected *Type) (Type, error)
 			err = c.fail(expression.Pos, "'@%s' solo puede usarse dentro de un método", expression.Name)
 			break
 		}
-		field, exists := c.receiver.Fields[expression.Name]
-		if !exists {
-			if _, method := c.receiver.Methods[expression.Name]; method {
+		member, memberErr := c.member(c.receiverType(), expression.Name, expression.Pos)
+		if memberErr != nil {
+			err = memberErr
+			break
+		}
+		field := member.Field
+		if field.Decl == nil {
+			if member.Method.Decl != nil {
 				err = c.fail(expression.Pos, "el método @%s debe llamarse con paréntesis", expression.Name)
 			} else {
 				err = c.fail(expression.Pos, "el miembro %q no existe en %s", expression.Name, c.receiver.Decl.Name)
@@ -697,7 +649,7 @@ func (c *checker) checkExprExpected(expr ast.Expr, expected *Type) (Type, error)
 				if variant.Payload.Kind != Void {
 					err = c.fail(expression.NamePos, "la variante %s.%s requiere un payload", info.Decl.Name, expression.Name)
 				} else {
-					result = Type{Kind: Enum, Name: info.Decl.Name}
+					result = info.Type
 					c.model.Constructors[expression] = ConstructorInfo{Enum: info, Variant: variant}
 				}
 			}
@@ -708,14 +660,26 @@ func (c *checker) checkExprExpected(expr ast.Expr, expected *Type) (Type, error)
 			err = objectErr
 			break
 		}
+		if objectType.Kind == Interface || objectType.Kind == TypeParameter {
+			if _, exists := c.model.Methods(objectType)[expression.Name]; exists {
+				err = c.fail(expression.Pos, "el método %s.%s debe llamarse con paréntesis", objectType.String(), expression.Name)
+			} else {
+				err = c.fail(expression.Pos, "el miembro %q no existe en %s", expression.Name, objectType.String())
+			}
+			break
+		}
 		if objectType.Kind != Named {
 			err = c.fail(expression.Pos, "%s no tiene miembros", objectType.String())
 			break
 		}
-		info := c.model.Types[objectType.Name]
-		if field, exists := info.Fields[expression.Name]; exists {
-			result = field.Type
-		} else if _, exists := info.Methods[expression.Name]; exists {
+		member, memberErr := c.member(objectType, expression.Name, expression.Pos)
+		if memberErr != nil {
+			err = memberErr
+			break
+		}
+		if member.Field.Decl != nil {
+			result = member.Field.Type
+		} else if member.Method.Decl != nil {
 			err = c.fail(expression.Pos, "el método %s.%s debe llamarse con paréntesis", objectType.Name, expression.Name)
 		} else {
 			err = c.fail(expression.Pos, "el miembro %q no existe en %s", expression.Name, objectType.Name)
@@ -750,8 +714,15 @@ func (c *checker) checkExprExpected(expr ast.Expr, expected *Type) (Type, error)
 		if c.model.eagerExit(expr) {
 			result = Type{Kind: Never}
 		}
-		if wrapperExpected != nil && wrapperExpected.Wrapped() && result.Kind != Never && !result.Equal(*wrapperExpected) && result.Kind != Void && result.Equal(*wrapperExpected.Elem) {
+		if wrapperExpected != nil && wrapperExpected.Wrapped() && result.Kind != Never && !result.Equal(*wrapperExpected) && result.Kind != Void && (!result.Wrapped() || result.Equal(*wrapperExpected.Elem)) && c.model.Assignable(result, *wrapperExpected.Elem) {
+			c.model.RawTypes[expr] = result
 			c.model.Wraps[expr] = *wrapperExpected
+			result = *wrapperExpected
+		}
+		if wrapperExpected != nil && wrapperExpected.Kind == Interface && result.Kind != Never && c.model.Assignable(result, *wrapperExpected) && !result.Equal(*wrapperExpected) {
+			if _, exists := c.model.RawTypes[expr]; !exists {
+				c.model.RawTypes[expr] = result
+			}
 			result = *wrapperExpected
 		}
 		c.model.ExprTypes[expr] = result
@@ -783,16 +754,24 @@ func (c *checker) checkStructLiteral(expr *ast.StructLiteralExpr, expected *Type
 		if _, exists := c.model.Types[expr.TypeName]; !exists {
 			return Type{}, c.fail(expr.Pos, "el tipo %q no existe", expr.TypeName)
 		}
-		result = Type{Kind: Named, Name: expr.TypeName}
+		ref := ast.TypeRef{Pos: expr.Pos, Name: expr.TypeName}
+		if expr.Type != nil {
+			ref = *expr.Type
+		}
+		var err error
+		result, err = c.resolveType(ref)
+		if err != nil {
+			return Type{}, err
+		}
 	} else if expected != nil && expected.Kind == Named {
 		result = *expected
 	} else {
 		return Type{}, c.fail(expr.Pos, "no se puede inferir el tipo del literal de estructura")
 	}
-	if expected != nil && !result.Equal(*expected) {
+	if expected != nil && !c.model.Assignable(result, *expected) {
 		return Type{}, c.fail(expr.Pos, "el literal es %s, pero se esperaba %s", result.String(), expected.String())
 	}
-	info := c.model.Types[result.Name]
+	info := c.model.StructInfo(result)
 	seen := map[string]bool{}
 	for _, value := range expr.Fields {
 		if seen[value.Name] {
@@ -807,12 +786,15 @@ func (c *checker) checkStructLiteral(expr *ast.StructLiteralExpr, expected *Type
 		if err != nil {
 			return Type{}, err
 		}
-		if !actual.Equal(field.Type) {
+		if !c.model.Assignable(actual, field.Type) {
 			return Type{}, c.fail(value.Value.Position(), "el campo %q debe ser %s, no %s", value.Name, field.Type.String(), actual.String())
 		}
 	}
 	for _, field := range info.Decl.Fields {
 		if !seen[field.Name] {
+			if c.model.Types[result.Name].Fields[field.Name].Type.Kind == TypeParameter {
+				return Type{}, c.fail(expr.Pos, "el campo %s requiere inicialización explícita", field.Name)
+			}
 			if missing := c.missingDefault(info.Fields[field.Name].Type, field.Name); missing != "" {
 				return Type{}, c.fail(expr.Pos, "el campo %s requiere inicialización explícita", missing)
 			}
@@ -823,7 +805,7 @@ func (c *checker) checkStructLiteral(expr *ast.StructLiteralExpr, expected *Type
 
 func (c *checker) checkListLiteral(expr *ast.ListLiteralExpr, expected *Type) (Type, error) {
 	var element *Type
-	if expected != nil {
+	if expected != nil && expected.Kind != Interface {
 		if expected.Kind != Slice {
 			return Type{}, c.fail(expr.Pos, "se esperaba %s, no una lista", expected.String())
 		}
@@ -846,7 +828,7 @@ func (c *checker) checkListLiteral(expr *ast.ListLiteralExpr, expected *Type) (T
 			}
 			inferred := actual
 			element = &inferred
-		} else if !actual.Equal(*element) {
+		} else if !c.model.Assignable(actual, *element) {
 			return Type{}, c.fail(value.Position(), "el elemento debe ser %s, no %s", element.String(), actual.String())
 		}
 	}
@@ -886,7 +868,7 @@ func (c *checker) checkBinary(expr *ast.BinaryExpr) (Type, error) {
 			return Type{Kind: Boolean}, nil
 		}
 	case "==", "!=":
-		if left.Equal(right) && left.Kind != Void && left.Kind != Never && left.Kind != Slice && left.Kind != Enum && !left.Wrapped() {
+		if left.Equal(right) && left.Kind != Void && left.Kind != Never && left.Kind != Slice && left.Kind != Enum && left.Kind != Interface && left.Kind != TypeParameter && !left.Wrapped() {
 			return Type{Kind: Boolean}, nil
 		}
 	case "&&", "||":
@@ -916,15 +898,25 @@ func (c *checker) checkCall(call *ast.CallExpr) (Type, error) {
 			if err != nil {
 				return Type{}, err
 			}
-			if !actual.Equal(variant.Payload) {
+			if !c.model.Assignable(actual, variant.Payload) {
 				return Type{}, c.fail(call.Args[0].Position(), "el payload debe ser %s, no %s", variant.Payload.String(), actual.String())
 			}
 			c.model.Constructors[call] = ConstructorInfo{Enum: info, Variant: variant}
-			return Type{Kind: Enum, Name: info.Decl.Name}, nil
+			return info.Type, nil
 		}
 	}
 	var signature FuncInfo
 	switch callee := call.Callee.(type) {
+	case *ast.InstantiateExpr:
+		base, exists := c.model.Functions[callee.Name]
+		if !exists {
+			return Type{}, c.fail(callee.Pos, "la función %q no existe", callee.Name)
+		}
+		var err error
+		signature, err = c.instantiateFunction(base, callee.Args, callee.Pos)
+		if err != nil {
+			return Type{}, err
+		}
 	case *ast.IdentExpr:
 		if callee.Name == "imprimir" {
 			for _, meta := range call.ArgInfo {
@@ -953,9 +945,12 @@ func (c *checker) checkCall(call *ast.CallExpr) (Type, error) {
 		if c.receiver == nil {
 			return Type{}, c.fail(callee.Pos, "'@%s' solo puede usarse dentro de un método", callee.Name)
 		}
-		var exists bool
-		signature, exists = c.receiver.Methods[callee.Name]
-		if !exists {
+		member, err := c.member(c.receiverType(), callee.Name, callee.Pos)
+		if err != nil {
+			return Type{}, err
+		}
+		signature = member.Method
+		if signature.Decl == nil {
 			return Type{}, c.fail(callee.Pos, "el método %q no existe en %s", callee.Name, c.receiver.Decl.Name)
 		}
 	case *ast.MemberExpr:
@@ -963,16 +958,28 @@ func (c *checker) checkCall(call *ast.CallExpr) (Type, error) {
 		if err != nil {
 			return Type{}, err
 		}
-		if objectType.Kind != Named {
+		if objectType.Kind != Named && objectType.Kind != Interface && objectType.Kind != TypeParameter {
 			return Type{}, c.fail(callee.Pos, "%s no tiene métodos", objectType.String())
 		}
 		var exists bool
-		signature, exists = c.model.Types[objectType.Name].Methods[callee.Name]
+		if objectType.Kind == Named {
+			if _, err := c.member(objectType, callee.Name, callee.Pos); err != nil {
+				return Type{}, err
+			}
+		}
+		signature, exists = c.model.Methods(objectType)[callee.Name]
 		if !exists {
 			return Type{}, c.fail(callee.Pos, "el método %q no existe en %s", callee.Name, objectType.Name)
 		}
 	default:
 		return Type{}, c.fail(call.Pos, "solo se pueden llamar funciones o métodos del receptor")
+	}
+	if len(signature.TypeParams) > 0 && len(signature.TypeArgs) == 0 {
+		var err error
+		signature, err = c.inferFunction(call, signature)
+		if err != nil {
+			return Type{}, err
+		}
 	}
 	return c.bindArguments(call, signature)
 }
@@ -997,7 +1004,7 @@ func (c *checker) checkIfExpr(expr *ast.IfExpr, expected *Type) (Type, error) {
 		}
 		if index == 0 || result.Kind == Never {
 			result = branchType
-		} else if !result.Equal(branchType) {
+		} else if branchType.Kind != Never && !result.Equal(branchType) {
 			return Type{}, c.fail(branch.Value.Position(), "las ramas producen %s y %s", result.String(), branchType.String())
 		}
 	}
@@ -1009,7 +1016,7 @@ func (c *checker) checkIfExpr(expr *ast.IfExpr, expected *Type) (Type, error) {
 	if err != nil {
 		return Type{}, err
 	}
-	if !result.Equal(elseType) {
+	if result.Kind != Never && elseType.Kind != Never && !result.Equal(elseType) {
 		return Type{}, c.fail(expr.Else.Position(), "las ramas producen %s y %s", result.String(), elseType.String())
 	}
 	if result.Kind == Void {
@@ -1022,5 +1029,9 @@ func (c *checker) checkIfExpr(expr *ast.IfExpr, expected *Type) (Type, error) {
 }
 
 func (c *checker) fail(pos ast.Pos, format string, args ...any) error {
-	return &Error{Filename: c.filename, Pos: pos, Message: fmt.Sprintf(format, args...)}
+	filename := c.filename
+	if pos.Filename != "" {
+		filename = pos.Filename
+	}
+	return &Error{Filename: filename, Pos: pos, Message: fmt.Sprintf(format, args...)}
 }

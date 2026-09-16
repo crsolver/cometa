@@ -17,6 +17,7 @@ import (
 )
 
 type generator struct {
+	receiver     string
 	flow         bool
 	returnType   sema.Type
 	buffer       bytes.Buffer
@@ -45,7 +46,12 @@ func Generate(filename string, program *ast.Program, model *sema.Model) ([]byte,
 		}
 	}
 	for _, decl := range program.Decls {
+		if len(model.TypeParams[decl]) > 0 {
+			g.flow = true
+		}
 		switch d := decl.(type) {
+		case *ast.InterfaceDecl:
+			g.flow = true
 		case *ast.FuncDecl:
 			register(d)
 		case *ast.TypeDecl:
@@ -62,6 +68,9 @@ func Generate(filename string, program *ast.Program, model *sema.Model) ([]byte,
 	}
 
 	for _, decl := range program.Decls {
+		if d, ok := decl.(*ast.InterfaceDecl); ok {
+			g.emitInterface(d)
+		}
 		if enumDecl, ok := decl.(*ast.EnumDecl); ok {
 			g.emitEnum(enumDecl)
 		}
@@ -91,9 +100,13 @@ func Generate(filename string, program *ast.Program, model *sema.Model) ([]byte,
 }
 
 func (g *generator) emitType(decl *ast.TypeDecl) {
-	g.line(0, "type %s struct {", exported(decl.Name))
+	g.line(0, "type %s%s struct {", exported(decl.Name), g.typeParams(decl))
 	info := g.model.Types[decl.Name]
 	for _, field := range decl.Fields {
+		if field.Embedded {
+			g.line(1, "%s", goType(info.Fields[field.Name].Type))
+			continue
+		}
 		g.line(1, "%s %s", exported(field.Name), goType(info.Fields[field.Name].Type))
 	}
 	g.line(0, "}")
@@ -101,17 +114,23 @@ func (g *generator) emitType(decl *ast.TypeDecl) {
 }
 
 func (g *generator) emitFunction(decl *ast.FuncDecl) {
+	g.receiver = decl.Receiver
 	var signature sema.FuncInfo
 	if decl.Receiver != "" {
 		signature = g.model.Types[decl.Receiver].Methods[decl.Name]
-		g.write("func (_self *%s) %s(", exported(decl.Receiver), exported(decl.Name))
+		name := exported(decl.Name)
+		if len(g.defaultFlags[decl]) > 0 {
+			g.emitDefaultBridge(decl, signature)
+			name = defaultMethod(decl)
+		}
+		g.write("func (_self *%s%s) %s(", exported(decl.Receiver), typeArguments(g.model.TypeParams[g.model.Types[decl.Receiver].Decl]), name)
 	} else {
 		signature = g.model.Functions[decl.Name]
 		name := exported(decl.Name)
 		if decl.Name == "inicio" {
 			name = "main"
 		}
-		g.write("func %s(", name)
+		g.write("func %s%s(", name, g.typeParams(decl))
 	}
 	for _, flag := range g.defaultFlags[decl] {
 		g.write("%s bool, ", flag)
@@ -298,9 +317,9 @@ func (g *generator) expr(expr ast.Expr) string {
 	case *ast.IdentExpr:
 		return localName(expression.Name)
 	case *ast.ReceiverExpr:
-		return "_self." + exported(expression.Name)
+		return "_self." + g.fieldName(sema.Type{Kind: sema.Named, Name: g.receiver}, expression.Name)
 	case *ast.MemberExpr:
-		return g.expr(expression.Object) + "." + exported(expression.Name)
+		return g.expr(expression.Object) + "." + g.fieldName(g.model.ExprTypes[expression.Object], expression.Name)
 	case *ast.IndexExpr:
 		return g.expr(expression.Object) + "[int(" + g.expr(expression.Index) + ")]"
 	case *ast.LiteralExpr:
@@ -336,7 +355,7 @@ func (g *generator) expr(expr ast.Expr) string {
 		typeInfo := g.model.ExprTypes[expr]
 		fields := make([]string, len(expression.Fields))
 		for index, field := range expression.Fields {
-			fields[index] = exported(field.Name) + ": " + g.expr(field.Value)
+			fields[index] = g.fieldName(typeInfo, field.Name) + ": " + g.expr(field.Value)
 		}
 		fields = append(fields, g.defaultFields(typeInfo, expression.Fields)...)
 		return "&" + exported(typeInfo.Name) + "{" + strings.Join(fields, ", ") + "}"
@@ -392,8 +411,15 @@ func goType(t sema.Type) string {
 		return "string"
 	case sema.Boolean:
 		return "bool"
+	case sema.TypeParameter:
+		return "_T_" + t.Name
+	case sema.Interface:
+		if t.Name == "" {
+			return "any"
+		}
+		return namedGoType(t)
 	case sema.Named, sema.Enum:
-		return "*" + exported(t.Name)
+		return "*" + namedGoType(t)
 	case sema.Slice:
 		return "[]" + goType(*t.Elem)
 	default:
@@ -501,6 +527,8 @@ func blockUsesPrint(body []ast.Stmt) bool {
 
 func exprUsesPrint(expr ast.Expr) bool {
 	switch expression := expr.(type) {
+	case *ast.AssertExpr:
+		return exprUsesPrint(expression.Value)
 	case *ast.ReturnExpr:
 		return exprUsesPrint(expression.Value)
 	case *ast.TryExpr:

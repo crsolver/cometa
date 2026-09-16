@@ -6,6 +6,7 @@ import (
 )
 
 type EnumInfo struct {
+	Type     Type
 	Decl     *ast.EnumDecl
 	Variants map[string]VariantInfo
 }
@@ -52,7 +53,7 @@ func (c *checker) checkContextualVariant(expr *ast.ContextualVariantExpr, call *
 		if err != nil {
 			return Type{}, err
 		}
-		if !actual.Equal(variant.Payload) {
+		if !c.model.Assignable(actual, variant.Payload) {
 			return Type{}, c.fail(call.Args[0].Position(), "el payload debe ser %s, no %s", variant.Payload.String(), actual.String())
 		}
 	}
@@ -62,8 +63,16 @@ func (c *checker) checkContextualVariant(expr *ast.ContextualVariantExpr, call *
 
 // A local variable shadows a type name, as it does for ordinary member access.
 func (c *checker) enumMember(member *ast.MemberExpr) (*EnumInfo, VariantInfo, bool, error) {
-	ident, ok := member.Object.(*ast.IdentExpr)
-	if !ok {
+	var ident *ast.IdentExpr
+	var ref ast.TypeRef
+	switch object := member.Object.(type) {
+	case *ast.IdentExpr:
+		ident = object
+		ref = ast.TypeRef{Pos: object.Pos, Name: object.Name}
+	case *ast.InstantiateExpr:
+		ident = &ast.IdentExpr{Pos: object.Pos, Name: object.Name}
+		ref = ast.TypeRef{Pos: object.Pos, Name: object.Name, Args: object.Args}
+	default:
 		return nil, VariantInfo{}, false, nil
 	}
 	if _, local := c.vars[ident.Name]; local {
@@ -73,6 +82,12 @@ func (c *checker) enumMember(member *ast.MemberExpr) (*EnumInfo, VariantInfo, bo
 	if info == nil {
 		return nil, VariantInfo{}, false, nil
 	}
+	t, err := c.resolveType(ref)
+	if err != nil {
+		return info, VariantInfo{}, true, err
+	}
+	c.model.ExprTypes[member.Object] = t
+	info = c.model.EnumFor(t)
 	variant, exists := info.Variants[member.Name]
 	if !exists {
 		return info, variant, true, c.fail(member.NamePos, "la variante %q no existe en %s", member.Name, ident.Name)
@@ -96,6 +111,9 @@ func (c *checker) checkMatch(m *ast.MatchExpr, value bool, expected *Type) (Type
 	if err != nil {
 		return Type{}, err
 	}
+	if t.Kind == Interface {
+		return c.checkTypeMatch(m, value, expected, t)
+	}
 	if t.Kind != Enum && !t.Wrapped() {
 		return Type{}, c.fail(m.Pos, "casos requiere un enum, opcional o resultado, no %s", t.String())
 	}
@@ -117,6 +135,18 @@ func (c *checker) checkMatch(m *ast.MatchExpr, value bool, expected *Type) (Type
 	for index, arm := range m.Arms {
 		c.bindings = cloneBindings(outerBindings)
 		c.model.PatternTypes[arm] = t
+		if arm.TypePattern != nil {
+			return Type{}, c.fail(arm.Pos, "las variantes de casos requieren Enum.Variante o .Variante")
+		}
+		if arm.QualifierType != nil {
+			q, err := c.resolveType(*arm.QualifierType)
+			if err != nil {
+				return Type{}, err
+			}
+			if !q.Equal(t) {
+				return Type{}, c.fail(arm.Pos, "el patrón debe pertenecer a %s", t.String())
+			}
+		}
 		if arm.Qualifier != "" && arm.Qualifier != t.Name {
 			return Type{}, c.fail(arm.QualifierPos, "el patrón debe pertenecer a %s, no %s", t.Name, arm.Qualifier)
 		}
@@ -152,7 +182,7 @@ func (c *checker) checkMatch(m *ast.MatchExpr, value bool, expected *Type) (Type
 				result = actual
 			} else if result.Kind == Never {
 				result = actual
-			} else if !result.Equal(actual) {
+			} else if actual.Kind != Never && !result.Equal(actual) {
 				return Type{}, c.fail(arm.Pos, "las ramas producen %s y %s", result.String(), actual.String())
 			}
 		} else {
@@ -229,7 +259,7 @@ func (c *checker) checkValueBlock(body []ast.Stmt, expected *Type) (Type, error)
 				}
 				if i == 0 || common.Kind == Never {
 					common = t
-				} else if !common.Equal(t) {
+				} else if t.Kind != Never && !common.Equal(t) {
 					return Type{}, c.fail(branch.Pos, "las ramas producen %s y %s", common.String(), t.String())
 				}
 			}
@@ -241,7 +271,7 @@ func (c *checker) checkValueBlock(body []ast.Stmt, expected *Type) (Type, error)
 			if err != nil {
 				return Type{}, err
 			}
-			if !common.Equal(t) {
+			if common.Kind != Never && t.Kind != Never && !common.Equal(t) {
 				return Type{}, c.fail(final.Pos, "las ramas producen %s y %s", common.String(), t.String())
 			}
 			if common.Kind == Never {

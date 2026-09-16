@@ -2,8 +2,9 @@ package ast
 
 // Pos identifies a one-based location in a Hacha source file.
 type Pos struct {
-	Line   int
-	Column int
+	Filename string // Set by project analysis; empty for standalone analysis.
+	Line     int
+	Column   int
 }
 
 type Node interface {
@@ -11,14 +12,24 @@ type Node interface {
 }
 
 type Program struct {
-	Decls []Decl
+	Imports []*ImportDecl
+	Decls   []Decl
+}
+
+type ImportDecl struct {
+	Pos      Pos
+	PathPos  Pos
+	AliasPos Pos
+	Path     string
+	Alias    string
 }
 
 type EnumDecl struct {
-	Pos      Pos
-	NamePos  Pos
-	Name     string
-	Variants []*VariantDecl
+	TypeParams []TypeParam
+	Pos        Pos
+	NamePos    Pos
+	Name       string
+	Variants   []*VariantDecl
 }
 
 func (*EnumDecl) declNode()       {}
@@ -42,12 +53,14 @@ func (*MatchExpr) exprNode()       {}
 func (e *MatchExpr) Position() Pos { return e.Pos }
 
 type MatchArm struct {
-	Pos          Pos
-	Qualifier    string
-	QualifierPos Pos
-	NamePos      Pos
-	Pattern      string
-	Body         []Stmt
+	TypePattern   *TypeRef
+	QualifierType *TypeRef
+	Pos           Pos
+	Qualifier     string
+	QualifierPos  Pos
+	NamePos       Pos
+	Pattern       string
+	Body          []Stmt
 }
 
 // ContextualVariantExpr resolves its enum from the expected expression type.
@@ -71,6 +84,7 @@ type Decl interface {
 }
 
 type TypeRef struct {
+	Args      []TypeRef
 	Wrapper   string
 	Payload   *TypeRef
 	ErrorType *TypeRef
@@ -82,25 +96,28 @@ type TypeRef struct {
 func (t TypeRef) IsSlice() bool { return t.Element != nil }
 
 type TypeDecl struct {
-	Pos     Pos
-	NamePos Pos
-	Name    string
-	Fields  []*Field
-	Methods []*FuncDecl
+	TypeParams []TypeParam
+	Pos        Pos
+	NamePos    Pos
+	Name       string
+	Fields     []*Field
+	Methods    []*FuncDecl
 }
 
 func (*TypeDecl) declNode()       {}
 func (d *TypeDecl) Position() Pos { return d.Pos }
 
 type Field struct {
-	Pos  Pos
-	Name string
-	Type TypeRef
+	Embedded bool
+	Pos      Pos
+	Name     string
+	Type     TypeRef
 }
 
 func (f *Field) Position() Pos { return f.Pos }
 
 type FuncDecl struct {
+	TypeParams []TypeParam
 	Pos        Pos
 	NamePos    Pos
 	Name       string
@@ -283,6 +300,7 @@ func (*IndexExpr) exprNode()       {}
 func (e *IndexExpr) Position() Pos { return e.Pos }
 
 type StructLiteralExpr struct {
+	Type     *TypeRef
 	Pos      Pos
 	TypeName string
 	Fields   []FieldValue
@@ -358,3 +376,39 @@ type BlockExpr struct {
 
 func (*BlockExpr) exprNode()       {}
 func (e *BlockExpr) Position() Pos { return e.Pos }
+
+type TypeParam struct {
+	Pos        Pos
+	Name       string
+	Constraint *TypeRef
+}
+
+type InterfaceDecl struct {
+	Pos        Pos
+	NamePos    Pos
+	Name       string
+	TypeParams []TypeParam
+	Methods    []*FuncDecl
+	Embeds     []TypeRef
+}
+
+func (*InterfaceDecl) declNode()       {}
+func (d *InterfaceDecl) Position() Pos { return d.Pos }
+
+type InstantiateExpr struct {
+	Pos  Pos
+	Name string
+	Args []TypeRef
+}
+
+func (*InstantiateExpr) exprNode()       {}
+func (e *InstantiateExpr) Position() Pos { return e.Pos }
+
+type AssertExpr struct {
+	Pos    Pos
+	Value  Expr
+	Target TypeRef
+}
+
+func (*AssertExpr) exprNode()       {}
+func (e *AssertExpr) Position() Pos { return e.Pos }

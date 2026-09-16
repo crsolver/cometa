@@ -78,12 +78,26 @@ fn mostrar_ips()
 	imprimir(a_cadena(.V6))
 
 
-enum Resultado
-	Error cadena
-	Ok num
+fn abrir_archivo() cadena!
+	si (verdadero) "hola"
+	sino .Error("error")
 
-fn obt_resultado()
-	var resultado = Resultado.Ok(3)
-	casos resultado |v|
-		.Ok => imprimir(v)
-		.Error => imprimir(v)
+fn manejar()!
+	var texto = abrir_archivo() capturar |e| "hola"
+	.Ok
+
+tipo Usuario
+	nombre cadena
+	mascota cadena?
+	error !
+
+fn nulable()
+	var usuario = Usuario{
+		mascota: "hola"
+		error: .Ok
+	}
+
+	var mascota = usuario.mascota // el valor opcional o resultado "mascota" debe usarse o manejarse explícitamente
+	var talvez_usuario Usuario? = .Alguno({error: .Ok}) // el campo de resultado requiere inicialización explícita
+	var c cadena = si (mascota) |m| m sino ""
+	var c2 cadena = mascota o ""

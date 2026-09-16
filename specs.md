@@ -17,7 +17,7 @@ El mismo ejecutable inicia el servidor LSP mediante `hacha lsp`. El servidor se 
 
 - La indentación usa exclusivamente tabuladores. Los espacios iniciales en una línea con código son un error.
 - Una línea vacía o que solo contiene un comentario `//` no afecta los bloques.
-- `tipo`, `enum`, `fn`, `si`, `osi`, `sino`, `casos` y `repetir` abren bloques. Las variantes de un enum y las ramas de `casos` siempre se indentan.
+- `tipo`, `enum`, `interfaz`, `fn`, `si`, `osi`, `sino`, `casos` y `repetir` abren bloques. Las variantes de un enum y las ramas de `casos` siempre se indentan.
 - Un cuerpo en la misma línea contiene una sola sentencia o expresión y termina con esa línea.
 - No existen `fin`, dos puntos de declaración ni bloques de control con llaves. Las llaves delimitan literales de estructuras. `=>` se usa exclusivamente entre el patrón y el cuerpo de una rama de `casos`.
 
@@ -76,7 +76,7 @@ fn inicio()
 | `Usuario` | `*Usuario` |
 | `[Usuario]` | `[]*Usuario` |
 
-Todos los tipos declarados por el programa tienen semántica de referencia. Los tipos, campos, métodos y funciones generados se exportan en Go.
+Las estructuras y enums declarados por el programa tienen semántica de referencia. Las interfaces conservan el valor dinámico y los parámetros de tipo conservan la representación de su argumento. Los tipos, campos, métodos y funciones generados se exportan en Go.
 
 ```hacha
 tipo Usuario
@@ -86,6 +86,67 @@ tipo Usuario
 	referido Usuario?
 	amigos [Usuario]
 ```
+
+## Interfaces y genéricos
+
+`interfaz Nombre` declara un conjunto de firmas de métodos. Su cuerpo indentado contiene firmas `fn` sin cuerpo ni valores predeterminados, o nombres de otras interfaces que incorpora. Una declaración sin cuerpo es una interfaz vacía y acepta cualquier tipo que produzca un valor.
+
+```hacha
+interfaz Describible
+	fn describir() cadena
+
+interfaz Fuente<T>
+	fn obtener() T
+
+tipo Caja<T>
+	valor T
+	fn obtener() T @valor
+
+fn identidad<T>(valor T) T valor
+fn describir<T Describible>(valor T) cadena valor.describir()
+```
+
+### Compatibilidad de interfaces
+
+- La implementación es implícita: coinciden los nombres de métodos, los tipos y orden de parámetros, la condición variádica y el tipo de resultado. Los nombres de parámetros y los valores predeterminados de la implementación no forman parte de la compatibilidad. No hay covarianza de resultados.
+- Una interfaz compuesta combina las firmas incorporadas. Firmas idénticas se combinan; firmas incompatibles y ciclos de incorporación se rechazan. Si las firmas incorporadas usan nombres de parámetros diferentes, la interfaz debe redeclarar explícitamente el método con los nombres elegidos.
+- Las llamadas por interfaz usan los nombres de parámetros de esa interfaz y suministran todos los argumentos no variádicos. Los valores predeterminados de un método concreto solo se aplican en llamadas a través de su tipo concreto.
+- Un valor concreto compatible se asigna implícitamente a una interfaz. Una interfaz se asigna a otra si garantiza sus métodos. Solo se exponen los métodos declarados por el tipo estático.
+- Los campos de interfaz requieren inicialización explícita, también dentro de estructuras anidadas. No existe una interfaz nula; `I?` representa ausencia. Guardar una estructura en una interfaz conserva la referencia original.
+- Las listas, estructuras/enums genéricos y wrappers ya construidos conservan sus argumentos exactos: `[Usuario]` no se convierte en `[Describible]`. Un literal con tipo esperado `[Describible]` sí acepta elementos individuales compatibles. Una conversión incorporada a `I?` o `I!E` puede envolver una vez un valor compatible con `I`.
+- No se permite igualdad entre interfaces. Guardar o pasar explícitamente un resultado sigue contando como uso; no se agregan reglas de consumo dinámico para resultados guardados dentro de interfaces.
+
+### Inspección segura de tipos
+
+`valor como Tipo` requiere un operando de interfaz y devuelve `Tipo?`. Un destino concreto comprueba el tipo dinámico exacto; un destino de interfaz comprueba sus métodos. Un fallo produce `.Ninguno`, nunca un pánico. Se admiten escalares, listas, wrappers, tipos genéricos instanciados y parámetros de tipo en alcance. Se rechazan comprobaciones concretas que nunca pueden implementar la interfaz de origen.
+
+`como` tiene menor precedencia que la aritmética y mayor que las comparaciones. Para extraer el resultado antes de acceder a sus miembros, agrúpelo: `(valor como Usuario) o alternativa`.
+
+```hacha
+interfaz Cualquiera
+
+fn mostrar(valor Cualquiera)
+	casos valor |dato|
+		Usuario => imprimir(dato.nombre)
+		Describible => imprimir(dato.describir())
+		[num] => imprimir(dato[0])
+		_ => imprimir("otro")
+```
+
+En `casos` sobre una interfaz, las etiquetas son tipos completos. La ligadura tiene el tipo de la etiqueta y no existe en `_`. Se evalúa el operando una sola vez y se ejecuta la primera rama compatible. Siempre se requiere `_` al final, porque la interfaz admite futuras implementaciones. Se rechazan etiquetas de tipo duplicadas; otras superposiciones son válidas. Las reglas de resultados, ramas y control de ciclos coinciden con las de `casos` existente. Las variantes de enum siguen requiriendo `.Variante` o `Enum.Variante`.
+
+### Parámetros de tipo
+
+- Las funciones, estructuras, enums e interfaces aceptan parámetros `<T, U>`. Cada parámetro puede indicar una interfaz: `<T Describible>`. La restricción puede referirse a otros parámetros de la misma declaración; incorporar interfaces permite combinar requisitos. Los nombres de parámetros deben ser únicos y no ocultar tipos declarados.
+- Los cuerpos genéricos se verifican aunque no se utilicen. Un parámetro sin restricción puede guardarse, pasarse y devolverse; sus métodos requieren una restricción que los declare. No se permite aritmética, orden ni igualdad sobre parámetros de tipo. No existen restricciones de campos, uniones de tipos, tipos subyacentes, especializaciones ni valores predeterminados de parámetros de tipo.
+- Los métodos de estructuras genéricas heredan sus parámetros y no pueden declarar otros. Los enums continúan sin métodos.
+- Las llamadas de función infieren parámetros emparejando estructuralmente los tipos de los argumentos explícitos con los tipos formales. Se incluyen argumentos nombrados, elementos variádicos y expansiones. Las apariciones repetidas de un parámetro deben coincidir exactamente. No se infiere desde el resultado esperado, argumentos omitidos ni métodos de las restricciones. Si falta información, se deben escribir todos los argumentos: `f<num, Usuario>(...)`.
+- Los usos de tipos requieren argumentos explícitos: `Caja<Usuario>`, `Evento<num>.Dato(1)`. Los literales contextuales y constructores `.Variante` pueden recibir una instanciación completa como tipo esperado. No hay inferencia de parámetros desde los campos de `Caja { ... }`.
+- Un campo declarado directamente como `T` requiere un valor incluso en `Caja<num>`. `[T]` y `T?` conservan valores predeterminados válidos. Las estructuras anidadas conservan sus requisitos de inicialización. Se rechazan ciclos de campos obligatorios e instanciaciones recursivas que expandan indefinidamente sus argumentos; las listas y opcionales permiten recursión regular.
+- Las estructuras y enums instanciados conservan referencias: `Caja<Usuario>` genera `*Caja[*Usuario]` en Go. Los parámetros de tipo y las interfaces se generan sin añadir un puntero adicional.
+- En expresiones, una secuencia completa `<tipos>` después de un nombre seguida por `(`, `{` o `.` se interpreta como argumentos de tipo antes que como comparaciones. Se admiten cierres anidados `>>`. El resto de comparaciones conserva su sintaxis.
+
+Consulte `examples/interfaces_genericos.hacha`.
 
 ## Variables y literales compuestos
 
@@ -137,6 +198,33 @@ fn inicio()
 ```
 
 Una función anidada dentro de un `tipo` es un método. Dentro de ella, `@nombre` accede a un campo o método del receptor. Los nombres sin `@` solo pueden referirse a parámetros; no se realiza una búsqueda implícita de campos.
+
+Una línea que contiene únicamente un tipo de estructura declara un campo embebido, como en Go:
+
+```hacha
+tipo Persona
+	nombre cadena
+	fn saludar() imprimir(@nombre)
+
+tipo Empleado
+	Persona
+	puesto cadena
+	fn presentar() @saludar()
+
+fn inicio()
+	var empleado = Empleado {Persona: {nombre: "Ana"}, puesto: "Ingeniera"}
+	empleado.nombre = "Luis"
+	empleado.saludar()
+	imprimir(empleado.Persona.nombre)
+```
+
+- El nombre implícito del campo es el nombre del tipo, con su capitalización original en Hacha. Para `Caja<num>` es `Caja`; no se permiten dos instanciaciones del mismo tipo base en una estructura. El nombre no puede duplicar un campo o método directo.
+- Solo se pueden embeber estructuras declaradas, incluidas instanciaciones genéricas. No se permiten tipos primitivos, enums, interfaces, listas, opcionales, resultados ni parámetros de tipo sin instanciar. La incorporación de interfaces dentro de `interfaz` conserva sus reglas propias.
+- Los campos y métodos se promueven recursivamente para lecturas, asignaciones, llamadas y acceso mediante `@`. Los miembros directos ocultan a los promovidos; gana el único miembro a menor profundidad. Campos y métodos comparten este espacio de nombres. Si hay varias rutas a esa profundidad, el miembro es ambiguo, incluso cuando llegan a la misma declaración. La ambigüedad se diagnostica al usar el selector; las rutas explícitas siguen disponibles.
+- Los métodos promovidos no ambiguos participan en la implementación estructural de interfaces y restricciones genéricas. Conservan sus parámetros nombrados, valores predeterminados y receptor original; los métodos del tipo embebido no despachan a los métodos del contenedor.
+- Los literales solo aceptan nombres de campos directos: `{Persona: persona}` es válido; `{nombre: "Ana"}` no inicializa el campo promovido. El tipo esperado se propaga al literal anidado.
+- Omitir un campo embebido crea una estructura nueva con los valores predeterminados habituales. Los campos requeridos se diagnostican con su ruta, por ejemplo `Persona.estado`; los ciclos de campos obligatorios siguen prohibidos. Suministrar una instancia conserva la referencia compartida.
+- Go recibe un campo anónimo de tipo puntero, por ejemplo `*Persona` o `*Caja[float64]`, con la convención de nombres exportados del compilador. El LSP incluye miembros promovidos no ambiguos en completado y hover, y el campo embebido en el esquema del documento.
 
 ```hacha
 tipo Contador
@@ -268,7 +356,7 @@ Un wrapper no permite acceder directamente a campos, métodos o elementos de su 
 - `o` y `capturar` tienen la misma precedencia, inferior a los operadores booleanos, y se asocian hacia la derecha. Use paréntesis para aclarar cadenas mixtas. `intentar` tiene precedencia de prefijo e incluye llamadas y accesos posteriores en su operando: para acceder al payload use `(intentar cargar()).nombre`.
 - `intentar valor` extrae una capa. La ausencia sale de la función devolviendo ausencia y exige que esta devuelva un opcional. Un error sale devolviendo ese error y exige el mismo tipo de error en el resultado de la función. El tipo de éxito de la función puede ser distinto. Una conversión entre errores o entre ausencia y error requiere manejo explícito.
 - `retornar expresión` sale de la función actual desde cualquier bloque, incluso dentro de una expresión. Una función sin resultado usa `retornar` sin valor. Una función con resultado sin payload usa `retornar .Ok`. Se conservan los retornos finales implícitos. Ni `retornar` ni `intentar` se permiten en expresiones de valores predeterminados de parámetros.
-- Se rechazan expresiones opcionales/resultados descartadas y variables locales wrapper que nunca se leen. Pasar, guardar, devolver o manejar explícitamente el valor cuenta como uso. Esta comprobación no es un sistema de propiedad ni exige consumo en todos los caminos; una rama explícita puede ignorar un error.
+- Se rechazan expresiones opcionales/resultados descartadas y variables locales de resultado (`T!E`) que nunca se leen. Las variables opcionales (`T?`) pueden declararse, copiarse y permanecer sin uso; acceder a su payload sigue requiriendo extracción explícita. Pasar, guardar, devolver o manejar explícitamente un resultado cuenta como uso. Esta comprobación no es un sistema de propiedad ni exige consumo en todos los caminos; una rama explícita puede ignorar un error.
 
 Cada operando se evalúa una sola vez, en el orden escrito; las alternativas y los operadores booleanos mantienen evaluación condicional. Los retornos y la propagación salen de la función Hacha original, incluso en argumentos nombrados, listas, campos y `casos` usados como expresiones. `inicio` conserva su firma sin resultado y maneja los errores localmente. Consulte `examples/errores.hacha`.
 
@@ -306,6 +394,29 @@ repetir imprimir("hola")
 
 ## Alcance del MVP
 
-El MVP incluye declaraciones de tipos, enums con payloads explícitos, campos, funciones, métodos y variables locales; parámetros; llamadas; asignaciones; acceso mediante `@` y `.`, e indexación de listas; literales escalares, de estructuras y listas; inferencia contextual de literales compuestos; operadores numéricos, booleanos y de comparación; condicionales y `casos` exhaustivos como sentencias o valores; ciclos sobre listas e infinitos; listas como tipos; y retornos implícitos.
+El MVP incluye declaraciones de tipos, interfaces implícitas, funciones y tipos genéricos con restricciones de interfaz, inspección segura de interfaces, enums con payloads explícitos, campos, funciones, métodos y variables locales; parámetros; llamadas; asignaciones; acceso mediante `@` y `.`, e indexación de listas; literales escalares, de estructuras y listas; inferencia contextual de literales compuestos; operadores numéricos, booleanos y de comparación; condicionales y `casos` exhaustivos como sentencias o valores; ciclos sobre listas e infinitos; listas como tipos; y retornos implícitos.
 
-Quedan fuera por ahora las importaciones, un literal nulo independiente, las referencias explícitas, los genéricos definidos por el usuario, los programas de varios archivos y la creación directa de ejecutables.
+Quedan fuera por ahora un literal nulo independiente, las referencias explícitas, los operadores genéricos, la resolución de paquetes remotos y la creación directa de ejecutables.
+
+## Módulos e importaciones
+
+Cada archivo `.hacha` define un módulo. `usar` es una palabra reservada y solo aparece al nivel superior, antes de cualquier declaración:
+
+```hacha
+usar herramientas
+usar modelos como m
+usar interno/base_de_datos como bd
+usar ../compartido/fechas
+```
+
+La ruta no lleva comillas ni extensión; el compilador agrega `.hacha`. Se resuelve desde la carpeta del archivo que importa, nunca desde el directorio de trabajo. Usa `/` en todas las plataformas y admite los prefijos `./` y `../` repetido. Los demás segmentos tienen forma de identificador. No admite rutas absolutas, segmentos vacíos ni espacios dentro de la ruta.
+
+El alias predeterminado es el último segmento; `como` lo reemplaza por un identificador distinto de `_`. Los alias deben ser únicos y no pueden coincidir con declaraciones superiores. Variables y parámetros locales pueden ocultarlos en expresiones. Un namespace no es un valor.
+
+Cada módulo expone sus funciones, tipos, enums e interfaces; sus campos, métodos y variantes también son públicos. El acceso requiere el alias: `m.crear()`, `m.Usuario`, `m.Caja<num>`, `m.Usuario {nombre: "Ana"}`, `m.Evento.Texto("hola")`. Los tipos calificados funcionan en restricciones, firmas, listas, wrappers, incrustaciones, inspecciones con `como` y patrones de `casos`. Una estructura incrustada conserva como nombre de campo el nombre base del tipo: `m.Usuario` crea el campo `Usuario`.
+
+Los imports no se reexportan, no tienen efectos de inicialización y pueden quedar sin uso. Cada consumidor importa directamente los módulos cuyos nombres necesita. Solo el archivo raíz puede declarar `inicio`; una dependencia con `fn inicio()` causa error. El raíz puede omitir `inicio` al generar código sin punto de entrada.
+
+El compilador carga cada archivo físico una sola vez, reconoce rutas equivalentes y enlaces simbólicos, y rechaza imports duplicados, autoimports y ciclos con su cadena de importación. Las declaraciones de archivos diferentes tienen identidades distintas aunque compartan nombre; las interfaces siguen siendo estructurales. Las llamadas preservan evaluación, argumentos nombrados, valores predeterminados y semántica de referencia existentes.
+
+Todo el grafo se genera en un único archivo Go `package main`. Los nombres de las dependencias reciben prefijos internos deterministas sin rutas absolutas. Las rutas con `../` pueden salir de la carpeta raíz; los errores de lectura se señalan en `usar`. No hay manifiesto, versiones, registro de paquetes ni descarga de dependencias.

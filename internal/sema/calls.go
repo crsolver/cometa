@@ -80,7 +80,7 @@ func (c *checker) bindArguments(call *ast.CallExpr, signature FuncInfo) (Type, e
 		if err != nil {
 			return Type{}, err
 		}
-		if !actual.Equal(expected) {
+		if !c.model.Assignable(actual, expected) {
 			return Type{}, c.fail(arg.Position(), "el argumento %d debe ser %s, no %s", i+1, expected.String(), actual.String())
 		}
 		info.Parameters = append(info.Parameters, index)

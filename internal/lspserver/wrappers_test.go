@@ -65,3 +65,16 @@ func TestWrapperTypeDisplay(t *testing.T) {
 		}
 	}
 }
+
+func TestUnusedOptionalLocalsHaveNoDiagnostics(t *testing.T) {
+	source := "tipo Usuario\n\tnombre cadena\n\tmascota cadena?\nfn nulable()\n\tvar usuario = Usuario {mascota: \"hola\"}\n\tvar mascota = usuario.mascota\n\tvar talvez_usuario Usuario? = .Alguno({})\n"
+	h := servertest.New(t, NewHandler())
+	uri := lsp.DocumentURI("file:///unused_optional.hacha")
+	if err := h.DidOpen(uri, "hacha", source); err != nil {
+		t.Fatal(err)
+	}
+	diagnostics := waitForDiagnostics(t, h, uri)
+	if len(diagnostics) != 0 {
+		t.Fatalf("unexpected diagnostics: %+v", diagnostics)
+	}
+}

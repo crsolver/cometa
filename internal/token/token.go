@@ -14,6 +14,9 @@ const (
 	String  Kind = "STRING"
 
 	Tipo      Kind = "tipo"
+	Usar      Kind = "usar"
+	Interfaz  Kind = "interfaz"
+	Como      Kind = "como"
 	Enum      Kind = "enum"
 	Casos     Kind = "casos"
 	Arrow     Kind = "=>"

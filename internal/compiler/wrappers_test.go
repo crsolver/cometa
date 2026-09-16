@@ -14,6 +14,23 @@ func TestWrapperExample(t *testing.T) {
 	runHacha(t, string(source), "Ana\nInvitado\nno se pudo leer el usuario\n")
 }
 
+func TestUnusedOptionalLocalsCompile(t *testing.T) {
+	source := `tipo Usuario
+	nombre cadena
+	mascota cadena?
+fn nulable()
+	var usuario = Usuario {mascota: "hola"}
+	var mascota = usuario.mascota
+	var talvez_usuario Usuario? = .Alguno({})
+	var ausente Usuario? = .Ninguno
+	var implicito Usuario? = Usuario {}
+	var copia = mascota
+`
+	if _, err := Compile("opcionales.hacha", []byte(source)); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestWrapperContextsAndLoops(t *testing.T) {
 	runHacha(t, `tipo Caja
 	valor num?

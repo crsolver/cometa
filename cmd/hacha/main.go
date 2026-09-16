@@ -50,11 +50,7 @@ func run(args []string) error {
 	if output == "" {
 		output = strings.TrimSuffix(input, filepath.Ext(input)) + ".go"
 	}
-	source, err := os.ReadFile(input)
-	if err != nil {
-		return fmt.Errorf("no se pudo leer %s: %w", input, err)
-	}
-	generated, err := compiler.Compile(input, source)
+	generated, err := compiler.CompileProject(input, nil)
 	if err != nil {
 		return err
 	}

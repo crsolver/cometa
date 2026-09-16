@@ -11,13 +11,17 @@ func (p *parser) parseEnumDecl() (*ast.EnumDecl, error) {
 	if err != nil {
 		return nil, err
 	}
+	typeParams, err := p.parseTypeParams()
+	if err != nil {
+		return nil, err
+	}
 	if _, err = p.expect(token.Newline, "se esperaba una línea nueva después del enum"); err != nil {
 		return nil, err
 	}
 	if _, err = p.expect(token.Indent, "se esperaba un bloque indentado de variantes"); err != nil {
 		return nil, err
 	}
-	decl := &ast.EnumDecl{Pos: start.Pos, NamePos: name.Pos, Name: name.Lexeme}
+	decl := &ast.EnumDecl{Pos: start.Pos, NamePos: name.Pos, Name: name.Lexeme, TypeParams: typeParams}
 	for !p.at(token.Dedent) && !p.at(token.EOF) {
 		if p.match(token.Newline) {
 			continue
@@ -74,25 +78,37 @@ func (p *parser) parseMatch() (*ast.MatchExpr, error) {
 			continue
 		}
 		arm := &ast.MatchArm{Pos: p.current().Pos}
-		short := p.match(token.Dot)
-		pattern, err := p.expect(token.Ident, "se esperaba Enum.Variante, .Variante o '_'")
-		if err != nil {
-			return nil, err
-		}
-		if !short && pattern.Lexeme != "_" {
-			arm.Qualifier, arm.QualifierPos = pattern.Lexeme, pattern.Pos
-			if _, err = p.expect(token.Dot, "las variantes de casos requieren Enum.Variante o .Variante"); err != nil {
-				return nil, err
-			}
-			pattern, err = p.expect(token.Ident, "se esperaba una variante después de '.'")
+		if p.match(token.Dot) {
+			pattern, err := p.expect(token.Ident, "se esperaba una variante")
 			if err != nil {
 				return nil, err
 			}
+			if pattern.Lexeme == "_" {
+				return nil, p.error(pattern, "el comodín debe escribirse '_'")
+			}
+			arm.Pattern, arm.NamePos = pattern.Lexeme, pattern.Pos
+		} else if p.at(token.Ident) && p.current().Lexeme == "_" {
+			pattern := p.advance()
+			arm.Pattern, arm.NamePos = "_", pattern.Pos
+		} else {
+			ref, err := p.parseTypeRef()
+			if err != nil {
+				return nil, err
+			}
+			if p.match(token.Dot) {
+				arm.Qualifier, arm.QualifierPos, arm.QualifierType = ref.Name, ref.Pos, &ref
+				pattern, err := p.expect(token.Ident, "se esperaba una variante después de '.'")
+				if err != nil {
+					return nil, err
+				}
+				if pattern.Lexeme == "_" {
+					return nil, p.error(pattern, "el comodín debe escribirse '_'")
+				}
+				arm.Pattern, arm.NamePos = pattern.Lexeme, pattern.Pos
+			} else {
+				arm.TypePattern, arm.NamePos = &ref, ref.Pos
+			}
 		}
-		if pattern.Lexeme == "_" && (short || arm.Qualifier != "") {
-			return nil, p.error(pattern, "el comodín debe escribirse '_'")
-		}
-		arm.Pattern, arm.NamePos = pattern.Lexeme, pattern.Pos
 		if _, err = p.expect(token.Arrow, "se esperaba '=>' después del patrón"); err != nil {
 			return nil, err
 		}

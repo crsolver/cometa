@@ -9,7 +9,7 @@ This repository implements **Hacha**, a statically typed, indentation-based prog
 - The VS Code extension contains both TextMate syntax support and a TypeScript language client.
 - `npm run build` compiles the TypeScript client to `out/extension.js` and the Go executable to `bin/hacha.exe` on Windows (`bin/hacha` elsewhere).
 - VS Code F5 launch is configured as **Run Hacha Extension** and opens the `examples` directory in an Extension Development Host.
-- There is no Git repository initialized in this directory as of the last check.
+- This directory is a Git repository; preserve existing uncommitted changes.
 
 ## Commands
 
@@ -47,7 +47,10 @@ The machine has two Go installations. `C:\msys64\mingw64\bin\go.exe` reports Go 
   - `num` -> Go `float64`
   - `cadena` -> Go `string`
   - `bool` -> Go `bool`
-- Declared Hacha types always have reference semantics: `Usuario` -> `*Usuario`; `[Usuario]` -> `[]*Usuario`.
+- Declared structures and enums have reference semantics: `Usuario` -> `*Usuario`; `[Usuario]` -> `[]*Usuario`. Interfaces and type parameters do not add pointers; `Caja<Usuario>` -> `*Caja[*Usuario]`.
+- `interfaz` declares implicit structural interfaces, with method signatures and embedded interfaces; a bodyless declaration is an empty interface. Interface fields require initialization. Interface signatures have no defaults; named calls use the static interface parameter names. Concrete default methods expose exact public signatures and internal default helpers.
+- Functions, structs, enums and interfaces accept `<T>` parameters and `<T Interfaz>` constraints. Methods inherit struct parameters. Bodies are checked against constraints even when unused. Calls infer from explicit argument types only; unresolved inference requires all type arguments. Fields declared directly as `T` require explicit initialization in every instantiation. Generic arithmetic, equality, unions and independent method type parameters are deferred.
+- `valor como Tipo` safely inspects an interface and returns `Tipo?`. Interface `casos` uses type patterns, first-match ordering and a required final `_`. Lists, generic structs/enums and existing wrappers remain invariant.
 - Generated types, fields, methods, and ordinary functions are exported in Go.
 - A top-level `fn inicio()` becomes Go `func main()` and cannot accept parameters or return a value.
 - A function with a declared result implicitly returns its final expression. A final multiline conditional must produce the declared type on every path.
@@ -55,11 +58,13 @@ The machine has two Go installations. `C:\msys64\mingw64\bin\go.exe` reports Go 
 - `enum` variants have zero or one explicitly typed payload. Constructors use `Evento.Cargar` or `Evento.Texto("hola")`, or `.Cargar` / `.Texto("hola")` with an expected enum type. Case labels require `Evento.Variante`, `.Variante`, or `_`; bare labels are invalid. Enum and struct payloads preserve reference semantics.
 - `casos` is exhaustive as both a statement and an expression. Arm labels are indented; `=>` introduces one inline statement/expression or an indented block. Optional `|e|` binds only explicit payload arms, never unit variants or `_`. Value arms produce a common type. Loop control cannot escape a value match to an outer loop.
 - Receiver fields and methods require `@`; bare identifiers do not fall back to receiver members.
+- Structs embed declared structs with a bare type line (`Persona`, `Caja<num>`). The implicit field/literal key is the base type name. Fields and methods promote at the shallowest depth in one namespace; direct members shadow promotions and equal-depth paths are ambiguous. Promoted methods satisfy interfaces. Literals accept direct keys only; embeddings retain reference, fresh-default and required-cycle rules. `internal/sema/embedding.go` shares resolution with LSP; promoted calls retain the receiver path for default helpers. See `examples/embebidos.hacha`.
 - `imprimir(valor)` maps to `fmt.Println(valor)`.
 - Optionals use `T?`; results use `T!` (string error) or `T!E`; `!`/`!E` mean success without a payload. Constructors are `.Alguno`/`.Ninguno` and `.Ok`/`.Error`, with one implicit wrapping step under an expected type. Extraction requires `casos`, optional `si` binding, `o`, `capturar`, or `intentar`. `retornar` exits explicitly; propagation exits the enclosing Hacha function. No user-defined generics are required.
 - Omitted scalar/list/optional fields have valid defaults. Struct fields default to fresh recursive instances, but result/enum fields require explicit initialization through every required nested field. Required struct cycles are rejected; optionals and lists allow recursion. Ordinary declared references cannot be nil in Hacha.
-- Discarded wrapper expressions and unread local wrapper variables are errors. Parameter defaults cannot contain `retornar` or `intentar`.
-- List iteration and infinite loops use `repetir`; `continuar` and `romper` control the nearest loop. Imports, standalone null values, explicit references, user-defined generics, multi-file modules, and direct executable generation remain outside the MVP.
+- Discarded wrapper expressions and unread local result (`T!E`) variables are errors. Optional (`T?`) locals may be declared, copied, and left unused; payload access still requires extraction. Parameter defaults cannot contain `retornar` or `intentar`.
+- `usar ruta [como alias]` imports a file module relative to the importing file, with `/` separators and implicit `.hacha`. Imports precede declarations, expose public declarations through a namespace, and do not re-export imports. Only the root may declare `inicio`. Duplicate physical imports and cycles are rejected. Local values can shadow aliases. See `examples/modulos/inicio.hacha`.
+- List iteration and infinite loops use `repetir`; `continuar` and `romper` control the nearest loop. Standalone null values, explicit references, generic operator constraints, remote package resolution, and direct executable generation remain outside the MVP.
 
 ## Architecture
 
@@ -67,10 +72,12 @@ The machine has two Go installations. `C:\msys64\mingw64\bin\go.exe` reports Go 
 - `internal/lexer`: line-aware lexer with `INDENT`/`DEDENT` tokens and positioned errors.
 - `internal/parser`: handwritten parser producing the AST.
 - `internal/ast`: declarations, statements, expressions, types, and source positions.
-- `internal/sema`: symbol collection, type checking, receiver checks, call validation, and implicit-return validation.
+- `internal/sema`: symbol collection, type checking, receiver checks, call validation, and implicit-return validation. `generics.go`, `interfaces.go` and `recursion.go` handle substitution, structural assignability, constraints, safe inspection and expanding-instantiation rejection.
 - `internal/codegen`: exported Go name mapping, conditional lowering, `go/format`, and generated-Go type validation.
+- `internal/codegen/generics.go`: native Go interfaces/generics, exact method bridges for defaults, and interface type switches.
 - `internal/codegen/flow.go`: statement-level lowering for wrappers and explicit exits; preserves evaluation order and laziness without returning from generated expression helper functions.
-- `internal/compiler`: `Analyze` runs the frontend for in-memory tooling; `Compile` additionally generates Go.
+- `internal/compiler`: standalone `Analyze`/`Compile` retain single-source behavior. `AnalyzeProject`/`CompileProject` accept a canonical-path source loader, load the import graph, bind unique declaration identities on a separate AST and check/generate one program. Original module ASTs and declaration links support tooling.
+- `internal/lspserver/modules.go`: filesystem URI conversion, unsaved source overlays, dependency diagnostics, watched-file changes, qualified completion/hover and definition navigation.
 - `internal/lspserver`: go-lsp handler, incremental document store, live diagnostics, UTF-16 position conversion, and hierarchical document symbols.
 - `src/extension.ts`: VS Code language client. It launches the configured/default executable with `lsp` and explicit stdio transport.
 - `scripts/build-server.js`: cross-platform Go build helper and local-cache setup.
@@ -92,6 +99,7 @@ The machine has two Go installations. `C:\msys64\mingw64\bin\go.exe` reports Go 
 - Run `go test ./...` after modifying Go code. Existing tests cover lexer indentation, parser shape, semantic failures, golden Go output, CLI behavior, LSP capability negotiation, diagnostic publication/clearing, UTF-16 columns, and document symbols.
 - Run `go vet ./...` before handing off substantial Go changes.
 - A binary-level LSP smoke test should initialize `bin/hacha.exe lsp --stdio`, await the initialize response, send shutdown, await its response, then send exit. Sending shutdown and exit without awaiting the response can create a false cancellation failure.
+- `examples/interfaces_genericos.hacha` demonstrates interfaces, generic structs/enums, constraints and safe inspection.
 - `examples/usuario.hacha` demonstrates enums, matching and payload references. The original struct regression fixture is `internal/compiler/testdata/usuario.hacha`, paired with `usuario.go.golden` in that directory. Enum runtime tests also execute generated Go.
 
 ## Repository hygiene

@@ -5,6 +5,7 @@
   "patterns": [
     { "include": "#comments" },
     { "include": "#strings" },
+    { "include": "#imports" },
     { "include": "#declarations" },
     { "include": "#enum-patterns" },
     { "include": "#keywords" },
@@ -17,6 +18,17 @@
     { "include": "#punctuation" }
   ],
   "repository": {
+    "imports": {
+      "patterns": [{
+        "match": "^(usar)\\s+((?:\\.\\.?/)*[\\p{L}_][\\p{L}\\p{N}_]*(?:/[\\p{L}_][\\p{L}\\p{N}_]*)*)(?:\\s+(como)\\s+([\\p{L}_][\\p{L}\\p{N}_]*))?",
+        "captures": {
+          "1": { "name": "keyword.control.import.hacha" },
+          "2": { "name": "entity.name.namespace.hacha" },
+          "3": { "name": "keyword.control.hacha" },
+          "4": { "name": "entity.name.namespace.hacha" }
+        }
+      }]
+    },
     "enum-patterns": {
       "patterns": [{
         "match": "^(\\t+)(?:([A-Za-z_][A-Za-z0-9_]*))?(\\.)([A-Za-z_][A-Za-z0-9_]*)(?=\\s*=>)",
@@ -61,7 +73,7 @@
           }
         },
         {
-          "match": "\\b(tipo|enum)(\\s+)([A-Za-z_][A-Za-z0-9_]*)",
+          "match": "\\b(tipo|enum|interfaz)(\\s+)([A-Za-z_][A-Za-z0-9_]*)",
           "captures": {
             "1": { "name": "storage.type.struct.hacha" },
             "3": { "name": "entity.name.type.hacha" }
@@ -78,10 +90,10 @@
     },
     "keywords": {
       "patterns": [
-        { "name": "keyword.control.conditional.hacha", "match": "\\b(?:si|osi|sino|casos|o|capturar|intentar|retornar)\\b" },
+        { "name": "keyword.control.conditional.hacha", "match": "\\b(?:si|osi|sino|casos|o|capturar|intentar|retornar|como)\\b" },
         { "name": "keyword.control.loop.hacha", "match": "\\b(?:repetir|continuar|romper)\\b" },
         { "name": "storage.type.function.hacha", "match": "\\bfn\\b" },
-        { "name": "storage.type.struct.hacha", "match": "\\b(?:tipo|enum)\\b" },
+        { "name": "storage.type.struct.hacha", "match": "\\b(?:tipo|enum|interfaz)\\b" },
         { "name": "storage.type.variable.hacha", "match": "\\bvar\\b" }
       ]
     },
