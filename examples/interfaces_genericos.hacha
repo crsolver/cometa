@@ -16,7 +16,7 @@ tipo Caja<T>
 	valor T
 	fn obtener() T @valor
 
-interfaz Fuente<T>
+interfaz Proveedor<T>
 	fn obtener() T
 
 enum Evento<T>
@@ -27,7 +27,7 @@ fn identidad<T>(valor T) T valor
 
 fn describir<T Describible>(valor T) cadena valor.describir()
 
-fn leer<T>(fuente Fuente<T>) T fuente.obtener()
+fn leer<T>(fuente Proveedor<T>) T fuente.obtener()
 
 fn inicio()
 	var usuario = Usuario {nombre: "Ana"}

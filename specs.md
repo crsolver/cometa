@@ -1,6 +1,20 @@
 # Hacha: especificación del MVP
 
-Hacha es un lenguaje estáticamente tipado, con sintaxis en español e indentación significativa. El compilador está escrito en Go y genera un único archivo Go perteneciente a `package main`.
+Hacha es un lenguaje estáticamente tipado, con sintaxis en español e indentación significativa, orientado a juegos 2D con Ebitengine. El compilador está escrito en Go y genera un único archivo Go perteneciente a `package main`.
+
+## Perfil de juego
+
+El módulo raíz que declara `actualizar` o `pintar` activa el perfil de juego y debe declarar ambas: `fn actualizar(dt num)` y `fn pintar()`, sin resultados, genéricos ni defaults. `fn iniciar()` es opcional. Desde él y sus helpers se puede llamar a `juego.configuracion` sin resultado y con todos los parámetros opcionales: 320×180, escala 1, título "Hacha", 60 TPS, sin redimensionamiento ni pantalla completa. La última llamada gana; la configuración se valida y aplica después de `iniciar`. `configurar` es una función ordinaria. No se admite `inicio` junto a este perfil ni callbacks en módulos importados. El runtime genera el adaptador de Ebitengine y su punto de entrada. `dt` se expresa en segundos por tick (1/60 por defecto).
+
+`Vec2`, `Rect`, `Camara2D`, `Color`, `Tecla` y `BotonRaton` tienen semántica de valor; los recursos `Imagen`, `Fuente`, `Sonido` y `Reproduccion` son opacos. Los tipos y namespaces incorporados están reservados. La interfaz de ejemplo antes llamada `Fuente` ahora se llama `Proveedor`. Las estructuras del usuario conservan referencias.
+
+`Vec2` y `Rect` exponen métodos de valor; la matemática escalar usa `mate`. El dibujo ofrece variantes escalares, `_v` y `_rect`, con rotación opcional en radianes para rectángulos, imágenes y texto.
+
+El catálogo de APIs, las firmas, las coordenadas, los defaults y las reglas de recursos se especifican en [Juegos 2D](docs/juegos.md). Dibujo solo puede alcanzarse desde `pintar` y sus helpers; se rechaza desde globales, inicio o actualización. Los recursos usan rutas literales en inicializadores globales directos, relativas al módulo que los declara, y se validan e incorporan en compilación.
+
+`hacha ejecutar juego.hacha` construye y ejecuta; `hacha construir juego.hacha -o juego.exe` construye sin abrir ventana. Ambos usan un módulo Go temporal y Ebitengine v2.10.1. `compilar` sigue produciendo Go; para juegos valida sintaxis, mientras que `ejecutar` y `construir` verifican el programa con `go build`. El perfil tradicional con `inicio` conserva su verificación de tipos Go.
+
+Las llamadas permiten argumentos en líneas separadas, indentados con tabs, con el paréntesis de cierre al nivel de la llamada. Los vectores y las demás estructuras aceptan literales nombrados (`Vec2 {x: 10, y: 10}`) o posicionales (`Vec2 {10, 10}`).
 
 ## Compilar
 
@@ -78,6 +92,36 @@ fn inicio()
 
 Las estructuras y enums declarados por el programa tienen semántica de referencia. Las interfaces conservan el valor dinámico y los parámetros de tipo conservan la representación de su argumento. Los tipos, campos, métodos y funciones generados se exportan en Go.
 
+### Cadenas
+
+`+` concatena dos valores `cadena`; no convierte otros tipos automáticamente. Una cadena puede incluir expresiones con `${expresión}`. La interpolación acepta `cadena`, `num` y `bool`, evalúa cada expresión una sola vez de izquierda a derecha y representa booleanos como `verdadero` o `falso`. `\${` escribe los caracteres `${` literalmente. Las cadenas interpoladas son expresiones de ejecución y no se admiten en `const`.
+
+```hacha
+var nombre = "Ana"
+imprimir("Hola " + nombre)
+imprimir("${nombre}, tienes ${20 + 1} años")
+```
+
+Los índices y longitudes cuentan puntos de código Unicode. Los índices deben ser números finitos enteros. `subcadena` usa un límite final exclusivo; los límites inválidos devuelven `.Ninguno` y un rango vacío válido devuelve `.Alguno("")`.
+
+| Método | Resultado |
+| --- | --- |
+| `longitud()` | `num` |
+| `esta_vacia()` | `bool` |
+| `contiene(valor cadena)` | `bool` |
+| `buscar_indice(valor cadena)` | `num?` |
+| `empieza_con(prefijo cadena)` | `bool` |
+| `termina_con(sufijo cadena)` | `bool` |
+| `mayusculas()` | `cadena` |
+| `minusculas()` | `cadena` |
+| `recortar()` | `cadena` |
+| `reemplazar(buscar cadena, reemplazo cadena)` | `cadena` |
+| `dividir(separador cadena)` | `[cadena]` |
+| `obtener(indice num)` | `cadena?` |
+| `subcadena(inicio num, fin num)` | `cadena?` |
+
+`dividir("")` divide por punto de código y devuelve una lista vacía para la cadena vacía. `reemplazar("", texto)` inserta el reemplazo en los límites entre puntos de código, incluidos ambos extremos. Los métodos no modifican el receptor.
+
 ```hacha
 tipo Usuario
 	nombre cadena
@@ -95,7 +139,7 @@ tipo Usuario
 interfaz Describible
 	fn describir() cadena
 
-interfaz Fuente<T>
+interfaz Proveedor<T>
 	fn obtener() T
 
 tipo Caja<T>
@@ -148,9 +192,27 @@ En `casos` sobre una interfaz, las etiquetas son tipos completos. La ligadura ti
 
 Consulte `examples/interfaces_genericos.hacha`.
 
+## Globales y constantes
+
+`var` y `const` pueden declararse sin indentación al nivel superior. Ambas formas requieren un inicializador y aceptan un tipo explícito opcional. Las globales forman parte del mismo espacio de nombres que los tipos y funciones, son públicas y se acceden desde otro módulo mediante su alias.
+
+```hacha
+const limite num = 10
+var contador = 0
+
+fn incrementar()
+	contador = contador + 1
+```
+
+Una `var` global puede leerse y reasignarse desde funciones. Una `const` nunca puede ser objetivo de una asignación y solo admite `num`, `cadena` o `bool`, formados por literales, otras constantes y operadores unarios o binarios compatibles. No admite llamadas, listas, estructuras, enums ni wrappers.
+
+Los inicializadores de `var` admiten literales compuestos, constructores, referencias a otras globales y llamadas ordinarias. No admiten `retornar`, `intentar`, `capturar`, bloques ni expresiones `si` o `casos`. Las referencias adelantadas son válidas; un ciclo entre inicializadores globales es un error. Los módulos importados se inicializan antes que el módulo que los importa.
+
 ## Variables y literales compuestos
 
-`var` declara una variable local. El tipo puede inferirse desde el valor o escribirse entre el nombre y `=`. Un literal de estructura puede indicar su tipo (`Usuario { ... }`) o recibirlo de la declaración (`var usuario Usuario = { ... }`). Los campos omitidos reciben un valor predeterminado válido: escalares en cero, listas vacías, opcionales ausentes y estructuras nuevas construidas recursivamente. Los campos de resultado o enum requieren inicialización explícita, incluso dentro de estructuras anidadas. El diagnóstico indica la ruta del campo que falta. Se rechazan ciclos directos e indirectos de campos de estructura obligatorios; los opcionales y las listas permiten recursión. Cada construcción crea sus propios objetos predeterminados, sin compartirlos con otras instancias.
+Dentro de una función, `var` declara una variable local. El tipo puede inferirse desde el valor o escribirse entre el nombre y `=`. Un literal de estructura puede indicar su tipo (`Usuario { ... }`) o recibirlo de la declaración (`var usuario Usuario = { ... }`). Los campos omitidos reciben un valor predeterminado válido: escalares en cero, listas vacías, opcionales ausentes y estructuras nuevas construidas recursivamente. Los campos de resultado o enum requieren inicialización explícita, incluso dentro de estructuras anidadas. El diagnóstico indica la ruta del campo que falta. Se rechazan ciclos directos e indirectos de campos de estructura obligatorios; los opcionales y las listas permiten recursión. Cada construcción crea sus propios objetos predeterminados, sin compartirlos con otras instancias.
+
+Un literal puede usar valores posicionales, que corresponden a los campos directos en el orden de su declaración. Los campos embebidos ocupan una posición; los campos promovidos no. Se permite proporcionar solo un prefijo y los campos restantes usan las mismas reglas de valores predeterminados o de inicialización obligatoria. Un literal no puede mezclar valores posicionales y campos nombrados. Cambiar el orden de los campos cambia el significado de los literales posicionales existentes.
 
 ```hacha
 var usuario1 = Usuario {
@@ -162,6 +224,8 @@ var usuario2 Usuario = {
 	nombre: "andres",
 	amigos: [usuario1]
 }
+
+var usuario3 = Usuario {"Ana", 29}
 ```
 
 Las listas no vacías infieren su tipo desde el primer elemento y exigen que los demás sean compatibles. Una lista vacía requiere un tipo esperado.
@@ -178,6 +242,34 @@ Una lista se indexa con una expresión `num` entre corchetes. El acceso produce 
 var primero = usuarios[0]
 procesar_usuario(usuarios[1])
 ```
+
+Las listas ofrecen métodos incorporados. Los métodos `agregar`, `extender`, `insertar`, `eliminar` e `invertir` actualizan directamente la variable, parámetro, campo o elemento de lista que recibe la llamada. Los demás métodos aceptan también expresiones temporales.
+
+| Método sobre `[T]` | Resultado | Comportamiento |
+|---|---|---|
+| `longitud()` | `num` | Cantidad de elementos |
+| `esta_vacia()` | `bool` | Indica si la lista está vacía |
+| `contiene(valor T)` | `bool` | Busca un valor igual |
+| `buscar_indice(valor T)` | `num?` | Primer índice, o `.Ninguno` |
+| `obtener(indice num)` | `T?` | Elemento, o `.Ninguno` si el índice no es válido |
+| `primero()` / `ultimo()` | `T?` | Elemento extremo, o `.Ninguno` |
+| `agregar(valor T)` | sin valor | Agrega al final |
+| `extender(otra [T])` | sin valor | Agrega todos los elementos de otra lista |
+| `insertar(indice num, valor T)` | `bool` | Inserta antes del índice; permite el final |
+| `eliminar(indice num)` | `bool` | Elimina el elemento conservando el orden |
+| `copiar()` | `[T]` | Copia superficial con almacenamiento independiente |
+| `invertir()` | sin valor | Invierte los elementos en el mismo almacenamiento |
+
+Los índices de estos métodos deben ser números finitos, enteros y dentro del rango. `insertar` y `eliminar` devuelven `falso` sin modificar la lista ante un índice inválido. `obtener` devuelve `.Ninguno`. `contiene` y `buscar_indice` admiten números, cadenas, booleanos y estructuras, que se comparan por identidad; todavía no admiten enums, interfaces, wrappers, listas anidadas ni parámetros de tipo.
+
+```hacha
+var valores = [10, 20]
+valores.agregar(30)
+imprimir(valores.buscar_indice(20) o -1)
+imprimir(valores.obtener(99) o 0)
+```
+
+La asignación de una lista copia su descriptor de slice: cada alias conserva su propia longitud, aunque puede compartir el almacenamiento de los elementos. Por eso agregar mediante un alias no cambia la longitud de los demás; escribir, insertar, eliminar o invertir puede hacer visibles cambios de elementos en aliases que todavía compartan almacenamiento. Cambiar la longitud de un parámetro de lista tampoco cambia la variable del llamador. `copiar()` crea almacenamiento independiente, pero conserva las referencias contenidas.
 
 Los campos y métodos de una variable se acceden con `.`. El marcador `@` sigue reservado para el receptor del método actual.
 
@@ -396,7 +488,7 @@ repetir imprimir("hola")
 
 El MVP incluye declaraciones de tipos, interfaces implícitas, funciones y tipos genéricos con restricciones de interfaz, inspección segura de interfaces, enums con payloads explícitos, campos, funciones, métodos y variables locales; parámetros; llamadas; asignaciones; acceso mediante `@` y `.`, e indexación de listas; literales escalares, de estructuras y listas; inferencia contextual de literales compuestos; operadores numéricos, booleanos y de comparación; condicionales y `casos` exhaustivos como sentencias o valores; ciclos sobre listas e infinitos; listas como tipos; y retornos implícitos.
 
-Quedan fuera por ahora un literal nulo independiente, las referencias explícitas, los operadores genéricos, la resolución de paquetes remotos y la creación directa de ejecutables.
+Quedan fuera por ahora un literal nulo independiente, las referencias explícitas, los operadores genéricos y la resolución de paquetes remotos de Hacha. Los ejecutables de escritorio se construyen mediante el toolchain Go.
 
 ## Módulos e importaciones
 

@@ -22,7 +22,7 @@ func TestEmbeddingExample(t *testing.T) {
 }
 
 func TestEmbeddingRuntime(t *testing.T) {
-	runHacha(t, `interfaz Fuente<T>
+	runHacha(t, `interfaz Proveedor<T>
 	fn obtener() T
 tipo Caja<T>
 	valor T
@@ -53,7 +53,7 @@ tipo Sombra
 	Base
 	n cadena
 	fn subir() cadena "local"
-fn tomar<T Fuente<num>>(v T) num v.obtener()
+fn tomar<T Proveedor<num>>(v T) num v.obtener()
 fn inicio()
 	var f = Final<num> {Medio: {Caja: {valor: 7}}}
 	imprimir(f.valor)

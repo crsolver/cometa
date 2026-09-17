@@ -25,7 +25,7 @@ var keywords = map[string]token.Kind{
 	"o": token.Fallback, "capturar": token.Catch, "intentar": token.Try, "retornar": token.Return,
 	"enum": token.Enum, "casos": token.Casos,
 	"tipo": token.Tipo, "fn": token.Fn, "si": token.Si, "osi": token.Osi,
-	"var":  token.Var,
+	"var": token.Var, "const": token.Const,
 	"sino": token.Sino, "num": token.Num, "cadena": token.Cadena, "bool": token.Bool,
 	"repetir": token.Repetir, "continuar": token.Continuar, "romper": token.Romper,
 	"verdadero": token.True, "falso": token.False,
@@ -132,21 +132,11 @@ func lexLine(filename string, lineNo, start int, runes []rune) ([]token.Token, e
 			continue
 		}
 		if ch == '"' {
-			j := i + 1
-			escaped := false
-			for j < len(runes) {
-				if !escaped && runes[j] == '"' {
-					j++
-					break
+			j, ok := scanString(runes, i)
+			if !ok {
+				if at := unclosedInterpolation(runes, i+1); at >= 0 {
+					return nil, lexError(filename, lineNo, at+1, "interpolación sin cerrar")
 				}
-				if !escaped && runes[j] == '\\' {
-					escaped = true
-				} else {
-					escaped = false
-				}
-				j++
-			}
-			if j > len(runes) || j == len(runes) && runes[j-1] != '"' {
 				return nil, lexError(filename, lineNo, i+1, "cadena sin cerrar")
 			}
 			out = append(out, token.Token{Kind: token.String, Lexeme: string(runes[i:j]), Pos: pos})
@@ -184,6 +174,69 @@ func lexLine(filename string, lineNo, start int, runes []rune) ([]token.Token, e
 		i++
 	}
 	return out, nil
+}
+
+func unclosedInterpolation(runes []rune, start int) int {
+	for i := start; i+1 < len(runes); i++ {
+		if runes[i] == '\\' {
+			i++
+			continue
+		}
+		if runes[i] == '$' && runes[i+1] == '{' {
+			if _, ok := scanInterpolation(runes, i+2); !ok {
+				return i
+			}
+		}
+	}
+	return -1
+}
+
+// scanString understands interpolation so quotes and braces inside ${...}
+// cannot accidentally terminate the containing string.
+func scanString(runes []rune, start int) (int, bool) {
+	for i := start + 1; i < len(runes); {
+		if runes[i] == '\\' {
+			i += 2
+			continue
+		}
+		if runes[i] == '"' {
+			return i + 1, true
+		}
+		if runes[i] == '$' && i+1 < len(runes) && runes[i+1] == '{' {
+			end, ok := scanInterpolation(runes, i+2)
+			if !ok {
+				return 0, false
+			}
+			i = end
+			continue
+		}
+		i++
+	}
+	return 0, false
+}
+
+func scanInterpolation(runes []rune, start int) (int, bool) {
+	depth := 1
+	for i := start; i < len(runes); {
+		switch runes[i] {
+		case '"':
+			end, ok := scanString(runes, i)
+			if !ok {
+				return 0, false
+			}
+			i = end
+			continue
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				return i + 1, true
+			}
+		}
+		i++
+	}
+	return 0, false
 }
 
 func lexError(filename string, line, column int, message string) error {

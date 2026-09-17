@@ -1,6 +1,34 @@
 # Hacha
 
-Hacha is a statically typed, indentation-based programming language with Spanish syntax. Its compiler is written in Go and emits formatted, type-checked Go source.
+Hacha is a statically typed language with Spanish syntax for small 2D games, powered by Go and Ebitengine. Tabs define blocks. Vectors, drawing, input, audio, math and collision helpers are available without imports; existing general-purpose features remain available.
+
+```hacha
+tipo Jugador
+	pos Vec2
+	vel Vec2
+
+var jugador = Jugador {vel: {x: 40}}
+
+fn actualizar(dt num)
+	jugador.pos = jugador.pos + jugador.vel * dt
+
+fn pintar()
+	graficos.rectangulo_v(jugador.pos, Vec2 {x: 10, y: 10}, .Rojo)
+```
+
+```console
+npm run build
+bin/hacha ejecutar examples/juego.hacha
+bin/hacha construir examples/juego.hacha -o juego.exe
+```
+
+On Windows use `bin\hacha.exe`. Go 1.25+ is required; `HACHA_GO` can select the executable. The first build downloads pinned Ebitengine v2.10.1 dependencies. Linux/macOS require Ebitengine's native development dependencies. Builds use an isolated temporary module and embed all assets. They do not modify your project's Go module. `ejecutar` builds and runs; `construir` builds without opening a window.
+
+The [playable example](examples/juego.hacha) includes keyboard movement, a sprite, collision, text and sound. Use WASD or arrow keys to collect the yellow target. See [the game API guide](docs/juegos.md) for signatures and lifecycle rules.
+
+Game entries require `actualizar(dt num)` and `pintar()`, with optional `iniciar()`. Call `juego.configuracion(...)` inside `iniciar` to override the defaults: 320×180, scale 1, title "Hacha", and 60 TPS. The compiler creates the loop and entry point. A game cannot also declare `inicio`. Built-in type/namespace names are reserved, so older interfaces named `Fuente` should be renamed (the examples use `Proveedor`). `Vec2` uses value semantics; user structures continue to use reference semantics. Vector math uses methods such as `pos.normalizado()`; rectangles expose `interseca` and `contiene`. Drawing uses scalar, `_v`, and `_rect` variants; rotations are optional radians. The math namespace is `mate`. Vectors and other structures accept named or positional literals, such as `Vec2 {x: 10, y: 10}` and `Vec2 {10, 10}`.
+
+`hacha compilar archivo.hacha -o salida.go` still emits formatted Go. Game output receives syntax validation; `ejecutar` and `construir` perform full Go compilation. General programs retain generated-Go type checking and their traditional entry point:
 
 ```hacha
 fn sumar(a num, b num) num a + b
@@ -8,6 +36,20 @@ fn sumar(a num, b num) num a + b
 fn inicio()
 	imprimir("hola desde Hacha")
 ```
+
+Generated Go omits unused local bindings and compiler temporaries. Initializers still execute when they can have effects or fail, preserving evaluation order without dummy `_ = variable` statements.
+
+Strings support strict concatenation, `${expression}` interpolation, and Unicode-aware methods:
+
+```hacha
+var nombre = "Ana"
+imprimir("Hola " + nombre)
+imprimir("${nombre}, tienes ${20 + 1} años")
+imprimir(nombre.mayusculas())
+imprimir(nombre.subcadena(0, 2) o "")
+```
+
+Interpolation accepts strings, numbers, and booleans. Methods cover length, search, prefixes and suffixes, casing, trimming, replacement, splitting, safe character access, and safe substring access. Positions count Unicode code points. See [the string example](examples/cadenas.hacha) and the method table in [specs.md](specs.md).
 
 ## Modules and imports
 
@@ -29,6 +71,16 @@ Paths are unquoted, use `/`, omit `.hacha`, and resolve relative to the importin
 Functions, types, interfaces, enums, fields, methods and variants are public. Imports do not re-export other imports, execute initialization code, or require use. Access imported declarations with `m.crear()`, `m.Usuario`, `m.Caja<num>`, or `m.Evento.Texto("hola")`. Imports of the same physical file share type identity; types with the same name from different files remain distinct.
 
 The compiler loads all reachable modules and emits one formatted, checked Go file. Only the entry file may declare `fn inicio()`; importing a file that declares it is an error. Missing files, duplicate imports, alias conflicts and import cycles are errors. Paths may use `../` to leave the entry directory. There is no manifest or remote package resolution.
+
+Top-level `var` and `const` declarations define public module globals. Mutable globals can be reassigned from functions; constants are limited to numeric, string, and boolean constant expressions. Imported values use the normal namespace syntax, such as `config.limite`. Forward references are supported and initialization cycles are rejected.
+
+```hacha
+const limite num = 10
+var contador = 0
+
+fn incrementar()
+	contador = contador + 1
+```
 
 ```console
 hacha compilar examples/modulos/inicio.hacha -o modulos.go
@@ -187,6 +239,8 @@ If the server executable lives elsewhere, set `hacha.server.path` in VS Code set
 The source language and current MVP boundaries are documented in [specs.md](specs.md).
 
 Hacha also supports list loops with `repetir (lista) |elemento, indice|`, loop control through `continuar` and `romper`, and infinite inline loops such as `repetir imprimir("hola")`.
+
+Lists have built-in methods such as `valores.longitud()`, `valores.buscar_indice(40)`, `valores.obtener(2)`, and mutating calls such as `valores.agregar(40)`, `valores.insertar(0, 10)`, and `valores.invertir()`. Search and safe access return optionals; insertion and deletion return `bool` for invalid-index handling. See `examples/listas.hacha` and the full method table in [specs.md](specs.md).
 
 Numeric ranges are available only in loops: `repetir (0..5) |i| imprimir(i)` prints `0` through `4`, and `repetir (5..0) |i| imprimir(i)` prints `5` through `1`. Bounds are `num` expressions evaluated once, with an exclusive end and an automatic step of `1` or `-1`. Equal bounds produce no iterations. An optional second binding receives the index starting at zero.
 

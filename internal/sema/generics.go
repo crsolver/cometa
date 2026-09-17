@@ -3,6 +3,7 @@ package sema
 import (
 	"fmt"
 	"hacha/internal/ast"
+	"hacha/internal/gameapi"
 	"sort"
 )
 
@@ -43,6 +44,8 @@ func declName(d ast.Decl) string {
 		return d.Name
 	case *ast.FuncDecl:
 		return d.Name
+	case *ast.GlobalDecl:
+		return d.Name
 	}
 	return ""
 }
@@ -68,9 +71,16 @@ func (m *Model) declaration(name string) ast.Decl {
 }
 
 func (c *checker) check(program *ast.Program) (*Model, error) {
+	c.globalState = map[string]int{}
+	if err := c.installGameAPI(); err != nil {
+		return nil, err
+	}
 	// Collect identities before resolving any signatures, including forward references.
 	for _, d := range program.Decls {
 		name := declName(d)
+		if gameapi.Reserved(name) {
+			return nil, c.fail(d.Position(), "el nombre %q está reservado por el runtime", name)
+		}
 		if c.model.declaration(name) != nil {
 			return nil, c.fail(d.Position(), "el tipo %q ya fue declarado", name)
 		}
@@ -81,12 +91,17 @@ func (c *checker) check(program *ast.Program) (*Model, error) {
 			c.model.Enums[name] = &EnumInfo{Decl: d, Type: Type{Kind: Enum, Name: name}, Variants: map[string]VariantInfo{}}
 		case *ast.InterfaceDecl:
 			c.model.Interfaces[name] = &InterfaceInfo{Decl: d, Methods: map[string]FuncInfo{}}
+		case *ast.GlobalDecl:
+			if c.model.Globals[name] != nil {
+				return nil, c.fail(d.Pos, "la global %q ya fue declarada", name)
+			}
+			c.model.Globals[name] = &GlobalInfo{Decl: d, Constant: d.Constant}
 		}
 	}
 	for _, d := range program.Decls {
 		seen := map[string]bool{}
 		for _, p := range declParams(d) {
-			if seen[p.Name] || p.Name == "_" || c.model.declaration(p.Name) != nil || p.Name == declName(d) {
+			if gameapi.Reserved(p.Name) || seen[p.Name] || p.Name == "_" || c.model.declaration(p.Name) != nil || p.Name == declName(d) {
 				return nil, c.fail(p.Pos, "parámetro de tipo duplicado o en conflicto %q", p.Name)
 			}
 			seen[p.Name] = true
@@ -124,7 +139,7 @@ func (c *checker) check(program *ast.Program) (*Model, error) {
 				if err != nil {
 					return nil, err
 				}
-				if f.Embedded && t.Kind != Named {
+				if f.Embedded && (t.Kind != Named || gameapi.IsType(t.Name)) {
 					return nil, c.fail(f.Pos, "solo se pueden embeber tipos de estructura declarados")
 				}
 				info.Fields[f.Name] = FieldInfo{Decl: f, Type: t}
@@ -188,6 +203,9 @@ func (c *checker) check(program *ast.Program) (*Model, error) {
 			if _, exists := c.model.Functions[d.Name]; exists {
 				return nil, c.fail(d.Pos, "la función %q ya fue declarada", d.Name)
 			}
+			if c.model.Globals[d.Name] != nil {
+				return nil, c.fail(d.Pos, "el nombre %q ya fue declarado como global", d.Name)
+			}
 			sig, err := c.signature(d)
 			if err != nil {
 				return nil, err
@@ -200,6 +218,13 @@ func (c *checker) check(program *ast.Program) (*Model, error) {
 				return nil, c.fail(d.Pos, "inicio debe declararse como fn inicio() sin parámetros ni resultado")
 			}
 			c.model.Functions[d.Name] = sig
+		case *ast.GlobalDecl:
+			if c.model.declaration(d.Name) != nil {
+				return nil, c.fail(d.Pos, "el nombre %q ya fue declarado como tipo", d.Name)
+			}
+			if _, exists := c.model.Functions[d.Name]; exists {
+				return nil, c.fail(d.Pos, "el nombre %q ya fue declarado como función", d.Name)
+			}
 		}
 	}
 	if err := c.flattenInterfaces(); err != nil {
@@ -215,6 +240,13 @@ func (c *checker) check(program *ast.Program) (*Model, error) {
 		return nil, err
 	}
 	for _, d := range program.Decls {
+		if global, ok := d.(*ast.GlobalDecl); ok {
+			if err := c.checkGlobal(global.Name); err != nil {
+				return nil, err
+			}
+		}
+	}
+	for _, d := range program.Decls {
 		switch d := d.(type) {
 		case *ast.TypeDecl:
 			for _, method := range d.Methods {
@@ -228,10 +260,16 @@ func (c *checker) check(program *ast.Program) (*Model, error) {
 			}
 		}
 	}
+	if err := c.checkInitializationCycles(program); err != nil {
+		return nil, err
+	}
 	if err := c.validateTypeUses(); err != nil {
 		return nil, err
 	}
 	if err := c.checkExpansions(); err != nil {
+		return nil, err
+	}
+	if err := c.checkGame(program); err != nil {
 		return nil, err
 	}
 	return c.model, nil
@@ -342,6 +380,12 @@ func (m *Model) StructInfo(t Type) *TypeInfo {
 }
 
 func (m *Model) Methods(t Type) map[string]FuncInfo {
+	if t.Kind == Slice {
+		return ListMethods(t)
+	}
+	if t.Kind == String {
+		return StringMethods()
+	}
 	if t.Kind == TypeParameter {
 		t = m.Constraints[paramKey(t)]
 	}

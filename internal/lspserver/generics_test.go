@@ -8,7 +8,7 @@ import (
 )
 
 func TestGenericInterfaceCompletion(t *testing.T) {
-	const decl = `interfaz Fuente<T>
+	const decl = `interfaz Proveedor<T>
 	fn obtener() T
 tipo Caja<T>
 	valor T
@@ -18,8 +18,8 @@ enum E<T>
 	Vacio
 `
 	for _, tt := range []struct{ name, body, want string }{
-		{"interface", "fn f(v Fuente<num>)\n\tv.§\n", "fn obtener() num"},
-		{"constraint", "fn f<T Fuente<cadena>>(v T)\n\tv.§\n", "fn obtener() cadena"},
+		{"interface", "fn f(v Proveedor<num>)\n\tv.§\n", "fn obtener() num"},
+		{"constraint", "fn f<T Proveedor<cadena>>(v T)\n\tv.§\n", "fn obtener() cadena"},
 		{"instance", "fn f(v Caja<num>)\n\tv.§\n", "fn obtener() num"},
 		{"field", "fn f(v Caja<cadena>)\n\tv.§\n", "cadena"},
 		{"enum", "fn inicio()\n\tvar v = E<num>.§\n", "E<num>.Dato(num)"},
@@ -51,7 +51,7 @@ enum E<T>
 }
 
 func TestGenericHoverAndInterfaceSymbols(t *testing.T) {
-	source := `interfaz Fuente<T>
+	source := `interfaz Proveedor<T>
 	fn obtener() T
 tipo Caja<T>
 	valor T

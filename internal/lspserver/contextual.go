@@ -133,10 +133,13 @@ func contextualCompletion(filename string, lines []string, line int, prefix stri
 			}
 		}
 	}
-	if expected.Kind != sema.Enum && !expected.Wrapped() {
+	list := gameConstantCompletion(expected)
+	if list == nil && expected.Kind != sema.Enum && !expected.Wrapped() {
 		return &lsp.CompletionList{}, true
 	}
-	list := enumCompletionItems(model.EnumFor(expected))
+	if list == nil {
+		list = enumCompletionItems(model.EnumFor(expected))
+	}
 	for i := range list.Items {
 		list.Items[i].InsertText = list.Items[i].Label
 		list.Items[i].TextEdit = lsp.NewCompletionTextEdit(lsp.TextEdit{

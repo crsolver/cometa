@@ -2,6 +2,7 @@ package compiler
 
 import (
 	"hacha/internal/ast"
+	"hacha/internal/gameapi"
 	"reflect"
 	"strings"
 )
@@ -29,6 +30,9 @@ func copyScope(scope map[string]bool, names ...string) map[string]bool {
 }
 
 func (b *binder) name(name string, pos ast.Pos) string {
+	if name == "" || gameapi.IsType(name) || gameapi.IsNamespace(name) {
+		return name
+	}
 	m := b.module
 	parts := strings.Split(name, ".")
 	if len(parts) == 2 {
@@ -121,6 +125,10 @@ func (b *binder) bind() error {
 			b.parameters(d.TypeParams)
 			d.Name = symbol
 			b.function(d)
+		case *ast.GlobalDecl:
+			d.Name = symbol
+			b.typeRef(d.Type)
+			d.Value = b.expr(d.Value, map[string]bool{})
 		}
 		if b.err != nil {
 			return b.err
@@ -202,6 +210,9 @@ func (b *binder) expr(expr ast.Expr, scope map[string]bool) ast.Expr {
 		}
 		for i := range e.Fields {
 			e.Fields[i].Value = b.expr(e.Fields[i].Value, scope)
+		}
+		for i := range e.Values {
+			e.Values[i] = b.expr(e.Values[i], scope)
 		}
 		return e
 	case *ast.BlockExpr:

@@ -2,6 +2,7 @@ package sema
 
 import (
 	"hacha/internal/ast"
+	"hacha/internal/gameapi"
 	"strings"
 )
 
@@ -23,6 +24,14 @@ type ConstructorInfo struct {
 }
 
 func (c *checker) checkContextualVariant(expr *ast.ContextualVariantExpr, call *ast.CallExpr, expected *Type) (Type, error) {
+	if expected != nil && gameapi.Constants[expected.Name] != nil {
+		value, ok := gameapi.Constants[expected.Name][expr.Name]
+		if !ok || call != nil {
+			return Type{}, c.fail(expr.Pos, "constante inválida .%s para %s", expr.Name, expected.Name)
+		}
+		c.model.Game.Constants[expr] = value
+		return *expected, nil
+	}
 	if call != nil {
 		if err := c.plainArguments(call); err != nil {
 			return Type{}, err

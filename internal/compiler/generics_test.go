@@ -30,10 +30,10 @@ tipo Caja<T>
 enum Evento<T>
 	Vacio
 	Dato T
-interfaz Fuente<T>
+interfaz Proveedor<T>
 	fn obtener() T
 fn identidad<T>(valor T) T valor
-fn leer<T, F Fuente<T>>(fuente F) T fuente.obtener()
+fn leer<T, F Proveedor<T>>(fuente F) T fuente.obtener()
 fn nombre<T Describible>(valor T) cadena valor.describir(prefijo = "interfaz")
 fn primero<T>(valores [T]) T? valores[0]
 fn inicio()

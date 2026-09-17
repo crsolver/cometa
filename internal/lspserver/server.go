@@ -90,6 +90,12 @@ func (h *Handler) Completion(_ context.Context, params *lsp.CompletionParams) (*
 	if !ok {
 		return &lsp.CompletionList{}, nil
 	}
+	gameLines := strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n")
+	if params.Position.Line >= 0 && params.Position.Line < len(gameLines) {
+		if list := gameNamespaceCompletion(utf16Prefix(gameLines[params.Position.Line], params.Position.Character)); list != nil {
+			return list, nil
+		}
+	}
 	if hasImports(text) {
 		return h.moduleCompletion(params, text), nil
 	}
@@ -108,16 +114,13 @@ func (h *Handler) Completion(_ context.Context, params *lsp.CompletionParams) (*
 		return receiverCompletion(string(params.TextDocument.URI), lines, lineIndex, prefix, at), nil
 	}
 	if dot < 0 {
-		return &lsp.CompletionList{}, nil
+		return gameTopCompletion(prefix), nil
 	}
 	if dot > 0 && prefix[dot-1] == '>' {
 		return genericEnumCompletion(string(params.TextDocument.URI), lines, lineIndex, prefix, dot), nil
 	}
 	end := dot
-	start := end
-	for start > 0 && isIdentifierRune(rune(prefix[start-1])) {
-		start--
-	}
+	start := memberReceiverStart(prefix, end)
 	receiverName := prefix[start:end]
 	if list, handled := contextualCompletion(string(params.TextDocument.URI), lines, lineIndex, prefix, dot, start); handled {
 		return list, nil
@@ -133,22 +136,23 @@ func (h *Handler) Completion(_ context.Context, params *lsp.CompletionParams) (*
 	if arrow := strings.Index(prefix, "=>"); arrow >= 0 {
 		replacement = prefix[:arrow+2] + " "
 	}
-	replacement += receiverName
+	const receiverProbe = "__hacha_completion_receiver__"
+	replacement += "var " + receiverProbe + " = " + receiverName
 	model := completionModel(string(params.TextDocument.URI), lines, lineIndex, replacement)
 	if model == nil {
 		return &lsp.CompletionList{}, nil
 	}
 	var receiverType sema.Type
-	for expression, expressionType := range model.ExprTypes {
-		ident, isIdent := expression.(*ast.IdentExpr)
-		if isIdent && ident.Name == receiverName && ident.Pos.Line == lineIndex+1 {
-			receiverType = expressionType
+	for declaration, declarationType := range model.VarTypes {
+		if declaration.Name == receiverProbe && declaration.Pos.Line == lineIndex+1 {
+			receiverType = declarationType
+			break
 		}
 	}
 	if receiverType.Kind == sema.Interface || receiverType.Kind == sema.TypeParameter {
 		return resolvedMemberItems(model, receiverType), nil
 	}
-	if receiverType.Kind != sema.Named {
+	if receiverType.Kind != sema.Named && receiverType.Kind != sema.Slice && receiverType.Kind != sema.String {
 		if receiverType.Kind == sema.Invalid {
 			if info := model.Enums[receiverName]; info != nil {
 				return enumCompletionItems(info), nil
@@ -157,6 +161,61 @@ func (h *Handler) Completion(_ context.Context, params *lsp.CompletionParams) (*
 		return &lsp.CompletionList{}, nil
 	}
 	return resolvedMemberItems(model, receiverType), nil
+}
+
+func memberReceiverStart(prefix string, end int) int {
+	start := end
+	for start > 0 {
+		for start > 0 && isIdentifierRune(rune(prefix[start-1])) {
+			start--
+		}
+		if start > 0 && (prefix[start-1] == ']' || prefix[start-1] == ')' || prefix[start-1] == '}') {
+			closing := prefix[start-1]
+			opening := map[byte]byte{']': '[', ')': '(', '}': '{'}[closing]
+			depth := 1
+			start--
+			for start > 0 && depth > 0 {
+				start--
+				switch prefix[start] {
+				case closing:
+					depth++
+				case opening:
+					depth--
+				}
+			}
+			if closing == '}' {
+				for start > 0 && prefix[start-1] == ' ' {
+					start--
+				}
+			}
+			continue
+		}
+		if start > 0 && prefix[start-1] == '"' {
+			start--
+			for start > 0 {
+				start--
+				if prefix[start] == '"' {
+					backslashes := 0
+					for i := start - 1; i >= 0 && prefix[i] == '\\'; i-- {
+						backslashes++
+					}
+					if backslashes%2 == 0 {
+						break
+					}
+				}
+			}
+			continue
+		}
+		if start > 0 && prefix[start-1] == '.' {
+			start--
+			continue
+		}
+		if start > 0 && prefix[start-1] == '@' {
+			start--
+		}
+		break
+	}
+	return start
 }
 
 func receiverCompletion(filename string, lines []string, lineIndex int, prefix string, at int) *lsp.CompletionList {
@@ -236,7 +295,8 @@ func (h *Handler) Hover(_ context.Context, params *lsp.HoverParams) (*lsp.Hover,
 	if hasImports(text) {
 		return h.moduleHover(params, text), nil
 	}
-	program, model, err := compiler.Analyze(string(params.TextDocument.URI), []byte(text))
+	filename := analysisFilename(params.TextDocument.URI)
+	program, model, err := compiler.Analyze(filename, []byte(text))
 	if err != nil || program == nil || model == nil {
 		return nil, nil
 	}
@@ -292,10 +352,50 @@ func identifierAt(tokens []token.Token, lines []string, position lsp.Position) (
 		}
 		return candidate, hoverRange, true
 	}
+	// Interpolation is represented by one outer string token. Recover the word
+	// under the cursor here; AST resolution below confirms that it is code.
+	if position.Line >= 0 && position.Line < len(lines) {
+		runes := []rune(lines[position.Line])
+		cursor := runeIndexAtUTF16(lines[position.Line], position.Character)
+		start, end := cursor, cursor
+		if start == len(runes) || start < len(runes) && !isIdentifierRune(runes[start]) {
+			start--
+		}
+		for start >= 0 && isIdentifierRune(runes[start]) {
+			start--
+		}
+		start++
+		for end < len(runes) && isIdentifierRune(runes[end]) {
+			end++
+		}
+		if start < end {
+			lexeme := string(runes[start:end])
+			return token.Token{Kind: token.Ident, Lexeme: lexeme, Pos: ast.Pos{Line: position.Line + 1, Column: start + 1}}, lsp.Range{Start: lsp.Position{Line: position.Line, Character: utf16Length(string(runes[:start]))}, End: lsp.Position{Line: position.Line, Character: utf16Length(string(runes[:end]))}}, true
+		}
+	}
 	return token.Token{}, lsp.Range{}, false
 }
 
+func runeIndexAtUTF16(line string, column int) int {
+	units, index := 0, 0
+	for _, r := range line {
+		width := 1
+		if r > 0xffff {
+			width = 2
+		}
+		if units+width > column {
+			break
+		}
+		units += width
+		index++
+	}
+	return index
+}
+
 func resolveHover(program *ast.Program, model *sema.Model, position ast.Pos, lines []string) (hoverInfo, bool) {
+	if info, ok := gameHover(program, model, position); ok {
+		return info, true
+	}
 	if info, ok := enumHover(model, position); ok {
 		return info, true
 	}
@@ -305,6 +405,9 @@ func resolveHover(program *ast.Program, model *sema.Model, position ast.Pos, lin
 		if identifier, ok := expression.(*ast.IdentExpr); ok && identifier.Pos == position {
 			if raw, ok := model.RawTypes[expression]; ok {
 				expressionType = raw
+			}
+			if global := model.GlobalRefs[identifier]; global != nil {
+				return globalHover(identifier.Name, expressionType, global.Constant), true
 			}
 			return variableHover(identifier.Name, expressionType), true
 		}
@@ -332,6 +435,14 @@ func resolveHover(program *ast.Program, model *sema.Model, position ast.Pos, lin
 			}
 		case *ast.FuncDecl:
 			if info, ok := hoverInFunction(decl, model.Functions[decl.Name], model, position, lines); ok {
+				return info, true
+			}
+		case *ast.GlobalDecl:
+			if decl.NamePos == position {
+				global := model.Globals[decl.Name]
+				return globalHover(decl.Name, global.Type, decl.Constant), true
+			}
+			if info, ok := hoverInExpression(decl.Value, model, position, lines, ""); ok {
 				return info, true
 			}
 		}
@@ -491,6 +602,12 @@ func hoverInExpression(expression ast.Expr, model *sema.Model, position ast.Pos,
 			return info, true
 		}
 		return hoverInExpression(expr.Right, model, position, lines, receiverName)
+	case *ast.InterpolatedStringExpr:
+		for _, part := range expr.Parts {
+			if info, ok := hoverInExpression(part.Expr, model, position, lines, receiverName); ok {
+				return info, true
+			}
+		}
 	case *ast.CallExpr:
 		callPosition := ast.Pos{}
 		switch callee := expr.Callee.(type) {
@@ -505,7 +622,14 @@ func hoverInExpression(expression ast.Expr, model *sema.Model, position ast.Pos,
 		}
 		if callPosition == position {
 			if call, ok := model.Calls[expr]; ok {
-				return functionHover(call.Signature, lines), true
+				info := functionHover(call.Signature, lines)
+				if operation, builtin := model.ListCalls[expr]; builtin {
+					info.documentation = sema.ListMethodDocumentation(operation)
+				}
+				if operation, builtin := model.StringCalls[expr]; builtin {
+					info.documentation = sema.StringMethodDocumentation(operation)
+				}
+				return info, true
 			}
 		}
 		switch callee := expr.Callee.(type) {
@@ -564,6 +688,11 @@ func hoverInExpression(expression ast.Expr, model *sema.Model, position ast.Pos,
 				return info, true
 			}
 		}
+		for _, value := range expr.Values {
+			if info, ok := hoverInExpression(value, model, position, lines, receiverName); ok {
+				return info, true
+			}
+		}
 	case *ast.ListLiteralExpr:
 		for _, element := range expr.Elements {
 			if info, ok := hoverInExpression(element, model, position, lines, receiverName); ok {
@@ -591,6 +720,14 @@ func hoverInExpression(expression ast.Expr, model *sema.Model, position ast.Pos,
 
 func variableHover(name string, variableType sema.Type) hoverInfo {
 	return hoverInfo{detail: "var " + name + " " + variableType.String()}
+}
+
+func globalHover(name string, variableType sema.Type, constant bool) hoverInfo {
+	keyword := "var"
+	if constant {
+		keyword = "const"
+	}
+	return hoverInfo{detail: keyword + " " + name + " " + variableType.String()}
 }
 
 func functionHover(function sema.FuncInfo, lines []string) hoverInfo {
@@ -770,7 +907,7 @@ func (h *Handler) DocumentSymbol(_ context.Context, params *lsp.DocumentSymbolPa
 	if !ok {
 		return nil, nil
 	}
-	program, _, _ := compiler.Analyze(string(params.TextDocument.URI), []byte(text))
+	program, model, _ := compiler.Analyze(analysisFilename(params.TextDocument.URI), []byte(text))
 	if program == nil {
 		return nil, nil
 	}
@@ -805,6 +942,17 @@ func (h *Handler) DocumentSymbol(_ context.Context, params *lsp.DocumentSymbolPa
 			symbols = append(symbols, symbol)
 		case *ast.FuncDecl:
 			symbols = append(symbols, symbolFor(lines, declaration.Name, declaration.Pos, lsp.SymbolKindFunction, functionDetail(declaration)))
+		case *ast.GlobalDecl:
+			kind := lsp.SymbolKindVariable
+			detail := "var"
+			if declaration.Constant {
+				kind = lsp.SymbolKindConstant
+				detail = "const"
+			}
+			if model != nil && model.Globals[declaration.Name] != nil {
+				detail += " " + model.Globals[declaration.Name].Type.String()
+			}
+			symbols = append(symbols, symbolFor(lines, declaration.Name, declaration.Pos, kind, detail))
 		}
 	}
 	return symbols, nil

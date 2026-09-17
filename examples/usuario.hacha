@@ -72,7 +72,6 @@ fn a_cadena2(ip IP) cadena casos ip
 	.V4 => "v4"
 	.V6 => "v6"
 
-
 fn mostrar_ips()
 	imprimir(a_cadena(.V4)) // a_cadena expects IP so no need to write IP, . should trigger suggestions
 	imprimir(a_cadena(.V6))

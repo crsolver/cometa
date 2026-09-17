@@ -57,13 +57,9 @@ func Procesar_lista(usuarios []*Usuario) {
 
 func main() {
 	usuario1 := &Usuario{}
-	_ = usuario1
 	usuario2 := &Usuario{}
-	_ = usuario2
 	lista := []*Usuario{usuario1, usuario2}
-	_ = lista
-	x := lista[int(4)]
-	_ = x
+	_ = lista[int(4)]
 	Procesar_lista(lista)
 	Procesar_usuario(lista[int(0)])
 }

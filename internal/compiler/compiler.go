@@ -26,6 +26,9 @@ func Analyze(filename string, source []byte) (*ast.Program, *sema.Model, error) 
 	if err != nil {
 		return program, nil, err
 	}
+	if err = loadAssets(filename, model); err != nil {
+		return program, model, err
+	}
 	return program, model, nil
 }
 

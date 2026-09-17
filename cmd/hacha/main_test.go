@@ -43,7 +43,7 @@ func TestRunAcceptsOutputAfterInput(t *testing.T) {
 
 func TestUsageMentionsLSPMode(t *testing.T) {
 	err := run(nil)
-	if err == nil || !strings.Contains(err.Error(), "|lsp>") {
+	if err == nil || !strings.Contains(err.Error(), "lsp") {
 		t.Fatalf("usage error = %v", err)
 	}
 }

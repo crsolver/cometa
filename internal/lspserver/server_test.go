@@ -2,6 +2,7 @@ package lspserver
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -106,6 +107,22 @@ func TestHoverShowsInferredVariablesAndFunctionDocumentation(t *testing.T) {
 				t.Fatalf("hover range = %+v, want %+v", hover.Range, test.range_)
 			}
 		})
+	}
+}
+
+func TestHoverTraversesPositionalStructValues(t *testing.T) {
+	harness := servertest.New(t, NewHandler())
+	uri := lsp.DocumentURI("file:///hover-positional.hacha")
+	source := "tipo Punto\n\tx num\nfn inicio()\n\tvar n = 1\n\tvar punto = Punto {n}\n"
+	if err := harness.DidOpen(uri, "hacha", source); err != nil {
+		t.Fatal(err)
+	}
+	if diagnostics := waitForDiagnostics(t, harness, uri); len(diagnostics) != 0 {
+		t.Fatalf("unexpected diagnostics: %+v", diagnostics)
+	}
+	hover, err := harness.Hover(uri, 4, 20)
+	if err != nil || hover == nil || !strings.Contains(hover.Contents.Value(), "var n num") {
+		t.Fatalf("hover = %+v, %v; want inferred positional value", hover, err)
 	}
 }
 

@@ -1,0 +1,466 @@
+package main
+
+import (
+	"bytes"
+	"encoding/base64"
+	"fmt"
+	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/audio"
+	"github.com/hajimehoshi/ebiten/v2/audio/mp3"
+	"github.com/hajimehoshi/ebiten/v2/audio/vorbis"
+	"github.com/hajimehoshi/ebiten/v2/audio/wav"
+	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
+	"github.com/hajimehoshi/ebiten/v2/text/v2"
+	"github.com/hajimehoshi/ebiten/v2/vector"
+	"image"
+	"image/color"
+	_ "image/jpeg"
+	_ "image/png"
+	"io"
+	"log"
+	"math"
+	"math/rand/v2"
+	"strings"
+)
+
+type _hgVec2 struct{ X, Y float64 }
+type _hgRect struct{ Pos, Tamano _hgVec2 }
+type _hgCamara2D struct {
+	Pos, Origen    _hgVec2
+	Zoom, Rotacion float64
+}
+type _hgConfigJuego struct {
+	Ancho, Alto                        float64
+	Titulo                             string
+	Escala                             float64
+	Redimensionable, Pantalla_completa bool
+	Tps                                float64
+}
+type _hgColor = color.NRGBA
+type _hgTecla ebiten.Key
+type _hgBotonRaton ebiten.MouseButton
+type _hgImagen struct{ image *ebiten.Image }
+type _hgFuente struct{ source *text.GoTextFaceSource }
+type _hgSonido struct{ pcm []byte }
+type _hgReproduccion struct {
+	player       *audio.Player
+	sound        *_hgSonido
+	loop, paused bool
+	volume       float64
+}
+type _hgGame struct{}
+
+var _hgconfig = _hgConfigJuego{320, 180, "Hacha", 1, false, false, 60}
+var _hgstarting bool
+var _hgscreen *ebiten.Image
+var _hgcamara = _hgCamara2D{Zoom: 1}
+var _hgaudio *audio.Context
+var _hgplayers = map[*_hgReproduccion]bool{}
+var _hgwhite *ebiten.Image
+
+func (*_hgGame) Update() error {
+	Actualizar(1 / _hgconfig.Tps)
+	for r := range _hgplayers {
+		if !r.paused && !r.player.IsPlaying() {
+			r.player.Close()
+			r.player = nil
+			delete(_hgplayers, r)
+		}
+	}
+	return nil
+}
+func (*_hgGame) Draw(screen *ebiten.Image) {
+	_hgscreen = screen
+	_hgrestablecerCamara()
+	defer func() { _hgscreen = nil }()
+	Pintar()
+}
+func (*_hgGame) Layout(w, h int) (int, int) { return int(_hgconfig.Ancho), int(_hgconfig.Alto) }
+func _hgconfiguracion(w, h float64, title string, scale float64, resize, full bool, tps float64) {
+	if !_hgstarting {
+		panic("configuración solo se permite desde iniciar")
+	}
+	_hgconfig = _hgConfigJuego{w, h, title, scale, resize, full, tps}
+}
+func _hgvalidarConfig(c _hgConfigJuego) {
+	for _, n := range []float64{c.Ancho, c.Alto, c.Escala, c.Tps, c.Ancho * c.Escala, c.Alto * c.Escala} {
+		if math.IsNaN(n) || math.IsInf(n, 0) || n <= 0 || n > 32768 {
+			log.Fatal("configuración de juego inválida: dimensiones, escala y tps deben ser positivos y finitos (máximo 32768)")
+		}
+	}
+	if c.Ancho != math.Trunc(c.Ancho) || c.Alto != math.Trunc(c.Alto) || c.Tps != math.Trunc(c.Tps) || c.Ancho*c.Escala < 1 || c.Alto*c.Escala < 1 {
+		log.Fatal("dimensiones lógicas y tps deben ser enteros")
+	}
+}
+func _hgadd(a, b _hgVec2) _hgVec2           { return _hgVec2{a.X + b.X, a.Y + b.Y} }
+func _hgsub(a, b _hgVec2) _hgVec2           { return _hgVec2{a.X - b.X, a.Y - b.Y} }
+func _hgscale(a _hgVec2, s float64) _hgVec2 { return _hgVec2{a.X * s, a.Y * s} }
+func _hglongitud(v _hgVec2) float64         { return math.Hypot(v.X, v.Y) }
+func _hgnormalizar(v _hgVec2) _hgVec2 {
+	n := _hglongitud(v)
+	if n == 0 {
+		return _hgVec2{}
+	}
+	return _hgscale(v, 1/n)
+}
+func _hgdistancia(a, b _hgVec2) float64     { return _hglongitud(_hgsub(a, b)) }
+func _hgproductoPunto(a, b _hgVec2) float64 { return a.X*b.X + a.Y*b.Y }
+func _hgrotar(v _hgVec2, a float64) _hgVec2 {
+	s, c := math.Sincos(a)
+	return _hgVec2{v.X*c - v.Y*s, v.X*s + v.Y*c}
+}
+func _hgabs(v float64) float64              { return math.Abs(v) }
+func _hgmin(a, b float64) float64           { return math.Min(a, b) }
+func _hgmax(a, b float64) float64           { return math.Max(a, b) }
+func _hglimitar(v, a, b float64) float64    { return math.Max(a, math.Min(b, v)) }
+func _hginterpolar(a, b, t float64) float64 { return a + (b-a)*t }
+func _hgpiso(v float64) float64             { return math.Floor(v) }
+func _hgtecho(v float64) float64            { return math.Ceil(v) }
+func _hgredondear(v float64) float64        { return math.Round(v) }
+func _hgraiz(v float64) float64             { return math.Sqrt(v) }
+func _hgseno(v float64) float64             { return math.Sin(v) }
+func _hgcoseno(v float64) float64           { return math.Cos(v) }
+func _hgatan2(y, x float64) float64         { return math.Atan2(y, x) }
+func _hgazarReal(a, b float64) float64 {
+	if math.IsNaN(a) || math.IsNaN(b) || math.IsInf(a, 0) || math.IsInf(b, 0) || a > b || math.IsInf(b-a, 0) {
+		panic("rango aleatorio inválido")
+	}
+	return a + rand.Float64()*(b-a)
+}
+func _hgazarEntero(a, b float64) float64 {
+	if a != math.Trunc(a) || b != math.Trunc(b) || b-a > 9007199254740991 {
+		panic("rango entero inválido")
+	}
+	return math.Floor(_hgazarReal(a, b))
+}
+func _hgrgba(r, g, b, a float64) _hgColor {
+	return _hgColor{uint8(_hglimitar(r, 0, 255)), uint8(_hglimitar(g, 0, 255)), uint8(_hglimitar(b, 0, 255)), uint8(_hglimitar(a, 0, 255))}
+}
+func _hgdraw() {
+	if _hgscreen == nil {
+		panic("dibujar solo se permite desde pintar")
+	}
+}
+func _hgcameraMatrix() ebiten.GeoM {
+	var m ebiten.GeoM
+	m.Translate(-_hgcamara.Pos.X, -_hgcamara.Pos.Y)
+	m.Rotate(-_hgcamara.Rotacion)
+	m.Scale(_hgcamara.Zoom, _hgcamara.Zoom)
+	m.Translate(_hgcamara.Origen.X, _hgcamara.Origen.Y)
+	return m
+}
+func _hgpoint(v _hgVec2) _hgVec2 {
+	m := _hgcameraMatrix()
+	x, y := m.Apply(v.X, v.Y)
+	return _hgVec2{x, y}
+}
+func _hglimpiar(c _hgColor) { _hgdraw(); _hgscreen.Fill(c) }
+func _hgrectangulo(p, s _hgVec2, c _hgColor, o _hgVec2, r float64) {
+	_hgdraw()
+	if _hgcamara.Rotacion == 0 && r == 0 {
+		p = _hgpoint(_hgsub(p, o))
+		vector.FillRect(_hgscreen, float32(p.X), float32(p.Y), float32(s.X*_hgcamara.Zoom), float32(s.Y*_hgcamara.Zoom), c, false)
+		return
+	}
+	if _hgwhite == nil {
+		_hgwhite = ebiten.NewImage(1, 1)
+		_hgwhite.Fill(color.White)
+	}
+	op := &ebiten.DrawImageOptions{}
+	op.GeoM = _hgtransform(p, o, s, r, true)
+	op.ColorScale.ScaleWithColor(c)
+	_hgscreen.DrawImage(_hgwhite, op)
+}
+func _hgcirculo(p _hgVec2, r float64, c _hgColor) {
+	_hgdraw()
+	p = _hgpoint(p)
+	vector.FillCircle(_hgscreen, float32(p.X), float32(p.Y), float32(r*_hgcamara.Zoom), c, true)
+}
+func _hglinea(a, b _hgVec2, c _hgColor, w float64) {
+	_hgdraw()
+	a = _hgpoint(a)
+	b = _hgpoint(b)
+	vector.StrokeLine(_hgscreen, float32(a.X), float32(a.Y), float32(b.X), float32(b.Y), float32(w*_hgcamara.Zoom), c, true)
+}
+func _hgimageDraw(img *ebiten.Image, p, o, s _hgVec2, r float64, c _hgColor) {
+	_hgdraw()
+	op := &ebiten.DrawImageOptions{}
+	op.GeoM = _hgtransform(p, o, s, r, false)
+	op.ColorScale.ScaleWithColor(c)
+	_hgscreen.DrawImage(img, op)
+}
+func _hgimagen(img *_hgImagen, p, o, s _hgVec2, r float64, c _hgColor) {
+	_hgimageDraw(img.image, p, o, s, r, c)
+}
+func _hgregion(img *_hgImagen, region _hgRect, p, o, s _hgVec2, r float64, c _hgColor) {
+	area := image.Rect(int(region.Pos.X), int(region.Pos.Y), int(region.Pos.X+region.Tamano.X), int(region.Pos.Y+region.Tamano.Y))
+	if area.Empty() {
+		return
+	}
+	_hgimageDraw(img.image.SubImage(area).(*ebiten.Image), p, o, s, r, c)
+}
+func _hgtexto(value string, font *_hgFuente, p _hgVec2, size float64, c _hgColor, o _hgVec2, r float64) {
+	_hgdraw()
+	op := &text.DrawOptions{}
+	op.GeoM = _hgtransform(p, o, _hgVec2{1, 1}, r, true)
+	op.ColorScale.ScaleWithColor(c)
+	op.LineSpacing = size * 1.2
+	text.Draw(_hgscreen, value, &text.GoTextFace{Source: font.source, Size: size}, op)
+}
+func _hgtextoDepuracion(value string, p _hgVec2) {
+	_hgdraw()
+	ebitenutil.DebugPrintAt(_hgscreen, value, int(p.X), int(p.Y))
+}
+func _hgtamano() _hgVec2 { return _hgVec2{_hgconfig.Ancho, _hgconfig.Alto} }
+func _hgusarCamara(c _hgCamara2D) {
+	_hgdraw()
+	if c.Zoom <= 0 || math.IsNaN(c.Zoom) || math.IsInf(c.Zoom, 0) {
+		panic("zoom debe ser positivo y finito")
+	}
+	_hgcamara = c
+}
+func _hgrestablecerCamara()              { _hgcamara = _hgCamara2D{Zoom: 1} }
+func _hgteclaMantenida(k _hgTecla) bool  { return ebiten.IsKeyPressed(ebiten.Key(k)) }
+func _hgteclaPresionada(k _hgTecla) bool { return inpututil.IsKeyJustPressed(ebiten.Key(k)) }
+func _hgteclaSoltada(k _hgTecla) bool    { return inpututil.IsKeyJustReleased(ebiten.Key(k)) }
+func _hgratonMantenido(k _hgBotonRaton) bool {
+	return ebiten.IsMouseButtonPressed(ebiten.MouseButton(k))
+}
+func _hgratonPresionado(k _hgBotonRaton) bool {
+	return inpututil.IsMouseButtonJustPressed(ebiten.MouseButton(k))
+}
+func _hgratonSoltado(k _hgBotonRaton) bool {
+	return inpututil.IsMouseButtonJustReleased(ebiten.MouseButton(k))
+}
+func _hgposicionRaton() _hgVec2 {
+	x, y := ebiten.CursorPosition()
+	return _hgVec2{float64(x), float64(y)}
+}
+func _hgrueda() _hgVec2 { x, y := ebiten.Wheel(); return _hgVec2{x, y} }
+func _hgreproducir(sound *_hgSonido, volume float64, loop bool) *_hgReproduccion {
+	r := &_hgReproduccion{sound: sound, loop: loop, volume: _hglimitar(volume, 0, 1)}
+	_hgreanudar(r)
+	return r
+}
+func _hgpausar(r *_hgReproduccion) {
+	if r.player != nil {
+		r.player.Pause()
+		r.paused = true
+	}
+}
+func _hgreanudar(r *_hgReproduccion) {
+	if _hgaudio == nil {
+		_hgaudio = audio.NewContext(48000)
+	}
+	if r.player == nil {
+		var src io.ReadSeeker = bytes.NewReader(r.sound.pcm)
+		if r.loop {
+			src = audio.NewInfiniteLoop(src, int64(len(r.sound.pcm)))
+		}
+		p, err := _hgaudio.NewPlayer(src)
+		if err != nil {
+			log.Fatal(err)
+		}
+		r.player = p
+		r.player.SetVolume(r.volume)
+	}
+	r.paused = false
+	r.player.Play()
+	_hgplayers[r] = true
+}
+func _hgdetener(r *_hgReproduccion) {
+	if r.player != nil {
+		r.player.Close()
+		r.player = nil
+	}
+	r.paused = false
+	delete(_hgplayers, r)
+}
+func _hgvolumen(r *_hgReproduccion, v float64) {
+	r.volume = _hglimitar(v, 0, 1)
+	if r.player != nil {
+		r.player.SetVolume(r.volume)
+	}
+}
+func _hgrectangulos(a, b _hgRect) bool {
+	return a.Pos.X < b.Pos.X+b.Tamano.X && a.Pos.X+a.Tamano.X > b.Pos.X && a.Pos.Y < b.Pos.Y+b.Tamano.Y && a.Pos.Y+a.Tamano.Y > b.Pos.Y
+}
+func _hgcirculos(a _hgVec2, ra float64, b _hgVec2, rb float64) bool {
+	return _hgdistancia(a, b) <= ra+rb
+}
+func _hgpuntoRectangulo(p _hgVec2, r _hgRect) bool {
+	return p.X >= r.Pos.X && p.Y >= r.Pos.Y && p.X < r.Pos.X+r.Tamano.X && p.Y < r.Pos.Y+r.Tamano.Y
+}
+func _hgtitulo(t string)         { ebiten.SetWindowTitle(t) }
+func _hgpantallaCompleta(v bool) { ebiten.SetFullscreen(v) }
+func _hgventanaTamano() _hgVec2  { x, y := ebiten.WindowSize(); return _hgVec2{float64(x), float64(y)} }
+func _hgfps() float64            { return ebiten.ActualFPS() }
+func _hgtps() float64            { return ebiten.ActualTPS() }
+func _hgbytes(encoded, path string) []byte {
+	b, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		log.Fatalf("recurso %s: %v", path, err)
+	}
+	return b
+}
+func _hgcargarImagen(encoded, path string) *_hgImagen {
+	img, _, err := image.Decode(bytes.NewReader(_hgbytes(encoded, path)))
+	if err != nil {
+		log.Fatalf("imagen %s: %v", path, err)
+	}
+	return &_hgImagen{ebiten.NewImageFromImage(img)}
+}
+func _hgcargarFuente(encoded, path string) *_hgFuente {
+	f, err := text.NewGoTextFaceSource(bytes.NewReader(_hgbytes(encoded, path)))
+	if err != nil {
+		log.Fatalf("fuente %s: %v", path, err)
+	}
+	return &_hgFuente{f}
+}
+func _hgcargarSonido(encoded, path string) *_hgSonido {
+	b := bytes.NewReader(_hgbytes(encoded, path))
+	var stream io.Reader
+	var err error
+	switch {
+	case strings.HasSuffix(strings.ToLower(path), ".wav"):
+		stream, err = wav.DecodeWithSampleRate(48000, b)
+	case strings.HasSuffix(strings.ToLower(path), ".ogg"):
+		stream, err = vorbis.DecodeWithSampleRate(48000, b)
+	case strings.HasSuffix(strings.ToLower(path), ".mp3"):
+		stream, err = mp3.DecodeWithSampleRate(48000, b)
+	default:
+		err = fmt.Errorf("formato de sonido desconocido")
+	}
+	if err != nil {
+		log.Fatalf("sonido %s: %v", path, err)
+	}
+	pcm, err := io.ReadAll(stream)
+	if err != nil {
+		log.Fatalf("sonido %s: %v", path, err)
+	}
+	return &_hgSonido{pcm}
+}
+
+func (v _hgVec2) Longitud() float64                   { return _hglongitud(v) }
+func (v _hgVec2) Normalizado() _hgVec2                { return _hgnormalizar(v) }
+func (v _hgVec2) Distancia_a(otro _hgVec2) float64    { return _hgdistancia(v, otro) }
+func (v _hgVec2) Producto_punto(otro _hgVec2) float64 { return _hgproductoPunto(v, otro) }
+func (v _hgVec2) Rotado(angulo float64) _hgVec2       { return _hgrotar(v, angulo) }
+func (v _hgVec2) Colision_circulo(radio float64, otro _hgVec2, radioOtro float64) bool {
+	return _hgcirculos(v, radio, otro, radioOtro)
+}
+func (r _hgRect) Interseca(otro _hgRect) bool { return _hgrectangulos(r, otro) }
+func (r _hgRect) Contiene(punto _hgVec2) bool { return _hgpuntoRectangulo(punto, r) }
+func _hgrectanguloXY(x, y, w, h float64, c _hgColor, o _hgVec2, r float64) {
+	_hgrectangulo(_hgVec2{x, y}, _hgVec2{w, h}, c, o, r)
+}
+func _hgrectanguloRect(rect _hgRect, c _hgColor, o _hgVec2, r float64) {
+	_hgrectangulo(rect.Pos, rect.Tamano, c, o, r)
+}
+func _hgcirculoXY(x, y, r float64, c _hgColor) { _hgcirculo(_hgVec2{x, y}, r, c) }
+func _hglineaXY(x1, y1, x2, y2 float64, c _hgColor, w float64) {
+	_hglinea(_hgVec2{x1, y1}, _hgVec2{x2, y2}, c, w)
+}
+func _hgimagenXY(img *_hgImagen, x, y float64, o, s _hgVec2, r float64, c _hgColor) {
+	_hgimagen(img, _hgVec2{x, y}, o, s, r, c)
+}
+func _hgregionXY(img *_hgImagen, region _hgRect, x, y float64, o, s _hgVec2, r float64, c _hgColor) {
+	_hgregion(img, region, _hgVec2{x, y}, o, s, r, c)
+}
+func _hgtextoXY(v string, f *_hgFuente, x, y, size float64, c _hgColor, o _hgVec2, r float64) {
+	_hgtexto(v, f, _hgVec2{x, y}, size, c, o, r)
+}
+func _hgtextoDepuracionXY(v string, x, y float64) { _hgtextoDepuracion(v, _hgVec2{x, y}) }
+
+// Destination origins are measured after sizing, before rotation and translation.
+func _hgimageRect(img *ebiten.Image, d _hgRect, o _hgVec2, r float64, c _hgColor) {
+	_hgdraw()
+	bounds := img.Bounds()
+	if bounds.Empty() {
+		return
+	}
+	op := &ebiten.DrawImageOptions{}
+	op.GeoM = _hgtransform(d.Pos, o, _hgVec2{d.Tamano.X / float64(bounds.Dx()), d.Tamano.Y / float64(bounds.Dy())}, r, true)
+	op.ColorScale.ScaleWithColor(c)
+	_hgscreen.DrawImage(img, op)
+}
+func _hgimagenRect(img *_hgImagen, d _hgRect, o _hgVec2, r float64, c _hgColor) {
+	_hgimageRect(img.image, d, o, r, c)
+}
+func _hgregionRect(img *_hgImagen, source, d _hgRect, o _hgVec2, r float64, c _hgColor) {
+	_hgdraw()
+	area := image.Rect(int(source.Pos.X), int(source.Pos.Y), int(source.Pos.X+source.Tamano.X), int(source.Pos.Y+source.Tamano.Y))
+	if area.Empty() {
+		return
+	}
+	_hgimageRect(img.image.SubImage(area).(*ebiten.Image), d, o, r, c)
+}
+
+// Transform local geometry before applying the active camera. Image origins use
+// source pixels; rectangle/destination origins use already-sized local pixels.
+func _hgtransform(p, o, s _hgVec2, r float64, destinationOrigin bool) ebiten.GeoM {
+	var m ebiten.GeoM
+	if !destinationOrigin {
+		m.Translate(-o.X, -o.Y)
+	}
+	m.Scale(s.X, s.Y)
+	if destinationOrigin {
+		m.Translate(-o.X, -o.Y)
+	}
+	m.Rotate(r)
+	m.Translate(p.X, p.Y)
+	m.Concat(_hgcameraMatrix())
+	return m
+}
+
+type Jugador struct {
+	Pos _hgVec2
+	Vel _hgVec2
+}
+
+var HachaGlobal_6a756761646f72 *Jugador = func() *Jugador {
+	var _hacha1 *Jugador = &Jugador{Pos: _hgVec2{}, Vel: _hgVec2{}}
+	return _hacha1
+}()
+
+func Actualizar(dt float64) {
+	var _hacha3 *Jugador = HachaGlobal_6a756761646f72
+	_hacha2 := &(_hacha3.Pos)
+	var _hacha4 *Jugador = HachaGlobal_6a756761646f72
+	var _hacha5 _hgVec2 = _hacha4.Pos
+	var _hacha6 *Jugador = HachaGlobal_6a756761646f72
+	var _hacha7 _hgVec2 = _hacha6.Vel
+	var _hacha8 float64 = dt
+	var _hacha9 _hgVec2 = _hgscale(_hacha7, _hacha8)
+	var _hacha10 _hgVec2 = _hgadd(_hacha5, _hacha9)
+	*_hacha2 = _hacha10
+}
+
+func Pintar() {
+	var _hacha11 *Jugador = HachaGlobal_6a756761646f72
+	var _hacha12 _hgVec2 = _hacha11.Pos
+	var _hacha13 float64 = 10
+	var _hacha14 float64 = 10
+	var _hacha15 _hgVec2 = _hgVec2{X: _hacha13, Y: _hacha14}
+	var _hacha16 _hgColor = _hgColor{255, 0, 0, 255}
+	var _hacha17 _hgVec2 = _hgVec2{}
+	var _hacha18 float64 = 0
+	_hgrectangulo(_hacha12, _hacha15, _hacha16, _hacha17, _hacha18)
+}
+
+func main() {
+	_hgstarting = true
+	_hgstarting = false
+	_hgvalidarConfig(_hgconfig)
+	ebiten.SetWindowSize(int(_hgconfig.Ancho*_hgconfig.Escala), int(_hgconfig.Alto*_hgconfig.Escala))
+	ebiten.SetWindowTitle(_hgconfig.Titulo)
+	ebiten.SetFullscreen(_hgconfig.Pantalla_completa)
+	if _hgconfig.Redimensionable {
+		ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
+	}
+	ebiten.SetTPS(int(_hgconfig.Tps))
+	if err := ebiten.RunGame(&_hgGame{}); err != nil {
+		log.Fatal(err)
+	}
+}

@@ -10,6 +10,7 @@ import (
 
 	"hacha/internal/ast"
 	"hacha/internal/codegen"
+	"hacha/internal/gameapi"
 	"hacha/internal/lexer"
 	"hacha/internal/parser"
 	"hacha/internal/sema"
@@ -111,6 +112,12 @@ func AnalyzeProject(entry string, loader SourceLoader) (*Project, error) {
 		}
 		for _, node := range m.Program.Decls {
 			name, pos := declarationName(node)
+			if gameapi.Reserved(name) {
+				return m, projectError(pos, "nombre reservado por el runtime: %s", name)
+			}
+			if path != root && (name == "actualizar" || name == "pintar" || name == "iniciar") {
+				return m, projectError(pos, "el callback %s solo puede declararse en el módulo raíz", name)
+			}
 			if m.Declarations[name] != nil {
 				return m, projectError(pos, "declaración duplicada %q", name)
 			}
@@ -121,6 +128,9 @@ func AnalyzeProject(entry string, loader SourceLoader) (*Project, error) {
 		defer func() { delete(active, path); stack = stack[:len(stack)-1] }()
 		seen := map[string]bool{}
 		for _, imp := range m.Program.Imports {
+			if gameapi.Reserved(imp.Alias) {
+				return m, projectError(imp.AliasPos, "alias reservado por el runtime: %s", imp.Alias)
+			}
 			if m.Imports[imp.Alias] != nil || m.Declarations[imp.Alias] != nil {
 				return m, projectError(imp.AliasPos, "alias duplicado o en conflicto %q", imp.Alias)
 			}
@@ -195,6 +205,9 @@ func AnalyzeProject(entry string, loader SourceLoader) (*Project, error) {
 	if err != nil {
 		return p, p.displayError(err)
 	}
+	if err = loadAssets(root, p.Model); err != nil {
+		return p, err
+	}
 	return p, nil
 }
 
@@ -215,6 +228,8 @@ func declarationName(d ast.Decl) (string, ast.Pos) {
 	case *ast.InterfaceDecl:
 		return d.Name, d.NamePos
 	case *ast.FuncDecl:
+		return d.Name, d.NamePos
+	case *ast.GlobalDecl:
 		return d.Name, d.NamePos
 	}
 	panic("unknown declaration")

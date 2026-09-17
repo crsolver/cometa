@@ -2,11 +2,13 @@ package sema
 
 import (
 	"fmt"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
 
 	"hacha/internal/ast"
+	"hacha/internal/gameapi"
 )
 
 type Kind int
@@ -122,7 +124,15 @@ type TypeInfo struct {
 	Methods map[string]FuncInfo
 }
 
+type GlobalInfo struct {
+	Decl     *ast.GlobalDecl
+	Type     Type
+	Constant bool
+}
+
 type Model struct {
+	Assets        map[*ast.CallExpr]Asset
+	Game          GameModel
 	Interfaces    map[string]*InterfaceInfo
 	TypeParams    map[ast.Decl][]Type
 	Constraints   map[string]Type
@@ -130,11 +140,15 @@ type Model struct {
 	TypeRefs      map[*ast.TypeRef]Type
 	Wraps         map[ast.Expr]Type
 	Calls         map[*ast.CallExpr]CallInfo
+	ListCalls     map[*ast.CallExpr]string
+	StringCalls   map[*ast.CallExpr]string
 	LocalNames    map[string]bool
 	Enums         map[string]*EnumInfo
 	Constructors  map[ast.Expr]ConstructorInfo
 	Types         map[string]*TypeInfo
 	Functions     map[string]FuncInfo
+	Globals       map[string]*GlobalInfo
+	GlobalRefs    map[*ast.IdentExpr]*GlobalInfo
 	ExprTypes     map[ast.Expr]Type
 	ExpectedTypes map[ast.Expr]Type
 	PatternTypes  map[*ast.MatchArm]Type
@@ -152,19 +166,21 @@ func (e *Error) Error() string {
 }
 
 type checker struct {
-	typeScope  map[string]Type
-	pending    []typeUse
-	expansions []typeEdge
-	returnType Type
-	inDefault  bool
-	bindings   map[string]*ast.VarDeclStmt
-	reads      map[*ast.VarDeclStmt]bool
-	tooling    bool
-	filename   string
-	model      *Model
-	vars       map[string]Type
-	receiver   *TypeInfo
-	loopDepth  int
+	typeScope   map[string]Type
+	pending     []typeUse
+	expansions  []typeEdge
+	returnType  Type
+	inDefault   bool
+	bindings    map[string]*ast.VarDeclStmt
+	reads       map[*ast.VarDeclStmt]bool
+	tooling     bool
+	filename    string
+	model       *Model
+	vars        map[string]Type
+	receiver    *TypeInfo
+	loopDepth   int
+	globalState map[string]int
+	globalStack []string
 }
 
 func Check(filename string, program *ast.Program) (*Model, error) {
@@ -185,11 +201,13 @@ func newChecker(filename string) *checker {
 		Interfaces: map[string]*InterfaceInfo{}, TypeParams: map[ast.Decl][]Type{}, Constraints: map[string]Type{}, RawTypes: map[ast.Expr]Type{}, TypeRefs: map[*ast.TypeRef]Type{},
 		Wraps:         map[ast.Expr]Type{},
 		Calls:         map[*ast.CallExpr]CallInfo{},
+		ListCalls:     map[*ast.CallExpr]string{},
+		StringCalls:   map[*ast.CallExpr]string{},
 		LocalNames:    map[string]bool{},
 		ExpectedTypes: map[ast.Expr]Type{},
 		PatternTypes:  map[*ast.MatchArm]Type{},
 		Enums:         map[string]*EnumInfo{}, Constructors: map[ast.Expr]ConstructorInfo{},
-		Types: map[string]*TypeInfo{}, Functions: map[string]FuncInfo{}, ExprTypes: map[ast.Expr]Type{}, VarTypes: map[*ast.VarDeclStmt]Type{},
+		Types: map[string]*TypeInfo{}, Functions: map[string]FuncInfo{}, Globals: map[string]*GlobalInfo{}, GlobalRefs: map[*ast.IdentExpr]*GlobalInfo{}, ExprTypes: map[ast.Expr]Type{}, VarTypes: map[*ast.VarDeclStmt]Type{},
 	}}
 
 }
@@ -279,6 +297,11 @@ func (c *checker) resolveBuiltinType(ref ast.TypeRef) (Type, error) {
 }
 
 func (c *checker) checkFunction(function *ast.FuncDecl, receiver *TypeInfo) error {
+	for _, p := range function.Params {
+		if gameapi.Reserved(p.Name) {
+			return c.fail(p.Pos, "nombre de parámetro reservado: %s", p.Name)
+		}
+	}
 	if receiver != nil {
 		c.setScope(receiver.Decl)
 	} else {
@@ -345,6 +368,226 @@ func (c *checker) checkFunction(function *ast.FuncDecl, receiver *TypeInfo) erro
 	return nil
 }
 
+func (c *checker) checkGlobal(name string) error {
+	info := c.model.Globals[name]
+	if info == nil || c.globalState[name] == 2 {
+		return nil
+	}
+	if c.globalState[name] == 1 {
+		chain := append(append([]string{}, c.globalStack...), name)
+		return c.fail(info.Decl.NamePos, "ciclo de inicialización global: %s", strings.Join(chain, " -> "))
+	}
+	c.globalState[name] = 1
+	c.globalStack = append(c.globalStack, name)
+	defer func() { c.globalStack = c.globalStack[:len(c.globalStack)-1] }()
+
+	decl := info.Decl
+	if pos, forbidden := forbiddenGlobalControl(decl.Value); forbidden {
+		return c.fail(pos, "el inicializador global no admite control de flujo")
+	}
+
+	oldScope, oldVars, oldBindings, oldReads := c.typeScope, c.vars, c.bindings, c.reads
+	oldReceiver, oldReturn, oldLoop := c.receiver, c.returnType, c.loopDepth
+	c.setScope(decl)
+	c.vars = map[string]Type{}
+	c.bindings = map[string]*ast.VarDeclStmt{}
+	c.reads = map[*ast.VarDeclStmt]bool{}
+	c.receiver = nil
+	c.returnType = Type{Kind: Void}
+	c.loopDepth = 0
+	defer func() {
+		c.typeScope, c.vars, c.bindings, c.reads = oldScope, oldVars, oldBindings, oldReads
+		c.receiver, c.returnType, c.loopDepth = oldReceiver, oldReturn, oldLoop
+	}()
+
+	var declared *Type
+	if decl.Type != nil {
+		resolved, err := c.resolveType(*decl.Type)
+		if err != nil {
+			return err
+		}
+		declared = &resolved
+	}
+	actual, err := c.checkExprExpected(decl.Value, declared)
+	if err != nil {
+		return err
+	}
+	if actual.Kind == Void || actual.Kind == Never {
+		return c.fail(decl.Value.Position(), "una global requiere un valor")
+	}
+	if declared != nil && !c.model.Assignable(actual, *declared) {
+		return c.fail(decl.Pos, "no se puede asignar %s a %s", actual.String(), declared.String())
+	}
+	if declared != nil {
+		actual = *declared
+	}
+	info.Type = actual
+	if decl.Constant {
+		if actual.Kind != Number && actual.Kind != String && actual.Kind != Boolean {
+			return c.fail(decl.Pos, "una constante solo puede ser num, cadena o bool, no %s", actual.String())
+		}
+		if err := c.checkConstantExpression(decl.Value); err != nil {
+			return err
+		}
+	}
+	c.globalState[name] = 2
+	return nil
+}
+
+func (c *checker) checkConstantExpression(expr ast.Expr) error {
+	switch e := expr.(type) {
+	case *ast.MemberExpr:
+		if c.model.Game.Constants[e] == "math.Pi" {
+			return nil
+		}
+		return c.fail(e.Pos, "se requiere una expresión constante")
+	case *ast.LiteralExpr:
+		return nil
+	case *ast.IdentExpr:
+		global := c.model.Globals[e.Name]
+		if global == nil || !global.Constant {
+			return c.fail(e.Pos, "una constante solo puede referirse a otras constantes")
+		}
+		return c.checkGlobal(e.Name)
+	case *ast.UnaryExpr:
+		return c.checkConstantExpression(e.Value)
+	case *ast.BinaryExpr:
+		if err := c.checkConstantExpression(e.Left); err != nil {
+			return err
+		}
+		return c.checkConstantExpression(e.Right)
+	default:
+		return c.fail(expr.Position(), "el inicializador de una constante debe ser una expresión constante simple")
+	}
+}
+
+func forbiddenGlobalControl(expr ast.Expr) (ast.Pos, bool) {
+	return forbiddenGlobalValue(reflect.ValueOf(expr))
+}
+
+func forbiddenGlobalValue(value reflect.Value) (ast.Pos, bool) {
+	if !value.IsValid() {
+		return ast.Pos{}, false
+	}
+	if value.Kind() == reflect.Interface || value.Kind() == reflect.Pointer {
+		if value.IsNil() {
+			return ast.Pos{}, false
+		}
+		if node, ok := value.Interface().(ast.Expr); ok {
+			switch node.(type) {
+			case *ast.ReturnExpr, *ast.TryExpr, *ast.RecoverExpr, *ast.BlockExpr, *ast.IfExpr, *ast.MatchExpr:
+				return node.Position(), true
+			}
+		}
+		return forbiddenGlobalValue(value.Elem())
+	}
+	switch value.Kind() {
+	case reflect.Struct:
+		for i := 0; i < value.NumField(); i++ {
+			if pos, found := forbiddenGlobalValue(value.Field(i)); found {
+				return pos, true
+			}
+		}
+	case reflect.Slice:
+		for i := 0; i < value.Len(); i++ {
+			if pos, found := forbiddenGlobalValue(value.Index(i)); found {
+				return pos, true
+			}
+		}
+	}
+	return ast.Pos{}, false
+}
+
+func (c *checker) checkInitializationCycles(program *ast.Program) error {
+	graph := map[string]map[string]bool{}
+	for _, declaration := range program.Decls {
+		global, ok := declaration.(*ast.GlobalDecl)
+		if !ok {
+			continue
+		}
+		dependencies := map[string]bool{}
+		c.collectInitializationDependencies(reflect.ValueOf(global.Value), dependencies, map[*ast.FuncDecl]bool{})
+		graph[global.Name] = dependencies
+	}
+
+	state := map[string]int{}
+	var stack []string
+	var visit func(string) error
+	visit = func(name string) error {
+		if state[name] == 2 {
+			return nil
+		}
+		if state[name] == 1 {
+			start := 0
+			for start < len(stack) && stack[start] != name {
+				start++
+			}
+			chain := append(append([]string{}, stack[start:]...), name)
+			return c.fail(c.model.Globals[name].Decl.NamePos, "ciclo de inicialización global: %s", strings.Join(chain, " -> "))
+		}
+		state[name] = 1
+		stack = append(stack, name)
+		var dependencies []string
+		for dependency := range graph[name] {
+			dependencies = append(dependencies, dependency)
+		}
+		sort.Strings(dependencies)
+		for _, dependency := range dependencies {
+			if err := visit(dependency); err != nil {
+				return err
+			}
+		}
+		stack = stack[:len(stack)-1]
+		state[name] = 2
+		return nil
+	}
+	for _, declaration := range program.Decls {
+		if global, ok := declaration.(*ast.GlobalDecl); ok {
+			if err := visit(global.Name); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (c *checker) collectInitializationDependencies(value reflect.Value, dependencies map[string]bool, functions map[*ast.FuncDecl]bool) {
+	if !value.IsValid() {
+		return
+	}
+	if value.Kind() == reflect.Interface || value.Kind() == reflect.Pointer {
+		if value.IsNil() {
+			return
+		}
+		if identifier, ok := value.Interface().(*ast.IdentExpr); ok {
+			if global := c.model.GlobalRefs[identifier]; global != nil {
+				dependencies[global.Decl.Name] = true
+			}
+		}
+		if call, ok := value.Interface().(*ast.CallExpr); ok {
+			if function := c.model.Calls[call].Signature.Decl; function != nil && !functions[function] {
+				functions[function] = true
+				for _, parameter := range function.Params {
+					c.collectInitializationDependencies(reflect.ValueOf(parameter.Default), dependencies, functions)
+				}
+				c.collectInitializationDependencies(reflect.ValueOf(function.Body), dependencies, functions)
+			}
+		}
+		c.collectInitializationDependencies(value.Elem(), dependencies, functions)
+		return
+	}
+	switch value.Kind() {
+	case reflect.Struct:
+		for i := 0; i < value.NumField(); i++ {
+			c.collectInitializationDependencies(value.Field(i), dependencies, functions)
+		}
+	case reflect.Slice:
+		for i := 0; i < value.Len(); i++ {
+			c.collectInitializationDependencies(value.Index(i), dependencies, functions)
+		}
+	}
+}
+
 func (c *checker) mustResolve(function *ast.FuncDecl, index int) Type {
 	t, _ := c.resolveType(function.Params[index].Type)
 	if function.Params[index].Variadic {
@@ -378,6 +621,9 @@ func (c *checker) checkStmt(stmt ast.Stmt) error {
 		}
 		return nil
 	case *ast.VarDeclStmt:
+		if gameapi.Reserved(statement.Name) {
+			return c.fail(statement.Pos, "nombre reservado: %s", statement.Name)
+		}
 		c.model.LocalNames[statement.Name] = true
 		if _, exists := c.vars[statement.Name]; exists {
 			return c.fail(statement.Pos, "la variable %q ya fue declarada", statement.Name)
@@ -522,7 +768,18 @@ func (c *checker) assignmentTarget(expr ast.Expr) (Type, error) {
 	case *ast.IdentExpr:
 		valueType, exists := c.vars[target.Name]
 		if !exists {
-			return Type{}, c.fail(target.Pos, "el nombre %q no existe; los campos requieren '@'", target.Name)
+			global := c.model.Globals[target.Name]
+			if global == nil {
+				return Type{}, c.fail(target.Pos, "el nombre %q no existe; los campos requieren '@'", target.Name)
+			}
+			if global.Constant {
+				return Type{}, c.fail(target.Pos, "la constante %q no puede reasignarse", target.Name)
+			}
+			if err := c.checkGlobal(target.Name); err != nil {
+				return Type{}, err
+			}
+			valueType = global.Type
+			c.model.GlobalRefs[target] = global
 		}
 		c.model.ExprTypes[target] = valueType
 		return valueType, nil
@@ -547,6 +804,11 @@ func (c *checker) assignmentTarget(expr ast.Expr) (Type, error) {
 		}
 		if objectType.Kind != Named {
 			return Type{}, c.fail(target.Pos, "%s no tiene campos", objectType.String())
+		}
+		if gameapi.IsValue(objectType.Name) {
+			if _, err := c.assignmentTarget(target.Object); err != nil {
+				return Type{}, c.fail(target.Pos, "no se puede asignar un campo de un valor temporal")
+			}
 		}
 		member, err := c.member(objectType, target.Name, target.Pos)
 		if err != nil {
@@ -611,6 +873,24 @@ func (c *checker) checkExprExpected(expr ast.Expr, expected *Type) (Type, error)
 		case "bool":
 			result = Type{Kind: Boolean}
 		}
+	case *ast.InterpolatedStringExpr:
+		for _, part := range expression.Parts {
+			if part.Expr == nil {
+				continue
+			}
+			t, checkErr := c.checkExpr(part.Expr)
+			if checkErr != nil {
+				err = checkErr
+				break
+			}
+			if t.Kind != String && t.Kind != Number && t.Kind != Boolean && t.Kind != Never {
+				err = c.fail(part.Expr.Position(), "la interpolación requiere cadena, num o bool, no %s", t.String())
+				break
+			}
+		}
+		if err == nil {
+			result = Type{Kind: String}
+		}
 	case *ast.IdentExpr:
 		if binding := c.bindings[expression.Name]; binding != nil {
 			if _, tracked := c.reads[binding]; tracked {
@@ -620,7 +900,13 @@ func (c *checker) checkExprExpected(expr ast.Expr, expected *Type) (Type, error)
 		var exists bool
 		result, exists = c.vars[expression.Name]
 		if !exists {
-			err = c.fail(expression.Pos, "el nombre %q no existe; los campos requieren '@'", expression.Name)
+			if global := c.model.Globals[expression.Name]; global != nil {
+				err = c.checkGlobal(expression.Name)
+				result = global.Type
+				c.model.GlobalRefs[expression] = global
+			} else {
+				err = c.fail(expression.Pos, "el nombre %q no existe; los campos requieren '@'", expression.Name)
+			}
 		}
 	case *ast.ReceiverExpr:
 		if c.receiver == nil {
@@ -643,6 +929,12 @@ func (c *checker) checkExprExpected(expr ast.Expr, expected *Type) (Type, error)
 			result = field.Type
 		}
 	case *ast.MemberExpr:
+		if id, ok := expression.Object.(*ast.IdentExpr); ok && id.Name == "mate" && expression.Name == "pi" {
+			result = Type{Kind: Number}
+			c.model.Game.Constants[expression] = "math.Pi"
+			c.model.Game.Used = true
+			break
+		}
 		if info, variant, found, enumErr := c.enumMember(expression); found {
 			err = enumErr
 			if err == nil {
@@ -665,6 +957,14 @@ func (c *checker) checkExprExpected(expr ast.Expr, expected *Type) (Type, error)
 				err = c.fail(expression.Pos, "el método %s.%s debe llamarse con paréntesis", objectType.String(), expression.Name)
 			} else {
 				err = c.fail(expression.Pos, "el miembro %q no existe en %s", expression.Name, objectType.String())
+			}
+			break
+		}
+		if objectType.Kind == String {
+			if _, exists := StringMethods()[expression.Name]; exists {
+				err = c.fail(expression.Pos, "el método cadena.%s debe llamarse con paréntesis", expression.Name)
+			} else {
+				err = c.fail(expression.Pos, "el miembro %q no existe en cadena", expression.Name)
 			}
 			break
 		}
@@ -771,8 +1071,27 @@ func (c *checker) checkStructLiteral(expr *ast.StructLiteralExpr, expected *Type
 	if expected != nil && !c.model.Assignable(result, *expected) {
 		return Type{}, c.fail(expr.Pos, "el literal es %s, pero se esperaba %s", result.String(), expected.String())
 	}
+	if gameapi.IsType(result.Name) && gameapi.Fields[result.Name] == "" {
+		return Type{}, c.fail(expr.Pos, "%s es un tipo opaco; use su constructor incorporado", result.Name)
+	}
 	info := c.model.StructInfo(result)
 	seen := map[string]bool{}
+	if len(expr.Values) > len(info.Decl.Fields) {
+		extra := expr.Values[len(info.Decl.Fields)]
+		return Type{}, c.fail(extra.Position(), "el literal de %s tiene más valores posicionales que campos directos", result.String())
+	}
+	for index, value := range expr.Values {
+		fieldDecl := info.Decl.Fields[index]
+		field := info.Fields[fieldDecl.Name]
+		seen[fieldDecl.Name] = true
+		actual, err := c.checkExprExpected(value, &field.Type)
+		if err != nil {
+			return Type{}, err
+		}
+		if !c.model.Assignable(actual, field.Type) {
+			return Type{}, c.fail(value.Position(), "el campo %q debe ser %s, no %s", fieldDecl.Name, field.Type.String(), actual.String())
+		}
+	}
 	for _, value := range expr.Fields {
 		if seen[value.Name] {
 			return Type{}, c.fail(value.Pos, "el campo %q está duplicado", value.Name)
@@ -843,6 +1162,9 @@ func (c *checker) checkUnary(expr *ast.UnaryExpr) (Type, error) {
 	if expr.Operator == "-" && value.Kind == Number {
 		return Type{Kind: Number}, nil
 	}
+	if expr.Operator == "-" && value.Name == "Vec2" {
+		return value, nil
+	}
 	if expr.Operator == "!" && value.Kind == Boolean {
 		return Type{Kind: Boolean}, nil
 	}
@@ -858,10 +1180,16 @@ func (c *checker) checkBinary(expr *ast.BinaryExpr) (Type, error) {
 	if err != nil {
 		return Type{}, err
 	}
+	if (expr.Operator == "+" || expr.Operator == "-") && left.Name == "Vec2" && right.Name == "Vec2" || (expr.Operator == "*" || expr.Operator == "/") && left.Name == "Vec2" && right.Kind == Number || expr.Operator == "*" && left.Kind == Number && right.Name == "Vec2" {
+		return Type{Kind: Named, Name: "Vec2"}, nil
+	}
 	switch expr.Operator {
 	case "+", "-", "*", "/":
 		if left.Kind == Number && right.Kind == Number {
 			return Type{Kind: Number}, nil
+		}
+		if expr.Operator == "+" && left.Kind == String && right.Kind == String {
+			return Type{Kind: String}, nil
 		}
 	case "<", "<=", ">", ">=":
 		if left.Kind == Number && right.Kind == Number {
@@ -880,6 +1208,9 @@ func (c *checker) checkBinary(expr *ast.BinaryExpr) (Type, error) {
 }
 
 func (c *checker) checkCall(call *ast.CallExpr) (Type, error) {
+	if t, ok, err := c.gameCall(call); ok {
+		return t, err
+	}
 	if member, ok := call.Callee.(*ast.MemberExpr); ok {
 		if info, variant, found, err := c.enumMember(member); found {
 			if err := c.plainArguments(call); err != nil {
@@ -957,6 +1288,12 @@ func (c *checker) checkCall(call *ast.CallExpr) (Type, error) {
 		objectType, err := c.checkExpr(callee.Object)
 		if err != nil {
 			return Type{}, err
+		}
+		if objectType.Kind == Slice {
+			return c.checkListCall(call, callee, objectType)
+		}
+		if objectType.Kind == String {
+			return c.checkStringCall(call, callee)
 		}
 		if objectType.Kind != Named && objectType.Kind != Interface && objectType.Kind != TypeParameter {
 			return Type{}, c.fail(callee.Pos, "%s no tiene métodos", objectType.String())

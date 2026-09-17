@@ -37,7 +37,7 @@ func TestCompilesVariablesCompositeLiteralsAndMemberCall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range []string{"usuario1 := &Usuario{Nombre: \"andres\"}", "vacios := []*Usuario{}", "usuarios := []*Usuario{usuario1, usuario2}", "primero := usuarios[int(0)]", "Procesar_usuario(usuarios[int(1)])", "usuario2.Activar(true)"} {
+	for _, expected := range []string{"usuario1 := &Usuario{Nombre: \"andres\"}", "usuarios := []*Usuario{usuario1, usuario2}", "_ = usuarios[int(0)]", "Procesar_usuario(usuarios[int(1)])", "usuario2.Activar(true)"} {
 		if !strings.Contains(string(got), expected) {
 			t.Errorf("generated Go does not contain %q:\n%s", expected, got)
 		}

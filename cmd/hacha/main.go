@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"hacha/internal/compiler"
@@ -22,8 +23,8 @@ func run(args []string) error {
 	if isLSPCommand(args) {
 		return lspserver.Run(context.Background())
 	}
-	if len(args) == 0 || args[0] != "compilar" {
-		return fmt.Errorf("uso: hacha <compilar <archivo.hacha> [-o <archivo.go>]|lsp>")
+	if len(args) == 0 || (args[0] != "compilar" && args[0] != "ejecutar" && args[0] != "construir") {
+		return fmt.Errorf("uso: hacha <compilar|ejecutar|construir> <archivo.hacha> [-o salida] | lsp")
 	}
 	var input, output string
 	for index := 1; index < len(args); index++ {
@@ -47,12 +48,24 @@ func run(args []string) error {
 	if filepath.Ext(input) != ".hacha" {
 		return fmt.Errorf("el archivo de entrada debe tener extensión .hacha")
 	}
+	if args[0] == "ejecutar" && output != "" {
+		return fmt.Errorf("ejecutar no acepta -o")
+	}
 	if output == "" {
 		output = strings.TrimSuffix(input, filepath.Ext(input)) + ".go"
+		if args[0] == "construir" {
+			output = strings.TrimSuffix(input, filepath.Ext(input))
+			if runtime.GOOS == "windows" {
+				output += ".exe"
+			}
+		}
 	}
 	generated, err := compiler.CompileProject(input, nil)
 	if err != nil {
 		return err
+	}
+	if args[0] != "compilar" {
+		return buildProgram(generated, output, args[0] == "ejecutar")
 	}
 	if err = os.WriteFile(output, generated, 0o644); err != nil {
 		return fmt.Errorf("no se pudo escribir %s: %w", output, err)

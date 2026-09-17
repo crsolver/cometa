@@ -54,6 +54,15 @@ func fileURI(path string) lsp.DocumentURI {
 	return lsp.DocumentURI((&url.URL{Scheme: "file", Path: path}).String())
 }
 
+// File-backed analysis must resolve resources against a decoded filesystem
+// path, not the editor's URI spelling (which may encode the drive colon).
+func analysisFilename(uri lsp.DocumentURI) string {
+	if path, err := pathFromURI(uri); err == nil {
+		return path
+	}
+	return string(uri)
+}
+
 func (h *Handler) sourceLoader() (compiler.SourceLoader, map[string]lsp.DocumentURI) {
 	sources := map[string][]byte{}
 	uris := map[string]lsp.DocumentURI{}
@@ -150,7 +159,7 @@ func (h *Handler) publishProjectDiagnostics(ctx context.Context, changed lsp.Doc
 			h.projects[uri], analysisErr = p, err
 		} else {
 			delete(h.projects, uri)
-			_, _, analysisErr = compiler.Analyze(string(uri), []byte(text))
+			_, _, analysisErr = compiler.Analyze(analysisFilename(uri), []byte(text))
 		}
 		if analysisErr != nil {
 			destination := uri
@@ -227,6 +236,15 @@ func declarationDetail(d *compiler.Declaration) string {
 		return "enum " + node.Name + typeParamDetail(node.TypeParams)
 	case *ast.InterfaceDecl:
 		return "interfaz " + node.Name + typeParamDetail(node.TypeParams)
+	case *ast.GlobalDecl:
+		keyword := "var"
+		if node.Constant {
+			keyword = "const"
+		}
+		if node.Type != nil {
+			return keyword + " " + node.Name + " " + typeRefString(*node.Type)
+		}
+		return keyword + " " + node.Name
 	}
 	return d.Name
 }
@@ -253,6 +271,9 @@ func (h *Handler) moduleHover(params *lsp.HoverParams, text string) *lsp.Hover {
 	if d := p.References[id.Pos]; d != nil {
 		detail = declarationDetail(d)
 		if p.Model != nil {
+			if global := p.Model.Globals[d.Symbol]; global != nil {
+				detail = globalHover(d.Name, global.Type, global.Constant).detail
+			}
 			for call, info := range p.Model.Calls {
 				if calleePosition(call.Callee) == id.Pos && info.Signature.Decl != nil {
 					detail = signatureDetail(info.Signature)
@@ -473,8 +494,19 @@ func (h *Handler) moduleCompletion(params *lsp.CompletionParams, text string) *l
 				kind = lsp.CompletionItemKindEnum
 			case *ast.InterfaceDecl:
 				kind = lsp.CompletionItemKindInterface
+			case *ast.GlobalDecl:
+				kind = lsp.CompletionItemKindVariable
+				if d.Node.(*ast.GlobalDecl).Constant {
+					kind = lsp.CompletionItemKindConstant
+				}
 			}
-			empty.Items = append(empty.Items, lsp.CompletionItem{Label: name, Kind: &kind, Detail: declarationDetail(d)})
+			detail := declarationDetail(d)
+			if headerProject.Model != nil {
+				if global := headerProject.Model.Globals[d.Symbol]; global != nil {
+					detail = globalHover(d.Name, global.Type, global.Constant).detail
+				}
+			}
+			empty.Items = append(empty.Items, lsp.CompletionItem{Label: name, Kind: &kind, Detail: headerProject.Display(detail)})
 		}
 		return empty
 	}
@@ -538,6 +570,9 @@ func (h *Handler) moduleContextualCompletion(params *lsp.CompletionParams, lines
 		if p != nil && p.Model != nil {
 			for expr, t := range p.Model.ExpectedTypes {
 				if expr.Position().Filename == p.Root.Path && expr.Position().Line == line+1 {
+					if list := gameConstantCompletion(t); list != nil {
+						return list
+					}
 					if info := p.Model.EnumFor(t); info != nil {
 						return displayItems(p, enumCompletionItems(info))
 					}

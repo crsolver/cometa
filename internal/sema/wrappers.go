@@ -1,6 +1,9 @@
 package sema
 
-import "hacha/internal/ast"
+import (
+	"hacha/internal/ast"
+	"hacha/internal/gameapi"
+)
 
 func (t Type) Wrapped() bool { return t.Kind == Optional || t.Kind == Result }
 
@@ -198,9 +201,20 @@ func (m *Model) eagerExit(e ast.Expr) bool {
 				return true
 			}
 		}
+		for _, value := range v.Values {
+			if exits(value) {
+				return true
+			}
+		}
 	case *ast.ListLiteralExpr:
 		for _, item := range v.Elements {
 			if exits(item) {
+				return true
+			}
+		}
+	case *ast.InterpolatedStringExpr:
+		for _, part := range v.Parts {
+			if part.Expr != nil && exits(part.Expr) {
 				return true
 			}
 		}
@@ -267,6 +281,9 @@ func (c *checker) checkRequiredCycles(program *ast.Program) error {
 }
 
 func (c *checker) missingDefault(t Type, path string) string {
+	if gameapi.IsType(t.Name) && !gameapi.IsValue(t.Name) {
+		return path
+	}
 	if t.Kind == Result || t.Kind == Enum || t.Kind == Interface || t.Kind == TypeParameter {
 		return path
 	}

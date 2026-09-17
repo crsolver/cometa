@@ -1,0 +1,11 @@
+tipo Jugador
+	pos Vec2
+	vel Vec2
+
+var jugador = Jugador {}
+
+fn actualizar(dt num)
+	jugador.pos = jugador.pos + jugador.vel * dt
+
+fn pintar()
+	graficos.rectangulo_v(jugador.pos, Vec2 {x: 10, y: 10}, .Rojo)

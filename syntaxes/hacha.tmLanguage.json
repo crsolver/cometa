@@ -10,6 +10,7 @@
     { "include": "#enum-patterns" },
     { "include": "#keywords" },
     { "include": "#types" },
+    { "include": "#game-api" },
     { "include": "#constants" },
     { "include": "#numbers" },
     { "include": "#receiver-members" },
@@ -18,6 +19,12 @@
     { "include": "#punctuation" }
   ],
   "repository": {
+    "game-api": {
+      "patterns": [
+        { "name": "support.namespace.hacha", "match": "\\b(?:juego|mate|azar|color|graficos|entrada|audio|ventana|tiempo|recursos)(?=\\.)" },
+        { "name": "constant.other.game.hacha", "match": "(?<=\\.)(?:Blanco|Negro|Rojo|Verde|Azul|Amarillo|Magenta|Cian|Transparente|Izquierda|Derecha|Arriba|Abajo|Espacio|Escape|Enter|Tab|Retroceso|Shift|Control|Izquierdo|Derecho|Medio)\\b" }
+      ]
+    },
     "imports": {
       "patterns": [{
         "match": "^(usar)\\s+((?:\\.\\.?/)*[\\p{L}_][\\p{L}\\p{N}_]*(?:/[\\p{L}_][\\p{L}\\p{N}_]*)*)(?:\\s+(como)\\s+([\\p{L}_][\\p{L}\\p{N}_]*))?",
@@ -58,11 +65,26 @@
           "end": "\"",
           "endCaptures": { "0": { "name": "punctuation.definition.string.end.hacha" } },
           "patterns": [
+			{ "include": "#interpolation" },
+			{ "name": "constant.character.escape.hacha", "match": "\\\\\\$\\{" },
             { "name": "constant.character.escape.hacha", "match": "\\\\(?:[\\\\\"nrt0]|u\\{[0-9A-Fa-f]+\\})" }
           ]
         }
       ]
     },
+	"interpolation": {
+	  "patterns": [{
+		"name": "meta.interpolation.hacha",
+		"begin": "\\$\\{",
+		"beginCaptures": { "0": { "name": "punctuation.section.interpolation.begin.hacha" } },
+		"end": "\\}",
+		"endCaptures": { "0": { "name": "punctuation.section.interpolation.end.hacha" } },
+		"patterns": [
+		  { "include": "#interpolation" },
+		  { "include": "$self" }
+		]
+	  }]
+	},
     "declarations": {
       "patterns": [
         {
@@ -80,7 +102,7 @@
           }
         },
         {
-          "match": "\\b(var)(\\s+)([A-Za-z_][A-Za-z0-9_]*)",
+          "match": "\\b(var|const)(\\s+)([A-Za-z_][A-Za-z0-9_]*)",
           "captures": {
             "1": { "name": "storage.type.variable.hacha" },
             "3": { "name": "variable.other.readwrite.hacha" }
@@ -94,7 +116,7 @@
         { "name": "keyword.control.loop.hacha", "match": "\\b(?:repetir|continuar|romper)\\b" },
         { "name": "storage.type.function.hacha", "match": "\\bfn\\b" },
         { "name": "storage.type.struct.hacha", "match": "\\b(?:tipo|enum|interfaz)\\b" },
-        { "name": "storage.type.variable.hacha", "match": "\\bvar\\b" }
+        { "name": "storage.type.variable.hacha", "match": "\\b(?:var|const)\\b" }
       ]
     },
     "types": {

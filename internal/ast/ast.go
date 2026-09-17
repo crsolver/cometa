@@ -83,6 +83,19 @@ type Decl interface {
 	declNode()
 }
 
+// GlobalDecl declares a package-level mutable variable or constant.
+type GlobalDecl struct {
+	Pos      Pos
+	NamePos  Pos
+	Name     string
+	Type     *TypeRef
+	Value    Expr
+	Constant bool
+}
+
+func (*GlobalDecl) declNode()       {}
+func (d *GlobalDecl) Position() Pos { return d.Pos }
+
 type TypeRef struct {
 	Args      []TypeRef
 	Wrapper   string
@@ -245,6 +258,22 @@ type LiteralExpr struct {
 func (*LiteralExpr) exprNode()       {}
 func (e *LiteralExpr) Position() Pos { return e.Pos }
 
+// InterpolatedStringExpr is a string whose Parts alternate between decoded
+// literal text and embedded expressions. Literal parts are represented by
+// string values; expression parts retain their original source positions.
+type InterpolatedStringExpr struct {
+	Pos   Pos
+	Parts []InterpolatedStringPart
+}
+
+type InterpolatedStringPart struct {
+	Text string
+	Expr Expr
+}
+
+func (*InterpolatedStringExpr) exprNode()       {}
+func (e *InterpolatedStringExpr) Position() Pos { return e.Pos }
+
 type UnaryExpr struct {
 	Pos      Pos
 	Operator string
@@ -304,6 +333,7 @@ type StructLiteralExpr struct {
 	Pos      Pos
 	TypeName string
 	Fields   []FieldValue
+	Values   []Expr
 }
 
 func (*StructLiteralExpr) exprNode()       {}

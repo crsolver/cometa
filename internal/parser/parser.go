@@ -2,8 +2,11 @@ package parser
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 
 	"hacha/internal/ast"
+	"hacha/internal/lexer"
 	"hacha/internal/token"
 )
 
@@ -55,8 +58,10 @@ func Parse(filename string, tokens []token.Token) (*ast.Program, error) {
 			decl, err = p.parseTypeDecl()
 		case token.Fn:
 			decl, err = p.parseFuncDecl("")
+		case token.Var, token.Const:
+			decl, err = p.parseGlobalDecl()
 		default:
-			err = p.error(p.current(), "se esperaba una declaración 'tipo', 'enum' o 'fn'")
+			err = p.error(p.current(), "se esperaba una declaración 'tipo', 'enum', 'fn', 'var' o 'const'")
 		}
 		if err != nil {
 			return nil, err
@@ -64,6 +69,33 @@ func Parse(filename string, tokens []token.Token) (*ast.Program, error) {
 		program.Decls = append(program.Decls, decl)
 	}
 	return program, nil
+}
+
+func (p *parser) parseGlobalDecl() (*ast.GlobalDecl, error) {
+	start := p.advance()
+	name, err := p.expect(token.Ident, "se esperaba el nombre de la global")
+	if err != nil {
+		return nil, err
+	}
+	var declaredType *ast.TypeRef
+	if !p.at(token.Assign) {
+		parsed, parseErr := p.parseTypeRef()
+		if parseErr != nil {
+			return nil, parseErr
+		}
+		declaredType = &parsed
+	}
+	if _, err = p.expect(token.Assign, "se esperaba '=' en la declaración global"); err != nil {
+		return nil, err
+	}
+	value, err := p.parseExpression(0)
+	if err != nil {
+		return nil, err
+	}
+	if _, err = p.expect(token.Newline, "la declaración global debe terminar al final de la línea"); err != nil {
+		return nil, err
+	}
+	return &ast.GlobalDecl{Pos: start.Pos, NamePos: name.Pos, Name: name.Lexeme, Type: declaredType, Value: value, Constant: start.Kind == token.Const}, nil
 }
 
 func (p *parser) parseTypeDecl() (*ast.TypeDecl, error) {
@@ -648,7 +680,7 @@ func (p *parser) parsePrefix() (ast.Expr, error) {
 		return &ast.LiteralExpr{Pos: current.Pos, Kind: "num", Value: current.Lexeme}, nil
 	case token.String:
 		p.advance()
-		return &ast.LiteralExpr{Pos: current.Pos, Kind: "cadena", Value: current.Lexeme}, nil
+		return p.parseString(current)
 	case token.True, token.False:
 		p.advance()
 		return &ast.LiteralExpr{Pos: current.Pos, Kind: "bool", Value: current.Lexeme}, nil
@@ -690,6 +722,158 @@ func (p *parser) parsePrefix() (ast.Expr, error) {
 	}
 }
 
+func (p *parser) parseString(tok token.Token) (ast.Expr, error) {
+	runes := []rune(tok.Lexeme)
+	var parts []ast.InterpolatedStringPart
+	segment := 1
+	interpolated := false
+	for i := 1; i < len(runes)-1; {
+		if runes[i] == '\\' {
+			i += 2
+			continue
+		}
+		if runes[i] != '$' || i+1 >= len(runes)-1 || runes[i+1] != '{' {
+			i++
+			continue
+		}
+		interpolated = true
+		text, err := decodeStringSegment(runes[segment:i])
+		if err != nil {
+			return nil, p.error(tok, "cadena inválida: "+err.Error())
+		}
+		parts = append(parts, ast.InterpolatedStringPart{Text: text})
+		end, ok := interpolationEnd(runes, i+2)
+		if !ok {
+			return nil, &Error{Filename: p.filename, Pos: ast.Pos{Line: tok.Pos.Line, Column: tok.Pos.Column + i}, Message: "interpolación sin cerrar"}
+		}
+		if end == i+2 {
+			return nil, &Error{Filename: p.filename, Pos: ast.Pos{Line: tok.Pos.Line, Column: tok.Pos.Column + i}, Message: "la interpolación no puede estar vacía"}
+		}
+		expression, err := p.parseInterpolation(string(runes[i+2:end]), tok.Pos.Column+i+2, tok.Pos.Line)
+		if err != nil {
+			return nil, err
+		}
+		parts = append(parts, ast.InterpolatedStringPart{Expr: expression})
+		i, segment = end+1, end+1
+	}
+	if !interpolated {
+		if hasEscapedInterpolation(runes[1 : len(runes)-1]) {
+			text, err := decodeStringSegment(runes[1 : len(runes)-1])
+			if err != nil {
+				return nil, p.error(tok, "cadena inválida: "+err.Error())
+			}
+			return &ast.LiteralExpr{Pos: tok.Pos, Kind: "cadena", Value: strconv.Quote(text)}, nil
+		}
+		return &ast.LiteralExpr{Pos: tok.Pos, Kind: "cadena", Value: tok.Lexeme}, nil
+	}
+	text, err := decodeStringSegment(runes[segment : len(runes)-1])
+	if err != nil {
+		return nil, p.error(tok, "cadena inválida: "+err.Error())
+	}
+	parts = append(parts, ast.InterpolatedStringPart{Text: text})
+	return &ast.InterpolatedStringExpr{Pos: tok.Pos, Parts: parts}, nil
+}
+
+func hasEscapedInterpolation(raw []rune) bool {
+	for i := 0; i+2 < len(raw); i++ {
+		if raw[i] == '\\' {
+			if raw[i+1] == '$' && raw[i+2] == '{' {
+				return true
+			}
+			i++
+		}
+	}
+	return false
+}
+
+func decodeStringSegment(raw []rune) (string, error) {
+	var b strings.Builder
+	for i := 0; i < len(raw); i++ {
+		if raw[i] == '\\' && i+2 < len(raw) && raw[i+1] == '$' && raw[i+2] == '{' {
+			b.WriteString("${")
+			i += 2
+			continue
+		}
+		b.WriteRune(raw[i])
+	}
+	return strconv.Unquote("\"" + b.String() + "\"")
+}
+
+func interpolationEnd(runes []rune, start int) (int, bool) {
+	depth := 1
+	for i := start; i < len(runes)-1; {
+		if runes[i] == '"' {
+			end, ok := stringEnd(runes, i)
+			if !ok {
+				return 0, false
+			}
+			i = end
+			continue
+		}
+		if runes[i] == '{' {
+			depth++
+		}
+		if runes[i] == '}' {
+			depth--
+			if depth == 0 {
+				return i, true
+			}
+		}
+		i++
+	}
+	return 0, false
+}
+
+func stringEnd(runes []rune, start int) (int, bool) {
+	for i := start + 1; i < len(runes); i++ {
+		if runes[i] == '\\' {
+			i++
+			continue
+		}
+		if runes[i] == '$' && i+1 < len(runes) && runes[i+1] == '{' {
+			end, ok := interpolationEnd(runes, i+2)
+			if !ok {
+				return 0, false
+			}
+			i = end
+			continue
+		}
+		if runes[i] == '"' {
+			return i + 1, true
+		}
+	}
+	return 0, false
+}
+
+func (p *parser) parseInterpolation(source string, column, line int) (ast.Expr, error) {
+	tokens, err := lexer.Lex(p.filename, source)
+	if err != nil {
+		return nil, shiftParseError(err, column, line)
+	}
+	for i := range tokens {
+		tokens[i].Pos.Line = line
+		tokens[i].Pos.Column += column - 1
+	}
+	sub := &parser{filename: p.filename, tokens: tokens, aliases: p.aliases}
+	expr, err := sub.parseExpression(0)
+	if err != nil {
+		return nil, err
+	}
+	if sub.match(token.Newline) {
+	}
+	if !sub.at(token.EOF) {
+		return nil, sub.error(sub.current(), "contenido inesperado en la interpolación")
+	}
+	return expr, nil
+}
+
+func shiftParseError(err error, column, line int) error {
+	if e, ok := err.(*lexer.Error); ok {
+		return &Error{Filename: e.Filename, Pos: ast.Pos{Line: line, Column: e.Pos.Column + column - 1}, Message: e.Message}
+	}
+	return err
+}
+
 func (p *parser) parseStructLiteral(pos ast.Pos, typeName string) (ast.Expr, error) {
 	if _, err := p.expect(token.LBrace, "se esperaba '{'"); err != nil {
 		return nil, err
@@ -698,13 +882,11 @@ func (p *parser) parseStructLiteral(pos ast.Pos, typeName string) (ast.Expr, err
 	if p.match(token.Newline) {
 		if p.match(token.Indent) {
 			for !p.at(token.Dedent) && !p.at(token.EOF) {
-				field, err := p.parseFieldValue()
-				if err != nil {
+				if err := p.parseStructLiteralEntry(literal); err != nil {
 					return nil, err
 				}
-				literal.Fields = append(literal.Fields, field)
 				p.match(token.Comma)
-				if _, err = p.expect(token.Newline, "se esperaba el final del campo"); err != nil {
+				if _, err := p.expect(token.Newline, "se esperaba el final del valor de estructura"); err != nil {
 					return nil, err
 				}
 			}
@@ -718,11 +900,9 @@ func (p *parser) parseStructLiteral(pos ast.Pos, typeName string) (ast.Expr, err
 		return literal, nil
 	}
 	for !p.at(token.RBrace) {
-		field, err := p.parseFieldValue()
-		if err != nil {
+		if err := p.parseStructLiteralEntry(literal); err != nil {
 			return nil, err
 		}
-		literal.Fields = append(literal.Fields, field)
 		if !p.match(token.Comma) {
 			break
 		}
@@ -731,6 +911,27 @@ func (p *parser) parseStructLiteral(pos ast.Pos, typeName string) (ast.Expr, err
 		return nil, err
 	}
 	return literal, nil
+}
+
+func (p *parser) parseStructLiteralEntry(literal *ast.StructLiteralExpr) error {
+	named := p.at(token.Ident) && p.peekAt(1, token.Colon)
+	if named && len(literal.Values) > 0 || !named && len(literal.Fields) > 0 {
+		return p.error(p.current(), "no se pueden mezclar valores posicionales y campos nombrados en un literal de estructura")
+	}
+	if named {
+		field, err := p.parseFieldValue()
+		if err != nil {
+			return err
+		}
+		literal.Fields = append(literal.Fields, field)
+		return nil
+	}
+	value, err := p.parseExpression(0)
+	if err != nil {
+		return err
+	}
+	literal.Values = append(literal.Values, value)
+	return nil
 }
 
 func (p *parser) parseFieldValue() (ast.FieldValue, error) {
@@ -771,6 +972,12 @@ func (p *parser) parseListLiteral() (ast.Expr, error) {
 
 func (p *parser) parseCall(callee ast.Expr) (ast.Expr, error) {
 	start := p.advance()
+	multiline := p.match(token.Newline)
+	if multiline {
+		if _, err := p.expect(token.Indent, "se esperaba indentación para los argumentos"); err != nil {
+			return nil, err
+		}
+	}
 	var args []ast.Expr
 	var info []ast.ArgumentInfo
 	if !p.at(token.RParen) {
@@ -790,9 +997,21 @@ func (p *parser) parseCall(callee ast.Expr) (ast.Expr, error) {
 			if !p.match(token.Comma) {
 				break
 			}
+			if multiline {
+				p.match(token.Newline)
+				if p.at(token.Dedent) {
+					break
+				}
+			}
 			if p.at(token.RParen) {
 				break
 			}
+		}
+	}
+	if multiline {
+		p.match(token.Newline)
+		if _, err := p.expect(token.Dedent, "se esperaba el final de los argumentos"); err != nil {
+			return nil, err
 		}
 	}
 	if _, err := p.expect(token.RParen, "se esperaba ')' después de los argumentos"); err != nil {

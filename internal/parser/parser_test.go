@@ -1,11 +1,34 @@
 package parser
 
 import (
+	"strings"
 	"testing"
 
 	"hacha/internal/ast"
 	"hacha/internal/lexer"
 )
+
+func TestParsesGlobalVariablesAndConstants(t *testing.T) {
+	tokens, err := lexer.Lex("globales.hacha", "var contador num = 0\nconst limite = contador + 10\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	program, err := Parse("globales.hacha", tokens)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(program.Decls) != 2 {
+		t.Fatalf("declarations = %d", len(program.Decls))
+	}
+	variable := program.Decls[0].(*ast.GlobalDecl)
+	constant := program.Decls[1].(*ast.GlobalDecl)
+	if variable.Constant || variable.Type == nil || variable.Type.Name != "num" {
+		t.Fatalf("variable = %#v", variable)
+	}
+	if !constant.Constant || constant.Type != nil {
+		t.Fatalf("constant = %#v", constant)
+	}
+}
 
 func TestParsesRangeLoop(t *testing.T) {
 	tokens, err := lexer.Lex("rango.hacha", "fn inicio()\n\trepetir ((1 + 2)..-5) |i| imprimir(i)\n")
@@ -96,6 +119,46 @@ func TestParsesVariablesCompositeLiteralsAndMemberCalls(t *testing.T) {
 	call := function.Body[2].(*ast.ExprStmt).Expr.(*ast.CallExpr)
 	if member, ok := call.Callee.(*ast.MemberExpr); !ok || member.Name != "activar" {
 		t.Fatalf("call callee = %#v", call.Callee)
+	}
+}
+
+func TestParsesPositionalStructLiterals(t *testing.T) {
+	source := "tipo Punto\n\tx num\n\ty num\ntipo Caja<T>\n\tvalor T\nfn inicio()\n\tvar a = Punto {1, 2}\n\tvar b Punto = {3}\n\tvar c = Caja<num> {\n\t\t4,\n\t}\n"
+	tokens, err := lexer.Lex("posicionales.hacha", source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	program, err := Parse("posicionales.hacha", tokens)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := program.Decls[2].(*ast.FuncDecl).Body
+	first := body[0].(*ast.VarDeclStmt).Value.(*ast.StructLiteralExpr)
+	if first.TypeName != "Punto" || len(first.Values) != 2 || len(first.Fields) != 0 {
+		t.Fatalf("unexpected typed positional literal: %#v", first)
+	}
+	second := body[1].(*ast.VarDeclStmt).Value.(*ast.StructLiteralExpr)
+	if second.TypeName != "" || len(second.Values) != 1 {
+		t.Fatalf("unexpected contextual positional literal: %#v", second)
+	}
+	third := body[2].(*ast.VarDeclStmt).Value.(*ast.StructLiteralExpr)
+	if third.Type == nil || third.Type.Name != "Caja" || len(third.Type.Args) != 1 || len(third.Values) != 1 {
+		t.Fatalf("unexpected generic multiline positional literal: %#v", third)
+	}
+}
+
+func TestRejectsMixedStructLiteralEntries(t *testing.T) {
+	for _, source := range []string{
+		"fn inicio()\n\tvar p = Punto {1, y: 2}\n",
+		"fn inicio()\n\tvar p = Punto {x: 1, 2}\n",
+	} {
+		tokens, err := lexer.Lex("mixto.hacha", source)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = Parse("mixto.hacha", tokens); err == nil || !strings.Contains(err.Error(), "no se pueden mezclar") {
+			t.Fatalf("got %v, want mixed-literal diagnostic", err)
+		}
 	}
 }
 

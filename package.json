@@ -1,7 +1,7 @@
 {
   "name": "hacha-language",
   "displayName": "Hacha Language",
-  "description": "Syntax highlighting and editor support for the Hacha programming language.",
+  "description": "Hacha: a Spanish-syntax language for 2D games powered by Ebitengine, with compiler and editor support.",
   "version": "0.0.1",
   "publisher": "local",
   "main": "./out/extension.js",

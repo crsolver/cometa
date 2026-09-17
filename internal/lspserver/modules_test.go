@@ -22,8 +22,10 @@ tipo Caja<T>
 enum Evento<T>
 	Dato T
 	Vacio
-interfaz Fuente<T>
+interfaz Proveedor<T>
 	fn obtener() T
+const limite = 10
+var contador = 0
 `
 
 func moduleURIs(t *testing.T) (lsp.DocumentURI, lsp.DocumentURI) {
@@ -51,12 +53,14 @@ func TestModuleCompletion(t *testing.T) {
 		{"generic enum", "fn inicio()\n\tvar e = m.Evento<num>.§\n", "Dato", "modelos.Evento<num>.Dato(num)"},
 		{"imported variable", "fn f(valor m.Usuario)\n\tvalor.§\n", "nombre", "cadena"},
 		{"generic variable", "fn f(valor m.Caja<num>)\n\tvalor.§\n", "obtener", "fn obtener() num"},
-		{"interface", "fn f(valor m.Fuente<cadena>)\n\tvalor.§\n", "obtener", "fn obtener() cadena"},
-		{"constraint", "fn f<T m.Fuente<num>>(valor T)\n\tvalor.§\n", "obtener", "fn obtener() num"},
+		{"interface", "fn f(valor m.Proveedor<cadena>)\n\tvalor.§\n", "obtener", "fn obtener() cadena"},
+		{"constraint", "fn f<T m.Proveedor<num>>(valor T)\n\tvalor.§\n", "obtener", "fn obtener() num"},
 		{"contextual", "fn f() m.Evento<num>\n\t.§\n", "Dato", "modelos.Evento<num>.Dato(num)"},
 		{"shadow", "fn f(m m.Usuario)\n\tm.§\n", "nombre", "cadena"},
 		{"alias", "fn inicio()\n\tm§\n", "m", "módulo m"},
 		{"root type argument", "tipo Propio\n\tx num\nfn inicio()\n\tvar e = m.Evento<Propio>.§\n", "Dato", "modelos.Evento<Propio>.Dato(Propio)"},
+		{"global constant", "fn inicio()\n\timprimir(m.§)\n", "limite", "const limite num"},
+		{"global variable", "fn inicio()\n\timprimir(m.§)\n", "contador", "var contador num"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			uri, _ := moduleURIs(t)
@@ -92,6 +96,8 @@ func TestModuleHoverAndDefinition(t *testing.T) {
 		{"fn f(valor m.Usuario)\n\timprimir(valor.§nombre)\n", "cadena", 3},
 		{"fn f(valor m.Usuario)\n\timprimir(valor.§describir())\n", "fn describir() cadena", 4},
 		{"fn inicio() imprimir(m.§identidad<num>(1))\n", "identidad<num>(valor num) num", 1},
+		{"fn inicio() imprimir(m.§limite)\n", "const limite num", 13},
+		{"fn inicio() imprimir(m.§contador)\n", "var contador num", 14},
 	} {
 		source, pos := markerPosition("usar modelos como m\n" + tc.body)
 		h := NewHandler()

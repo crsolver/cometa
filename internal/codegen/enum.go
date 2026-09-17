@@ -47,7 +47,6 @@ func (g *generator) emitMatch(m *ast.MatchExpr, indent int, returnValue bool) {
 			if m.Binding != "" && variant.Payload.Kind != sema.Void {
 				binding := localName(m.Binding)
 				g.line(indent+2, "%s := %s.payload%d", binding, name, variant.Tag)
-				g.line(indent+2, "_ = %s", binding)
 			}
 		}
 		g.emitBlock(arm.Body, indent+2, returnValue)

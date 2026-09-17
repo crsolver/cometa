@@ -102,10 +102,8 @@ func (g *generator) flowTypeMatch(m *ast.MatchExpr, indent int, target string) {
 		} else {
 			g.line(indent, "case %s:", goType(g.model.PatternTypes[arm]))
 		}
-		g.line(indent+1, "_ = %s", name)
 		if arm.Pattern != "_" && m.Binding != "" {
 			g.line(indent+1, "%s := %s", localName(m.Binding), name)
-			g.line(indent+1, "_ = %s", localName(m.Binding))
 		}
 		g.flowBlock(arm.Body, indent+1, target)
 	}

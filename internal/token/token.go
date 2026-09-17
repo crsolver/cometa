@@ -22,6 +22,7 @@ const (
 	Arrow     Kind = "=>"
 	Fn        Kind = "fn"
 	Var       Kind = "var"
+	Const     Kind = "const"
 	Si        Kind = "si"
 	Osi       Kind = "osi"
 	Sino      Kind = "sino"
