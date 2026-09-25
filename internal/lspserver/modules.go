@@ -12,13 +12,13 @@ import (
 	"strings"
 
 	"github.com/owenrumney/go-lsp/lsp"
-	"hacha/internal/ast"
-	"hacha/internal/compiler"
-	"hacha/internal/diagnostic"
-	"hacha/internal/lexer"
-	"hacha/internal/parser"
-	"hacha/internal/sema"
-	"hacha/internal/stdlib"
+	"cometa/internal/ast"
+	"cometa/internal/compiler"
+	"cometa/internal/diagnostic"
+	"cometa/internal/lexer"
+	"cometa/internal/parser"
+	"cometa/internal/sema"
+	"cometa/internal/stdlib"
 )
 
 func hasImports(text string) bool {
@@ -49,7 +49,7 @@ func pathFromURI(uri lsp.DocumentURI) (string, error) {
 }
 
 func fileURI(path string) lsp.DocumentURI {
-	if strings.HasPrefix(path, "hacha-std:///") {
+	if strings.HasPrefix(path, "cometa-std:///") {
 		return lsp.DocumentURI(path)
 	}
 	path = filepath.ToSlash(path)
@@ -236,7 +236,12 @@ func (h *Handler) publishProjectDiagnostics(ctx context.Context, changed lsp.Doc
 	return nil
 }
 
-func declarationDetail(d *compiler.Declaration) string {
+func declarationDetail(d *compiler.Declaration) (detail string) {
+	defer func() {
+		if ast.IsPublic(d.Node) && !strings.HasPrefix(detail, "pub ") {
+			detail = "pub " + detail
+		}
+	}()
 	switch node := d.Node.(type) {
 	case *ast.FuncDecl:
 		return functionDetail(node)
@@ -283,6 +288,9 @@ func (h *Handler) moduleHover(params *lsp.HoverParams, text string) *lsp.Hover {
 		if p.Model != nil {
 			if global := p.Model.Globals[d.Symbol]; global != nil {
 				detail = globalHover(d.Name, global.Type, global.Constant).detail
+				if ast.IsPublic(d.Node) {
+					detail = "pub " + detail
+				}
 			}
 			for call, info := range p.Model.Calls {
 				if calleePosition(call.Callee) == id.Pos && info.Signature.Decl != nil {
@@ -310,7 +318,7 @@ func (h *Handler) moduleHover(params *lsp.HoverParams, text string) *lsp.Hover {
 	if detail == "" {
 		return nil
 	}
-	value := "```hacha\n" + p.Display(detail) + "\n```"
+	value := "```cometa\n" + p.Display(detail) + "\n```"
 	if docs != "" {
 		value += "\n\n" + docs
 	}
@@ -389,6 +397,9 @@ func (h *Handler) Definition(_ context.Context, params *lsp.DefinitionParams) ([
 					}
 				}
 				m := p.Model.Members(p.Model.ExprTypes[member.Object])[member.Name]
+				if m.Ambiguous || !m.Accessible(id.Pos) {
+					continue
+				}
 				if m.Field.Decl != nil {
 					return h.locations(p, m.Field.Decl.Pos), nil
 				}
@@ -417,8 +428,8 @@ func (h *Handler) locations(p *compiler.Project, pos ast.Pos) []lsp.Location {
 	if m := p.Modules[pos.Filename]; m != nil {
 		return []lsp.Location{declarationLocation(pos, string(m.Source))}
 	}
-	if strings.HasPrefix(pos.Filename, "hacha-std:///") {
-		path := strings.TrimSuffix(strings.TrimPrefix(pos.Filename, "hacha-std:///"), ".hacha")
+	if strings.HasPrefix(pos.Filename, "cometa-std:///") {
+		path := strings.TrimSuffix(strings.TrimPrefix(pos.Filename, "cometa-std:///"), ".cometa")
 		if source, ok := stdlib.Source(path); ok {
 			return []lsp.Location{declarationLocation(pos, source)}
 		}
@@ -458,16 +469,16 @@ func (h *Handler) moduleCompletion(params *lsp.CompletionParams, text string) *l
 		receiver = "@" + receiver
 	}
 	indent := lines[line][:len(lines[line])-len(strings.TrimLeft(lines[line], "\t"))]
-	replacement := indent + receiver + ".__hacha_probe__"
+	replacement := indent + receiver + ".__cometa_probe__"
 	if arrow := strings.Index(prefix, "=>"); arrow >= 0 {
-		replacement = prefix[:arrow+2] + " " + receiver + ".__hacha_probe__"
+		replacement = prefix[:arrow+2] + " " + receiver + ".__cometa_probe__"
 	}
 	p := h.completionProject(params.TextDocument.URI, lines, line, replacement)
 	if p != nil && p.Model != nil {
 		var selected ast.Expr
 		var resolved sema.Type
 		sema.WalkSyntax(p.Root.Bound, func(node any) {
-			if member, ok := node.(*ast.MemberExpr); ok && member.Name == "__hacha_probe__" && member.Pos.Line == line+1 {
+			if member, ok := node.(*ast.MemberExpr); ok && member.Name == "__cometa_probe__" && member.Pos.Line == line+1 {
 				if t, ok := p.Model.ExprTypes[member.Object]; ok {
 					selected, resolved = member.Object, t
 				}
@@ -486,7 +497,7 @@ func (h *Handler) moduleCompletion(params *lsp.CompletionParams, text string) *l
 		}
 		if selected != nil {
 			if resolved.Kind == sema.Named || resolved.Kind == sema.Interface || resolved.Kind == sema.TypeParameter {
-				return displayItems(p, resolvedMemberItems(p.Model, resolved))
+				return displayItems(p, resolvedMemberItems(p.Model, resolved, ast.Pos{Filename: p.Root.Path}))
 			}
 			if resolved.Kind == sema.Enum {
 				if _, ok := selected.(*ast.InstantiateExpr); ok {
@@ -514,7 +525,7 @@ func (h *Handler) moduleCompletion(params *lsp.CompletionParams, text string) *l
 	if target := headerProject.Root.Imports[receiver]; target != nil {
 		var names []string
 		for name := range target.Declarations {
-			if name != "inicio" {
+			if name != "inicio" && ast.IsPublic(target.Declarations[name].Node) {
 				names = append(names, name)
 			}
 		}
@@ -542,6 +553,9 @@ func (h *Handler) moduleCompletion(params *lsp.CompletionParams, text string) *l
 			if headerProject.Model != nil {
 				if global := headerProject.Model.Globals[d.Symbol]; global != nil {
 					detail = globalHover(d.Name, global.Type, global.Constant).detail
+					if ast.IsPublic(d.Node) {
+						detail = "pub " + detail
+					}
 				}
 			}
 			empty.Items = append(empty.Items, lsp.CompletionItem{Label: name, Kind: &kind, Detail: headerProject.Display(detail)})
@@ -549,10 +563,10 @@ func (h *Handler) moduleCompletion(params *lsp.CompletionParams, text string) *l
 		return empty
 	}
 	// Resolve a qualified enum (including type arguments) through a typed probe.
-	probe := header + "fn __hacha_completion__(valor " + receiver + ")\n\timprimir(valor)\n"
+	probe := header + "fn __cometa_completion__(valor " + receiver + ")\n\timprimir(valor)\n"
 	q, _ := h.project(params.TextDocument.URI, &probe)
 	if q != nil && q.Model != nil {
-		if f, ok := q.Model.Functions["__hacha_completion__"]; ok && len(f.Params) == 1 {
+		if f, ok := q.Model.Functions["__cometa_completion__"]; ok && len(f.Params) == 1 {
 			t := f.Params[0]
 			if t.Kind == sema.Enum {
 				return displayItems(q, enumCompletionItems(q.Model.EnumFor(t)))
@@ -599,12 +613,12 @@ func (h *Handler) moduleContextualCompletion(params *lsp.CompletionParams, lines
 		p := h.completionProject(params.TextDocument.URI, lines, line, replacement)
 		if p != nil && p.Model != nil {
 			if d := enclosingTypeAt(p.Root.Bound, line+1); d != nil {
-				return displayItems(p, resolvedMemberItems(p.Model, sema.Type{Kind: sema.Named, Name: d.Name, Args: p.Model.TypeParams[d]}))
+				return displayItems(p, resolvedMemberItems(p.Model, sema.Type{Kind: sema.Named, Name: d.Name, Args: p.Model.TypeParams[d]}, ast.Pos{Filename: p.Root.Path}))
 			}
 		}
 	}
 	if dot >= 0 {
-		p := h.completionProject(params.TextDocument.URI, lines, line, closeCompletionDelimiters(prefix[:dot+1]+"__hacha_probe__"))
+		p := h.completionProject(params.TextDocument.URI, lines, line, closeCompletionDelimiters(prefix[:dot+1]+"__cometa_probe__"))
 		if p != nil && p.Model != nil {
 			for expr, t := range p.Model.ExpectedTypes {
 				if expr.Position().Filename == p.Root.Path && expr.Position().Line == line+1 {

@@ -12,7 +12,7 @@ func TestUnusedBindingsPreserveEffects(t *testing.T) {
 		if flow {
 			source += "\tvar opcional entero? = .Ninguno\n"
 		}
-		got, err := Compile("unused.hacha", []byte(source))
+		got, err := Compile("unused.cometa", []byte(source))
 		if err != nil {
 			t.Fatal(err)
 		}

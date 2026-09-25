@@ -1,4 +1,4 @@
-module hacha
+module cometa
 
 go 1.25.0
 

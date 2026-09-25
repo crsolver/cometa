@@ -34,8 +34,8 @@ func TestEmbeddingCompletion(t *testing.T) {
 			source := embeddingDeclarations + tc.body
 			before := source[:strings.Index(source, "§")]
 			h := servertest.New(t, NewHandler())
-			uri := lsp.DocumentURI("file:///embedding.hacha")
-			if err := h.DidOpen(uri, "hacha", strings.Replace(source, "§", "", 1)); err != nil {
+			uri := lsp.DocumentURI("file:///embedding.cometa")
+			if err := h.DidOpen(uri, "cometa", strings.Replace(source, "§", "", 1)); err != nil {
 				t.Fatal(err)
 			}
 			_ = waitForDiagnostics(t, h, uri)
@@ -61,8 +61,8 @@ func TestEmbeddingCompletion(t *testing.T) {
 func TestEmbeddingHoverAndSymbols(t *testing.T) {
 	source := embeddingDeclarations + "tipo Receptor\n\tDerivada\n\tfn f() entero @valor\nfn f(v Derivada)\n\timprimir(v.valor)\n\timprimir(v.obtener())\n"
 	h := servertest.New(t, NewHandler())
-	uri := lsp.DocumentURI("file:///embedding.hacha")
-	if err := h.DidOpen(uri, "hacha", source); err != nil {
+	uri := lsp.DocumentURI("file:///embedding.cometa")
+	if err := h.DidOpen(uri, "cometa", source); err != nil {
 		t.Fatal(err)
 	}
 	if diagnostics := waitForDiagnostics(t, h, uri); len(diagnostics) != 0 {

@@ -2,8 +2,8 @@ package compiler
 
 import (
 	"errors"
-	"hacha/internal/diagnostic"
-	"hacha/internal/sema"
+	"cometa/internal/diagnostic"
+	"cometa/internal/sema"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -37,7 +37,7 @@ func TestMultipleFrontendDiagnostics(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			program, model, err := Analyze("errores.hacha", []byte(tt.source))
+			program, model, err := Analyze("errores.cometa", []byte(tt.source))
 			if program == nil || model == nil {
 				t.Fatal("missing partial analysis")
 			}
@@ -47,11 +47,11 @@ func TestMultipleFrontendDiagnostics(t *testing.T) {
 			if tt.absent != "" && strings.Contains(err.Error(), tt.absent) {
 				t.Fatalf("cascading error: %v", err)
 			}
-			_, projectErr := AnalyzeProject(filepath.Join(t.TempDir(), "errores.hacha"), func(string) ([]byte, error) { return []byte(tt.source), nil })
+			_, projectErr := AnalyzeProject(filepath.Join(t.TempDir(), "errores.cometa"), func(string) ([]byte, error) { return []byte(tt.source), nil })
 			if got := len(diagnostic.Flatten(projectErr)); got != tt.count {
 				t.Fatalf("project got %d errors, want %d:\n%v", got, tt.count, projectErr)
 			}
-			if code, err := Compile("errores.hacha", []byte(tt.source)); err == nil || code != nil {
+			if code, err := Compile("errores.cometa", []byte(tt.source)); err == nil || code != nil {
 				t.Fatal("generated invalid program")
 			}
 		})
@@ -74,7 +74,7 @@ func FuzzAnalyzeRecovery(f *testing.F) {
 			t.Skip()
 		}
 		done := make(chan struct{})
-		go func() { Analyze("fuzz.hacha", []byte(source)); close(done) }()
+		go func() { Analyze("fuzz.cometa", []byte(source)); close(done) }()
 		select {
 		case <-done:
 		case <-time.After(2 * time.Second):
@@ -91,19 +91,19 @@ func TestRecoveryAtEverySourcePrefix(t *testing.T) {
 	}
 	for _, seed := range seeds {
 		for i := range seed {
-			Analyze("prefix.hacha", []byte(seed[:i]))
+			Analyze("prefix.cometa", []byte(seed[:i]))
 		}
 	}
 }
 
 func TestDiagnosticErrorCompatibilityAndLimit(t *testing.T) {
-	_, _, err := Analyze("errores.hacha", []byte("fn inicio()\n\tvar a bool = 1\n\tvar b bool = 2\n"))
+	_, _, err := Analyze("errores.cometa", []byte("fn inicio()\n\tvar a bool = 1\n\tvar b bool = 2\n"))
 	var semantic *sema.Error
 	if !errors.As(err, &semantic) {
 		t.Fatalf("errors.As: %v", err)
 	}
 	source := "fn inicio()\n" + strings.Repeat("\timprimir(noExiste)\n", 120)
-	_, _, err = Analyze("errores.hacha", []byte(source))
+	_, _, err = Analyze("errores.cometa", []byte(source))
 	if got := len(diagnostic.Flatten(err)); got != 101 || !strings.Contains(err.Error(), "límite de 100") {
 		t.Fatalf("limit: %d %v", got, err)
 	}
@@ -112,12 +112,12 @@ func TestDiagnosticErrorCompatibilityAndLimit(t *testing.T) {
 func TestProjectMultipleDiagnostics(t *testing.T) {
 	dir := t.TempDir()
 	sources := map[string]string{
-		"inicio.hacha": "usar a\nusar b\nusar ausente\nfn inicio()\n\tvar x bool = 1\n\tausente.hacer()\n",
-		"a.hacha":      "usar comun\nfn a()\n\tvar a =\n\tvar b bool = 2\n",
-		"b.hacha":      "usar comun\nfn b()\n\tvar c entero = falso\n",
-		"comun.hacha":  "fn comun()\n\tvar d bool = 4\n",
+		"inicio.cometa": "usar a\nusar b\nusar ausente\nfn inicio()\n\tvar x bool = 1\n\tausente.hacer()\n",
+		"a.cometa":      "usar comun\nfn a()\n\tvar a =\n\tvar b bool = 2\n",
+		"b.cometa":      "usar comun\nfn b()\n\tvar c entero = falso\n",
+		"comun.cometa":  "fn comun()\n\tvar d bool = 4\n",
 	}
-	p, err := AnalyzeProject(filepath.Join(dir, "inicio.hacha"), func(path string) ([]byte, error) {
+	p, err := AnalyzeProject(filepath.Join(dir, "inicio.cometa"), func(path string) ([]byte, error) {
 		if s, ok := sources[filepath.Base(path)]; ok {
 			return []byte(s), nil
 		}
@@ -129,7 +129,7 @@ func TestProjectMultipleDiagnostics(t *testing.T) {
 	if got := len(diagnostic.Flatten(err)); got != 6 {
 		t.Fatalf("got %d errors, want 6:\n%v", got, err)
 	}
-	if strings.Contains(err.Error(), "HachaModulo") {
+	if strings.Contains(err.Error(), "CometaModulo") {
 		t.Fatalf("private linkage: %v", err)
 	}
 }

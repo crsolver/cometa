@@ -1,6 +1,6 @@
 package ast
 
-// Pos identifies a one-based location in a Hacha source file.
+// Pos identifies a one-based location in a Cometa source file.
 type Pos struct {
 	Filename string // Set by project analysis; empty for standalone analysis.
 	Line     int
@@ -37,6 +37,7 @@ type ImportDecl struct {
 }
 
 type EnumDecl struct {
+	Public     bool
 	TypeParams []TypeParam
 	Pos        Pos
 	NamePos    Pos
@@ -98,6 +99,7 @@ type Decl interface {
 
 // GlobalDecl declares a package-level mutable variable or constant.
 type GlobalDecl struct {
+	Public   bool
 	Pos      Pos
 	NamePos  Pos
 	Name     string
@@ -110,6 +112,7 @@ func (*GlobalDecl) declNode()       {}
 func (d *GlobalDecl) Position() Pos { return d.Pos }
 
 type TypeRef struct {
+	Key       *TypeRef
 	Args      []TypeRef
 	Wrapper   string
 	Payload   *TypeRef
@@ -119,9 +122,19 @@ type TypeRef struct {
 	Element   *TypeRef
 }
 
-func (t TypeRef) IsSlice() bool { return t.Element != nil }
+func (t TypeRef) IsSlice() bool { return t.Element != nil && t.Key == nil }
+
+type MapEntry struct{ Key, Value Expr }
+type MapLiteralExpr struct {
+	Pos     Pos
+	Entries []MapEntry
+}
+
+func (*MapLiteralExpr) exprNode()       {}
+func (e *MapLiteralExpr) Position() Pos { return e.Pos }
 
 type TypeDecl struct {
+	Public     bool
 	TypeParams []TypeParam
 	Pos        Pos
 	NamePos    Pos
@@ -134,6 +147,7 @@ func (*TypeDecl) declNode()       {}
 func (d *TypeDecl) Position() Pos { return d.Pos }
 
 type Field struct {
+	Public   bool
 	Embedded bool
 	Pos      Pos
 	Name     string
@@ -143,6 +157,7 @@ type Field struct {
 func (f *Field) Position() Pos { return f.Pos }
 
 type FuncDecl struct {
+	Public     bool
 	TypeParams []TypeParam
 	Pos        Pos
 	NamePos    Pos
@@ -233,11 +248,12 @@ func (s *RepeatStmt) Position() Pos { return s.Pos }
 type ContinueStmt struct{ Pos Pos }
 
 type ScopeStmt struct {
-	Pos Pos
+	Pos   Pos
 	Value Expr
-	Body []Stmt
+	Body  []Stmt
 }
-func (*ScopeStmt) stmtNode() {}
+
+func (*ScopeStmt) stmtNode()       {}
 func (s *ScopeStmt) Position() Pos { return s.Pos }
 
 func (*ContinueStmt) stmtNode()       {}
@@ -435,6 +451,7 @@ type TypeParam struct {
 }
 
 type InterfaceDecl struct {
+	Public     bool
 	Pos        Pos
 	NamePos    Pos
 	Name       string

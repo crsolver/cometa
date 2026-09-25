@@ -31,8 +31,8 @@ enum E<T>
 			line := strings.Count(before, "\n")
 			col := utf16Length(before[strings.LastIndex(before, "\n")+1:])
 			h := servertest.New(t, NewHandler())
-			uri := lsp.DocumentURI("file:///generic-completion.hacha")
-			if err := h.DidOpen(uri, "hacha", strings.Replace(source, "§", "", 1)); err != nil {
+			uri := lsp.DocumentURI("file:///generic-completion.cometa")
+			if err := h.DidOpen(uri, "cometa", strings.Replace(source, "§", "", 1)); err != nil {
 				t.Fatal(err)
 			}
 			_ = waitForDiagnostics(t, h, uri)
@@ -63,8 +63,8 @@ fn inicio()
 	imprimir(identidad(2))
 `
 	h := servertest.New(t, NewHandler())
-	uri := lsp.DocumentURI("file:///generic-hover.hacha")
-	if err := h.DidOpen(uri, "hacha", source); err != nil {
+	uri := lsp.DocumentURI("file:///generic-hover.cometa")
+	if err := h.DidOpen(uri, "cometa", source); err != nil {
 		t.Fatal(err)
 	}
 	diagnostics := waitForDiagnostics(t, h, uri)

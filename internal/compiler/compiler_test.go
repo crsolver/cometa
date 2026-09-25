@@ -7,11 +7,11 @@ import (
 )
 
 func TestUsuarioGolden(t *testing.T) {
-	source, err := os.ReadFile("testdata/usuario.hacha")
+	source, err := os.ReadFile("testdata/usuario.cometa")
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := Compile("usuario.hacha", source)
+	got, err := Compile("usuario.cometa", source)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -25,15 +25,15 @@ func TestUsuarioGolden(t *testing.T) {
 }
 
 func TestDiagnosticContainsSourcePosition(t *testing.T) {
-	_, err := Compile("roto.hacha", []byte("fn f() entero\n\tno_existe\n"))
-	if err == nil || !strings.Contains(err.Error(), "roto.hacha:2:2") {
+	_, err := Compile("roto.cometa", []byte("fn f() entero\n\tno_existe\n"))
+	if err == nil || !strings.Contains(err.Error(), "roto.cometa:2:2") {
 		t.Fatalf("expected positioned diagnostic, got %v", err)
 	}
 }
 
 func TestCompilesVariablesCompositeLiteralsAndMemberCall(t *testing.T) {
 	source := "tipo Usuario\n\tnombre cadena\n\tamigos [Usuario]\n\tfn activar(valor bool)\n\t\timprimir(valor)\nfn procesar_usuario(usuario Usuario)\n\timprimir(usuario)\nfn inicio()\n\tvar usuario1 = Usuario {nombre: \"andres\"}\n\tvar usuario2 Usuario = {nombre: \"andres\", amigos: [usuario1]}\n\tvar vacios [Usuario] = []\n\tvar usuarios = [usuario1, usuario2]\n\tvar primero = usuarios[0]\n\tprocesar_usuario(usuarios[1])\n\tusuario2.activar(verdadero)\n"
-	got, err := Compile("variables.hacha", []byte(source))
+	got, err := Compile("variables.cometa", []byte(source))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +46,7 @@ func TestCompilesVariablesCompositeLiteralsAndMemberCall(t *testing.T) {
 
 func TestCompilesListAndInfiniteRepeats(t *testing.T) {
 	source := "fn inicio()\n\tvar lista = [1, 2]\n\trepetir (lista) |valor| imprimir(valor)\n\trepetir (lista) |valor, indice|\n\t\tsi (indice == 0) continuar\n\t\timprimir(valor)\n\t\tromper\n\trepetir imprimir(\"hola\")\n"
-	got, err := Compile("ciclos.hacha", []byte(source))
+	got, err := Compile("ciclos.cometa", []byte(source))
 	if err != nil {
 		t.Fatal(err)
 	}

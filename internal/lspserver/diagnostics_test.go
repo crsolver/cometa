@@ -8,9 +8,9 @@ import (
 
 func TestMultipleDiagnosticsPartialCorrection(t *testing.T) {
 	h := servertest.New(t, NewHandler())
-	uri := lsp.DocumentURI("file:///multiples.hacha")
+	uri := lsp.DocumentURI("file:///multiples.cometa")
 	source := "fn inicio()\n\timprimir(\"😀\" + ausente)\n\tvar b bool = 1\n\tvar c =\n"
-	if err := h.DidOpen(uri, "hacha", source); err != nil {
+	if err := h.DidOpen(uri, "cometa", source); err != nil {
 		t.Fatal(err)
 	}
 	ds := waitForDiagnostics(t, h, uri)
@@ -46,12 +46,12 @@ func TestMultipleDiagnosticsPartialCorrection(t *testing.T) {
 func TestMultipleDependencyDiagnostics(t *testing.T) {
 	uri, depURI := moduleURIs(t)
 	h := servertest.New(t, NewHandler())
-	if err := h.DidOpen(uri, "hacha", "usar modelos como m\nfn inicio() imprimir(m.identidad(1))\n"); err != nil {
+	if err := h.DidOpen(uri, "cometa", "usar modelos como m\nfn inicio() imprimir(m.identidad(1))\n"); err != nil {
 		t.Fatal(err)
 	}
 	waitForDiagnostics(t, h, uri)
 	h.ClearDiagnostics()
-	if err := h.DidOpen(depURI, "hacha", "fn identidad(valor entero) entero\n\tvar a bool = 1\n\tvar b =\n\tvalor\n"); err != nil {
+	if err := h.DidOpen(depURI, "cometa", "fn identidad(valor entero) entero\n\tvar a bool = 1\n\tvar b =\n\tvalor\n"); err != nil {
 		t.Fatal(err)
 	}
 	ds := waitForDiagnostics(t, h, depURI)
@@ -76,8 +76,8 @@ func TestMultipleDependencyDiagnostics(t *testing.T) {
 
 func TestDistinctDiagnosticsAtSameRange(t *testing.T) {
 	h := servertest.New(t, NewHandler())
-	uri := lsp.DocumentURI("file:///campos.hacha")
-	if err := h.DidOpen(uri, "hacha", "enum E\n\tA\ntipo T\n\ta E\n\tb E\nfn inicio()\n\tvar t T = {}\n"); err != nil {
+	uri := lsp.DocumentURI("file:///campos.cometa")
+	if err := h.DidOpen(uri, "cometa", "enum E\n\tA\ntipo T\n\ta E\n\tb E\nfn inicio()\n\tvar t T = {}\n"); err != nil {
 		t.Fatal(err)
 	}
 	ds := waitForDiagnostics(t, h, uri)

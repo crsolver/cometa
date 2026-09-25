@@ -6,7 +6,7 @@ import (
 )
 
 func TestPositionalStructLiteralsRuntime(t *testing.T) {
-	runHacha(t, `tipo Base
+	runCometa(t, `tipo Base
 	n entero
 tipo Punto
 	Base
@@ -44,7 +44,7 @@ fn pintar()
 	var r = mate.Rect {{3, 4}, {5, 6}}
 	graficos.rectangulo_rect(r, .Rojo)
 `
-	generated, err := Compile("posicionales_juego.hacha", []byte(pincelImports+source))
+	generated, err := Compile("posicionales_juego.cometa", []byte(pincelImports+source))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +72,7 @@ func TestPositionalStructLiteralDiagnostics(t *testing.T) {
 		{"unknown named unchanged", "tipo P\n\tx entero\nfn inicio()\n\tvar p = P {y: 1}\n", "campo \"y\" no existe"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := Compile("posicionales.hacha", []byte(pincelImports+tc.source))
+			_, err := Compile("posicionales.cometa", []byte(pincelImports+tc.source))
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("got %v, want %q", err, tc.want)
 			}

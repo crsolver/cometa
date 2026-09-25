@@ -2,16 +2,18 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Run Hacha Extension",
+      "name": "Run Cometa Extension",
       "type": "extensionHost",
       "request": "launch",
-      "preLaunchTask": "build Hacha extension",
+      "preLaunchTask": "build Cometa extension",
+      "timeout": 30000,
       "args": [
-        "--extensionDevelopmentPath=${workspaceFolder}",
+        "--disable-extensions",
+        "--extensionDevelopmentPath=${workspaceFolder}/vscode-extension",
         "${workspaceFolder}/examples"
       ],
       "outFiles": [
-        "${workspaceFolder}/out/**/*.js"
+        "${workspaceFolder}/vscode-extension/out/**/*.js"
       ]
     }
   ]

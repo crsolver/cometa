@@ -7,16 +7,16 @@ import (
 )
 
 func TestUIExample(t *testing.T) {
- source,err:=os.ReadFile("../../examples/ui.hacha");if err!=nil {t.Fatal(err)}
- generated,err:=Compile("ui.hacha",source);if err!=nil {t.Fatal(err)}
+ source,err:=os.ReadFile("../../examples/ui.cometa");if err!=nil {t.Fatal(err)}
+ generated,err:=Compile("ui.cometa",source);if err!=nil {t.Fatal(err)}
  for _,want:=range []string{"_hguiPintar","_hgContexto",".Entrar()",".Salir()","iVBOR"} {if !strings.Contains(string(generated),want){t.Fatal("missing",want)}}
 }
 
 func TestUIRendering(t *testing.T) {
  if testing.Short() {t.Skip("desktop rendering")}
- data,err:=os.ReadFile("../../examples/ui.hacha");if err!=nil {t.Fatal(err)}
+ data,err:=os.ReadFile("../../examples/ui.cometa");if err!=nil {t.Fatal(err)}
  source:=strings.Replace(string(data),"fn inicio()","fn lanzar()",1)
- generated,err:=Compile("ui.hacha",[]byte(source));if err!=nil {t.Fatal(err)}
+ generated,err:=Compile("ui.cometa",[]byte(source));if err!=nil {t.Fatal(err)}
  code:=strings.Replace(string(generated),"import (","import (\n\"os\"\n\"golang.org/x/image/font/gofont/goregular\"",1)
  code=strings.Replace(code,`_ "image/png"`,`"image/png"`,1)
  code+=`
@@ -33,7 +33,7 @@ func (*uiCheck) Update() error {
  screen.Clear();_hguiPintar(c);second:=make([]byte,len(first));screen.ReadPixels(second)
  if !bytes.Equal(first,second){panic("draw is not replayable")}
  if first[3]==0 {panic("panel missing")};if first[(179*320+319)*4+3]!=0 {panic("UI escaped viewport")}
- if path:=os.Getenv("HACHA_UI_SCREENSHOT");path!="" {f,e:=os.Create(path);if e!=nil{panic(e)};if e=png.Encode(f,screen);e!=nil{panic(e)};f.Close()}
+ if path:=os.Getenv("COMETA_UI_SCREENSHOT");path!="" {f,e:=os.Create(path);if e!=nil{panic(e)};if e=png.Encode(f,screen);e!=nil{panic(e)};f.Close()}
  fontSource,e:=text.NewGoTextFaceSource(bytes.NewReader(goregular.TTF));if e!=nil {panic(e)}
  _hgupdating=true;_hgtick++;root:=_hguiCuadro(c);root.Entrar();theme:=_hguiTema(_hguiFuente(&_hgFuente{source:fontSource},20));theme.Entrar();_hguiTexto("Texto TTF: áéñ",_hguiFijo(100),_hguiContenido(0,1e9));theme.Salir();root.Salir();_hgupdating=false
  if len(c.previous[1].lines)<2 {panic("TTF did not wrap")}

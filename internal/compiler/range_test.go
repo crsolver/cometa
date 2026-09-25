@@ -3,7 +3,7 @@ package compiler
 import "testing"
 
 func TestRangeRuntime(t *testing.T) {
-	runHacha(t, `enum E
+	runCometa(t, `enum E
 	A
 tipo Contador
 	n entero
@@ -31,11 +31,11 @@ fn inicio()
 				imprimir(i)
 				si i == 2 romper
 	imprimir(c.n)
-	var _hacha1 = 9
+	var _cometa1 = 9
 	repetir (0..2) |i|
 		i = 100
 		imprimir(i)
-	imprimir(_hacha1)
+	imprimir(_cometa1)
 `, "0\n1\n2\n3\n4\n3\n3\n3\n-2\n-1\n0\n0\n1\n3\n2\n1\n0\n3\n1\n2\n2\n100\n100\n9\n")
 }
 
@@ -47,7 +47,7 @@ func TestRangesAreOnlyLoopSyntax(t *testing.T) {
 		"repetir (0..5) imprimir(0)",
 	} {
 		t.Run(body, func(t *testing.T) {
-			if _, err := Compile("rango.hacha", []byte("fn inicio()\n\t"+body+"\n")); err == nil {
+			if _, err := Compile("rango.cometa", []byte("fn inicio()\n\t"+body+"\n")); err == nil {
 				t.Fatal("expected invalid range syntax to fail")
 			}
 		})

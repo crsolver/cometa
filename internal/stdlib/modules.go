@@ -1,7 +1,7 @@
 package stdlib
 
 import (
-	"hacha/internal/ast"
+	"cometa/internal/ast"
 	"reflect"
 	"regexp"
 	"sort"
@@ -88,7 +88,7 @@ func relocate(node any, namespace, declaration string) {
 						pos.Column += column
 					}
 					pos.Line += line - 1
-					pos.Filename = "hacha-std:///" + path + ".hacha"
+					pos.Filename = "cometa-std:///" + path + ".cometa"
 				}
 				return
 			}
@@ -182,7 +182,7 @@ func Source(path string) (string, bool) {
 		return "", false
 	}
 	var b strings.Builder
-	b.WriteString("// Biblioteca estándar de Hacha: " + path + "\n")
+	b.WriteString("// Biblioteca estándar de Cometa: " + path + "\n")
 	if ns == "ruido" {
 		b.WriteString("// Ruido 2D puro y reproducible por semilla; resultado en [0, 1].\n")
 		b.WriteString("// Coordenadas finitas en (-2^52, 2^52), incluso en cada octava.\n")
@@ -201,10 +201,10 @@ func Source(path string) (string, bool) {
 	sort.Strings(names)
 	for _, name := range names {
 		if name == "Juego" {
-			b.WriteString("interfaz Juego\n\tfn actualizar(dt decimal)\n\tfn pintar()\n")
+			b.WriteString("pub interfaz Juego\n\tfn actualizar(dt decimal)\n\tfn pintar()\n")
 			continue
 		}
-		b.WriteString("tipo " + name + "\n")
+		b.WriteString("pub tipo " + name + "\n")
 		if ns == "retro" {
 			var constants []string
 			for constant := range Constants[Symbol(name)] {
@@ -215,21 +215,21 @@ func Source(path string) (string, bool) {
 		}
 		for _, field := range strings.Split(Fields[Symbol(name)], "\n") {
 			if field != "" {
-				b.WriteString("\t" + field + "\n")
+				b.WriteString("\tpub " + field + "\n")
 			}
 		}
 		for _, f := range Methods {
 			if f.Namespace == Symbol(name) {
-				b.WriteString("\tfn " + f.Name + "(" + f.Signature + "\n\t\timprimir(0)\n")
+				b.WriteString("\tpub fn " + f.Name + "(" + f.Signature + "\n\t\timprimir(0)\n")
 			}
 		}
 	}
 	if ns == "mate" {
-		b.WriteString("const pi decimal = 3.141592653589793\n")
+		b.WriteString("pub const pi decimal = 3.141592653589793\n")
 	}
 	for _, f := range Functions {
 		if f.Namespace == ns {
-			b.WriteString("fn " + f.Name + "(" + f.Signature + "\n\timprimir(0)\n")
+			b.WriteString("pub fn " + f.Name + "(" + f.Signature + "\n\timprimir(0)\n")
 		}
 	}
 	return b.String(), true

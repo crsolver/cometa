@@ -1,6 +1,6 @@
 package sema
 
-import "hacha/internal/ast"
+import "cometa/internal/ast"
 
 var listMethodOrder = []string{
 	"longitud", "esta_vacia", "contiene", "buscar_indice", "obtener",

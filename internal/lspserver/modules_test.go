@@ -4,7 +4,7 @@ import (
 	"context"
 	"github.com/owenrumney/go-lsp/lsp"
 	"github.com/owenrumney/go-lsp/servertest"
-	"hacha/internal/compiler"
+	"cometa/internal/compiler"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,20 +12,20 @@ import (
 )
 
 const moduleLibrary = `// Devuelve el argumento.
-fn identidad<T>(valor T) T valor
-tipo Usuario
-	nombre cadena
-	fn describir() cadena @nombre
-tipo Caja<T>
-	valor T
-	fn obtener() T @valor
-enum Evento<T>
+pub fn identidad<T>(valor T) T valor
+pub tipo Usuario
+	pub nombre cadena
+	pub fn describir() cadena @nombre
+pub tipo Caja<T>
+	pub valor T
+	pub fn obtener() T @valor
+pub enum Evento<T>
 	Dato T
 	Vacio
-interfaz Proveedor<T>
+pub interfaz Proveedor<T>
 	fn obtener() T
-const limite = 10
-var contador = 0
+pub const limite = 10
+pub var contador = 0
 `
 
 func moduleURIs(t *testing.T) (lsp.DocumentURI, lsp.DocumentURI) {
@@ -34,10 +34,10 @@ func moduleURIs(t *testing.T) (lsp.DocumentURI, lsp.DocumentURI) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "modelos.hacha"), []byte(moduleLibrary), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "modelos.cometa"), []byte(moduleLibrary), 0600); err != nil {
 		t.Fatal(err)
 	}
-	return fileURI(filepath.Join(dir, "main.hacha")), fileURI(filepath.Join(dir, "modelos.hacha"))
+	return fileURI(filepath.Join(dir, "main.cometa")), fileURI(filepath.Join(dir, "modelos.cometa"))
 }
 
 func markerPosition(source string) (string, lsp.Position) {
@@ -48,19 +48,19 @@ func markerPosition(source string) (string, lsp.Position) {
 
 func TestModuleCompletion(t *testing.T) {
 	for _, tc := range []struct{ name, body, label, detail string }{
-		{"namespace", "fn inicio()\n\tm.§\n", "Usuario", "tipo Usuario"},
-		{"qualified type", "fn f(valor m.§)\n\timprimir(valor)\n", "Usuario", "tipo Usuario"},
+		{"namespace", "fn inicio()\n\tm.§\n", "Usuario", "pub tipo Usuario"},
+		{"qualified type", "pub fn f(valor m.§)\n\timprimir(valor)\n", "Usuario", "pub tipo Usuario"},
 		{"generic enum", "fn inicio()\n\tvar e = m.Evento<entero>.§\n", "Dato", "modelos.Evento<entero>.Dato(entero)"},
-		{"imported variable", "fn f(valor m.Usuario)\n\tvalor.§\n", "nombre", "cadena"},
-		{"generic variable", "fn f(valor m.Caja<entero>)\n\tvalor.§\n", "obtener", "fn obtener() entero"},
-		{"interface", "fn f(valor m.Proveedor<cadena>)\n\tvalor.§\n", "obtener", "fn obtener() cadena"},
-		{"constraint", "fn f<T m.Proveedor<entero>>(valor T)\n\tvalor.§\n", "obtener", "fn obtener() entero"},
-		{"contextual", "fn f() m.Evento<entero>\n\t.§\n", "Dato", "modelos.Evento<entero>.Dato(entero)"},
-		{"shadow", "fn f(m m.Usuario)\n\tm.§\n", "nombre", "cadena"},
+		{"imported variable", "pub fn f(valor m.Usuario)\n\tvalor.§\n", "nombre", "cadena"},
+		{"generic variable", "pub fn f(valor m.Caja<entero>)\n\tvalor.§\n", "obtener", "pub fn obtener() entero"},
+		{"interface", "pub fn f(valor m.Proveedor<cadena>)\n\tvalor.§\n", "obtener", "fn obtener() cadena"},
+		{"constraint", "pub fn f<T m.Proveedor<entero>>(valor T)\n\tvalor.§\n", "obtener", "fn obtener() entero"},
+		{"contextual", "pub fn f() m.Evento<entero>\n\t.§\n", "Dato", "modelos.Evento<entero>.Dato(entero)"},
+		{"shadow", "pub fn f(m m.Usuario)\n\tm.§\n", "nombre", "cadena"},
 		{"alias", "fn inicio()\n\tm§\n", "m", "módulo m"},
-		{"root type argument", "tipo Propio\n\tx entero\nfn inicio()\n\tvar e = m.Evento<Propio>.§\n", "Dato", "modelos.Evento<Propio>.Dato(Propio)"},
-		{"global constant", "fn inicio()\n\timprimir(m.§)\n", "limite", "const limite entero"},
-		{"global variable", "fn inicio()\n\timprimir(m.§)\n", "contador", "var contador entero"},
+		{"root type argument", "pub tipo Propio\n\tpub x entero\nfn inicio()\n\tvar e = m.Evento<Propio>.§\n", "Dato", "modelos.Evento<Propio>.Dato(Propio)"},
+		{"global constant", "fn inicio()\n\timprimir(m.§)\n", "limite", "pub const limite entero"},
+		{"global variable", "fn inicio()\n\timprimir(m.§)\n", "contador", "pub var contador entero"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			uri, _ := moduleURIs(t)
@@ -91,13 +91,15 @@ func TestModuleHoverAndDefinition(t *testing.T) {
 		line       int
 	}{
 		{"fn inicio() imprimir(m.§identidad(1))\n", "identidad<entero>(valor entero) entero", 1},
-		{"fn f(valor m.§Usuario)\n\timprimir(valor)\n", "tipo Usuario", 2},
+		{"pub fn f(valor m.§Usuario)\n\timprimir(valor)\n", "pub tipo Usuario", 2},
+		{"pub fn f(valores [cadena: m.§Usuario])\n\timprimir(valores.longitud())\n", "pub tipo Usuario", 2},
+		{"fn inicio()\n\tvar valores = [\"a\": m.§identidad(1)]\n", "identidad<entero>(valor entero) entero", 1},
 		{"fn inicio()\n\tvar x = m.Evento<entero>.§Dato(1)\n\timprimir(x)\n", "Evento<entero>.Dato(entero)", 9},
-		{"fn f(valor m.Usuario)\n\timprimir(valor.§nombre)\n", "cadena", 3},
-		{"fn f(valor m.Usuario)\n\timprimir(valor.§describir())\n", "fn describir() cadena", 4},
+		{"pub fn f(valor m.Usuario)\n\timprimir(valor.§nombre)\n", "cadena", 3},
+		{"pub fn f(valor m.Usuario)\n\timprimir(valor.§describir())\n", "pub fn describir() cadena", 4},
 		{"fn inicio() imprimir(m.§identidad<entero>(1))\n", "identidad<entero>(valor entero) entero", 1},
-		{"fn inicio() imprimir(m.§limite)\n", "const limite entero", 13},
-		{"fn inicio() imprimir(m.§contador)\n", "var contador entero", 14},
+		{"fn inicio() imprimir(m.§limite)\n", "pub const limite entero", 13},
+		{"fn inicio() imprimir(m.§contador)\n", "pub var contador entero", 14},
 	} {
 		source, pos := markerPosition("usar modelos como m\n" + tc.body)
 		h := NewHandler()
@@ -117,15 +119,15 @@ func TestModuleHoverAndDefinition(t *testing.T) {
 func TestModuleOverlayDiagnosticsAndClose(t *testing.T) {
 	uri, depURI := moduleURIs(t)
 	h := servertest.New(t, NewHandler())
-	if err := h.DidOpen(uri, "hacha", "usar modelos como m\nfn inicio() imprimir(m.identidad(1))\n"); err != nil {
+	if err := h.DidOpen(uri, "cometa", "usar modelos como m\nfn inicio() imprimir(m.identidad(1))\n"); err != nil {
 		t.Fatal(err)
 	}
 	if ds := waitForDiagnostics(t, h, uri); len(ds) != 0 {
 		t.Fatal(ds)
 	}
-	bad := "fn identidad(valor entero) entero\n\t\"😀\" + ausente\n"
+	bad := "pub fn identidad(valor entero) entero\n\t\"😀\" + ausente\n"
 	h.ClearDiagnostics()
-	if err := h.DidOpen(depURI, "hacha", bad); err != nil {
+	if err := h.DidOpen(depURI, "cometa", bad); err != nil {
 		t.Fatal(err)
 	}
 	ds := waitForDiagnostics(t, h, depURI)
@@ -133,7 +135,7 @@ func TestModuleOverlayDiagnosticsAndClose(t *testing.T) {
 		t.Fatalf("dependency diagnostics: %+v", ds)
 	}
 	h.ClearDiagnostics()
-	if err := h.DidChange(depURI, 2, "fn identidad(valor cadena) cadena valor\n"); err != nil {
+	if err := h.DidChange(depURI, 2, "pub fn identidad(valor cadena) cadena valor\n"); err != nil {
 		t.Fatal(err)
 	}
 	// Drain previously published root reports until the changed signature appears.
@@ -164,15 +166,15 @@ func TestModuleOverlayDiagnosticsAndClose(t *testing.T) {
 func TestModuleWatchedCreationDeletion(t *testing.T) {
 	uri, _ := moduleURIs(t)
 	rootPath, _ := pathFromURI(uri)
-	missing := filepath.Join(filepath.Dir(rootPath), "nuevo.hacha")
+	missing := filepath.Join(filepath.Dir(rootPath), "nuevo.cometa")
 	h := servertest.New(t, NewHandler())
-	if err := h.DidOpen(uri, "hacha", "usar nuevo\nfn inicio() nuevo.f()\n"); err != nil {
+	if err := h.DidOpen(uri, "cometa", "usar nuevo\nfn inicio() nuevo.f()\n"); err != nil {
 		t.Fatal(err)
 	}
 	if ds := waitForDiagnostics(t, h, uri); len(ds) != 1 {
 		t.Fatal(ds)
 	}
-	if err := os.WriteFile(missing, []byte("fn f() imprimir(1)\n"), 0600); err != nil {
+	if err := os.WriteFile(missing, []byte("pub fn f() imprimir(1)\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	h.ClearDiagnostics()

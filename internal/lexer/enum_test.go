@@ -1,12 +1,12 @@
 package lexer
 
 import (
-	"hacha/internal/token"
+	"cometa/internal/token"
 	"testing"
 )
 
 func TestEnumAndMatchTokens(t *testing.T) {
-	tokens, err := Lex("enum.hacha", "enum E\n\tA\n\t// comment\nfn inicio()\n\tcasos E.A |e|\n\t\t_ => imprimir(1)\n")
+	tokens, err := Lex("enum.cometa", "enum E\n\tA\n\t// comment\nfn inicio()\n\tcasos E.A |e|\n\t\t_ => imprimir(1)\n")
 	if err != nil {
 		t.Fatal(err)
 	}

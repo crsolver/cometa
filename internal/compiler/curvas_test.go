@@ -7,7 +7,7 @@ import (
 )
 
 func TestCurvesNumericsWithoutGame(t *testing.T) {
-	generated, err := Compile("curvas.hacha", []byte("usar std/mate/curvas\n"))
+	generated, err := Compile("curvas.cometa", []byte("usar std/mate/curvas\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,8 +70,8 @@ func main() {
 }
 
 func TestCurvesImportsAndCalls(t *testing.T) {
-	runHacha(t, "usar std/mate/curvas\nfn inicio()\n\timprimir(curvas.cubica_entrada(progreso = 0.5))\n\timprimir(curvas.lineal(2))\n", "0.125\n1\n")
-	runHacha(t, "usar std/mate/curvas como c\nfn inicio() imprimir(c.cuadratica_salida(0.5))\n", "0.75\n")
+	runCometa(t, "usar std/mate/curvas\nfn inicio()\n\timprimir(curvas.cubica_entrada(progreso = 0.5))\n\timprimir(curvas.lineal(2))\n", "0.125\n1\n")
+	runCometa(t, "usar std/mate/curvas como c\nfn inicio() imprimir(c.cuadratica_salida(0.5))\n", "0.75\n")
 	for _, source := range []string{
 		"fn inicio() imprimir(curvas.lineal(0.5))\n",
 		"usar std/mate\nfn inicio() imprimir(curvas.lineal(0.5))\n",
@@ -82,13 +82,13 @@ func TestCurvesImportsAndCalls(t *testing.T) {
 		"usar std/mate/curvas\nfn inicio() imprimir(curvas.lineal(verdadero))\n",
 		"usar std/pincel/curvas\n",
 	} {
-		if _, err := Compile("invalid.hacha", []byte(source)); err == nil {
+		if _, err := Compile("invalid.cometa", []byte(source)); err == nil {
 			t.Fatalf("accepted %s", source)
 		}
 	}
 	entry, loader := memoryProject(t, map[string]string{
-		"main.hacha":   "usar helper\nfn inicio() imprimir(helper.valor())\n",
-		"helper.hacha": "usar std/mate/curvas como c\nfn valor() decimal c.cubica_entrada(0.5)\n",
+		"main.cometa":   "usar helper\nfn inicio() imprimir(helper.valor())\n",
+		"helper.cometa": "usar std/mate/curvas como c\npub fn valor() decimal c.cubica_entrada(0.5)\n",
 	})
 	generated, err := CompileProject(entry, loader)
 	if err != nil {
@@ -101,9 +101,9 @@ func TestCurvesImportsAndCalls(t *testing.T) {
 }
 
 func TestCurvesExample(t *testing.T) {
-	source, err := os.ReadFile("../../examples/curvas.hacha")
+	source, err := os.ReadFile("../../examples/curvas.cometa")
 	if err != nil {
 		t.Fatal(err)
 	}
-	runHacha(t, string(source), "20\n27.5\n80\n132.5\n140\n140\n")
+	runCometa(t, string(source), "20\n27.5\n80\n132.5\n140\n140\n")
 }

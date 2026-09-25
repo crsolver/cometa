@@ -1,0 +1,71 @@
+{
+  "name": "cometa-language",
+  "displayName": "Cometa Language",
+  "description": "Cometa: a statically typed Spanish-syntax language with compiler, editor support, and the optional Pincel game library.",
+  "version": "0.0.1",
+  "publisher": "local",
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onLanguage:cometa"
+  ],
+  "engines": {
+    "vscode": "^1.106.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "cometa",
+        "aliases": [
+          "Cometa",
+          "cometa"
+        ],
+        "extensions": [
+          ".cometa"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "cometa",
+        "scopeName": "source.cometa",
+        "path": "./syntaxes/cometa.tmLanguage.json"
+      }
+    ],
+    "configurationDefaults": {
+      "[cometa]": {
+        "editor.insertSpaces": false,
+        "editor.tabSize": 4
+      }
+    },
+    "configuration": {
+      "title": "Cometa",
+      "properties": {
+        "cometa.server.path": {
+          "type": "string",
+          "default": "",
+          "scope": "machine-overridable",
+          "description": "Absolute path to a Cometa executable. When empty, the extension uses the executable in its bin directory."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "build:server": "node ./scripts/build-server.js",
+    "build": "npm run compile && npm run build:server",
+    "check": "npm run compile && npm run build:server"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^10.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.2",
+    "@types/vscode": "^1.106.0",
+    "typescript": "^7.0.2"
+  }
+}

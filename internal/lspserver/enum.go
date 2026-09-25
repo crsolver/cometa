@@ -2,10 +2,10 @@ package lspserver
 
 import (
 	"github.com/owenrumney/go-lsp/lsp"
-	"hacha/internal/ast"
-	"hacha/internal/lexer"
-	"hacha/internal/parser"
-	"hacha/internal/sema"
+	"cometa/internal/ast"
+	"cometa/internal/lexer"
+	"cometa/internal/parser"
+	"cometa/internal/sema"
 	"strings"
 )
 
@@ -78,7 +78,7 @@ func variantHover(info *sema.EnumInfo, variant sema.VariantInfo) hoverInfo {
 func enumHover(model *sema.Model, pos ast.Pos) (hoverInfo, bool) {
 	for _, info := range model.Enums {
 		if info.Decl.NamePos == pos {
-			return hoverInfo{detail: "enum " + info.Decl.Name}, true
+			return hoverInfo{detail: publicDetail(info.Decl.Public, "enum "+info.Decl.Name)}, true
 		}
 		for _, variant := range info.Variants {
 			if variant.Decl.Pos == pos {
@@ -95,7 +95,7 @@ func enumHover(model *sema.Model, pos ast.Pos) (hoverInfo, bool) {
 				return variantHover(constructor.Enum, constructor.Variant), true
 			}
 			if member.Object.Position() == pos {
-				return hoverInfo{detail: "enum " + constructor.Enum.Decl.Name}, true
+				return hoverInfo{detail: publicDetail(constructor.Enum.Decl.Public, "enum "+constructor.Enum.Decl.Name)}, true
 			}
 		}
 		if variant, ok := expr.(*ast.ContextualVariantExpr); ok && variant.NamePos == pos {

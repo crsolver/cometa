@@ -1,6 +1,6 @@
 package token
 
-import "hacha/internal/ast"
+import "cometa/internal/ast"
 
 type Kind string
 
@@ -14,6 +14,7 @@ const (
 	Number  Kind = "NUMBER"
 	String  Kind = "STRING"
 
+	Pub       Kind = "pub"
 	Tipo      Kind = "tipo"
 	Usar      Kind = "usar"
 	Interfaz  Kind = "interfaz"

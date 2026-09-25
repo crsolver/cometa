@@ -1,8 +1,8 @@
 package compiler
 
 import (
-	"hacha/internal/ast"
-	"hacha/internal/diagnostic"
+	"cometa/internal/ast"
+	"cometa/internal/diagnostic"
 	"reflect"
 	"strings"
 )
@@ -44,11 +44,17 @@ func (b *binder) name(name string, pos ast.Pos) string {
 		name = parts[1]
 		aliasPos := pos
 		pos.Column += len([]rune(parts[0])) + 1
-		if d := m.Declarations[name]; d != nil {
+		if d := m.Declarations[name]; d != nil && ast.IsPublic(d.Node) {
 			b.project.References[aliasPos] = d
 		}
 	}
 	if d := m.Declarations[name]; d != nil {
+		if m != b.module && d.Node != nil && !ast.IsPublic(d.Node) {
+			b.fail(pos, "la declaración %q es privada en el módulo %s", name, m.Path)
+			invalid := "\x00" + m.Path + ":" + name
+			b.project.Program.InvalidNames[invalid] = pos
+			return invalid
+		}
 		b.project.References[pos] = d
 		return d.Symbol
 	}
@@ -69,6 +75,7 @@ func (b *binder) typeRef(t *ast.TypeRef) {
 		return
 	}
 	b.typeRef(t.Element)
+	b.typeRef(t.Key)
 	b.typeRef(t.Payload)
 	b.typeRef(t.ErrorType)
 	for i := range t.Args {

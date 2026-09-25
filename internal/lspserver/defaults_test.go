@@ -3,13 +3,13 @@ package lspserver
 import (
 	"testing"
 
-	"hacha/internal/ast"
-	"hacha/internal/compiler"
+	"cometa/internal/ast"
+	"cometa/internal/compiler"
 )
 
 func TestDefaultParameterSignatureAndHover(t *testing.T) {
 	source := "fn f(a entero = 1, b entero = a) entero b\n"
-	program, model, err := compiler.Analyze("defaults.hacha", []byte(source))
+	program, model, err := compiler.Analyze("defaults.cometa", []byte(source))
 	if err != nil {
 		t.Fatal(err)
 	}

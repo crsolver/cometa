@@ -10,9 +10,9 @@ type _hgImagen struct { image *ebiten.Image }
 type _hgFuente struct { source *text.GoTextFaceSource }
 type _hgSonido struct { pcm []byte }
 type _hgReproduccion struct { player *audio.Player; sound *_hgSonido; loop, paused bool; volume float64 }
-type _hgJuego interface { Actualizar(float64); Pintar() }
+type _hgJuego interface { Actualizar(float64); Pintar(); _cometa_public_Actualizar(); _cometa_public_Pintar() }
 type _hgGame struct{ instancia _hgJuego }
-var _hgconfig = _hgConfigJuego{320,180,"Hacha",1,false,false,60}
+var _hgconfig = _hgConfigJuego{320,180,"Cometa",1,false,false,60}
 var _hgrunStarted bool
 var _hgscreen *ebiten.Image
 var _hgcamara = _hgCamara2D{Zoom:1}

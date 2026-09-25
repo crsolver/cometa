@@ -6,7 +6,7 @@ import (
 )
 
 func TestDefaultsRuntime(t *testing.T) {
-	runHacha(t, `fn inicio()
+	runCometa(t, `fn inicio()
 	imprimir(sumar())
 	imprimir(sumar(0))
 	imprimir(sumar(b = 9))
@@ -27,7 +27,7 @@ fn anidada(a entero = sumar(), b entero = si (a > 0) a sino 0,) entero b
 }
 
 func TestDefaultEvaluationOrderAndScope(t *testing.T) {
-	runHacha(t, `tipo Caja
+	runCometa(t, `tipo Caja
 	valor entero
 	fn siguiente() entero
 		@valor = @valor + 1
@@ -54,7 +54,7 @@ fn inicio()
 }
 
 func TestDefaultContextAndFreshReferences(t *testing.T) {
-	runHacha(t, `tipo Caja
+	runCometa(t, `tipo Caja
 	valor entero
 enum E
 	A
@@ -97,7 +97,7 @@ func TestInvalidDefaults(t *testing.T) {
 	}
 	for _, tt := range cases {
 		t.Run(tt.source, func(t *testing.T) {
-			_, err := Compile("defaults.hacha", []byte(tt.source))
+			_, err := Compile("defaults.cometa", []byte(tt.source))
 			if err == nil || !strings.Contains(err.Error(), tt.message) {
 				t.Fatalf("error = %v, want %q", err, tt.message)
 			}

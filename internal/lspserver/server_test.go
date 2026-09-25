@@ -10,9 +10,9 @@ import (
 	"github.com/owenrumney/go-lsp/server"
 	"github.com/owenrumney/go-lsp/servertest"
 
-	"hacha/internal/ast"
-	"hacha/internal/compiler"
-	"hacha/internal/sema"
+	"cometa/internal/ast"
+	"cometa/internal/compiler"
+	"cometa/internal/sema"
 )
 
 var (
@@ -25,9 +25,9 @@ var (
 	_ server.HoverHandler            = (*Handler)(nil)
 )
 
-func TestInitializeAdvertisesHachaServer(t *testing.T) {
+func TestInitializeAdvertisesCometaServer(t *testing.T) {
 	harness := servertest.New(t, NewHandler())
-	if harness.InitResult.ServerInfo == nil || harness.InitResult.ServerInfo.Name != "hacha" {
+	if harness.InitResult.ServerInfo == nil || harness.InitResult.ServerInfo.Name != "cometa" {
 		t.Fatalf("unexpected server info: %+v", harness.InitResult.ServerInfo)
 	}
 	if harness.InitResult.Capabilities.TextDocumentSync == nil {
@@ -46,9 +46,9 @@ func TestInitializeAdvertisesHachaServer(t *testing.T) {
 
 func TestHoverShowsInferredVariablesAndFunctionDocumentation(t *testing.T) {
 	harness := servertest.New(t, NewHandler())
-	uri := lsp.DocumentURI("file:///hover.hacha")
+	uri := lsp.DocumentURI("file:///hover.cometa")
 	source := "tipo Usuario\n\tnombre cadena\n\n// Procesa una lista de usuarios.\n// Conserva el orden original.\nfn procesar_lista(usuarios [Usuario])\n\timprimir(usuarios)\n\nfn inicio()\n\tvar usuario1 = Usuario {nombre: \"uno\"}\n\tvar usuario2 = Usuario {nombre: \"dos\"}\n\tvar lista = [usuario1, usuario2]\n\tvar x = lista[0]\n\tprocesar_lista(lista)\n"
-	if err := harness.DidOpen(uri, "hacha", source); err != nil {
+	if err := harness.DidOpen(uri, "cometa", source); err != nil {
 		t.Fatal(err)
 	}
 	if diagnostics := waitForDiagnostics(t, harness, uri); len(diagnostics) != 0 {
@@ -66,28 +66,28 @@ func TestHoverShowsInferredVariablesAndFunctionDocumentation(t *testing.T) {
 			name:   "parameter",
 			line:   5,
 			char:   20,
-			value:  "```hacha\nvar usuarios [Usuario]\n```",
+			value:  "```cometa\nvar usuarios [Usuario]\n```",
 			range_: lsp.Range{Start: lsp.Position{Line: 5, Character: 18}, End: lsp.Position{Line: 5, Character: 26}},
 		},
 		{
 			name:   "inferred list use",
 			line:   12,
 			char:   10,
-			value:  "```hacha\nvar lista [Usuario]\n```",
+			value:  "```cometa\nvar lista [Usuario]\n```",
 			range_: lsp.Range{Start: lsp.Position{Line: 12, Character: 9}, End: lsp.Position{Line: 12, Character: 14}},
 		},
 		{
 			name:   "inferred indexed value declaration",
 			line:   12,
 			char:   5,
-			value:  "```hacha\nvar x Usuario\n```",
+			value:  "```cometa\nvar x Usuario\n```",
 			range_: lsp.Range{Start: lsp.Position{Line: 12, Character: 5}, End: lsp.Position{Line: 12, Character: 6}},
 		},
 		{
 			name:   "function call with documentation",
 			line:   13,
 			char:   3,
-			value:  "```hacha\nfn procesar_lista(usuarios [Usuario])\n```\n\nProcesa una lista de usuarios.\nConserva el orden original.",
+			value:  "```cometa\nfn procesar_lista(usuarios [Usuario])\n```\n\nProcesa una lista de usuarios.\nConserva el orden original.",
 			range_: lsp.Range{Start: lsp.Position{Line: 13, Character: 1}, End: lsp.Position{Line: 13, Character: 15}},
 		},
 	}
@@ -112,9 +112,9 @@ func TestHoverShowsInferredVariablesAndFunctionDocumentation(t *testing.T) {
 
 func TestHoverTraversesPositionalStructValues(t *testing.T) {
 	harness := servertest.New(t, NewHandler())
-	uri := lsp.DocumentURI("file:///hover-positional.hacha")
+	uri := lsp.DocumentURI("file:///hover-positional.cometa")
 	source := "tipo Punto\n\tx entero\nfn inicio()\n\tvar n = 1\n\tvar punto = Punto {n}\n"
-	if err := harness.DidOpen(uri, "hacha", source); err != nil {
+	if err := harness.DidOpen(uri, "cometa", source); err != nil {
 		t.Fatal(err)
 	}
 	if diagnostics := waitForDiagnostics(t, harness, uri); len(diagnostics) != 0 {
@@ -128,9 +128,9 @@ func TestHoverTraversesPositionalStructValues(t *testing.T) {
 
 func TestHoverIgnoresWhitespaceAndDetachedComments(t *testing.T) {
 	harness := servertest.New(t, NewHandler())
-	uri := lsp.DocumentURI("file:///hover-sin-documentacion.hacha")
+	uri := lsp.DocumentURI("file:///hover-sin-documentacion.cometa")
 	source := "// Este comentario no está adjunto.\n\nfn saludo(nombre cadena)\n\timprimir(nombre)\n"
-	if err := harness.DidOpen(uri, "hacha", source); err != nil {
+	if err := harness.DidOpen(uri, "cometa", source); err != nil {
 		t.Fatal(err)
 	}
 	_ = waitForDiagnostics(t, harness, uri)
@@ -139,7 +139,7 @@ func TestHoverIgnoresWhitespaceAndDetachedComments(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if hover == nil || hover.Contents.Value() != "```hacha\nfn saludo(nombre cadena)\n```" {
+	if hover == nil || hover.Contents.Value() != "```cometa\nfn saludo(nombre cadena)\n```" {
 		t.Fatalf("unexpected function hover: %+v", hover)
 	}
 	hover, err = harness.Hover(uri, 2, 2)
@@ -153,9 +153,9 @@ func TestHoverIgnoresWhitespaceAndDetachedComments(t *testing.T) {
 
 func TestCompletesFieldsAndMethodsForVariable(t *testing.T) {
 	harness := servertest.New(t, NewHandler())
-	uri := lsp.DocumentURI("file:///completar.hacha")
+	uri := lsp.DocumentURI("file:///completar.cometa")
 	source := "tipo Usuario\n\tnombre cadena\n\tfn activar(valor bool)\n\t\timprimir(valor)\nfn inicio()\n\tvar usuario = Usuario {nombre: \"andres\"}\n\tusuario.\n"
-	if err := harness.DidOpen(uri, "hacha", source); err != nil {
+	if err := harness.DidOpen(uri, "cometa", source); err != nil {
 		t.Fatal(err)
 	}
 	_ = waitForDiagnostics(t, harness, uri)
@@ -176,9 +176,9 @@ func TestCompletesFieldsAndMethodsForVariable(t *testing.T) {
 
 func TestCompletesReceiverFieldsAndMethodsAfterAt(t *testing.T) {
 	harness := servertest.New(t, NewHandler())
-	uri := lsp.DocumentURI("file:///completar-receptor.hacha")
+	uri := lsp.DocumentURI("file:///completar-receptor.cometa")
 	source := "tipo Usuario\n\tnombre cadena\n\tfn activar(valor bool)\n\t\t@\n"
-	if err := harness.DidOpen(uri, "hacha", source); err != nil {
+	if err := harness.DidOpen(uri, "cometa", source); err != nil {
 		t.Fatal(err)
 	}
 	_ = waitForDiagnostics(t, harness, uri)
@@ -199,9 +199,9 @@ func TestCompletesReceiverFieldsAndMethodsAfterAt(t *testing.T) {
 
 func TestCompletesReceiverMembersInInlineMethod(t *testing.T) {
 	harness := servertest.New(t, NewHandler())
-	uri := lsp.DocumentURI("file:///completar-receptor-inline.hacha")
+	uri := lsp.DocumentURI("file:///completar-receptor-inline.cometa")
 	source := "tipo Usuario\n\tnombre cadena\n\tfn activar() @nom\n"
-	if err := harness.DidOpen(uri, "hacha", source); err != nil {
+	if err := harness.DidOpen(uri, "cometa", source); err != nil {
 		t.Fatal(err)
 	}
 	_ = waitForDiagnostics(t, harness, uri)
@@ -216,8 +216,8 @@ func TestCompletesReceiverMembersInInlineMethod(t *testing.T) {
 
 func TestPublishesAndClearsDiagnosticsOnChange(t *testing.T) {
 	harness := servertest.New(t, NewHandler())
-	uri := lsp.DocumentURI("file:///diagnostico.hacha")
-	if err := harness.DidOpen(uri, "hacha", "fn inicio()\n    imprimir(\"mal\")\n"); err != nil {
+	uri := lsp.DocumentURI("file:///diagnostico.cometa")
+	if err := harness.DidOpen(uri, "cometa", "fn inicio()\n    imprimir(\"mal\")\n"); err != nil {
 		t.Fatal(err)
 	}
 	diagnostics := waitForDiagnostics(t, harness, uri)
@@ -225,7 +225,7 @@ func TestPublishesAndClearsDiagnosticsOnChange(t *testing.T) {
 		t.Fatalf("got %d diagnostics, want 1", len(diagnostics))
 	}
 	diagnostic := diagnostics[0]
-	if diagnostic.Source != "hacha" || diagnostic.Message == "" {
+	if diagnostic.Source != "cometa" || diagnostic.Message == "" {
 		t.Fatalf("unexpected diagnostic: %+v", diagnostic)
 	}
 	if diagnostic.Range.Start.Line != 1 || diagnostic.Range.Start.Character != 0 {
@@ -247,9 +247,9 @@ func TestPublishesAndClearsDiagnosticsOnChange(t *testing.T) {
 
 func TestDocumentSymbolsAreHierarchical(t *testing.T) {
 	harness := servertest.New(t, NewHandler())
-	uri := lsp.DocumentURI("file:///usuario.hacha")
+	uri := lsp.DocumentURI("file:///usuario.cometa")
 	source := "tipo Usuario\n\tnombre cadena\n\tfn saludar(mensaje cadena)\n\t\timprimir(mensaje)\n\nfn inicio()\n\timprimir(\"hola\")\n"
-	if err := harness.DidOpen(uri, "hacha", source); err != nil {
+	if err := harness.DidOpen(uri, "cometa", source); err != nil {
 		t.Fatal(err)
 	}
 	_ = waitForDiagnostics(t, harness, uri)
@@ -284,7 +284,7 @@ func TestDiagnosticColumnsUseUTF16(t *testing.T) {
 
 func TestDiagnosticCoversRelevantToken(t *testing.T) {
 	source := "fn inicio()\n\tvar usuario = Usario{}\n"
-	_, _, err := compiler.Analyze("diagnostico.hacha", []byte(source))
+	_, _, err := compiler.Analyze("diagnostico.cometa", []byte(source))
 	if err == nil {
 		t.Fatal("expected unknown-type diagnostic")
 	}

@@ -25,8 +25,8 @@ func TestWrapperCompletion(t *testing.T) {
 		line := strings.Count(before, "\n")
 		column := utf16Length(before[strings.LastIndex(before, "\n")+1:])
 		h := servertest.New(t, NewHandler())
-		uri := lsp.DocumentURI("file:///wrappers.hacha")
-		if err := h.DidOpen(uri, "hacha", strings.Replace(tc.source, "^", "", 1)); err != nil {
+		uri := lsp.DocumentURI("file:///wrappers.cometa")
+		if err := h.DidOpen(uri, "cometa", strings.Replace(tc.source, "^", "", 1)); err != nil {
 			t.Fatal(err)
 		}
 		_ = waitForDiagnostics(t, h, uri)
@@ -51,8 +51,8 @@ func TestWrapperTypeDisplay(t *testing.T) {
 		{"fn f() (entero!)? .Ninguno\n", "fn f() (entero!)?"},
 	} {
 		h := servertest.New(t, NewHandler())
-		uri := lsp.DocumentURI("file:///wrapper_hover.hacha")
-		if err := h.DidOpen(uri, "hacha", tc.source); err != nil {
+		uri := lsp.DocumentURI("file:///wrapper_hover.cometa")
+		if err := h.DidOpen(uri, "cometa", tc.source); err != nil {
 			t.Fatal(err)
 		}
 		_ = waitForDiagnostics(t, h, uri)
@@ -69,8 +69,8 @@ func TestWrapperTypeDisplay(t *testing.T) {
 func TestUnusedOptionalLocalsHaveNoDiagnostics(t *testing.T) {
 	source := "tipo Usuario\n\tnombre cadena\n\tmascota cadena?\nfn nulable()\n\tvar usuario = Usuario {mascota: \"hola\"}\n\tvar mascota = usuario.mascota\n\tvar talvez_usuario Usuario? = .Alguno({})\n"
 	h := servertest.New(t, NewHandler())
-	uri := lsp.DocumentURI("file:///unused_optional.hacha")
-	if err := h.DidOpen(uri, "hacha", source); err != nil {
+	uri := lsp.DocumentURI("file:///unused_optional.cometa")
+	if err := h.DidOpen(uri, "cometa", source); err != nil {
 		t.Fatal(err)
 	}
 	diagnostics := waitForDiagnostics(t, h, uri)

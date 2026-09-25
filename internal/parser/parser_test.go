@@ -4,16 +4,16 @@ import (
 	"strings"
 	"testing"
 
-	"hacha/internal/ast"
-	"hacha/internal/lexer"
+	"cometa/internal/ast"
+	"cometa/internal/lexer"
 )
 
 func TestParsesGlobalVariablesAndConstants(t *testing.T) {
-	tokens, err := lexer.Lex("globales.hacha", "var contador entero = 0\nconst limite = contador + 10\n")
+	tokens, err := lexer.Lex("globales.cometa", "var contador entero = 0\nconst limite = contador + 10\n")
 	if err != nil {
 		t.Fatal(err)
 	}
-	program, err := Parse("globales.hacha", tokens)
+	program, err := Parse("globales.cometa", tokens)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,11 +31,11 @@ func TestParsesGlobalVariablesAndConstants(t *testing.T) {
 }
 
 func TestParsesRangeLoop(t *testing.T) {
-	tokens, err := lexer.Lex("rango.hacha", "fn inicio()\n\trepetir ((1 + 2)..-5) |i| imprimir(i)\n")
+	tokens, err := lexer.Lex("rango.cometa", "fn inicio()\n\trepetir ((1 + 2)..-5) |i| imprimir(i)\n")
 	if err != nil {
 		t.Fatal(err)
 	}
-	program, err := Parse("rango.hacha", tokens)
+	program, err := Parse("rango.cometa", tokens)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,11 +53,11 @@ func TestParsesRangeLoop(t *testing.T) {
 
 func TestParsesTypeMethodsAndConditionalExpression(t *testing.T) {
 	source := "tipo Usuario\n\tedad entero\n\tactivo bool\n\tfn activar(valor bool)\n\t\t@activo = si (@edad < 18) verdadero sino valor\n"
-	tokens, err := lexer.Lex("usuario.hacha", source)
+	tokens, err := lexer.Lex("usuario.cometa", source)
 	if err != nil {
 		t.Fatal(err)
 	}
-	program, err := Parse("usuario.hacha", tokens)
+	program, err := Parse("usuario.cometa", tokens)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,11 +76,11 @@ func TestParsesTypeMethodsAndConditionalExpression(t *testing.T) {
 
 func TestParsesNestedReturningConditionals(t *testing.T) {
 	source := "fn elegir(n entero) entero\n\tsi (n < 0) 0\n\tosi (n == 0) 1\n\tsino\n\t\tsi verdadero\n\t\t\t2\n\t\tsino\n\t\t\t3\n"
-	tokens, err := lexer.Lex("elegir.hacha", source)
+	tokens, err := lexer.Lex("elegir.cometa", source)
 	if err != nil {
 		t.Fatal(err)
 	}
-	program, err := Parse("elegir.hacha", tokens)
+	program, err := Parse("elegir.cometa", tokens)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,11 +96,11 @@ func TestParsesNestedReturningConditionals(t *testing.T) {
 
 func TestParsesVariablesCompositeLiteralsAndMemberCalls(t *testing.T) {
 	source := "tipo Usuario\n\tnombre cadena\n\tamigos [Usuario]\n\tfn activar(valor bool)\n\t\timprimir(valor)\nfn inicio()\n\tvar usuario1 = Usuario {\n\t\tnombre: \"andres\",\n\t}\n\tvar usuario2 Usuario = {nombre: \"andres\", amigos: [usuario1]}\n\tusuario2.activar(verdadero)\n"
-	tokens, err := lexer.Lex("variables.hacha", source)
+	tokens, err := lexer.Lex("variables.cometa", source)
 	if err != nil {
 		t.Fatal(err)
 	}
-	program, err := Parse("variables.hacha", tokens)
+	program, err := Parse("variables.cometa", tokens)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,11 +124,11 @@ func TestParsesVariablesCompositeLiteralsAndMemberCalls(t *testing.T) {
 
 func TestParsesPositionalStructLiterals(t *testing.T) {
 	source := "tipo Punto\n\tx entero\n\ty entero\ntipo Caja<T>\n\tvalor T\nfn inicio()\n\tvar a = Punto {1, 2}\n\tvar b Punto = {3}\n\tvar c = Caja<entero> {\n\t\t4,\n\t}\n"
-	tokens, err := lexer.Lex("posicionales.hacha", source)
+	tokens, err := lexer.Lex("posicionales.cometa", source)
 	if err != nil {
 		t.Fatal(err)
 	}
-	program, err := Parse("posicionales.hacha", tokens)
+	program, err := Parse("posicionales.cometa", tokens)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,11 +152,11 @@ func TestRejectsMixedStructLiteralEntries(t *testing.T) {
 		"fn inicio()\n\tvar p = Punto {1, y: 2}\n",
 		"fn inicio()\n\tvar p = Punto {x: 1, 2}\n",
 	} {
-		tokens, err := lexer.Lex("mixto.hacha", source)
+		tokens, err := lexer.Lex("mixto.cometa", source)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err = Parse("mixto.hacha", tokens); err == nil || !strings.Contains(err.Error(), "no se pueden mezclar") {
+		if _, err = Parse("mixto.cometa", tokens); err == nil || !strings.Contains(err.Error(), "no se pueden mezclar") {
 			t.Fatalf("got %v, want mixed-literal diagnostic", err)
 		}
 	}
@@ -164,11 +164,11 @@ func TestRejectsMixedStructLiteralEntries(t *testing.T) {
 
 func TestParsesListAndInfiniteRepeats(t *testing.T) {
 	source := "fn inicio()\n\tvar lista = [1, 2]\n\trepetir (lista) |valor, indice|\n\t\tsi (indice == 0) continuar\n\t\tromper\n\trepetir imprimir(\"hola\")\n"
-	tokens, err := lexer.Lex("ciclos.hacha", source)
+	tokens, err := lexer.Lex("ciclos.cometa", source)
 	if err != nil {
 		t.Fatal(err)
 	}
-	program, err := Parse("ciclos.hacha", tokens)
+	program, err := Parse("ciclos.cometa", tokens)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -192,11 +192,11 @@ func TestParsesListAndInfiniteRepeats(t *testing.T) {
 
 func TestParsesListIndexAsFunctionArgument(t *testing.T) {
 	source := "fn procesar_usuario(usuario entero)\n\timprimir(usuario)\nfn inicio()\n\tvar lista = [1, 2]\n\tvar x = lista[1]\n\tprocesar_usuario(lista[0])\n"
-	tokens, err := lexer.Lex("indices.hacha", source)
+	tokens, err := lexer.Lex("indices.cometa", source)
 	if err != nil {
 		t.Fatal(err)
 	}
-	program, err := Parse("indices.hacha", tokens)
+	program, err := Parse("indices.cometa", tokens)
 	if err != nil {
 		t.Fatal(err)
 	}

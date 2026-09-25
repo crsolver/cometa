@@ -1,8 +1,8 @@
 package sema
 
 import (
-	"hacha/internal/ast"
-	"hacha/internal/stdlib"
+	"cometa/internal/ast"
+	"cometa/internal/stdlib"
 )
 
 func (t Type) Wrapped() bool { return t.Kind == Optional || t.Kind == Result }
@@ -160,7 +160,7 @@ func (m *Model) Terminates(stmt ast.Stmt) bool {
 	case *ast.VarDeclStmt:
 		return m.ExprTypes[s.Value].Kind == Never
 	case *ast.AssignStmt:
-		return m.ExprTypes[s.Value].Kind == Never
+		return m.ExprTypes[s.Target].Kind == Never || m.ExprTypes[s.Value].Kind == Never
 	case *ast.IfStmt:
 		if len(s.Else) == 0 || !block(s.Else) {
 			return false
@@ -211,6 +211,12 @@ func (m *Model) eagerExit(e ast.Expr) bool {
 	case *ast.ListLiteralExpr:
 		for _, item := range v.Elements {
 			if exits(item) {
+				return true
+			}
+		}
+	case *ast.MapLiteralExpr:
+		for _, entry := range v.Entries {
+			if exits(entry.Key) || exits(entry.Value) {
 				return true
 			}
 		}

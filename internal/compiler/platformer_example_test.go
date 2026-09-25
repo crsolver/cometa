@@ -8,13 +8,13 @@ import (
 )
 
 func TestPlatformerExampleCompiles(t *testing.T) {
-	if _, err := CompileProject(filepath.Join("..", "..", "examples", "plataformas.hacha"), nil); err != nil {
+	if _, err := CompileProject(filepath.Join("..", "..", "examples", "plataformas.cometa"), nil); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestPlatformerSimulation(t *testing.T) {
-	path := filepath.Join("..", "..", "examples", "plataformas", "mundo.hacha")
+	path := filepath.Join("..", "..", "examples", "plataformas", "mundo.cometa")
 	source, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
@@ -130,7 +130,7 @@ func TestPlatformerRenderingRuntime(t *testing.T) {
 	if testing.Short() {
 		t.Skip("desktop rendering")
 	}
-	generated, err := CompileProject(filepath.Join("..", "..", "examples", "plataformas.hacha"), nil)
+	generated, err := CompileProject(filepath.Join("..", "..", "examples", "plataformas.cometa"), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,7 +142,7 @@ type platformerRender struct{}
 func (*platformerRender) Layout(w,h int)(int,int){return 320,180}
 func (*platformerRender) Draw(screen *ebiten.Image){}
 func (*platformerRender) Update()error {
- m:=HachaGlobal_70617274696461;m.Generar(42);m.Reloj=10;m.Invulnerable=0
+ m:=CometaGlobal_70617274696461;m.Generar(42);m.Reloj=10;m.Invulnerable=0
  _hgscreen=ebiten.NewImage(320,180);defer func(){_hgscreen.Dispose();_hgscreen=nil}()
  for row:=int64(0);row<3;row++ {for col:=int64(0);col<6;col++ {
   m.Cam_x=col*320;m.Cam_y=row*180
@@ -156,7 +156,7 @@ func (*platformerRender) Update()error {
   pixels:=make([]byte,320*180*4);_hgscreen.ReadPixels(pixels)
   unique:=map[[3]byte]bool{};for i:=0;i<len(pixels);i+=4 {unique[[3]byte{pixels[i],pixels[i+1],pixels[i+2]}]=true}
   if len(unique)<20 {panic("platformer scene lacks terrain/detail")}
-  if dir:=os.Getenv("HACHA_PLATFORMER_CAPTURES");dir!=""&&col==0 {
+  if dir:=os.Getenv("COMETA_PLATFORMER_CAPTURES");dir!=""&&col==0 {
    if err:=os.MkdirAll(dir,0755);err!=nil{panic(err)}
    for _,scale:=range []int{1,4} {
     img:=image.NewNRGBA(image.Rect(0,0,320*scale,180*scale))

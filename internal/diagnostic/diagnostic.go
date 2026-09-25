@@ -3,7 +3,7 @@ package diagnostic
 
 import (
 	"fmt"
-	"hacha/internal/ast"
+	"cometa/internal/ast"
 	"sort"
 	"strings"
 )

@@ -5,10 +5,10 @@ import (
 	"strconv"
 	"strings"
 
-	"hacha/internal/ast"
-	"hacha/internal/diagnostic"
-	"hacha/internal/lexer"
-	"hacha/internal/token"
+	"cometa/internal/ast"
+	"cometa/internal/diagnostic"
+	"cometa/internal/lexer"
+	"cometa/internal/token"
 )
 
 type Error struct {
@@ -66,6 +66,7 @@ func Parse(filename string, tokens []token.Token) (*ast.Program, error) {
 			p.aliases[imp.Alias] = true
 			continue
 		}
+		public := p.match(token.Pub)
 		var err error
 		switch p.current().Kind {
 		case token.Interfaz:
@@ -83,11 +84,19 @@ func Parse(filename string, tokens []token.Token) (*ast.Program, error) {
 		}
 		if err != nil {
 			p.report(start, err)
-			if start+1 < len(tokens) && tokens[start+1].Kind == token.Ident {
-				program.InvalidNames[tokens[start+1].Lexeme] = tokens[start+1].Pos
+			nameIndex := start + 1
+			if public {
+				nameIndex++
+			}
+			if nameIndex < len(tokens) && tokens[nameIndex].Kind == token.Ident {
+				program.InvalidNames[tokens[nameIndex].Lexeme] = tokens[nameIndex].Pos
 			}
 			p.synchronize(start, true)
 			continue
+		}
+		ast.SetPublic(decl, public)
+		if f, ok := decl.(*ast.FuncDecl); ok && public && f.Name == "inicio" {
+			p.errors.Add(p.error(tokens[start], "inicio no puede ser pub"))
 		}
 		program.Decls = append(program.Decls, decl)
 	}
@@ -189,11 +198,13 @@ func (p *parser) parseTypeDecl() (*ast.TypeDecl, error) {
 		}
 		start := p.index
 		err := func() error {
+			public := p.match(token.Pub)
 			if p.at(token.Fn) {
 				method, parseErr := p.parseFuncDecl(decl.Name)
 				if parseErr != nil {
 					return parseErr
 				}
+				method.Public = public
 				decl.Methods = append(decl.Methods, method)
 				return nil
 			}
@@ -209,7 +220,7 @@ func (p *parser) parseTypeDecl() (*ast.TypeDecl, error) {
 				if _, parseErr = p.expect(token.Newline, "se esperaba el final del tipo embebido"); parseErr != nil {
 					return parseErr
 				}
-				decl.Fields = append(decl.Fields, &ast.Field{Pos: fieldType.Pos, Name: baseName(fieldType.Name), Type: fieldType, Embedded: true})
+				decl.Fields = append(decl.Fields, &ast.Field{Public: public, Pos: fieldType.Pos, Name: baseName(fieldType.Name), Type: fieldType, Embedded: true})
 				return nil
 			}
 			fieldName, parseErr := p.expect(token.Ident, "se esperaba un campo o método")
@@ -223,7 +234,7 @@ func (p *parser) parseTypeDecl() (*ast.TypeDecl, error) {
 			if _, parseErr = p.expect(token.Newline, "se esperaba el final de la declaración del campo"); parseErr != nil {
 				return parseErr
 			}
-			decl.Fields = append(decl.Fields, &ast.Field{Pos: fieldName.Pos, Name: fieldName.Lexeme, Type: fieldType})
+			decl.Fields = append(decl.Fields, &ast.Field{Public: public, Pos: fieldName.Pos, Name: fieldName.Lexeme, Type: fieldType})
 			return nil
 		}()
 		if err != nil {
@@ -359,10 +370,19 @@ func (p *parser) parseTypeAtom() (ast.TypeRef, error) {
 		if err != nil {
 			return ast.TypeRef{}, err
 		}
+		var key *ast.TypeRef
+		if p.match(token.Colon) {
+			k := element
+			key = &k
+			element, err = p.parseTypeRef()
+			if err != nil {
+				return ast.TypeRef{}, err
+			}
+		}
 		if _, err = p.expect(token.RBracket, "se esperaba ']' después del tipo de elemento"); err != nil {
 			return ast.TypeRef{}, err
 		}
-		return ast.TypeRef{Pos: start.Pos, Element: &element}, nil
+		return ast.TypeRef{Pos: start.Pos, Key: key, Element: &element}, nil
 	}
 	current := p.current()
 	if current.Kind != token.Num && current.Kind != token.Entero && current.Kind != token.Decimal && current.Kind != token.Cadena && current.Kind != token.Bool && current.Kind != token.Ident {
@@ -443,10 +463,14 @@ func (p *parser) parseStatement() (ast.Stmt, error) {
 	if p.at(token.Con) {
 		start := p.advance()
 		value, err := p.parseExpression(0)
-		if err != nil { return nil, err }
-		if !p.at(token.Newline) { return nil, p.error(p.current(), "con requiere un bloque indentado") }
+		if err != nil {
+			return nil, err
+		}
+		if !p.at(token.Newline) {
+			return nil, p.error(p.current(), "con requiere un bloque indentado")
+		}
 		body, err := p.parseSuite()
-		return &ast.ScopeStmt{Pos:start.Pos, Value:value, Body:body}, err
+		return &ast.ScopeStmt{Pos: start.Pos, Value: value, Body: body}, err
 	}
 	if p.at(token.Casos) {
 		match, err := p.parseMatch()
@@ -956,6 +980,7 @@ func (p *parser) parseInterpolation(source string, column, line int) (ast.Expr, 
 	}
 	for i := range tokens {
 		tokens[i].Pos.Line = line
+		tokens[i].Pos.Filename = p.tokens[0].Pos.Filename
 		tokens[i].Pos.Column += column - 1
 	}
 	sub := &parser{filename: p.filename, tokens: tokens, aliases: p.aliases}
@@ -1063,20 +1088,65 @@ func (p *parser) parseFieldValue() (ast.FieldValue, error) {
 func (p *parser) parseListLiteral() (ast.Expr, error) {
 	start := p.advance()
 	literal := &ast.ListLiteralExpr{Pos: start.Pos}
-	if !p.at(token.RBracket) {
+	mapLiteral := &ast.MapLiteralExpr{Pos: start.Pos}
+	isMap := false
+	multiline := p.match(token.Newline)
+	indented := false
+	if multiline && !p.at(token.RBracket) {
+		if _, err := p.expect(token.Indent, "se esperaba indentación para los elementos de la lista"); err != nil {
+			return nil, err
+		}
+		indented = true
+	}
+	if p.match(token.Colon) {
+		isMap = true
+	} else if !p.at(token.RBracket) {
 		for {
 			value, err := p.parseExpression(0)
 			if err != nil {
 				return nil, err
 			}
-			literal.Elements = append(literal.Elements, value)
+			if p.match(token.Colon) {
+				if len(literal.Elements) != 0 {
+					return nil, p.error(p.current(), "no se pueden mezclar elementos de lista y mapa")
+				}
+				isMap = true
+				entryValue, err := p.parseExpression(0)
+				if err != nil {
+					return nil, err
+				}
+				mapLiteral.Entries = append(mapLiteral.Entries, ast.MapEntry{Key: value, Value: entryValue})
+			} else {
+				if isMap {
+					return nil, p.error(p.current(), "se esperaba ':' después de la clave")
+				}
+				literal.Elements = append(literal.Elements, value)
+			}
 			if !p.match(token.Comma) {
+				break
+			}
+			if multiline {
+				p.match(token.Newline)
+				if p.at(token.Dedent) {
+					break
+				}
+			}
+			if p.at(token.RBracket) {
 				break
 			}
 		}
 	}
+	if indented {
+		p.match(token.Newline)
+		if _, err := p.expect(token.Dedent, "se esperaba el final de los elementos de la lista"); err != nil {
+			return nil, err
+		}
+	}
 	if _, err := p.expect(token.RBracket, "se esperaba ']' después de la lista"); err != nil {
 		return nil, err
+	}
+	if isMap {
+		return mapLiteral, nil
 	}
 	return literal, nil
 }

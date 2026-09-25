@@ -5,8 +5,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/owenrumney/go-lsp/lsp"
-	"hacha/internal/ast"
-	"hacha/internal/sema"
+	"cometa/internal/ast"
+	"cometa/internal/sema"
 )
 
 // Ignore dots in strings and comments, including escaped quotes.
@@ -109,7 +109,7 @@ func contextualCompletion(filename string, lines []string, line int, prefix stri
 		}
 		end += size
 	}
-	const probe = "__hacha_completion_variant__"
+	const probe = "__cometa_completion_variant__"
 	replacement := prefix[:dot+1] + probe + lines[line][end:]
 	if pattern {
 		replacement = prefix[:dot+1] + probe + " => 0"

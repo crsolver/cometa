@@ -1,0 +1,63 @@
+usar std/mate
+usar std/mate/curvas
+usar std/pincel/juego
+usar std/pincel/graficos
+usar std/pincel/color
+usar std/pincel/entrada
+usar std/pincel/retro
+
+// Todas las filas comparten reloj, duración y extremos.
+// El punto gris muestra dónde estaría una animación lineal.
+fn fila(nombre cadena, y entero, avance decimal, referencia decimal, tinte color.Color)
+	retro.texto(nombre, 16, y - 4, color = tinte)
+	graficos.linea(240, y, 450, y, .Gris)
+	graficos.linea(240, y - 10, 240, y + 10, .Gris)
+	graficos.linea(450, y - 10, 450, y + 10, .Gris)
+	graficos.circulo(mate.interpolar(240, 450, referencia), y, 3, .Gris)
+	// No limitar avance: la elasticidad y el retroceso sobrepasan el destino.
+	graficos.circulo(mate.interpolar(240, 450, avance), y, 7, tinte)
+
+tipo Demostracion
+	transcurrido decimal
+	pausada bool
+	regresando bool
+
+	pub fn actualizar(dt decimal)
+		si entrada.tecla_presionada(.R)
+			@transcurrido = 0
+			@regresando = falso
+			@pausada = falso
+		si entrada.tecla_presionada(.Espacio)
+			@pausada = !@pausada
+		si @pausada retornar
+		@transcurrido = @transcurrido + dt
+		// Dos segundos de movimiento y una pausa de 0.8 s en cada extremo.
+		si @transcurrido >= 2.8
+			@transcurrido = @transcurrido - 2.8
+			@regresando = !@regresando
+
+	pub fn pintar()
+		graficos.limpiar(.AzulNoche)
+		retro.texto("CURVAS EN MOVIMIENTO", 16, 16, escala = 2)
+		retro.texto("Mismo tiempo. Distinto movimiento.", 16, 44)
+		var estado = si @pausada "PAUSA" sino si @regresando "REGRESO" sino "IDA"
+		retro.texto(estado, 536, 20, color = .Amarillo)
+
+		// La curva limita el progreso durante la pausa en el extremo.
+		var progreso = @transcurrido / 2.0
+		var t = si @regresando 1 - progreso sino progreso
+		var referencia = curvas.lineal(t)
+		fila("Lineal", 104, referencia, referencia, .Blanco)
+		fila("Cubica entrada/salida", 148, curvas.cubica_entrada_salida(t), referencia, .Celeste)
+		fila("Senoidal entrada/salida", 192, curvas.senoidal_entrada_salida(t), referencia, .Verde)
+		fila("Elastica salida", 236, curvas.elastica_salida(t), referencia, .Amarillo)
+		fila("Retroceso salida", 280, curvas.retroceso_salida(t), referencia, .Rosa)
+		fila("Rebote salida", 324, curvas.rebote_salida(t), referencia, .Violeta)
+
+		graficos.rectangulo(16, 352, 608, 3, .Gris)
+		graficos.rectangulo(16, 352, 608 * curvas.lineal(progreso), 3, .Celeste)
+		retro.texto("ESPACIO: pausa   R: reiniciar", 16, 376)
+
+fn inicio()
+	juego.ejecutar(Demostracion {}, 640, 400, titulo = "Cometa: curvas con Pincel", escala = 2, pixelado = verdadero) capturar |error|
+		imprimir(error)

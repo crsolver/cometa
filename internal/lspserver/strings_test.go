@@ -10,9 +10,9 @@ import (
 
 func TestStringMethodCompletionAndHover(t *testing.T) {
 	harness := servertest.New(t, NewHandler())
-	uri := lsp.DocumentURI("file:///cadenas.hacha")
+	uri := lsp.DocumentURI("file:///cadenas.cometa")
 	source := "fn inicio()\n\tvar texto = \"hola\"\n\ttexto.\n"
-	if err := harness.DidOpen(uri, "hacha", source); err != nil {
+	if err := harness.DidOpen(uri, "cometa", source); err != nil {
 		t.Fatal(err)
 	}
 	_ = waitForDiagnostics(t, harness, uri)
@@ -33,8 +33,8 @@ func TestStringMethodCompletionAndHover(t *testing.T) {
 
 	source = "fn inicio()\n\tvar texto = \"hola\"\n\timprimir(texto.longitud())\n"
 	harness = servertest.New(t, NewHandler())
-	uri = lsp.DocumentURI("file:///cadenas-hover.hacha")
-	if err := harness.DidOpen(uri, "hacha", source); err != nil {
+	uri = lsp.DocumentURI("file:///cadenas-hover.cometa")
+	if err := harness.DidOpen(uri, "cometa", source); err != nil {
 		t.Fatal(err)
 	}
 	if diagnostics := waitForDiagnostics(t, harness, uri); len(diagnostics) != 0 {
@@ -51,9 +51,9 @@ func TestStringMethodCompletionAndHover(t *testing.T) {
 
 func TestStringMethodCompletionOnLiteral(t *testing.T) {
 	harness := servertest.New(t, NewHandler())
-	uri := lsp.DocumentURI("file:///cadena-literal.hacha")
+	uri := lsp.DocumentURI("file:///cadena-literal.cometa")
 	source := "fn inicio()\n\t\"hola\".\n"
-	if err := harness.DidOpen(uri, "hacha", source); err != nil {
+	if err := harness.DidOpen(uri, "cometa", source); err != nil {
 		t.Fatal(err)
 	}
 	_ = waitForDiagnostics(t, harness, uri)
@@ -68,9 +68,9 @@ func TestStringMethodCompletionOnLiteral(t *testing.T) {
 
 func TestHoverInsideInterpolationUsesEmbeddedPositions(t *testing.T) {
 	harness := servertest.New(t, NewHandler())
-	uri := lsp.DocumentURI("file:///interpolacion.hacha")
+	uri := lsp.DocumentURI("file:///interpolacion.cometa")
 	source := "fn inicio()\n\tvar nombre = \"Ana\"\n\timprimir(\"Hola ${nombre}\")\n"
-	if err := harness.DidOpen(uri, "hacha", source); err != nil {
+	if err := harness.DidOpen(uri, "cometa", source); err != nil {
 		t.Fatal(err)
 	}
 	if diagnostics := waitForDiagnostics(t, harness, uri); len(diagnostics) != 0 {

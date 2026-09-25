@@ -7,8 +7,8 @@ import (
 
 func TestGameObjectFromImportedModule(t *testing.T) {
 	entry, loader := memoryProject(t, map[string]string{
-		"main.hacha":    "usar std/pincel/juego\nusar partida\nfn inicio()\n\tjuego.ejecutar(partida.Partida {}, titulo = \"Modular\") capturar |e| imprimir(e)\n",
-		"partida.hacha": "usar std/pincel/graficos\ntipo Partida\n\tfn actualizar(dt decimal) imprimir(dt)\n\tfn pintar() graficos.limpiar(.Negro)\nfn iniciar() imprimir(0)\n",
+		"main.cometa":    "usar std/pincel/juego\nusar partida\nfn inicio()\n\tjuego.ejecutar(partida.Partida {}, titulo = \"Modular\") capturar |e| imprimir(e)\n",
+		"partida.cometa": "usar std/pincel/graficos\npub tipo Partida\n\tpub fn actualizar(dt decimal) imprimir(dt)\n\tpub fn pintar() graficos.limpiar(.Negro)\npub fn iniciar() imprimir(0)\n",
 	})
 	if _, err := CompileProject(entry, loader); err != nil {
 		t.Fatal(err)
@@ -16,12 +16,14 @@ func TestGameObjectFromImportedModule(t *testing.T) {
 }
 
 func TestGameInvalidConfigurationRuntime(t *testing.T) {
-	generated, err := Compile("game.hacha", []byte(pincelImports+minimalGame))
+	generated, err := Compile("game.cometa", []byte(pincelImports+minimalGame))
 	if err != nil {
 		t.Fatal(err)
 	}
 	source := string(generated) + `
 type invalidGame struct{}
+func (*invalidGame) _cometa_public_Actualizar() {}
+func (*invalidGame) _cometa_public_Pintar() {}
 func (*invalidGame) Actualizar(float64){}
 func (*invalidGame) Pintar(){}
 func main(){
@@ -47,15 +49,15 @@ func main(){
 
 func TestGameInterfaceAndStartupErrors(t *testing.T) {
 	for _, source := range []string{
-		"tipo T\n\tfn actualizar(dt decimal) imprimir(dt)\nfn inicio()\n\tjuego.ejecutar(T {}) capturar |e| imprimir(e)\n",
-		"tipo T\n\tfn actualizar(dt cadena) imprimir(dt)\n\tfn pintar() imprimir(0)\nfn inicio()\n\tjuego.ejecutar(T {}) capturar |e| imprimir(e)\n",
-		"tipo T\n\tfn actualizar(dt decimal) imprimir(dt)\n\tfn pintar() imprimir(0)\nfn inicio() juego.ejecutar(T {})\n",
+		"tipo T\n\tpub fn actualizar(dt decimal) imprimir(dt)\nfn inicio()\n\tjuego.ejecutar(T {}) capturar |e| imprimir(e)\n",
+		"tipo T\n\tpub fn actualizar(dt cadena) imprimir(dt)\n\tpub fn pintar() imprimir(0)\nfn inicio()\n\tjuego.ejecutar(T {}) capturar |e| imprimir(e)\n",
+		"tipo T\n\tpub fn actualizar(dt decimal) imprimir(dt)\n\tpub fn pintar() imprimir(0)\nfn inicio() juego.ejecutar(T {})\n",
 	} {
-		if _, err := Compile("game.hacha", []byte("usar std/pincel/juego\n"+source)); err == nil {
+		if _, err := Compile("game.cometa", []byte("usar std/pincel/juego\n"+source)); err == nil {
 			t.Fatal("accepted invalid game")
 		}
 	}
-	generated, err := Compile("normal.hacha", []byte("fn actualizar(dt cadena) imprimir(dt)\nfn pintar() imprimir(0)\nfn iniciar() imprimir(0)\nfn inicio() pintar()\n"))
+	generated, err := Compile("normal.cometa", []byte("fn actualizar(dt cadena) imprimir(dt)\nfn pintar() imprimir(0)\nfn iniciar() imprimir(0)\nfn inicio() pintar()\n"))
 	if err != nil {
 		t.Fatal(err)
 	}

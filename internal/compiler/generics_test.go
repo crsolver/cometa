@@ -8,11 +8,11 @@ import (
 )
 
 func TestInterfacesGenericsExample(t *testing.T) {
-	source, err := os.ReadFile(filepath.Join("..", "..", "examples", "interfaces_genericos.hacha"))
+	source, err := os.ReadFile(filepath.Join("..", "..", "examples", "interfaces_genericos.cometa"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	runHacha(t, string(source), "Ana\nAna\n42\nAna\nAna\n7\notro valor\nLuis\n")
+	runCometa(t, string(source), "Ana\nAna\n42\nAna\nAna\n7\notro valor\nLuis\n")
 }
 
 func TestInterfacesAndGenericsRuntime(t *testing.T) {
@@ -23,10 +23,10 @@ interfaz Nombrado
 	Describible
 tipo Usuario
 	nombre cadena
-	fn describir(texto cadena = "predeterminado") cadena texto
+	pub fn describir(texto cadena = "predeterminado") cadena texto
 tipo Caja<T>
 	valor T
-	fn obtener() T @valor
+	pub fn obtener() T @valor
 enum Evento<T>
 	Vacio
 	Dato T
@@ -73,8 +73,8 @@ fn inicio()
 			[entero] => imprimir(p[0])
 			_ => imprimir("otro")
 `
-	generated := runHacha(t, source, "hola\npredeterminado\ninterfaz\nAna\nAna\n3\n4\n5\nLuis\n9\nok\nprimero\n1\ndos\nLuis\n3\n")
-	for _, part := range []string{"interface {", "type Caja[_T_T any]", "*Caja[*Usuario]", "_hacha_default_Describir"} {
+	generated := runCometa(t, source, "hola\npredeterminado\ninterfaz\nAna\nAna\n3\n4\n5\nLuis\n9\nok\nprimero\n1\ndos\nLuis\n3\n")
+	for _, part := range []string{"interface {", "type Caja[_T_T any]", "*Caja[*Usuario]", "_cometa_default_Describir"} {
 		if !strings.Contains(string(generated), part) {
 			t.Errorf("missing %q", part)
 		}
@@ -88,7 +88,7 @@ func TestGenericAndInterfaceErrors(t *testing.T) {
 		{"generic required cycle", "tipo Caja<T>\n\tvalor T\ntipo A\n\tcaja Caja<A>\n", "ciclo de campos"},
 		{"generic invariance", "interfaz I\ntipo Caja<T>\n\tvalor T\nfn f(v Caja<I>) imprimir(v)\nfn inicio() f(Caja<entero> {valor: 1})\n", "se esperaba Caja<I>"},
 		{"no parameter equality", "fn f<T>(a T, b T) bool a == b\n", "no acepta"},
-		{"method type parameters", "tipo A\n\tfn f<T>(v T) T v\n", "métodos no pueden"},
+		{"method type parameters", "tipo A\n\tpub fn f<T>(v T) T v\n", "métodos no pueden"},
 		{"unused generic constraint", "interfaz I\n\tfn f()\ntipo Caja<T I>\n\tvalor T\nfn inutil<T>(v Caja<T>) imprimir(v)\n", "no satisface"},
 		{"too few explicit types", "fn f<T, U>(t T, u U) T t\nfn inicio() imprimir(f<entero>(1, 2))\n", "requiere 2"},
 		{"no type inference", "tipo Caja<T>\n\tvalor T\nfn inicio()\n\tvar c = Caja {valor: 1}\n", "requiere 1"},
@@ -96,9 +96,9 @@ func TestGenericAndInterfaceErrors(t *testing.T) {
 		{"wrapper invariant", "interfaz I\nfn f(v entero?) I? v\n", "produce entero?"},
 		{"argument names", "interfaz I\n\tfn f(n entero)\ninterfaz J\n\tfn f(x entero)\ninterfaz K\n\tI\n\tJ\n", "redeclaración"},
 		{"signature conflict", "interfaz I\n\tfn f(n entero)\ninterfaz J\n\tfn f(n cadena)\ninterfaz K\n\tI\n\tJ\n", "incompatibles"},
-		{"missing interface argument", "interfaz I\n\tfn f(n entero)\ntipo A\n\tfn f(n entero = 1) imprimir(n)\nfn inicio()\n\tvar a I = A {}\n\ta.f()\n", "falta el parámetro"},
+		{"missing interface argument", "interfaz I\n\tfn f(n entero)\ntipo A\n\tpub fn f(n entero = 1) imprimir(n)\nfn inicio()\n\tvar a I = A {}\n\ta.f()\n", "falta el parámetro"},
 		{"missing method", "interfaz I\n\tfn f() entero\ntipo A\n\tn entero\nfn inicio()\n\tvar i I = A {}\n", "se esperaba I"},
-		{"wrong return", "interfaz I\n\tfn f() entero\ntipo A\n\tfn f() cadena \"a\"\nfn inicio()\n\tvar i I = A {}\n", "se esperaba I"},
+		{"wrong return", "interfaz I\n\tfn f() entero\ntipo A\n\tpub fn f() cadena \"a\"\nfn inicio()\n\tvar i I = A {}\n", "se esperaba I"},
 		{"interface defaults", "interfaz I\n\tfn f(n entero = 1)\n", "no admite valores predeterminados"},
 		{"composition cycle", "interfaz A\n\tB\ninterfaz B\n\tA\n", "ciclo"},
 		{"required interface", "interfaz I\ntipo A\n\ti I\nfn inicio()\n\tvar a = A {}\n", "inicialización explícita"},
@@ -115,7 +115,7 @@ func TestGenericAndInterfaceErrors(t *testing.T) {
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := Compile("error.hacha", []byte(tt.source))
+			_, err := Compile("error.cometa", []byte(tt.source))
 			if err == nil || !strings.Contains(err.Error(), tt.want) {
 				t.Fatalf("got %v, want %q", err, tt.want)
 			}
@@ -135,15 +135,15 @@ interfaz Ambos
 	fn elegir(izquierda entero, derecha entero) entero
 tipo Contador
 	valor entero
-	fn siguiente() entero
+	pub fn siguiente() entero
 		@valor = @valor + 1
 		@valor
-	fn elegir(x entero, y entero = 8) entero x * 10 + y
+	pub fn elegir(x entero, y entero = 8) entero x * 10 + y
 tipo Caja<T>
 	valor T
 	lista [T]
 	opcional T?
-	fn elegir(alternativa T = @valor) T alternativa
+	pub fn elegir(alternativa T = @valor) T alternativa
 tipo Externa<T>
 	interna Caja<T>
 enum E<T>
@@ -214,14 +214,14 @@ fn inicio()
 			var n = v como entero
 			imprimir(n o 0)
 `
-	runHacha(t, source, "21\n38\n7\n9\n7\n7\n4\n1\n2\n6\n5\n3\n4\n7\n8\n9\n10\nhola\n11\n1\n2\n8\n")
+	runCometa(t, source, "21\n38\n7\n9\n7\n7\n4\n1\n2\n6\n5\n3\n4\n7\n8\n9\n10\nhola\n11\n1\n2\n8\n")
 }
 
 func TestInterfaceInspectionEvaluationAndControlFlow(t *testing.T) {
 	source := `interfaz Todo
 tipo Contador
 	n entero
-	fn siguiente() Todo
+	pub fn siguiente() Todo
 		@n = @n + 1
 		@n
 fn describir(c Contador) cadena
@@ -250,14 +250,14 @@ fn inicio()
 			_ => imprimir("otro")
 	imprimir(total)
 `
-	runHacha(t, source, "1\nnumero\n1\n99\n2\n3\n")
+	runCometa(t, source, "1\nnumero\n1\n99\n2\n3\n")
 }
 
 func TestTypeParameterInspectionFromMethodInterface(t *testing.T) {
 	source := `interfaz I
 	fn numero() entero
 tipo A
-	fn numero() entero 1
+	pub fn numero() entero 1
 fn extraer<T>(v I) T? v como T
 fn comprobar<T>(v I) entero
 	casos v
@@ -272,5 +272,5 @@ fn inicio()
 	imprimir(comprobar<A>(a))
 	imprimir(comprobar<entero>(a))
 `
-	runHacha(t, source, "1\n2\n1\n0\n")
+	runCometa(t, source, "1\n2\n1\n0\n")
 }

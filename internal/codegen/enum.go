@@ -2,14 +2,14 @@ package codegen
 
 import (
 	"fmt"
-	"hacha/internal/ast"
-	"hacha/internal/sema"
+	"cometa/internal/ast"
+	"cometa/internal/sema"
 )
 
 func (g *generator) freshName() string {
 	for {
 		g.nextName++
-		name := fmt.Sprintf("_hacha%d", g.nextName)
+		name := fmt.Sprintf("_cometa%d", g.nextName)
 		if !g.model.LocalNames[name] {
 			return name
 		}

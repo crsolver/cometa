@@ -16,7 +16,7 @@ fn inicio()
 	subir()
 	imprimir(contador)
 `
-	generated, err := Compile("globales.hacha", []byte(source))
+	generated, err := Compile("globales.cometa", []byte(source))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +46,7 @@ fn inicio()
 	imprimir(nombres[1])
 	imprimir(opcional o 0)
 `
-	generated, err := Compile("globales_compuestas.hacha", []byte(source))
+	generated, err := Compile("globales_compuestas.cometa", []byte(source))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +70,7 @@ func TestGlobalDiagnostics(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := Compile(test.name+".hacha", []byte(test.source))
+			_, err := Compile(test.name+".cometa", []byte(test.source))
 			if err == nil || !strings.Contains(err.Error(), test.want) {
 				t.Fatalf("error = %v, want containing %q", err, test.want)
 			}
@@ -80,8 +80,8 @@ func TestGlobalDiagnostics(t *testing.T) {
 
 func TestImportedGlobalsArePublic(t *testing.T) {
 	entry, loader := memoryProject(t, map[string]string{
-		"main.hacha":   "usar config como c\nconst doble = c.limite * 2\nvar copia = doble\nfn inicio()\n\tc.contador = c.contador + copia\n\timprimir(c.contador)\n",
-		"config.hacha": "const limite = 4\nvar contador = 1\n",
+		"main.cometa":   "usar config como c\nconst doble = c.limite * 2\nvar copia = doble\nfn inicio()\n\tc.contador = c.contador + copia\n\timprimir(c.contador)\n",
+		"config.cometa": "pub const limite = 4\npub var contador = 1\n",
 	})
 	generated, err := CompileProject(entry, loader)
 	if err != nil {
@@ -92,7 +92,7 @@ func TestImportedGlobalsArePublic(t *testing.T) {
 
 func TestLocalVariableShadowsGlobal(t *testing.T) {
 	source := "var valor = 1\nfn inicio()\n\tvar valor = 2\n\timprimir(valor)\n"
-	generated, err := Compile("sombra_global.hacha", []byte(source))
+	generated, err := Compile("sombra_global.cometa", []byte(source))
 	if err != nil {
 		t.Fatal(err)
 	}

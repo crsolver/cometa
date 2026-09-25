@@ -9,7 +9,7 @@ import (
 
 func TestRetroAPI(t *testing.T) {
 	source := "usar std/pincel/retro como r\nfn pintar()\n\tr.texto(\"¡Niño!\", 0, 0)\n\tr.icono(.Corazon, color = .Rojo, y = 8, x = 0)\n\tr.glifo(255, 8, 8, atlas = .ASCII)\n"
-	got, err := Compile("retro.hacha", []byte(source))
+	got, err := Compile("retro.cometa", []byte(source))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -24,11 +24,11 @@ func TestRetroAPI(t *testing.T) {
 		"usar std/pincel/retro\nfn pintar() retro.glifo(0, 0, 0, escala = 1.5)\n",
 		"usar std/pincel/retro\nfn pintar() retro.icono(.ASCII, 0, 0)\n",
 	} {
-		if _, err := Compile("invalid.hacha", []byte(source)); err == nil {
+		if _, err := Compile("invalid.cometa", []byte(source)); err == nil {
 			t.Fatal("accepted invalid retro call", source)
 		}
 	}
-	for _, file := range []string{"dungeon2.hacha", "retro.hacha", "escape_retro.hacha"} {
+	for _, file := range []string{"dungeon2.cometa", "retro.cometa", "escape_retro.cometa"} {
 		path := filepath.Join("..", "..", "examples", file)
 		data, err := os.ReadFile(path)
 		if err != nil {
@@ -38,7 +38,7 @@ func TestRetroAPI(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	got, err = Compile("plain.hacha", []byte("usar std/pincel/graficos\nfn pintar() graficos.limpiar(.Negro)\n"))
+	got, err = Compile("plain.cometa", []byte("usar std/pincel/graficos\nfn pintar() graficos.limpiar(.Negro)\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +51,7 @@ func TestRetroRenderingRuntime(t *testing.T) {
 	if testing.Short() {
 		t.Skip("desktop rendering")
 	}
-	generated, err := Compile("retro.hacha", []byte("usar std/pincel/retro\nfn pintar() retro.texto(\"hola\", 0, 0)\n"))
+	generated, err := Compile("retro.cometa", []byte("usar std/pincel/retro\nfn pintar() retro.texto(\"hola\", 0, 0)\n"))
 	if err != nil {
 		t.Fatal(err)
 	}

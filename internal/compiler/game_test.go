@@ -2,7 +2,7 @@ package compiler
 
 import (
 	"bytes"
-	"hacha/internal/stdlib"
+	"cometa/internal/stdlib"
 	"image"
 	"image/png"
 	"os"
@@ -30,12 +30,12 @@ fn pintar()
 		.Rojo
 	)
 tipo Partida
-	fn actualizar(dt decimal) actualizar(dt)
-	fn pintar() pintar()
+	pub fn actualizar(dt decimal) actualizar(dt)
+	pub fn pintar() pintar()
 fn inicio()
 	juego.ejecutar(Partida {}, 320, 240, titulo = "Prueba", escala = 2) capturar |e| imprimir(e)
 `
-	got, err := Compile("game.hacha", []byte(pincelImports+source))
+	got, err := Compile("game.cometa", []byte(pincelImports+source))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +50,7 @@ fn inicio()
 }
 
 func TestGameGolden(t *testing.T) {
-	file := filepath.Join("testdata", "juego.hacha")
+	file := filepath.Join("testdata", "juego.cometa")
 	data, err := os.ReadFile(file)
 	if err != nil {
 		t.Fatal(err)
@@ -78,7 +78,7 @@ func TestGameErrors(t *testing.T) {
 		{"bad color", "fn actualizar(dt decimal) imprimir(dt)\nfn pintar() graficos.limpiar(.ColorInexistente)\n", "constante inválida"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := Compile("game.hacha", []byte(pincelImports+tt.source))
+			_, err := Compile("game.cometa", []byte(pincelImports+tt.source))
 			if err == nil || !strings.Contains(err.Error(), tt.want) {
 				t.Fatalf("want %q; got %v", tt.want, err)
 			}
@@ -87,7 +87,7 @@ func TestGameErrors(t *testing.T) {
 }
 
 func TestAllGameSignatures(t *testing.T) {
-	const imports = "usar std/mate/curvas\nusar std/mate/ruido\nusar std/pincel/retro\n" + pincelImports
+	const imports = "usar std/mate/curvas\nusar std/mate/ruido\nusar std/pincel/retro\nusar std/pincel/ui\n" + pincelImports
 	var all strings.Builder
 	// Signature defaults are parsed and checked by the same checker as user calls.
 	for _, f := range stdlib.Functions {
@@ -125,12 +125,12 @@ func TestAllGameSignatures(t *testing.T) {
 		source := "fn helper(" + strings.Join(params, ",") + ")\n\t" + f.Namespace + "." + f.Name + "(" + strings.Join(args, ",") + ")\n" + minimalGame
 		all.WriteString(strings.Replace(strings.TrimSuffix(source, minimalGame), "fn helper(", "fn "+f.Namespace+"_"+f.Name+"(", 1))
 		t.Run(f.Namespace+"."+f.Name, func(t *testing.T) {
-			if _, _, e := Analyze("game.hacha", []byte(imports+source)); e != nil {
+			if _, _, e := Analyze("game.cometa", []byte(imports+source)); e != nil {
 				t.Fatal(e)
 			}
 		})
 	}
-	generated, err := Compile("game.hacha", []byte(imports+all.String()+minimalGame))
+	generated, err := Compile("game.cometa", []byte(imports+all.String()+minimalGame))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,10 +151,10 @@ func TestEmbeddedImageAndModulePaths(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(sub, "sprite.png"), data.Bytes(), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(sub, "model.hacha"), []byte("usar std/pincel/recursos\nvar sprite = recursos.imagen(\"sprite.png\")\n"), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(sub, "model.cometa"), []byte("usar std/pincel/recursos\nvar sprite = recursos.imagen(\"sprite.png\")\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	entry := filepath.Join(dir, "game.hacha")
+	entry := filepath.Join(dir, "game.cometa")
 	if err := os.WriteFile(entry, []byte(pincelImports+"usar assets/model\n"+minimalGame), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -203,7 +203,7 @@ fn iniciar()
 fn actualizar(dt decimal) imprimir(dt)
 fn pintar() imprimir(0)
 `
-	generated, err := Compile("game.hacha", []byte(pincelImports+source))
+	generated, err := Compile("game.cometa", []byte(pincelImports+source))
 	if err != nil {
 		t.Fatal(err)
 	}

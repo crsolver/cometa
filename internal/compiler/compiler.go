@@ -2,12 +2,12 @@ package compiler
 
 import (
 	"fmt"
-	"hacha/internal/ast"
-	"hacha/internal/codegen"
-	"hacha/internal/diagnostic"
-	"hacha/internal/lexer"
-	"hacha/internal/parser"
-	"hacha/internal/sema"
+	"cometa/internal/ast"
+	"cometa/internal/codegen"
+	"cometa/internal/diagnostic"
+	"cometa/internal/lexer"
+	"cometa/internal/parser"
+	"cometa/internal/sema"
 )
 
 // Analyze runs the source-language frontend without generating Go. It is used

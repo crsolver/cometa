@@ -6,7 +6,7 @@ import (
 )
 
 func TestStringInterpolationConcatenationAndMethodsRuntime(t *testing.T) {
-	runHacha(t, `fn saludar(nombre cadena, prefijo cadena = "Hola " + nombre) cadena prefijo
+	runCometa(t, `fn saludar(nombre cadena, prefijo cadena = "Hola " + nombre) cadena prefijo
 fn inicio()
 	var nombre = "Ana"
 	imprimir(saludar(nombre))
@@ -44,19 +44,19 @@ func TestStringDiagnosticsAndConstants(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := Compile("cadenas.hacha", []byte(test.source))
+			_, err := Compile("cadenas.cometa", []byte(test.source))
 			if err == nil || !strings.Contains(err.Error(), test.want) {
 				t.Fatalf("error = %v, want %q", err, test.want)
 			}
 		})
 	}
-	if _, err := Compile("constante.hacha", []byte("const x = \"a\" + \"b\"\nfn inicio() imprimir(x)\n")); err != nil {
+	if _, err := Compile("constante.cometa", []byte("const x = \"a\" + \"b\"\nfn inicio() imprimir(x)\n")); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestInterpolationEvaluationOrderNestingAndPropagation(t *testing.T) {
-	runHacha(t, `var contador = 0
+	runCometa(t, `var contador = 0
 fn siguiente() entero
 	contador = contador + 1
 	contador
@@ -72,8 +72,8 @@ fn inicio()
 
 func TestInterpolationBindsImportedReferences(t *testing.T) {
 	entry, loader := memoryProject(t, map[string]string{
-		"main.hacha":  "usar datos como d\nfn inicio() imprimir(\"valor ${d.valor()}\")\n",
-		"datos.hacha": "fn valor() cadena \"externo\"\n",
+		"main.cometa":  "usar datos como d\nfn inicio() imprimir(\"valor ${d.valor()}\")\n",
+		"datos.cometa": "pub fn valor() cadena \"externo\"\n",
 	})
 	generated, err := CompileProject(entry, loader)
 	if err != nil {

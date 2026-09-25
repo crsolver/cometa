@@ -7,7 +7,7 @@ import (
 )
 
 func TestNoiseNumerics(t *testing.T) {
-	generated, err := Compile("ruido.hacha", []byte("usar std/mate/ruido\n"))
+	generated, err := Compile("ruido.cometa", []byte("usar std/mate/ruido\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +65,7 @@ func main() {
 }
 
 func TestNoiseCalls(t *testing.T) {
-	runHacha(t, `usar std/mate/ruido como r
+	runCometa(t, `usar std/mate/ruido como r
 fn inicio()
 	imprimir(r.suave(0, 0) == r.suave(y = 0, x = 0, semilla = 0))
 	imprimir(r.fractal(1, 2) == r.fractal(lacunaridad = 2, persistencia = 0.5, octavas = 4, semilla = 0, y = 2, x = 1))
@@ -80,13 +80,13 @@ fn inicio()
 		"usar std/mate/ruido\nfn inicio() imprimir(ruido.fractal(0, 0, octavas = 1.5))\n",
 		"usar std/pincel/ruido\n",
 	} {
-		if _, err := Compile("invalid.hacha", []byte(source)); err == nil {
+		if _, err := Compile("invalid.cometa", []byte(source)); err == nil {
 			t.Fatalf("accepted %s", source)
 		}
 	}
 	entry, loader := memoryProject(t, map[string]string{
-		"main.hacha":   "usar helper\nfn inicio() imprimir(helper.valor())\n",
-		"helper.hacha": "usar std/mate/ruido\nfn valor() bool ruido.suave(1, 2, 42) > 0.9\n",
+		"main.cometa":   "usar helper\nfn inicio() imprimir(helper.valor())\n",
+		"helper.cometa": "usar std/mate/ruido\npub fn valor() bool ruido.suave(1, 2, 42) > 0.9\n",
 	})
 	generated, err := CompileProject(entry, loader)
 	if err != nil {
@@ -96,7 +96,7 @@ fn inicio()
 }
 
 func TestNoiseExample(t *testing.T) {
-	source, err := os.ReadFile("../../examples/ruido.hacha")
+	source, err := os.ReadFile("../../examples/ruido.cometa")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,5 +111,5 @@ fn inicio()
 	imprimir(t != terreno(43))
 	imprimir(c != cuevas(43))
 `)...)
-	runHacha(t, string(source), "true\ntrue\ntrue\ntrue\n")
+	runCometa(t, string(source), "true\ntrue\ntrue\ntrue\n")
 }

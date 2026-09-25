@@ -6,7 +6,7 @@ import (
 )
 
 func TestVariadicAndNamedRuntime(t *testing.T) {
-	runHacha(t, `tipo Contador
+	runCometa(t, `tipo Contador
 	valor entero
 	fn siguiente() entero
 		@valor = @valor + 1
@@ -73,7 +73,7 @@ func TestInvalidCallArguments(t *testing.T) {
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := Compile("calls.hacha", []byte(tt.source))
+			_, err := Compile("calls.cometa", []byte(tt.source))
 			if err == nil || !strings.Contains(err.Error(), tt.message) {
 				t.Fatalf("error = %v, want %q", err, tt.message)
 			}
@@ -82,7 +82,7 @@ func TestInvalidCallArguments(t *testing.T) {
 }
 
 func TestNamedReceiverOrderAndVariadicReferences(t *testing.T) {
-	runHacha(t, `tipo Caja
+	runCometa(t, `tipo Caja
 	valor entero
 	fn poner(a entero, b entero)
 		@valor = a * 10 + b

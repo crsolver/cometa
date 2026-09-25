@@ -40,10 +40,12 @@ type _hgReproduccion struct {
 type _hgJuego interface {
 	Actualizar(float64)
 	Pintar()
+	_cometa_public_Actualizar()
+	_cometa_public_Pintar()
 }
 type _hgGame struct{ instancia _hgJuego }
 
-var _hgconfig = _hgConfigJuego{320, 180, "Hacha", 1, false, false, 60}
+var _hgconfig = _hgConfigJuego{320, 180, "Cometa", 1, false, false, 60}
 var _hgrunStarted bool
 var _hgscreen *ebiten.Image
 var _hgcamara = _hgCamara2D{Zoom: 1}
@@ -382,6 +384,15 @@ func Fragment(dst vec4, src vec2, color vec4) vec4 {
 }
 `
 
+func (_hgRect) _cometa_public_Contiene()         {}
+func (_hgRect) _cometa_public_Interseca()        {}
+func (_hgVec2) _cometa_public_Colision_circulo() {}
+func (_hgVec2) _cometa_public_Distancia_a()      {}
+func (_hgVec2) _cometa_public_Longitud()         {}
+func (_hgVec2) _cometa_public_Normalizado()      {}
+func (_hgVec2) _cometa_public_Producto_punto()   {}
+func (_hgVec2) _cometa_public_Rotado()           {}
+
 func _hentero(v float64) int64 {
 	if v != v || v < -9223372036854775808.0 || v >= 9223372036854775808.0 {
 		panic("conversión a entero inválida: valor no finito o fuera del rango de int64")
@@ -397,56 +408,59 @@ type Jugador struct {
 type Partida struct {
 }
 
-var HachaGlobal_6a756761646f72 *Jugador = func() *Jugador {
-	var _hacha1 *Jugador = &Jugador{Pos: _hgVec2{}, Vel: _hgVec2{}}
-	return _hacha1
+func (*Partida) _cometa_public_Actualizar() {}
+func (*Partida) _cometa_public_Pintar()     {}
+
+var CometaGlobal_6a756761646f72 *Jugador = func() *Jugador {
+	var _cometa1 *Jugador = &Jugador{Pos: _hgVec2{}, Vel: _hgVec2{}}
+	return _cometa1
 }()
 
 func (_self *Partida) Actualizar(dt float64) {
-	var _hacha3 *Jugador = HachaGlobal_6a756761646f72
-	_hacha2 := &(_hacha3.Pos)
-	var _hacha4 *Jugador = HachaGlobal_6a756761646f72
-	var _hacha5 _hgVec2 = _hacha4.Pos
-	var _hacha6 *Jugador = HachaGlobal_6a756761646f72
-	var _hacha7 _hgVec2 = _hacha6.Vel
-	var _hacha8 float64 = dt
-	var _hacha9 _hgVec2 = _hgscale(_hacha7, _hacha8)
-	var _hacha10 _hgVec2 = _hgadd(_hacha5, _hacha9)
-	*_hacha2 = _hacha10
+	var _cometa3 *Jugador = CometaGlobal_6a756761646f72
+	_cometa2 := &(_cometa3.Pos)
+	var _cometa4 *Jugador = CometaGlobal_6a756761646f72
+	var _cometa5 _hgVec2 = _cometa4.Pos
+	var _cometa6 *Jugador = CometaGlobal_6a756761646f72
+	var _cometa7 _hgVec2 = _cometa6.Vel
+	var _cometa8 float64 = dt
+	var _cometa9 _hgVec2 = _hgscale(_cometa7, _cometa8)
+	var _cometa10 _hgVec2 = _hgadd(_cometa5, _cometa9)
+	*_cometa2 = _cometa10
 }
 
 func (_self *Partida) Pintar() {
-	var _hacha11 *Jugador = HachaGlobal_6a756761646f72
-	var _hacha12 _hgVec2 = _hacha11.Pos
-	var _hacha13 float64 = float64(10)
-	var _hacha14 float64 = float64(10)
-	var _hacha15 _hgVec2 = _hgVec2{X: _hacha13, Y: _hacha14}
-	var _hacha16 _hgColor = _hgColor{181, 59, 89, 255}
-	var _hacha17 _hgVec2 = _hgVec2{}
-	var _hacha18 float64 = float64(0)
-	_hgrectangulo(_hacha12, _hacha15, _hacha16, _hacha17, _hacha18)
+	var _cometa11 *Jugador = CometaGlobal_6a756761646f72
+	var _cometa12 _hgVec2 = _cometa11.Pos
+	var _cometa13 float64 = float64(10)
+	var _cometa14 float64 = float64(10)
+	var _cometa15 _hgVec2 = _hgVec2{X: _cometa13, Y: _cometa14}
+	var _cometa16 _hgColor = _hgColor{181, 59, 89, 255}
+	var _cometa17 _hgVec2 = _hgVec2{}
+	var _cometa18 float64 = float64(0)
+	_hgrectangulo(_cometa12, _cometa15, _cometa16, _cometa17, _cometa18)
 }
 
 func main() {
-	var _hacha19 _hgJuego = &Partida{}
-	var _hacha20 int64 = 320
-	var _hacha21 int64 = 180
-	var _hacha22 string = "Hacha"
-	var _hacha23 float64 = float64(1)
-	var _hacha24 bool = false
-	var _hacha25 bool = false
-	var _hacha26 int64 = 60
-	var _hacha27 bool = false
-	var _hacha28 bool = false
-	var _hacha29 struct {
+	var _cometa19 _hgJuego = &Partida{}
+	var _cometa20 int64 = 320
+	var _cometa21 int64 = 180
+	var _cometa22 string = "Cometa"
+	var _cometa23 float64 = float64(1)
+	var _cometa24 bool = false
+	var _cometa25 bool = false
+	var _cometa26 int64 = 60
+	var _cometa27 bool = false
+	var _cometa28 bool = false
+	var _cometa29 struct {
 		tag      int
 		payload2 string
-	} = _hgejecutar(_hacha19, _hacha20, _hacha21, _hacha22, _hacha23, _hacha24, _hacha25, _hacha26, _hacha27, _hacha28)
-	if _hacha29.tag == 1 {
+	} = _hgejecutar(_cometa19, _cometa20, _cometa21, _cometa22, _cometa23, _cometa24, _cometa25, _cometa26, _cometa27, _cometa28)
+	if _cometa29.tag == 1 {
 	} else {
-		error := _hacha29.payload2
-		_hacha30 := fmt.Println
-		var _hacha31 string = error
-		_hacha30(_hacha31)
+		error := _cometa29.payload2
+		_cometa30 := fmt.Println
+		var _cometa31 string = error
+		_cometa30(_cometa31)
 	}
 }

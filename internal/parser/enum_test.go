@@ -1,18 +1,18 @@
 package parser
 
 import (
-	"hacha/internal/ast"
-	"hacha/internal/lexer"
+	"cometa/internal/ast"
+	"cometa/internal/lexer"
 	"testing"
 )
 
 func TestEnumAndMatchAST(t *testing.T) {
 	source := "enum E\n\tA\n\tB [entero]\nfn inicio()\n\tvar e = E.A\n\tvar n = casos e |p|\n\t\t.A => 1\n\t\t.B =>\n\t\t\timprimir(p)\n\t\t\t2\n\timprimir(n)\n\tcasos e\n\t\t_ => imprimir(3)\n"
-	tokens, err := lexer.Lex("enum.hacha", source)
+	tokens, err := lexer.Lex("enum.cometa", source)
 	if err != nil {
 		t.Fatal(err)
 	}
-	program, err := Parse("enum.hacha", tokens)
+	program, err := Parse("enum.cometa", tokens)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,11 +47,11 @@ func TestRejectsInvalidEnumAndMatchSyntax(t *testing.T) {
 		"fn inicio()\n\tcasos e\n\t\t.A => imprimir(1)\n\t\t\timprimir(2)\n",
 		"fn inicio() => imprimir(1)\n",
 	} {
-		tokens, err := lexer.Lex("enum.hacha", source)
+		tokens, err := lexer.Lex("enum.cometa", source)
 		if err != nil {
 			continue
 		}
-		if _, err := Parse("enum.hacha", tokens); err == nil {
+		if _, err := Parse("enum.cometa", tokens); err == nil {
 			t.Fatalf("accepted invalid syntax:\n%s", source)
 		}
 	}

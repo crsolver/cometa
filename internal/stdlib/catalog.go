@@ -2,9 +2,9 @@
 package stdlib
 
 import (
-	"hacha/internal/ast"
-	"hacha/internal/lexer"
-	"hacha/internal/parser"
+	"cometa/internal/ast"
+	"cometa/internal/lexer"
+	"cometa/internal/parser"
 	"strings"
 )
 
@@ -49,7 +49,7 @@ var Functions = []Function{
 	{"curvas", "rebote_entrada", "progreso decimal) decimal", "curva_rebote_entrada", false, false},
 	{"curvas", "rebote_salida", "progreso decimal) decimal", "curva_rebote_salida", false, false},
 	{"curvas", "rebote_entrada_salida", "progreso decimal) decimal", "curva_rebote_entrada_salida", false, false},
-	{"juego", "ejecutar", `instancia Juego, ancho entero = 320, alto entero = 180, titulo cadena = "Hacha", escala decimal = 1, redimensionable bool = falso, pantalla_completa bool = falso, tps entero = 60, pixelado bool = falso, retro bool = falso) !`, "ejecutar", false, false},
+	{"juego", "ejecutar", `instancia Juego, ancho entero = 320, alto entero = 180, titulo cadena = "Cometa", escala decimal = 1, redimensionable bool = falso, pantalla_completa bool = falso, tps entero = 60, pixelado bool = falso, retro bool = falso) !`, "ejecutar", false, false},
 	{"retro", "texto", "texto cadena, x entero, y entero, escala entero = 1, color Color = .Blanco)", "retroTexto", true, false},
 	{"retro", "icono", "icono Icono, x entero, y entero, escala entero = 1, color Color = .Blanco)", "retroIcono", true, false},
 	{"retro", "glifo", "indice entero, x entero, y entero, escala entero = 1, color Color = .Blanco, atlas Atlas = .Dungeon)", "retroGlifo", true, false},
@@ -140,7 +140,9 @@ func GoType(name string) string {
 }
 func IsType(name string) bool { _, ok := Fields[name]; return ok }
 func IsValue(name string) bool {
-	if name == Symbol("Bordes") || name == Symbol("Alineacion") { return true }
+	if name == Symbol("Bordes") || name == Symbol("Alineacion") {
+		return true
+	}
 	if name == Symbol("Icono") || name == Symbol("Atlas") {
 		return true
 	}
@@ -178,10 +180,13 @@ func (f Function) Declaration() *ast.FuncDecl {
 		panic(err)
 	}
 	d := p.Decls[0].(*ast.FuncDecl)
+	d.Public = true
 	if f.Namespace == "ui" {
 		for _, param := range d.Params {
 			if call, ok := param.Default.(*ast.CallExpr); ok {
-				if id, ok := call.Callee.(*ast.IdentExpr); ok { id.Name = FunctionSymbol("ui", id.Name) }
+				if id, ok := call.Callee.(*ast.IdentExpr); ok {
+					id.Name = FunctionSymbol("ui", id.Name)
+				}
 			}
 		}
 	}
@@ -192,11 +197,11 @@ func (f Function) Declaration() *ast.FuncDecl {
 }
 func TypeDeclaration(name string) *ast.TypeDecl {
 	if Fields[name] == "" {
-		return &ast.TypeDecl{Name: name}
+		return &ast.TypeDecl{Name: name, Public: true}
 	}
-	source := "tipo " + PublicName(name) + "\n"
+	source := "pub tipo " + PublicName(name) + "\n"
 	if Fields[name] != "" {
-		source += "\t" + strings.ReplaceAll(Fields[name], "\n", "\n\t") + "\n"
+		source += "\tpub " + strings.ReplaceAll(Fields[name], "\n", "\n\tpub ") + "\n"
 	}
 	tokens, err := lexer.Lex("<stdlib>", source)
 	if err != nil {
@@ -210,7 +215,11 @@ func TypeDeclaration(name string) *ast.TypeDecl {
 		panic(err)
 	}
 	d := p.Decls[0].(*ast.TypeDecl)
-	relocate(d, TypeModules[PublicName(name)], "tipo "+PublicName(name))
+	d.Public = true
+	for _, field := range d.Fields {
+		field.Public = true
+	}
+	relocate(d, TypeModules[PublicName(name)], "pub tipo "+PublicName(name))
 	d.Name = name
 	BindTypes(d)
 	return d

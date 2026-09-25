@@ -2,9 +2,9 @@ package lspserver
 
 import (
 	"github.com/owenrumney/go-lsp/lsp"
-	"hacha/internal/ast"
-	"hacha/internal/sema"
-	"hacha/internal/stdlib"
+	"cometa/internal/ast"
+	"cometa/internal/sema"
+	"cometa/internal/stdlib"
 	"sort"
 	"strings"
 )
@@ -62,7 +62,7 @@ func gameHover(program *ast.Program, model *sema.Model, pos ast.Pos) (hoverInfo,
 			if strings.HasSuffix(f.GoName, "Entero") && f.Namespace == "mate" {
 				signature = strings.ReplaceAll(signature, "decimal", "entero")
 			}
-			return hoverInfo{detail: "fn " + f.Namespace + "." + f.Name + "(" + signature, documentation: "Biblioteca estándar de Hacha."}, true
+			return hoverInfo{detail: "fn " + f.Namespace + "." + f.Name + "(" + signature, documentation: "Biblioteca estándar de Cometa."}, true
 		}
 	}
 	for expr := range model.Game.Constants {

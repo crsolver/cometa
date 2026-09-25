@@ -1,0 +1,242 @@
+usar plataformas/mundo
+usar std/mate
+usar std/azar
+usar std/pincel/juego
+usar std/pincel/graficos como g
+usar std/pincel/color
+usar std/pincel/entrada
+usar std/pincel/retro
+
+// BAJO LA TIERRA — 320×180, bloques de 8×8, 6×3 pantallas.
+// A/D o flechas: mover. Espacio: salto variable. Ratón: apuntar.
+// Izquierdo: disparar. Derecho: picar. R: refugio. N: mundo nuevo.
+// retro usa los mismos atlas CC0 de assets/dungeonmode/bitmap,
+// convirtiendo su fondo negro en transparencia para poder teñirlos.
+
+var partida = mundo.Mundo {}
+var noche = color.rgba(13, 19, 32)
+var cielo = color.rgba(29, 44, 64)
+var fondo_cueva = color.rgba(20, 24, 35)
+var tinta = color.rgba(12, 16, 24)
+var luz = color.rgba(245, 219, 161)
+var turquesa = color.rgba(104, 220, 204)
+var aviso = 0.0
+
+fn sx(x decimal) entero
+	mate.piso(x) - partida.cam_x
+
+fn sy(y decimal) entero
+	mate.piso(y) - partida.cam_y
+
+fn cuadro(x decimal, y decimal, ancho decimal, alto decimal, tono color.Color)
+	g.rectangulo(sx(x), sy(y), ancho, alto, tono)
+
+fn glifo(indice entero, x decimal, y decimal, tono color.Color)
+	retro.glifo(indice, sx(x), sy(y), color = tono)
+
+fn borde(x entero, y entero, ancho entero, alto entero, tono color.Color)
+	g.rectangulo(x, y, ancho, 1, tono)
+	g.rectangulo(x, y + alto - 1, ancho, 1, tono)
+	g.rectangulo(x, y, 1, alto, tono)
+	g.rectangulo(x + ancho - 1, y, 1, alto, tono)
+
+fn fondo()
+	g.limpiar(fondo_cueva)
+	si partida.cam_y == 0
+		g.rectangulo(0, 0, 320, 110, cielo)
+		repetir (0..25) |i|
+			var x = (i * 73 + partida.semilla % 113) % 320
+			var y = 12 + (i * 29) % 48
+			g.rectangulo(x, y, 1, 1, color.rgba(90, 114, 130))
+		g.circulo(265, 34, 12, color.rgba(210, 211, 176))
+		g.circulo(270, 30, 11, cielo)
+		repetir (0..80) |i|
+			var x = i * 4
+			var h = 65 + mate.piso(mate.seno((x + partida.cam_x * 0.2) * 0.023) * 12 + mate.seno(x * 0.059) * 7)
+			g.rectangulo(x, h, 4, 110 - h, color.rgba(33, 57, 67))
+			var cerca = 82 + mate.piso(mate.seno((x + partida.cam_x * 0.4) * 0.031) * 10)
+			g.rectangulo(x, cerca, 4, 120 - cerca, color.rgba(27, 43, 48))
+	// Mampostería tenue detrás de las cuevas: nunca parece terreno sólido.
+	var inicio_y = partida.cam_y / 8
+	repetir (0..24) |fila|
+		repetir (0..40) |col|
+			var wx = partida.cam_x / 8 + col
+			var wy = inicio_y + fila
+			si wx < 240 && wy >= partida.alturas[wx] + 1
+				var y = wy * 8 - partida.cam_y
+				g.rectangulo(col * 8, y, 8, 8, fondo_cueva)
+				si (wx * 7 + wy * 13) % 5 == 0
+					retro.glifo(177, col * 8, y, color = color.rgba(31, 35, 45))
+
+fn terreno()
+	var inicio_y = partida.cam_y / 8
+	repetir (0..24) |fila|
+		repetir (0..40) |col|
+			var x = partida.cam_x / 8 + col
+			var y = inicio_y + fila
+			var material = partida.celda(x, y)
+			si material == 0 continuar
+			var base = color.rgba(78, 54, 46)
+			var detalle = color.rgba(106, 76, 57)
+			var patron = 176
+			si material == 3
+				base = color.rgba(52, 60, 70)
+				detalle = color.rgba(67, 76, 85)
+				patron = 182 + (x + y) % 2
+			si material == 4
+				base = color.rgba(39, 61, 65)
+				detalle = turquesa
+				patron = 204
+			si material == 5
+				base = color.rgba(41, 39, 55)
+				detalle = color.rgba(59, 51, 70)
+				patron = 193
+			cuadro(x * 8, y * 8, 8, 8, base)
+			glifo(patron, x * 8, y * 8, detalle)
+			// Bordes expuestos y oclusión en las uniones.
+			si partida.celda(x, y - 1) == 0
+				var cima = si material == 1 color.rgba(113, 164, 100) sino detalle
+				cuadro(x * 8, y * 8, 8, 1, cima)
+				si material == 1
+					cuadro(x * 8, y * 8 + 1, 8, 2, color.rgba(56, 98, 65))
+					si x % 3 == 0
+						cuadro(x * 8 + 2, y * 8 - 3, 1, 3, color.rgba(94, 143, 89))
+						cuadro(x * 8 + 5, y * 8 - 2, 1, 2, color.rgba(113, 164, 100))
+				si y > 20 && x % 9 == 0
+					cuadro(x * 8 + 3, y * 8 - 3, 1, 3, color.rgba(102, 133, 141))
+					cuadro(x * 8 + 1, y * 8 - 4, 5, 2, color.rgba(122, 187, 171))
+			si partida.celda(x - 1, y) == 0 cuadro(x * 8, y * 8 + 1, 1, 7, detalle)
+			si partida.celda(x, y + 1) == 0 cuadro(x * 8, y * 8 + 7, 8, 1, tinta)
+			si partida.celda(x + 1, y) == 0 cuadro(x * 8 + 7, y * 8, 1, 8, tinta)
+			si material == 4 && (x + y) % 3 == 0
+				var brillo = 0.5 + mate.seno(partida.reloj * 2 + x) * 0.5
+				cuadro(x * 8 + 3, y * 8 + 2, 2, 2, color.rgba(151, 240, 219, entero(130 + brillo * 125)))
+	// Pequeño refugio iluminado: punto reconocible de retorno.
+	cuadro(43, 88, 2, 24, color.rgba(124, 86, 59))
+	cuadro(42, 86, 32, 3, color.rgba(161, 108, 63))
+	cuadro(70, 89, 1, 8, luz)
+	cuadro(68, 96, 5, 7, tinta)
+	cuadro(69, 97, 3, 4, luz)
+	glifo(15, 82, 100, color.rgba(255, 180, 86))
+	cuadro(81, 109, 10, 2, color.rgba(116, 75, 54))
+
+fn criaturas()
+	repetir (partida.enemigos) |enemigo|
+		si enemigo.vida <= 0 continuar
+		var x = enemigo.cuerpo.pos.x
+		var y = enemigo.cuerpo.pos.y
+		si sx(x) < -12 || sx(x) > 328 || sy(y) < -12 || sy(y) > 188 continuar
+		var tono = si enemigo.clase == 0 color.rgba(158, 187, 87) sino color.rgba(181, 122, 166)
+		si enemigo.golpe > 0 tono = luz
+		si enemigo.clase == 0
+			var rebote = si enemigo.cuerpo.suelo 1 sino 0
+			cuadro(x, y + 2 + rebote, 8, 5 - rebote, tinta)
+			cuadro(x + 1, y + 1 + rebote, 6, 5 - rebote, tono)
+			cuadro(x + 2, y + 2 + rebote, 4, 1, color.rgba(199, 221, 122))
+			cuadro(x + 2, y + 4, 1, 1, tinta)
+			cuadro(x + 5, y + 4, 1, 1, tinta)
+		sino
+			var ala = 2
+			si mate.seno(partida.reloj * 20 + x) > 0 ala = -2
+			cuadro(x - 3, y + ala, 4, 3, tono)
+			cuadro(x + 7, y + ala, 4, 3, tono)
+			glifo(2, x, y, tono)
+			cuadro(x + 2, y + 3, 1, 1, luz)
+			cuadro(x + 5, y + 3, 1, 1, luz)
+
+fn jugador()
+	var x = partida.jugador.pos.x
+	var y = partida.jugador.pos.y
+	var direccion = (partida.mira - partida.centro()).normalizado()
+	var frente = 1
+	si direccion.x < 0 frente = -1
+	var parpadea = partida.invulnerable > 0 && mate.piso(partida.reloj * 18) % 2 == 0
+	var chaqueta = si parpadea luz sino color.rgba(220, 122, 76)
+	var paso = si partida.jugador.suelo && mate.absoluto(partida.jugador.vel.x) > 10 mate.piso(partida.reloj * 14) % 2 sino 0
+	// Silueta de seis píxeles con mochila, bufanda, casco y botas.
+	cuadro(x - 1, y + 3, 8, 7, tinta)
+	cuadro(x - frente, y + 4, 3, 5, color.rgba(68, 106, 103))
+	cuadro(x, y + 4, 6, 5, chaqueta)
+	cuadro(x, y, 6, 4, luz)
+	cuadro(x - 1, y - 1, 8, 2, color.rgba(213, 165, 75))
+	cuadro(x + (si frente > 0 4 sino 1), y + 2, 1, 1, tinta)
+	cuadro(x, y + 4, 6, 1, color.rgba(111, 204, 184))
+	cuadro(x - frente * 3, y + 4 + paso, 4, 2, color.rgba(73, 149, 146))
+	cuadro(x, y + 9, 2, 2 - paso, tinta)
+	cuadro(x + 4, y + 9, 2, 1 + paso, tinta)
+	var mano = partida.centro() + direccion * 3
+	var punta = partida.centro() + direccion * 9
+	g.linea(sx(mano.x), sy(mano.y), sx(punta.x), sy(punta.y), tinta, grosor = 4)
+	g.linea(sx(mano.x), sy(mano.y), sx(punta.x), sy(punta.y), color.rgba(155, 174, 179), grosor = 2)
+	si partida.fogonazo > 0
+		cuadro(punta.x - 2, punta.y - 2, 4, 4, luz)
+		cuadro(punta.x, punta.y - 3, 1, 6, .Blanco)
+
+fn efectos()
+	repetir (partida.balas) |bala|
+		var atras = bala.pos - bala.dir * 6
+		g.linea(sx(atras.x), sy(atras.y), sx(bala.pos.x), sy(bala.pos.y), color.rgba(232, 173, 85))
+		cuadro(bala.pos.x, bala.pos.y, 2, 1, luz)
+	repetir (partida.particulas) |p|
+		var tono = si p.clase == 0 color.rgba(161, 131, 103) sino si p.clase == 1 color.rgba(217, 118, 121) sino turquesa
+		cuadro(p.pos.x, p.pos.y, si p.vida > 0.2 2 sino 1, 1, tono)
+	si partida.objetivo >= 0
+		var x = sx((partida.objetivo % 240) * 8)
+		var y = sy((partida.objetivo / 240) * 8)
+		borde(x, y, 8, 8, luz)
+		si partida.progreso > 0
+			var fraccion = partida.progreso / partida.dureza(partida.celdas[partida.objetivo])
+			g.rectangulo(x, y - 3, 8, 2, tinta)
+			g.rectangulo(x, y - 3, mate.piso(fraccion * 8), 1, turquesa)
+			g.linea(x + 2, y + 1, x + 5, y + 4, tinta)
+			g.linea(x + 5, y + 4, x + 3, y + 6, tinta)
+
+fn dibujar_hud()
+	g.rectangulo(0, 0, 320, 13, color.rgba(12, 17, 25, 235))
+	repetir (0..5) |i|
+		var icono retro.Icono = .CorazonVacio
+		si i < partida.vida icono = .Corazon
+		retro.icono(icono, 5 + i * 9, 3, color = si i < partida.vida color.rgba(225, 120, 113) sino color.rgba(75, 64, 73))
+	retro.glifo(4, 62, 3, color = turquesa)
+	retro.texto("${partida.mineral}", 73, 3, color = luz)
+	retro.texto("BAJO LA TIERRA", 113, 3, color = color.rgba(160, 180, 177))
+	retro.texto("${partida.cam_x / 320 + 1}:${partida.cam_y / 180 + 1}", 289, 3, color = luz)
+	// La semilla se mantiene visible para reproducir el terreno.
+	g.rectangulo(0, 171, 320, 9, color.rgba(12, 17, 25, 220))
+	retro.texto("S:${partida.semilla}  R:REFUGIO N:NUEVO", 4, 172, color = color.rgba(120, 143, 153))
+	si partida.reloj < 8 || aviso > 0
+		g.rectangulo(20, 132, 280, 31, color.rgba(12, 17, 25, 238))
+		borde(20, 132, 280, 31, color.rgba(67, 92, 98))
+		retro.texto("A/D MOVER   ESPACIO SALTAR", 28, 137, color = luz)
+		retro.texto("IZQ DISPARAR / DER PICAR", 28, 149, color = turquesa)
+	var raton = entrada.posicion_raton()
+	var x = mate.piso(raton.x)
+	var y = mate.piso(raton.y)
+	g.rectangulo(x - 4, y, 3, 1, luz)
+	g.rectangulo(x + 2, y, 3, 1, luz)
+	g.rectangulo(x, y - 4, 1, 3, luz)
+	g.rectangulo(x, y + 2, 1, 3, luz)
+
+tipo Partida
+	pub fn actualizar(dt decimal)
+		si entrada.tecla_presionada(.N) partida.generar(azar.entero(1, 1000000))
+		si entrada.tecla_presionada(.R) partida.reaparecer()
+		si entrada.tecla_presionada(.H) aviso = 5
+		aviso = mate.maximo(0, aviso - dt)
+		var eje = 0.0
+		si entrada.tecla_mantenida(.A) || entrada.tecla_mantenida(.Izquierda) eje = eje - 1
+		si entrada.tecla_mantenida(.D) || entrada.tecla_mantenida(.Derecha) eje = eje + 1
+		partida.actualizar({eje: eje, salto: entrada.tecla_presionada(.Espacio), sostener: entrada.tecla_mantenida(.Espacio), disparo: entrada.raton_mantenido(.Izquierdo), minar: entrada.raton_mantenido(.Derecho), raton: entrada.posicion_raton()}, dt)
+
+	pub fn pintar()
+		fondo()
+		terreno()
+		criaturas()
+		jugador()
+		efectos()
+		dibujar_hud()
+
+fn inicio()
+	partida.generar(azar.entero(1, 1000000))
+	juego.ejecutar(Partida {}, 320, 180, titulo = "Bajo la tierra | Cometa", escala = 4, pixelado = verdadero) capturar |error|
+		imprimir(error)

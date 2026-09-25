@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/owenrumney/go-lsp/lsp"
-	"hacha/internal/stdlib"
+	"cometa/internal/stdlib"
 )
 
 func TestNoiseTooling(t *testing.T) {
@@ -17,7 +17,7 @@ func TestNoiseTooling(t *testing.T) {
 		}
 		for _, name := range []string{"suave", "fractal"} {
 			h := NewHandler()
-			uri := lsp.DocumentURI("file:///ruido.hacha")
+			uri := lsp.DocumentURI("file:///ruido.cometa")
 			source, pos := markerPosition(imp + "\nfn inicio() imprimir(" + alias + ".§" + name + "(0, 0))\n")
 			if _, err := h.documents.Open(&lsp.DidOpenTextDocumentParams{TextDocument: lsp.TextDocumentItem{URI: uri, Text: source}}); err != nil {
 				t.Fatal(err)
@@ -47,7 +47,7 @@ func TestNoiseTooling(t *testing.T) {
 			if err != nil || len(locations) != 1 {
 				t.Fatalf("definition: %+v %v", locations, err)
 			}
-			if locations[0].URI != "hacha-std:///std/mate/ruido.hacha" {
+			if locations[0].URI != "cometa-std:///std/mate/ruido.cometa" {
 				t.Fatalf("wrong URI: %+v", locations)
 			}
 			reference, ok := stdlib.Source("std/mate/ruido")

@@ -6,7 +6,7 @@ import (
 )
 
 func TestContextualEnumRuntime(t *testing.T) {
-	runHacha(t, `enum IP
+	runCometa(t, `enum IP
 	V4
 	V6
 	Otro IP
@@ -51,7 +51,7 @@ fn inicio()
 }
 
 func TestContextualPayloadReferences(t *testing.T) {
-	runHacha(t, `tipo Caja
+	runCometa(t, `tipo Caja
 	valor cadena
 enum Evento
 	Caja Caja
@@ -86,7 +86,7 @@ func TestContextualEnumErrors(t *testing.T) {
 		{"casos IP.V4\n\t\t._ => 1", "comodín"},
 	} {
 		t.Run(tt.source, func(t *testing.T) {
-			_, err := Compile("contextual.hacha", []byte(declarations+tt.source+"\n"))
+			_, err := Compile("contextual.cometa", []byte(declarations+tt.source+"\n"))
 			if err == nil || !strings.Contains(err.Error(), tt.want) {
 				t.Fatalf("error = %v; want %q", err, tt.want)
 			}

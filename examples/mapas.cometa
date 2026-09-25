@@ -1,0 +1,31 @@
+fn inicio()
+	var puntos [cadena: entero] = [:]
+	puntos["Ana"] = 10
+	puntos["Luis"] = 20
+	imprimir(puntos["Ana"] o 0)
+	imprimir(puntos["desconocido"] o 0)
+
+	// La asignación comparte las entradas.
+	var alias = puntos
+	alias["Ana"] = 15
+	imprimir(puntos.obtener(clave = "Ana") o 0)
+
+	// La copia tiene sus propias entradas.
+	var copia = puntos.copiar()
+	copia["Ana"] = 100
+	imprimir(puntos["Ana"] o 0)
+
+	// El recorrido no tiene un orden garantizado.
+	repetir (puntos) |valor, clave|
+		imprimir("${clave}: ${valor}")
+
+	var colores = [
+		"rojo": "#ff0000",
+		"verde": "#00ff00",
+	]
+	imprimir(colores.claves())
+	imprimir(colores.valores())
+	imprimir(colores.contiene("rojo"))
+	imprimir(colores.eliminar("rojo"))
+	colores.vaciar()
+	imprimir(colores.esta_vacia())

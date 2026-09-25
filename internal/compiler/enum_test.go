@@ -11,9 +11,9 @@ import (
 	"time"
 )
 
-func runHacha(t *testing.T, source, want string) []byte {
+func runCometa(t *testing.T, source, want string) []byte {
 	t.Helper()
-	generated, err := Compile("enum.hacha", []byte(source))
+	generated, err := Compile("enum.cometa", []byte(source))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +90,7 @@ fn inicio()
 			e = Boton {caracter: "otro"}
 		_ => imprimir("incorrecto")
 	imprimir(boton.caracter)
-	var _hacha1 = 7
+	var _cometa1 = 7
 	var n = 2
 	var eventos = [E.Texto("texto"), E.Numero(n), E.Activo(verdadero), E.Lista([E.A]), E.Anidado(E.A)]
 	repetir (eventos) |evento2|
@@ -114,7 +114,7 @@ fn inicio()
 	imprimir(contextual.caracter)
 	E.Numero(1)
 `
-	generated := runHacha(t, source, "A\nvalor\n2\nb\nc\ntexto\n3\ntrue\nlista\nanidado\n[]\n[]\ncontextual\n")
+	generated := runCometa(t, source, "A\nvalor\n2\nb\nc\ntexto\n3\ntrue\nlista\nanidado\n[]\n[]\ncontextual\n")
 	for _, fragment := range []string{"payload2 *Boton", "payload6 []*E", "payload7 *E", "switch", "func() string", "func() *Boton"} {
 		if !strings.Contains(string(generated), fragment) {
 			t.Errorf("missing %q in generated storage/match code", fragment)
@@ -159,13 +159,13 @@ fn inicio()
 	]
 	imprimir(lista[0])
 `
-	runHacha(t, source, "2\n5\n8\n10\n")
+	runCometa(t, source, "2\n5\n8\n10\n")
 }
 
 func TestEnumExample(t *testing.T) {
-	source, err := os.ReadFile("../../examples/usuario.hacha")
+	source, err := os.ReadFile("../../examples/usuario.cometa")
 	if err != nil {
 		t.Fatal(err)
 	}
-	runHacha(t, string(source), "izquierda\nleyendo el boton:\nb\ncargando pagina\nbuton presionado:\nb\nv4\nv6\n")
+	runCometa(t, string(source), "izquierda\nleyendo el boton:\nb\ncargando pagina\nbuton presionado:\nb\nv4\nv6\n")
 }

@@ -50,8 +50,8 @@ func TestContextualCompletion(t *testing.T) {
 			column := utf16Length(before[strings.LastIndex(before, "\n")+1:])
 			source = strings.Replace(source, "|", "", 1)
 			h := servertest.New(t, NewHandler())
-			uri := lsp.DocumentURI("file:///contextual.hacha")
-			if err := h.DidOpen(uri, "hacha", source); err != nil {
+			uri := lsp.DocumentURI("file:///contextual.cometa")
+			if err := h.DidOpen(uri, "cometa", source); err != nil {
 				t.Fatal(err)
 			}
 			_ = waitForDiagnostics(t, h, uri)
@@ -82,8 +82,8 @@ func TestContextualCompletion(t *testing.T) {
 func TestContextualHover(t *testing.T) {
 	source := "enum IP\n\tV4\n\tOtro IP\nfn f(ip IP) IP\n\tcasos ip\n\t\tIP.V4 => .V4\n\t\t.Otro => .Otro(.V4)\n"
 	h := servertest.New(t, NewHandler())
-	uri := lsp.DocumentURI("file:///hover-contextual.hacha")
-	if err := h.DidOpen(uri, "hacha", source); err != nil {
+	uri := lsp.DocumentURI("file:///hover-contextual.cometa")
+	if err := h.DidOpen(uri, "cometa", source); err != nil {
 		t.Fatal(err)
 	}
 	if d := waitForDiagnostics(t, h, uri); len(d) != 0 {

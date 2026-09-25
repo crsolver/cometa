@@ -1,7 +1,0 @@
-usar ../modelos como m
-
-// Crea un usuario con un nombre predeterminado.
-fn crear(nombre cadena = "Ana") m.Usuario
-	m.Usuario {nombre: nombre}
-
-fn identidad<T>(valor T) T valor

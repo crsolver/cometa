@@ -8,13 +8,13 @@ import (
 	"sort"
 	"strings"
 
-	"hacha/internal/ast"
-	"hacha/internal/codegen"
-	"hacha/internal/diagnostic"
-	"hacha/internal/lexer"
-	"hacha/internal/parser"
-	"hacha/internal/sema"
-	"hacha/internal/stdlib"
+	"cometa/internal/ast"
+	"cometa/internal/codegen"
+	"cometa/internal/diagnostic"
+	"cometa/internal/lexer"
+	"cometa/internal/parser"
+	"cometa/internal/sema"
+	"cometa/internal/stdlib"
 )
 
 // SourceLoader reads canonical absolute paths. Editors can overlay unsaved buffers.
@@ -141,21 +141,21 @@ func AnalyzeProject(entry string, loader SourceLoader) (*Project, error) {
 					errors.Add(projectError(imp.PathPos, "módulo estándar desconocido %q", imp.Path))
 					continue
 				}
-				target := "hacha-std:///" + imp.Path + ".hacha"
+				target := "cometa-std:///" + imp.Path + ".cometa"
 				dependency := p.Modules[target]
 				if dependency == nil {
 					dependency = &Module{Native: true, Path: target, Source: []byte(source), Imports: map[string]*Module{}, Declarations: map[string]*Declaration{}}
 					dependency.Program, _ = parseModule(target, []byte(source))
 					ns, _ := stdlib.Namespace(imp.Path)
-					// Opaque native types have no Hacha fields or body to parse.
+					// Opaque native types have no Cometa fields or body to parse.
 					for name, owner := range stdlib.TypeModules {
 						if owner != ns || name == "Juego" || stdlib.Fields[stdlib.Symbol(name)] != "" {
 							continue
 						}
 						for i, line := range strings.Split(source, "\n") {
-							if line == "tipo "+name {
-								pos := ast.Pos{Filename: target, Line: i + 1, Column: 6}
-								dependency.Program.Decls = append(dependency.Program.Decls, &ast.TypeDecl{Name: name, NamePos: pos, Pos: ast.Pos{Filename: target, Line: i + 1, Column: 1}})
+							if line == "pub tipo "+name {
+								pos := ast.Pos{Filename: target, Line: i + 1, Column: 10}
+								dependency.Program.Decls = append(dependency.Program.Decls, &ast.TypeDecl{Public: true, Name: name, NamePos: pos, Pos: ast.Pos{Filename: target, Line: i + 1, Column: 5}})
 								break
 							}
 						}
@@ -177,7 +177,7 @@ func AnalyzeProject(entry string, loader SourceLoader) (*Project, error) {
 				m.Imports[imp.Alias] = dependency
 				continue
 			}
-			target, err := CanonicalPath(filepath.Join(filepath.Dir(path), filepath.FromSlash(imp.Path)+".hacha"))
+			target, err := CanonicalPath(filepath.Join(filepath.Dir(path), filepath.FromSlash(imp.Path)+".cometa"))
 			if err != nil {
 				errors.Add(projectError(imp.PathPos, "%s", err))
 				continue
@@ -216,7 +216,7 @@ func AnalyzeProject(entry string, loader SourceLoader) (*Project, error) {
 		return p, err
 	}
 	// Prefixes depend on deterministic traversal, never on absolute machine paths.
-	prefix := "HachaModulo"
+	prefix := "CometaModulo"
 	for {
 		conflict := false
 		for name := range p.Root.Declarations {
@@ -311,7 +311,7 @@ func (p *Project) Display(s string) string {
 	}
 	sort.Slice(declarations, func(i, j int) bool { return len(declarations[i].Symbol) > len(declarations[j].Symbol) })
 	for _, d := range declarations {
-		s = strings.ReplaceAll(s, d.Symbol, strings.TrimSuffix(filepath.Base(d.Module.Path), ".hacha")+"."+d.Name)
+		s = strings.ReplaceAll(s, d.Symbol, strings.TrimSuffix(filepath.Base(d.Module.Path), ".cometa")+"."+d.Name)
 	}
 	return stdlib.Display(s)
 }

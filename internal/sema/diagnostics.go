@@ -9,6 +9,9 @@ func (c *checker) invalidType(t Type) bool {
 	if t.Elem != nil && c.invalidType(*t.Elem) {
 		return true
 	}
+	if t.Key != nil && c.invalidType(*t.Key) {
+		return true
+	}
 	if t.Err != nil && c.invalidType(*t.Err) {
 		return true
 	}

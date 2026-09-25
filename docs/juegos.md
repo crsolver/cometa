@@ -1,6 +1,6 @@
 # Pincel: juegos 2D
 
-Pincel es la familia de bibliotecas de juego incluida con Hacha. Se importa cada módulo necesario:
+Pincel es la familia de bibliotecas de juego incluida con Cometa. Se importa cada módulo necesario:
 
 | Importación | Contenido |
 | --- | --- |
@@ -23,16 +23,16 @@ El último segmento es el namespace; `usar std/pincel/graficos como g` permite `
 
 Para empezar sin archivos de recursos, consulta [Juegos retro](#juegos-retro-sin-recursos).
 
-```hacha
+```cometa
 usar std/mate
 usar std/pincel/juego
 usar std/pincel/graficos
 
 tipo Partida
 	pos mate.Vec2
-	fn actualizar(dt decimal)
+	pub fn actualizar(dt decimal)
 		@pos.x = @pos.x + 40 * dt
-	fn pintar()
+	pub fn pintar()
 		graficos.rectangulo_v(@pos, {10, 10}, .Rojo)
 
 fn inicio()
@@ -42,9 +42,9 @@ fn inicio()
 
 `juego.Juego` es una interfaz estructural con `actualizar(dt decimal)` y `pintar()`, sin resultados. El objeto puede declararse en otro módulo. Inicializa el estado antes de llamar a `ejecutar`. Las funciones globales `actualizar`, `pintar` e `iniciar` son ordinarias; no existe `juego.configuracion`.
 
-`ejecutar` bloquea hasta cerrar la ventana y devuelve `!`. La configuración inválida, los errores del backend y una segunda ejecución en el mismo proceso producen `.Error(cadena)`; el cierre normal produce `.Ok`. Debe manejarse el resultado con las construcciones habituales de Hacha.
+`ejecutar` bloquea hasta cerrar la ventana y devuelve `!`. La configuración inválida, los errores del backend y una segunda ejecución en el mismo proceso producen `.Error(cadena)`; el cierre normal produce `.Ok`. Debe manejarse el resultado con las construcciones habituales de Cometa.
 
-Defaults: 320×180, escala 1, título "Hacha", 60 TPS, sin redimensionamiento ni pantalla completa. Dimensiones/TPS son enteros positivos; escala positiva y finita. El máximo es 32768 y el tamaño físico debe ser al menos un píxel. `dt` es el tiempo fijo por tick en segundos. El tamaño lógico permanece fijo al redimensionar la ventana.
+Defaults: 320×180, escala 1, título "Cometa", 60 TPS, sin redimensionamiento ni pantalla completa. Dimensiones/TPS son enteros positivos; escala positiva y finita. El máximo es 32768 y el tamaño físico debe ser al menos un píxel. `dt` es el tiempo fijo por tick en segundos. El tamaño lógico permanece fijo al redimensionar la ventana.
 
 Dibujar, cambiar o restablecer la cámara fuera de la fase activa de `pintar` produce un error en ejecución. Los helpers llamados durante esa fase pueden dibujar.
 
@@ -52,14 +52,14 @@ Dibujar, cambiar o restablecer la cámara fuera de la fase activa de `pintar` pr
 
 `std/pincel/retro` incluye los atlas originales DUNGEON.mode de [datagoblin](https://datagoblin.itch.io/dungeonmode), distribuidos bajo CC0. No requiere PNG, TTF ni llamadas a `recursos` en el proyecto del usuario.
 
-```hacha
+```cometa
 usar std/pincel/juego
 usar std/pincel/graficos
 usar std/pincel/retro
 
 tipo Partida
-	fn actualizar(dt decimal) retornar
-	fn pintar()
+	pub fn actualizar(dt decimal) retornar
+	pub fn pintar()
 		graficos.limpiar(.Negro)
 		retro.texto("¡Hola, niño!", 8, 8)
 		retro.icono(.Corazon, 8, 24, color = .Rojo)
@@ -72,7 +72,7 @@ fn inicio()
 
 Firmas (todos los dibujos requieren la fase `pintar`):
 
-```hacha
+```cometa
 retro.texto(texto cadena, x entero, y entero, escala entero = 1, color color.Color = .Blanco)
 retro.icono(icono retro.Icono, x entero, y entero, escala entero = 1, color color.Color = .Blanco)
 retro.glifo(indice entero, x entero, y entero, escala entero = 1, color color.Color = .Blanco, atlas retro.Atlas = .Dungeon)
@@ -88,11 +88,11 @@ Iconos disponibles: `.Corazon`, `.CorazonVacio`, `.Espada`, `.Escudo`, `.Llave`,
 
 Para una pantalla CRT sutil, usa `juego.ejecutar(Partida {}, escala = 4, retro = verdadero) !`. Este modo activa vecino más cercano incluso con `pixelado = falso` y aplica líneas de barrido suaves, una máscara RGB tenue y una viñeta ligera a toda la imagen, incluido el texto. Los patrones finos se atenúan a escalas pequeñas. No curva la imagen ni añade parpadeo; mantiene la resolución lógica, la cámara, las coordenadas del ratón, la relación de aspecto y las bandas al redimensionar o usar pantalla completa. Funciona con cualquier juego Pincel sin importar `std/pincel/retro`. Con `retro = falso`, `pixelado` conserva su comportamiento habitual. Los errores al inicializar el shader producen `.Error(cadena)`.
 
-Ejemplos: [calabozo jugable](../examples/dungeon2.hacha) y [galería de ambos atlas](../examples/retro.hacha). La galería muestra las celdas en orden de índice y los iconos nombrados.
+Ejemplos: [calabozo jugable](../examples/dungeon2.cometa) y [galería de ambos atlas](../examples/retro.cometa). La galería muestra las celdas en orden de índice y los iconos nombrados.
 
 ### La última luz
 
-[Esta aventura completa](../examples/escape_retro.hacha) tiene tres pisos, diálogos de historia y una paleta fija de 24 colores. No necesita recursos externos. Ejecuta `hacha ejecutar examples/escape_retro.hacha`.
+[Esta aventura completa](../examples/escape_retro.cometa) tiene tres pisos, diálogos de historia y una paleta fija de 24 colores. No necesita recursos externos. Ejecuta `cometa ejecutar examples/escape_retro.cometa`.
 
 - **Flechas:** mover un paso o atacar al esqueleto de la casilla vecina. Atacar lo derrota sin mover al jugador.
 - **Espacio:** esperar un turno. Los esqueletos supervivientes actúan después de cada movimiento, ataque o espera; chocar con un muro o una salida cerrada no gasta turno.
@@ -103,10 +103,10 @@ Recoge la llave dorada y entra en la salida `>` de cada piso. Los corazones verd
 
 ### Bajo la tierra
 
-[Este plataformas](../examples/plataformas.hacha) es un sandbox pequeño con superficie, cuevas conectadas, minería y combate. Ejecuta desde la raíz del repositorio:
+[Este plataformas](../examples/plataformas.cometa) es un sandbox pequeño con superficie, cuevas conectadas, minería y combate. Ejecuta desde la raíz del repositorio:
 
 ```powershell
-.\bin\hacha.exe ejecutar .\examples\plataformas.hacha
+.\vscode-extension\bin\cometa.exe ejecutar .\examples\plataformas.cometa
 ```
 
 - **A/D o flechas:** moverse con aceleración, frenado y control aéreo.
@@ -120,7 +120,7 @@ La resolución lógica es **320×180**, a escala entera 4 y sin filtro. Cada sec
 
 El generador combina ruido con galerías y rampas de conexión; la plataforma del refugio no puede destruirse. Los slimes saltan y los murciélagos se acercan volando, sin atravesar terreno. Las balas se detienen en el primer bloque o enemigo. Los cambios de terreno y el estado de los enemigos se conservan al cambiar de sección; los enemigos lejanos quedan pausados. No hay guardado, construcción, inventario, crafting ni condición de victoria.
 
-La paleta y los efectos se dibujan con Pincel y `retro`, que incorpora los mismos atlas CC0 de `examples/assets/dungeonmode/bitmap` con fondo transparente. No se necesitan recursos externos. La simulación vive en [plataformas/mundo.hacha](../examples/plataformas/mundo.hacha), sin dependencia gráfica. Para reproducir un terreno, reemplaza el argumento aleatorio de `partida.generar(...)` en `inicio` por la semilla que aparece al pie de la pantalla.
+La paleta y los efectos se dibujan con Pincel y `retro`, que incorpora los mismos atlas CC0 de `examples/assets/dungeonmode/bitmap` con fondo transparente. No se necesitan recursos externos. La simulación vive en [plataformas/mundo.cometa](../examples/plataformas/mundo.cometa), sin dependencia gráfica. Para reproducir un terreno, reemplaza el argumento aleatorio de `partida.generar(...)` en `inicio` por la semilla que aparece al pie de la pantalla.
 
 ## Valores, coordenadas y recursos
 
@@ -181,7 +181,7 @@ las constantes, por ejemplo `entrada.tecla_mantenida(.Espacio)`.
 No admiten literales ni nulos; un campo de recurso requiere inicialización.
 Se puede usar `graficos.Imagen?` para ausencia.
 
-```hacha
+```cometa
 usar std/pincel/recursos
 
 var sprite = recursos.imagen("assets/jugador.png")
@@ -201,8 +201,8 @@ Las firmas siguientes requieren importar sus respectivos módulos. Los parámetr
 son opcionales. Las expresiones de argumentos se evalúan una vez, en orden fuente,
 también al usar argumentos nombrados.
 
-```hacha
-juego.ejecutar(instancia juego.Juego, ancho entero = 320, alto entero = 180, titulo cadena = "Hacha", escala decimal = 1, redimensionable bool = falso, pantalla_completa bool = falso, tps entero = 60, pixelado bool = falso, retro bool = falso) !
+```cometa
+juego.ejecutar(instancia juego.Juego, ancho entero = 320, alto entero = 180, titulo cadena = "Cometa", escala decimal = 1, redimensionable bool = falso, pantalla_completa bool = falso, tps entero = 60, pixelado bool = falso, retro bool = falso) !
 mate.Vec2.longitud() decimal
 mate.Vec2.normalizado() mate.Vec2
 mate.Vec2.distancia_a(otro mate.Vec2) decimal
@@ -302,14 +302,14 @@ libera el reproductor; `reanudar` reinicia un sonido terminado/detenido. Volumen
 
 ## Comandos y alcance
 
-`hacha compilar juego.hacha -o juego.go` produce Go formateado y sintácticamente
-válido. `hacha ejecutar juego.hacha` construye y ejecuta. `hacha construir
-juego.hacha -o juego.exe` construye sin abrir ventana; sin `-o` usa el nombre del
+`cometa compilar juego.cometa -o juego.go` produce Go formateado y sintácticamente
+válido. `cometa ejecutar juego.cometa` construye y ejecuta. `cometa construir
+juego.cometa -o juego.exe` construye sin abrir ventana; sin `-o` usa el nombre del
 archivo sin extensión (`.exe` en Windows). Ambos usan un módulo temporal, eliminado
 al finalizar. La primera compilación requiere red para descargar dependencias.
 
 Se fija Ebitengine v2.10.1. Go 1.25+ y las dependencias nativas de Ebitengine son
-necesarios. `HACHA_GO` permite elegir Go. La entrega inicial soporta escritorio;
+necesarios. `COMETA_GO` permite elegir Go. La entrega inicial soporta escritorio;
 web, móvil, gamepads, touch, física completa, tilemaps, partículas, UI y shaders
 quedan fuera. Los tipos y namespaces están reservados; la interfaz genérica de
 los ejemplos antes llamada `graficos.Fuente` ahora se llama `Proveedor`.

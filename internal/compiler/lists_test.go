@@ -6,7 +6,7 @@ import (
 )
 
 func TestListMethodsRuntime(t *testing.T) {
-	runHacha(t, `fn inicio()
+	runCometa(t, `fn inicio()
 	var valores = [10, 20, 20]
 	imprimir(valores.longitud())
 	imprimir(valores.esta_vacia())
@@ -36,7 +36,7 @@ func TestListMethodsRuntime(t *testing.T) {
 }
 
 func TestListMutationReceiversAliasingAndOrder(t *testing.T) {
-	runHacha(t, `tipo Objeto
+	runCometa(t, `tipo Objeto
 	valor entero
 tipo Caja
 	valores [entero]
@@ -70,7 +70,7 @@ fn inicio()
 }
 
 func TestGenericListMethodsRuntime(t *testing.T) {
-	runHacha(t, `fn agregar_y_primero<T>(valores [T], valor T) T?
+	runCometa(t, `fn agregar_y_primero<T>(valores [T], valor T) T?
 	valores.agregar(valor)
 	valores.primero()
 fn inicio()
@@ -79,7 +79,7 @@ fn inicio()
 }
 
 func TestListMutationWaitsForPropagatingArguments(t *testing.T) {
-	runHacha(t, `tipo Caja
+	runCometa(t, `tipo Caja
 	valores [entero]
 fn falla() entero! .Error("fallo")
 fn cambiar(c Caja) !
@@ -107,7 +107,7 @@ func TestListMethodDiagnostics(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := Compile("listas.hacha", []byte(test.source))
+			_, err := Compile("listas.cometa", []byte(test.source))
 			if err == nil || !strings.Contains(err.Error(), test.want) {
 				t.Fatalf("error = %v, want containing %q", err, test.want)
 			}

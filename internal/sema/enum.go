@@ -1,8 +1,8 @@
 package sema
 
 import (
-	"hacha/internal/ast"
-	"hacha/internal/stdlib"
+	"cometa/internal/ast"
+	"cometa/internal/stdlib"
 	"strings"
 )
 

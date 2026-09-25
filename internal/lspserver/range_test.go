@@ -11,8 +11,8 @@ import (
 func TestRangeHover(t *testing.T) {
 	source := "fn inicio()\n\tvar fin = 5\n\trepetir (0..fin) |i, indice| imprimir(i)\n"
 	h := servertest.New(t, NewHandler())
-	uri := lsp.DocumentURI("file:///rangos.hacha")
-	if err := h.DidOpen(uri, "hacha", source); err != nil {
+	uri := lsp.DocumentURI("file:///rangos.cometa")
+	if err := h.DidOpen(uri, "cometa", source); err != nil {
 		t.Fatal(err)
 	}
 	if d := waitForDiagnostics(t, h, uri); len(d) != 0 {

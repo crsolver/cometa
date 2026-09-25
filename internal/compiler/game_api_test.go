@@ -6,7 +6,7 @@ import (
 )
 
 func TestRemovedGameConfiguration(t *testing.T) {
-	_, err := Compile("game.hacha", []byte("usar std/pincel/juego\nfn inicio() juego.configuracion()\n"))
+	_, err := Compile("game.cometa", []byte("usar std/pincel/juego\nfn inicio() juego.configuracion()\n"))
 	if err == nil || !strings.Contains(err.Error(), "configuracion") {
 		t.Fatalf("removed API: %v", err)
 	}
@@ -42,7 +42,7 @@ fn probar()
 fn actualizar(dt decimal) imprimir(dt)
 fn pintar() imprimir(0)
 `
-	generated, err := Compile("game.hacha", []byte(pincelImports+source))
+	generated, err := Compile("game.cometa", []byte(pincelImports+source))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +51,7 @@ fn pintar() imprimir(0)
 }
 
 func TestGameConfigurationAndTransformsRuntime(t *testing.T) {
-	generated, err := Compile("game.hacha", []byte(pincelImports+minimalGame))
+	generated, err := Compile("game.cometa", []byte(pincelImports+minimalGame))
 	if err != nil {
 		t.Fatal(err)
 	}

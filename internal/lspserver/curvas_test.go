@@ -3,7 +3,7 @@ package lspserver
 import (
 	"context"
 	"github.com/owenrumney/go-lsp/lsp"
-	"hacha/internal/stdlib"
+	"cometa/internal/stdlib"
 	"strings"
 	"testing"
 )
@@ -15,7 +15,7 @@ func TestCurvesTooling(t *testing.T) {
 			imp += " como " + alias
 		}
 		h := NewHandler()
-		uri := lsp.DocumentURI("file:///curvas.hacha")
+		uri := lsp.DocumentURI("file:///curvas.cometa")
 		source, pos := markerPosition(imp + "\nfn inicio() imprimir(" + alias + ".§cubica_entrada(0.5))\n")
 		if _, err := h.documents.Open(&lsp.DidOpenTextDocumentParams{TextDocument: lsp.TextDocumentItem{URI: uri, Text: source}}); err != nil {
 			t.Fatal(err)
@@ -45,7 +45,7 @@ func TestCurvesTooling(t *testing.T) {
 		if err != nil || len(locations) != 1 {
 			t.Fatalf("definition: %+v %v", locations, err)
 		}
-		if locations[0].URI != "hacha-std:///std/mate/curvas.hacha" {
+		if locations[0].URI != "cometa-std:///std/mate/curvas.cometa" {
 			t.Fatalf("wrong URI: %+v", locations)
 		}
 		reference, ok := stdlib.Source("std/mate/curvas")

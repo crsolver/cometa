@@ -2,9 +2,9 @@ package codegen
 
 import (
 	"fmt"
-	"hacha/internal/ast"
-	"hacha/internal/sema"
-	"hacha/internal/stdlib"
+	"cometa/internal/ast"
+	"cometa/internal/sema"
+	"cometa/internal/stdlib"
 	"strings"
 )
 
@@ -46,7 +46,9 @@ func (g *generator) flowStmt(stmt ast.Stmt, indent int, target string) {
 		g.line(indent+1, "%s.Entrar()", name)
 		g.scopes = append(g.scopes, name)
 		g.flowBlock(s.Body, indent+1, "")
-		if !g.leavesBlock(s) { g.line(indent+1, "%s.Salir()", name) }
+		if !g.leavesBlock(s) {
+			g.line(indent+1, "%s.Salir()", name)
+		}
 		g.scopes = g.scopes[:len(g.scopes)-1]
 		g.line(indent, "}")
 	case *ast.ExprStmt:
@@ -59,6 +61,21 @@ func (g *generator) flowStmt(stmt ast.Stmt, indent int, target string) {
 		}
 		g.line(indent, "var %s %s = %s", localName(s.Name), goType(g.model.VarTypes[s]), v)
 	case *ast.AssignStmt:
+		if index, ok := s.Target.(*ast.IndexExpr); ok && g.model.ExprTypes[index.Object].Kind == sema.Map {
+			object := g.flowExpr(index.Object, indent)
+			if object == "" {
+				return
+			}
+			key := g.flowExpr(index.Index, indent)
+			if key == "" {
+				return
+			}
+			value := g.flowExpr(s.Value, indent)
+			if value != "" {
+				g.line(indent, "%s[%s] = %s", object, key, value)
+			}
+			return
+		}
 		// Capture an address before the RHS, preserving indexing and receiver order.
 		address := g.freshName()
 		g.line(indent, "%s := &(%s)", address, g.flowTarget(s.Target, indent))
@@ -235,7 +252,11 @@ func (g *generator) flowRaw(e ast.Expr, t sema.Type, indent int) string {
 		} else {
 			value := g.flowExpr(v.Value, indent)
 			if value != "" {
-				if len(g.scopes) > 0 { name := g.freshName(); g.line(indent, "%s := %s", name, value); value = name }
+				if len(g.scopes) > 0 {
+					name := g.freshName()
+					g.line(indent, "%s := %s", name, value)
+					value = name
+				}
 				g.closeScopes(indent, 0)
 				g.line(indent, "return %s", value)
 			}
@@ -248,7 +269,11 @@ func (g *generator) flowRaw(e ast.Expr, t sema.Type, indent int) string {
 		if g.returnType.Kind == sema.Result {
 			failure = goType(g.returnType) + "{tag: 2, payload2: " + value + ".payload2}"
 		}
-		if len(g.scopes) > 0 { name := g.freshName(); g.line(indent+1, "%s := %s", name, failure); failure = name }
+		if len(g.scopes) > 0 {
+			name := g.freshName()
+			g.line(indent+1, "%s := %s", name, failure)
+			failure = name
+		}
 		g.closeScopes(indent+1, 0)
 		g.line(indent+1, "return %s", failure)
 		g.line(indent, "}")
@@ -312,6 +337,12 @@ func (g *generator) flowRaw(e ast.Expr, t sema.Type, indent int) string {
 	case *ast.IndexExpr:
 		object := g.flowExpr(v.Object, indent)
 		index := g.flowExpr(v.Index, indent)
+		if g.model.ExprTypes[v.Object].Kind == sema.Map {
+			if object == "" || index == "" {
+				return ""
+			}
+			return g.mapLookup(object, index, t, indent)
+		}
 		return object + "[" + index + "]"
 	case *ast.UnaryExpr:
 		if lit, ok := v.Value.(*ast.LiteralExpr); ok && v.Operator == "-" && lit.Kind == "entero" && lit.Value == "9223372036854775808" {
@@ -382,6 +413,32 @@ func (g *generator) flowRaw(e ast.Expr, t sema.Type, indent int) string {
 			values = append(values, value)
 		}
 		return goType(t) + "{" + strings.Join(values, ", ") + "}"
+	case *ast.MapLiteralExpr:
+		if t.Kind == sema.Never {
+			for _, entry := range v.Entries {
+				if g.flowExpr(entry.Key, indent) == "" {
+					return ""
+				}
+				if g.flowExpr(entry.Value, indent) == "" {
+					return ""
+				}
+			}
+			return ""
+		}
+		result := g.freshName()
+		g.line(indent, "%s := make(%s)", result, goType(t))
+		for _, entry := range v.Entries {
+			key := g.flowExpr(entry.Key, indent)
+			if key == "" {
+				return ""
+			}
+			value := g.flowExpr(entry.Value, indent)
+			if value == "" {
+				return ""
+			}
+			g.line(indent, "%s[%s] = %s", result, key, value)
+		}
+		return result
 	}
 	panic(fmt.Sprintf("unsupported flow expression %T", e))
 }
@@ -399,6 +456,9 @@ func (g *generator) flowValueBlock(body []ast.Stmt, t sema.Type, indent int) str
 }
 
 func (g *generator) flowCall(call *ast.CallExpr, indent int) string {
+	if operation, ok := g.model.MapCalls[call]; ok {
+		return g.flowMapCall(call, operation, indent)
+	}
 	if t, ok := g.model.NumericCalls[call]; ok {
 		return g.numericCall(call, t, g.flowExpr(call.Args[0], indent))
 	}
@@ -687,6 +747,9 @@ func (g *generator) defaultFields(t sema.Type, supplied []ast.FieldValue) []stri
 	info := g.model.StructInfo(t)
 	for _, field := range info.Decl.Fields {
 		ft := info.Fields[field.Name].Type
+		if !seen[field.Name] && ft.Kind == sema.Map {
+			fields = append(fields, g.fieldName(t, field.Name)+": make("+goType(ft)+")")
+		}
 		if !seen[field.Name] && ft.Kind == sema.Named {
 			if stdlib.IsValue(ft.Name) {
 				fields = append(fields, g.fieldName(t, field.Name)+": "+goType(ft)+"{"+strings.Join(g.defaultFields(ft, nil), ", ")+"}")
@@ -741,7 +804,11 @@ func (g *generator) flowLoop(s *ast.RepeatStmt, indent int) {
 		}
 		g.line(indent, "for %s, %s := range %s {", index, localName(s.Element), start)
 		if s.Index != "" {
-			g.line(indent+1, "%s := int64(%s)", localName(s.Index), index)
+			if g.model.ExprTypes[s.Iterable].Kind == sema.Map {
+				g.line(indent+1, "%s := %s", localName(s.Index), index)
+			} else {
+				g.line(indent+1, "%s := int64(%s)", localName(s.Index), index)
+			}
 		}
 	}
 	if s.Element != "" {
@@ -753,20 +820,47 @@ func (g *generator) flowLoop(s *ast.RepeatStmt, indent int) {
 }
 
 func (g *generator) closeScopes(indent, depth int) {
-	for i := len(g.scopes)-1; i >= depth; i-- { g.line(indent, "%s.Salir()", g.scopes[i]) }
+	for i := len(g.scopes) - 1; i >= depth; i-- {
+		g.line(indent, "%s.Salir()", g.scopes[i])
+	}
 }
 
 // Local block exits also include loop control, which must not be treated as
 // function returns by semantic result checking.
 func (g *generator) leavesBlock(stmt ast.Stmt) bool {
-	block := func(body []ast.Stmt) bool { for _,s:=range body {if g.leavesBlock(s) {return true}};return false }
-	switch s:=stmt.(type) {
-	case *ast.BreakStmt,*ast.ContinueStmt:return true
-	case *ast.ScopeStmt:return block(s.Body)
+	block := func(body []ast.Stmt) bool {
+		for _, s := range body {
+			if g.leavesBlock(s) {
+				return true
+			}
+		}
+		return false
+	}
+	switch s := stmt.(type) {
+	case *ast.BreakStmt, *ast.ContinueStmt:
+		return true
+	case *ast.ScopeStmt:
+		return block(s.Body)
 	case *ast.IfStmt:
-		if len(s.Else)==0||!block(s.Else){return false};for _,b:=range s.Branches{if !block(b.Body){return false}};return true
+		if len(s.Else) == 0 || !block(s.Else) {
+			return false
+		}
+		for _, b := range s.Branches {
+			if !block(b.Body) {
+				return false
+			}
+		}
+		return true
 	case *ast.MatchStmt:
-		if len(s.Match.Arms)==0{return false};for _,a:=range s.Match.Arms{if !block(a.Body){return false}};return true
+		if len(s.Match.Arms) == 0 {
+			return false
+		}
+		for _, a := range s.Match.Arms {
+			if !block(a.Body) {
+				return false
+			}
+		}
+		return true
 	}
 	return g.model.Terminates(stmt)
 }

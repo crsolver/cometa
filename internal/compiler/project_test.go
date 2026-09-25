@@ -18,7 +18,7 @@ func memoryProject(t *testing.T, files map[string]string) (string, SourceLoader)
 		}
 		sources[path] = []byte(source)
 	}
-	return filepath.Join(root, "main.hacha"), func(path string) ([]byte, error) {
+	return filepath.Join(root, "main.cometa"), func(path string) ([]byte, error) {
 		if source, ok := sources[path]; ok {
 			return source, nil
 		}
@@ -28,10 +28,10 @@ func memoryProject(t *testing.T, files map[string]string) (string, SourceLoader)
 
 func TestProjectQualifiedDeclarations(t *testing.T) {
 	entry, loader := memoryProject(t, map[string]string{
-		"main.hacha": `usar modelos como m
+		"main.cometa": `usar modelos como m
 usar util
-fn recibir<T m.Describible>(valor T) cadena valor.describir()
-fn crear() m.Usuario m.Usuario {nombre: "Ana"}
+pub fn recibir<T m.Describible>(valor T) cadena valor.describir()
+pub fn crear() m.Usuario m.Usuario {nombre: "Ana"}
 fn inicio()
 	var usuario = crear()
 	var caja = m.Caja<m.Usuario> {valor: usuario}
@@ -46,25 +46,25 @@ fn inicio()
 	var opt = i como m.Usuario
 	var otro m.Usuario? = opt
 `,
-		"modelos.hacha": `interfaz Describible
+		"modelos.cometa": `pub interfaz Describible
 	fn describir() cadena
-tipo Usuario
-	nombre cadena
-	fn describir() cadena @nombre
-tipo Caja<T>
-	valor T
-enum Evento
+pub tipo Usuario
+	pub nombre cadena
+	pub fn describir() cadena @nombre
+pub tipo Caja<T>
+	pub valor T
+pub enum Evento
 	Texto cadena
 	Vacio
-fn saludar(nombre cadena = "mundo", saludo cadena = "hola ") cadena saludo
+pub fn saludar(nombre cadena = "mundo", saludo cadena = "hola ") cadena saludo
 `,
-		"util.hacha": "fn identidad<T>(valor T) T valor\n",
+		"util.cometa": "pub fn identidad<T>(valor T) T valor\n",
 	})
 	generated, err := CompileProject(entry, loader)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(generated), "func main()") || !strings.Contains(string(generated), "HachaModulo") {
+	if !strings.Contains(string(generated), "func main()") || !strings.Contains(string(generated), "CometaModulo") {
 		t.Fatal(string(generated))
 	}
 	runGeneratedGo(t, generated, "Ana\nhola \n3\ntexto\n")
@@ -72,12 +72,12 @@ fn saludar(nombre cadena = "mundo", saludo cadena = "hola ") cadena saludo
 
 func TestProjectEmbeddingAndDefaultsRuntime(t *testing.T) {
 	entry, loader := memoryProject(t, map[string]string{
-		"main.hacha": `usar modelos como m
-tipo Grupo
-	m.Usuario
-	fn renombrar(nombre cadena)
+		"main.cometa": `usar modelos como m
+pub tipo Grupo
+	pub m.Usuario
+	pub fn renombrar(nombre cadena)
 		@Usuario.nombre = nombre
-fn mostrar(valor m.Describible) cadena valor.describir()
+pub fn mostrar(valor m.Describible) cadena valor.describir()
 fn inicio()
 	var grupo = Grupo {Usuario: m.Usuario {nombre: "Ana"}}
 	imprimir(mostrar(grupo))
@@ -88,12 +88,12 @@ fn inicio()
 	vacio.Usuario.nombre = "Luis"
 	imprimir(vacio.describir())
 `,
-		"modelos.hacha": `interfaz Describible
+		"modelos.cometa": `pub interfaz Describible
 	fn describir() cadena
-tipo Usuario
-	nombre cadena
-	fn describir() cadena @nombre
-	fn saludar(nombre cadena = @nombre) cadena nombre
+pub tipo Usuario
+	pub nombre cadena
+	pub fn describir() cadena @nombre
+	pub fn saludar(nombre cadena = @nombre) cadena nombre
 `,
 	})
 	generated, err := CompileProject(entry, loader)
@@ -104,7 +104,7 @@ tipo Usuario
 }
 
 func TestProjectStableOutputAndNoEntry(t *testing.T) {
-	files := map[string]string{"main.hacha": "usar a\nfn crear() a.Usuario a.Usuario {}\n", "a.hacha": "tipo Usuario\n\tx entero\n"}
+	files := map[string]string{"main.cometa": "usar a\npub fn crear() a.Usuario a.Usuario {}\n", "a.cometa": "pub tipo Usuario\n\tpub x entero\n"}
 	first, loadFirst := memoryProject(t, files)
 	second, loadSecond := memoryProject(t, files)
 	a, err := CompileProject(first, loadFirst)
@@ -122,14 +122,14 @@ func TestProjectStableOutputAndNoEntry(t *testing.T) {
 
 func TestProjectPhysicalIdentity(t *testing.T) {
 	dir := t.TempDir()
-	lib := filepath.Join(dir, "lib.hacha")
-	if err := os.WriteFile(lib, []byte("fn f() imprimir(1)\n"), 0600); err != nil {
+	lib := filepath.Join(dir, "lib.cometa")
+	if err := os.WriteFile(lib, []byte("pub fn f() imprimir(1)\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Symlink(lib, filepath.Join(dir, "alias.hacha")); err != nil {
+	if err := os.Symlink(lib, filepath.Join(dir, "alias.cometa")); err != nil {
 		t.Skipf("symlinks unavailable: %v", err)
 	}
-	entry := filepath.Join(dir, "main.hacha")
+	entry := filepath.Join(dir, "main.cometa")
 	if err := os.WriteFile(entry, []byte("usar lib\nusar alias\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -144,20 +144,20 @@ func TestProjectFailures(t *testing.T) {
 		{"cycle", "usar a\n", "usar main\n", "", "ciclo"},
 		{"self", "usar main\n", "", "", "ciclo"},
 		{"duplicate", "usar a\nusar ./a como otro\n", "", "", "duplicada"},
-		{"alias", "usar a\nfn a()\n\timprimir(1)\n", "", "", "conflicto"},
+		{"alias", "usar a\npub fn a()\n\timprimir(1)\n", "", "", "conflicto"},
 		{"entry", "usar a\n", "fn inicio() imprimir(1)\n", "", "inicio"},
-		{"reexport", "usar a\nfn inicio() a.b.f()\n", "usar b\n", "fn f() imprimir(1)\n", "desconocida"},
-		{"leak", "usar a\nfn inicio() f()\n", "fn f() imprimir(1)\n", "", "desconocida"},
-		{"nominal", "usar a\nusar b\nfn f(valor a.Usuario)\n\timprimir(valor)\nfn inicio() f(b.Usuario {})\n", "tipo Usuario\n\tx entero\n", "tipo Usuario\n\tx entero\n", "Usuario"},
-		{"dependency error", "usar a\n", "fn f() entero \"error\"\n", "", "entero"},
+		{"reexport", "usar a\nfn inicio() a.b.f()\n", "usar b\n", "pub fn f() imprimir(1)\n", "desconocida"},
+		{"leak", "usar a\nfn inicio() f()\n", "pub fn f() imprimir(1)\n", "", "desconocida"},
+		{"nominal", "usar a\nusar b\npub fn f(valor a.Usuario)\n\timprimir(valor)\nfn inicio() f(b.Usuario {})\n", "pub tipo Usuario\n\tpub x entero\n", "pub tipo Usuario\n\tpub x entero\n", "Usuario"},
+		{"dependency error", "usar a\n", "pub fn f() entero \"error\"\n", "", "entero"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			entry, loader := memoryProject(t, map[string]string{"main.hacha": tc.root, "a.hacha": tc.a, "b.hacha": tc.b})
+			entry, loader := memoryProject(t, map[string]string{"main.cometa": tc.root, "a.cometa": tc.a, "b.cometa": tc.b})
 			_, err := CompileProject(entry, loader)
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("want %q, got %v", tc.want, err)
 			}
-			if tc.name == "dependency error" && !strings.Contains(err.Error(), "a.hacha:1:") {
+			if tc.name == "dependency error" && !strings.Contains(err.Error(), "a.cometa:1:") {
 				t.Fatal(err)
 			}
 		})
@@ -166,10 +166,10 @@ func TestProjectFailures(t *testing.T) {
 
 func TestProjectDiamondAndShadowing(t *testing.T) {
 	entry, loader := memoryProject(t, map[string]string{
-		"main.hacha":  "usar a\nusar sub/b como b\nfn inicio()\n\tvar a = b.crear()\n\timprimir(a.nombre)\n",
-		"a.hacha":     "usar comun\nfn crear() comun.Usuario comun.Usuario {}\n",
-		"sub/b.hacha": "usar ../comun\nfn crear() comun.Usuario comun.Usuario {}\n",
-		"comun.hacha": "tipo Usuario\n\tnombre cadena\n",
+		"main.cometa":  "usar a\nusar sub/b como b\nfn inicio()\n\tvar a = b.crear()\n\timprimir(a.nombre)\n",
+		"a.cometa":     "usar comun\npub fn crear() comun.Usuario comun.Usuario {}\n",
+		"sub/b.cometa": "usar ../comun\npub fn crear() comun.Usuario comun.Usuario {}\n",
+		"comun.cometa": "pub tipo Usuario\n\tpub nombre cadena\n",
 	})
 	project, err := AnalyzeProject(entry, loader)
 	if err != nil {

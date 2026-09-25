@@ -1,17 +1,17 @@
 package parser
 
 import (
-	"hacha/internal/ast"
-	"hacha/internal/lexer"
+	"cometa/internal/ast"
+	"cometa/internal/lexer"
 	"testing"
 )
 
 func TestEmbeddedFields(t *testing.T) {
-	tokens, err := lexer.Lex("embedding.hacha", "tipo Empleado<T>\n\tPersona // anónimo\n\tCaja<T>\n\tpuesto cadena\n\terror !\n")
+	tokens, err := lexer.Lex("embedding.cometa", "tipo Empleado<T>\n\tPersona // anónimo\n\tCaja<T>\n\tpuesto cadena\n\terror !\n")
 	if err != nil {
 		t.Fatal(err)
 	}
-	program, err := Parse("embedding.hacha", tokens)
+	program, err := Parse("embedding.cometa", tokens)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -20,11 +20,11 @@ func TestEmbeddedFields(t *testing.T) {
 		t.Fatalf("unexpected fields: %+v", fields)
 	}
 	for _, source := range []string{"tipo A\n\tCaja<>\n", "tipo A\n\tCaja<entero> extra\n", "tipo A\n\tPersona Persona extra\n"} {
-		tokens, err := lexer.Lex("bad.hacha", source)
+		tokens, err := lexer.Lex("bad.cometa", source)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := Parse("bad.hacha", tokens); err == nil {
+		if _, err := Parse("bad.cometa", tokens); err == nil {
 			t.Fatalf("accepted %s", source)
 		}
 	}

@@ -1,8 +1,8 @@
 package parser
 
 import (
-	"hacha/internal/ast"
-	"hacha/internal/lexer"
+	"cometa/internal/ast"
+	"cometa/internal/lexer"
 	"testing"
 )
 
@@ -26,11 +26,11 @@ fn inicio()
 		[entero] => imprimir(p)
 		_ => imprimir(0)
 `
-	tokens, err := lexer.Lex("generic.hacha", source)
+	tokens, err := lexer.Lex("generic.cometa", source)
 	if err != nil {
 		t.Fatal(err)
 	}
-	program, err := Parse("generic.hacha", tokens)
+	program, err := Parse("generic.cometa", tokens)
 	if err != nil {
 		t.Fatal(err)
 	}

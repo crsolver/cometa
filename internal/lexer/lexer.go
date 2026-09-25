@@ -5,9 +5,9 @@ import (
 	"strings"
 	"unicode"
 
-	"hacha/internal/ast"
-	"hacha/internal/diagnostic"
-	"hacha/internal/token"
+	"cometa/internal/ast"
+	"cometa/internal/diagnostic"
+	"cometa/internal/token"
 )
 
 type Error struct {
@@ -25,7 +25,8 @@ func (e *Error) Diagnostic() (string, ast.Pos, string, string) {
 }
 
 var keywords = map[string]token.Kind{
-	"con": token.Con,
+	"pub":      token.Pub,
+	"con":      token.Con,
 	"usar":     token.Usar,
 	"interfaz": token.Interfaz, "como": token.Como,
 	"o": token.Fallback, "capturar": token.Catch, "intentar": token.Try, "retornar": token.Return,

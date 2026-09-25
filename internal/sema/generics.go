@@ -2,8 +2,8 @@ package sema
 
 import (
 	"fmt"
-	"hacha/internal/ast"
-	"hacha/internal/stdlib"
+	"cometa/internal/ast"
+	"cometa/internal/stdlib"
 	"sort"
 )
 
@@ -434,6 +434,10 @@ func (c *checker) resolveType(ref ast.TypeRef) (Type, error) {
 }
 
 func substitute(t Type, bindings map[string]Type) Type {
+	if t.Key != nil {
+		key := substitute(*t.Key, bindings)
+		t.Key = &key
+	}
 	if t.Kind == TypeParameter {
 		if actual, ok := bindings[paramKey(t)]; ok {
 			return actual
@@ -496,6 +500,9 @@ func (m *Model) StructInfo(t Type) *TypeInfo {
 }
 
 func (m *Model) Methods(t Type) map[string]FuncInfo {
+	if t.Kind == Map {
+		return MapMethods(t)
+	}
 	if t.Kind == Slice {
 		return ListMethods(t)
 	}
@@ -557,7 +564,18 @@ func (m *Model) Assignable(from, to Type) bool {
 	if to.Kind != Interface || from.Kind == Void || from.Kind == Invalid {
 		return false
 	}
+	// Map operations are compiler intrinsics, not methods on a Go map value.
+	if from.Kind == Map && len(m.Methods(to)) != 0 {
+		return false
+	}
 	have := m.Methods(from)
+	if from.Kind == Named {
+		for name, member := range m.Members(from) {
+			if !member.Public() {
+				delete(have, name)
+			}
+		}
+	}
 	for name, want := range m.Methods(to) {
 		actual, ok := have[name]
 		if !ok || !sameSignature(actual, want) {
@@ -706,6 +724,9 @@ func (c *checker) inferFunction(call *ast.CallExpr, f FuncInfo) (FuncInfo, error
 		if pattern.Kind != actual.Kind || pattern.Name != actual.Name || len(pattern.Args) != len(actual.Args) {
 			return true
 		}
+		if pattern.Key != nil && actual.Key != nil && !unify(*pattern.Key, *actual.Key) {
+			return false
+		}
 		if pattern.Elem != nil && actual.Elem != nil && !unify(*pattern.Elem, *actual.Elem) {
 			return false
 		}
@@ -773,6 +794,15 @@ func contextualOnly(e ast.Expr) bool {
 	switch e := e.(type) {
 	case *ast.StructLiteralExpr:
 		return e.TypeName == ""
+	case *ast.MapLiteralExpr:
+		if len(e.Entries) == 0 {
+			return true
+		}
+		for _, entry := range e.Entries {
+			if contextualOnly(entry.Key) || contextualOnly(entry.Value) {
+				return true
+			}
+		}
 	case *ast.ListLiteralExpr:
 		if len(e.Elements) == 0 {
 			return true

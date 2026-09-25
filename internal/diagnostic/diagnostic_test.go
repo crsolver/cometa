@@ -2,17 +2,17 @@ package diagnostic_test
 
 import (
 	"errors"
-	"hacha/internal/ast"
-	"hacha/internal/diagnostic"
-	"hacha/internal/lexer"
-	"hacha/internal/sema"
+	"cometa/internal/ast"
+	"cometa/internal/diagnostic"
+	"cometa/internal/lexer"
+	"cometa/internal/sema"
 	"testing"
 )
 
 func TestAggregationPreservesDistinctErrorsAndTypes(t *testing.T) {
-	a := &lexer.Error{Filename: "a.hacha", Pos: ast.Pos{Line: 2, Column: 1}, Message: "léxico"}
-	b := &sema.Error{Filename: "a.hacha", Pos: a.Pos, Message: "semántico"}
-	c := &sema.Error{Filename: "b.hacha", Pos: ast.Pos{Line: 1, Column: 1}, Message: "otro"}
+	a := &lexer.Error{Filename: "a.cometa", Pos: ast.Pos{Line: 2, Column: 1}, Message: "léxico"}
+	b := &sema.Error{Filename: "a.cometa", Pos: a.Pos, Message: "semántico"}
+	c := &sema.Error{Filename: "b.cometa", Pos: ast.Pos{Line: 1, Column: 1}, Message: "otro"}
 	list := diagnostic.List{c, b, a, a}
 	err := list.Err()
 	flat := diagnostic.Flatten(err)
@@ -32,7 +32,7 @@ func TestAggregationPreservesDistinctErrorsAndTypes(t *testing.T) {
 func TestLimitSurvivesNestedAggregation(t *testing.T) {
 	var list diagnostic.List
 	for line := 120; line > 0; line-- {
-		list.Add(&sema.Error{Filename: "a.hacha", Pos: ast.Pos{Line: line, Column: 1}, Message: "error"})
+		list.Add(&sema.Error{Filename: "a.cometa", Pos: ast.Pos{Line: line, Column: 1}, Message: "error"})
 	}
 	err := list.Err()
 	for i := 0; i < 3; i++ {

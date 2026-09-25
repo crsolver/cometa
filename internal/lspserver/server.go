@@ -10,12 +10,12 @@ import (
 	"github.com/owenrumney/go-lsp/lsp"
 	"github.com/owenrumney/go-lsp/server"
 
-	"hacha/internal/ast"
-	"hacha/internal/compiler"
-	"hacha/internal/lexer"
-	"hacha/internal/parser"
-	"hacha/internal/sema"
-	"hacha/internal/token"
+	"cometa/internal/ast"
+	"cometa/internal/compiler"
+	"cometa/internal/lexer"
+	"cometa/internal/parser"
+	"cometa/internal/sema"
+	"cometa/internal/token"
 )
 
 const serverVersion = "0.1.0"
@@ -44,7 +44,7 @@ func (h *Handler) SetClient(client *server.Client) {
 
 func (h *Handler) Initialize(_ context.Context, _ *lsp.InitializeParams) (*lsp.InitializeResult, error) {
 	return &lsp.InitializeResult{
-		ServerInfo: &lsp.ServerInfo{Name: "hacha", Version: serverVersion},
+		ServerInfo: &lsp.ServerInfo{Name: "cometa", Version: serverVersion},
 		Capabilities: lsp.ServerCapabilities{
 			CompletionProvider: &lsp.CompletionOptions{TriggerCharacters: []string{".", "@"}},
 		},
@@ -54,7 +54,7 @@ func (h *Handler) Initialize(_ context.Context, _ *lsp.InitializeParams) (*lsp.I
 func (h *Handler) Shutdown(_ context.Context) error { return nil }
 
 func (h *Handler) DidOpen(ctx context.Context, params *lsp.DidOpenTextDocumentParams) error {
-	if params.TextDocument.LanguageID != "" && params.TextDocument.LanguageID != "hacha" {
+	if params.TextDocument.LanguageID != "" && params.TextDocument.LanguageID != "cometa" {
 		return nil
 	}
 	if _, err := h.documents.Open(params); err != nil {
@@ -136,7 +136,7 @@ func (h *Handler) Completion(_ context.Context, params *lsp.CompletionParams) (*
 	if arrow := strings.Index(prefix, "=>"); arrow >= 0 {
 		replacement = prefix[:arrow+2] + " "
 	}
-	const receiverProbe = "__hacha_completion_receiver__"
+	const receiverProbe = "__cometa_completion_receiver__"
 	replacement += "var " + receiverProbe + " = " + receiverName
 	model := completionModel(string(params.TextDocument.URI), lines, lineIndex, replacement)
 	if model == nil {
@@ -152,7 +152,7 @@ func (h *Handler) Completion(_ context.Context, params *lsp.CompletionParams) (*
 	if receiverType.Kind == sema.Interface || receiverType.Kind == sema.TypeParameter {
 		return resolvedMemberItems(model, receiverType), nil
 	}
-	if receiverType.Kind != sema.Named && receiverType.Kind != sema.Slice && receiverType.Kind != sema.String {
+	if receiverType.Kind != sema.Named && receiverType.Kind != sema.Slice && receiverType.Kind != sema.Map && receiverType.Kind != sema.String {
 		if receiverType.Kind == sema.Invalid {
 			if info := model.Enums[receiverName]; info != nil {
 				return enumCompletionItems(info), nil
@@ -233,7 +233,7 @@ func receiverCompletion(filename string, lines []string, lineIndex int, prefix s
 	}
 
 	analysisLines := append([]string(nil), lines...)
-	if indentEnd == 1 && strings.HasPrefix(strings.TrimSpace(lines[lineIndex]), "fn ") {
+	if indentEnd == 1 && strings.HasPrefix(strings.TrimPrefix(strings.TrimSpace(lines[lineIndex]), "pub "), "fn ") {
 		// @ may be typed as the inline body of a method declaration.
 		analysisLines[lineIndex] = prefix[:at] + "imprimir(verdadero)"
 	} else if indentEnd >= 2 {
@@ -305,7 +305,7 @@ func (h *Handler) Hover(_ context.Context, params *lsp.HoverParams) (*lsp.Hover,
 	if !ok {
 		return nil, nil
 	}
-	value := "```hacha\n" + info.detail + "\n```"
+	value := "```cometa\n" + info.detail + "\n```"
 	if info.documentation != "" {
 		value += "\n\n" + info.documentation
 	}
@@ -408,7 +408,7 @@ func resolveHover(program *ast.Program, model *sema.Model, position ast.Pos, lin
 		switch decl := declaration.(type) {
 		case *ast.InterfaceDecl:
 			if decl.NamePos == position {
-				return hoverInfo{detail: "interfaz " + decl.Name + typeParamDetail(decl.TypeParams)}, true
+				return hoverInfo{detail: publicDetail(decl.Public, "interfaz "+decl.Name+typeParamDetail(decl.TypeParams))}, true
 			}
 			for _, method := range decl.Methods {
 				if info, ok := hoverInFunction(method, model.Interfaces[decl.Name].Methods[method.Name], model, position, lines); ok {
@@ -417,7 +417,7 @@ func resolveHover(program *ast.Program, model *sema.Model, position ast.Pos, lin
 			}
 		case *ast.TypeDecl:
 			if decl.NamePos == position {
-				return hoverInfo{detail: "tipo " + decl.Name + typeParamDetail(decl.TypeParams)}, true
+				return hoverInfo{detail: publicDetail(decl.Public, "tipo "+decl.Name+typeParamDetail(decl.TypeParams))}, true
 			}
 			for _, method := range decl.Methods {
 				if info, ok := hoverInFunction(method, model.Types[decl.Name].Methods[method.Name], model, position, lines); ok {
@@ -431,7 +431,9 @@ func resolveHover(program *ast.Program, model *sema.Model, position ast.Pos, lin
 		case *ast.GlobalDecl:
 			if decl.NamePos == position {
 				global := model.Globals[decl.Name]
-				return globalHover(decl.Name, global.Type, decl.Constant), true
+				info := globalHover(decl.Name, global.Type, decl.Constant)
+				info.detail = publicDetail(decl.Public, info.detail)
+				return info, true
 			}
 			if info, ok := hoverInExpression(decl.Value, model, position, lines, ""); ok {
 				return info, true
@@ -503,8 +505,12 @@ func hoverInStatements(statements []ast.Stmt, model *sema.Model, position ast.Po
 				return info, true
 			}
 		case *ast.ScopeStmt:
-			if info, ok := hoverInExpression(stmt.Value, model, position, lines, receiverName); ok { return info, true }
-			if info, ok := hoverInStatements(stmt.Body, model, position, lines, receiverName); ok { return info, true }
+			if info, ok := hoverInExpression(stmt.Value, model, position, lines, receiverName); ok {
+				return info, true
+			}
+			if info, ok := hoverInStatements(stmt.Body, model, position, lines, receiverName); ok {
+				return info, true
+			}
 		case *ast.RepeatStmt:
 			if info, ok := hoverInExpression(stmt.RangeEnd, model, position, lines, receiverName); ok {
 				return info, true
@@ -519,11 +525,14 @@ func hoverInStatements(statements []ast.Stmt, model *sema.Model, position ast.Po
 			if info, ok := hoverInExpression(stmt.Iterable, model, position, lines, receiverName); ok {
 				return info, true
 			}
-			if iterableType, exists := model.ExprTypes[stmt.Iterable]; exists && iterableType.Kind == sema.Slice {
+			if iterableType, exists := model.ExprTypes[stmt.Iterable]; exists && (iterableType.Kind == sema.Slice || iterableType.Kind == sema.Map) {
 				if stmt.ElementPos == position {
 					return variableHover(stmt.Element, *iterableType.Elem), true
 				}
 				if stmt.IndexPos == position {
+					if iterableType.Kind == sema.Map {
+						return variableHover(stmt.Index, *iterableType.Key), true
+					}
 					return variableHover(stmt.Index, sema.Type{Kind: sema.Integer}), true
 				}
 			}
@@ -620,6 +629,9 @@ func hoverInExpression(expression ast.Expr, model *sema.Model, position ast.Pos,
 				if operation, builtin := model.ListCalls[expr]; builtin {
 					info.documentation = sema.ListMethodDocumentation(operation)
 				}
+				if operation, builtin := model.MapCalls[expr]; builtin {
+					info.documentation = sema.MapMethodDocumentation(operation)
+				}
 				if operation, builtin := model.StringCalls[expr]; builtin {
 					info.documentation = sema.StringMethodDocumentation(operation)
 				}
@@ -636,8 +648,9 @@ func hoverInExpression(expression ast.Expr, model *sema.Model, position ast.Pos,
 		case *ast.MemberExpr:
 			if callee.NamePos == position {
 				if receiverType, exists := model.ExprTypes[callee.Object]; exists && receiverType.Kind == sema.Named {
-					if method, exists := model.Types[receiverType.Name].Methods[callee.Name]; exists {
-						return functionHover(method, lines), true
+					member := model.Members(receiverType)[callee.Name]
+					if !member.Ambiguous && member.Accessible(position) && member.Method.Decl != nil {
+						return functionHover(member.Method, lines), true
 					}
 				}
 			}
@@ -690,6 +703,15 @@ func hoverInExpression(expression ast.Expr, model *sema.Model, position ast.Pos,
 	case *ast.ListLiteralExpr:
 		for _, element := range expr.Elements {
 			if info, ok := hoverInExpression(element, model, position, lines, receiverName); ok {
+				return info, true
+			}
+		}
+	case *ast.MapLiteralExpr:
+		for _, entry := range expr.Entries {
+			if info, ok := hoverInExpression(entry.Key, model, position, lines, receiverName); ok {
+				return info, true
+			}
+			if info, ok := hoverInExpression(entry.Value, model, position, lines, receiverName); ok {
 				return info, true
 			}
 		}
@@ -808,7 +830,7 @@ func diagnosticFromError(err error, text string) lsp.Diagnostic {
 	return lsp.Diagnostic{
 		Range:    lsp.Range{Start: start, End: end},
 		Severity: &severity,
-		Source:   "hacha",
+		Source:   "cometa",
 		Message:  message,
 	}
 }
@@ -836,7 +858,7 @@ func diagnosticRange(position ast.Pos, text string) (lsp.Position, lsp.Position)
 }
 
 // tokenRuneLengthAt uses the compiler's lexer as the source of truth whenever
-// lexing succeeds. This keeps diagnostic ranges aligned with Hacha tokens,
+// lexing succeeds. This keeps diagnostic ranges aligned with Cometa tokens,
 // including quoted strings and Unicode identifiers.
 func tokenRuneLengthAt(position ast.Pos, source string) int {
 	tokens, err := lexer.Lex("", source)
@@ -1000,6 +1022,9 @@ func typeRefString(ref ast.TypeRef) string {
 		return payload + "!" + errorType
 	}
 	if ref.Element != nil {
+		if ref.Key != nil {
+			return "[" + typeRefString(*ref.Key) + ": " + typeRefString(*ref.Element) + "]"
+		}
 		return "[" + typeRefString(*ref.Element) + "]"
 	}
 	name := ref.Name
@@ -1027,6 +1052,9 @@ func functionDetail(function *ast.FuncDecl) string {
 		params = append(params, detail)
 	}
 	detail := "fn " + function.Name + typeParamDetail(function.TypeParams) + "(" + strings.Join(params, ", ") + ")"
+	if function.Public {
+		detail = "pub " + detail
+	}
 	if function.ReturnType != nil {
 		detail += " " + typeRefString(*function.ReturnType)
 	}

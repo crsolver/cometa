@@ -2,8 +2,11 @@
 /.cache/
 /.gomodcache/
 /.gotmp/
-/hacha.exe
+/cometa.exe
 /bin/
 /node_modules/
 /out/
+/vscode-extension/bin/
+/vscode-extension/node_modules/
+/vscode-extension/out/
 *.vsix

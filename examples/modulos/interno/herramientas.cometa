@@ -1,0 +1,7 @@
+usar ../modelos como m
+
+// Crea un usuario con un nombre predeterminado.
+pub fn crear(nombre cadena = "Ana") m.Usuario
+	m.Usuario {nombre: nombre}
+
+pub fn identidad<T>(valor T) T valor

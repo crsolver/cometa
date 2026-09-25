@@ -1,18 +1,18 @@
 package parser
 
 import (
-	"hacha/internal/ast"
-	"hacha/internal/lexer"
+	"cometa/internal/ast"
+	"cometa/internal/lexer"
 	"testing"
 )
 
 func TestWrapperTypeGroupingAndRecoveryPrecedence(t *testing.T) {
 	source := "fn f(a entero?!, b (entero!)?, c entero!(bool?), d [entero?], e !bool) entero! a o b o c\n"
-	tokens, err := lexer.Lex("types.hacha", source)
+	tokens, err := lexer.Lex("types.cometa", source)
 	if err != nil {
 		t.Fatal(err)
 	}
-	program, err := Parse("types.hacha", tokens)
+	program, err := Parse("types.cometa", tokens)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,11 +42,11 @@ func TestWrapperTypeGroupingAndRecoveryPrecedence(t *testing.T) {
 }
 
 func TestTryCallPrecedence(t *testing.T) {
-	tokens, err := lexer.Lex("try.hacha", "fn f() entero! intentar g(1) + 2\n")
+	tokens, err := lexer.Lex("try.cometa", "fn f() entero! intentar g(1) + 2\n")
 	if err != nil {
 		t.Fatal(err)
 	}
-	program, err := Parse("try.hacha", tokens)
+	program, err := Parse("try.cometa", tokens)
 	if err != nil {
 		t.Fatal(err)
 	}

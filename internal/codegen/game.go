@@ -2,8 +2,8 @@ package codegen
 
 import (
 	"fmt"
-	"hacha/internal/ast"
-	"hacha/internal/stdlib"
+	"cometa/internal/ast"
+	"cometa/internal/stdlib"
 	"strconv"
 	"strings"
 )
@@ -32,7 +32,7 @@ func (g *generator) globalName(name string) string {
 	if !occupied[candidate] {
 		return candidate
 	}
-	candidate = fmt.Sprintf("HachaGlobal_%x", []byte(name))
+	candidate = fmt.Sprintf("CometaGlobal_%x", []byte(name))
 	for occupied[candidate] {
 		candidate += "_"
 	}

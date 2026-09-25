@@ -1,8 +1,8 @@
 package codegen
 
 import (
-	"hacha/internal/ast"
-	"hacha/internal/sema"
+	"cometa/internal/ast"
+	"cometa/internal/sema"
 	"sort"
 	"strings"
 )
@@ -55,12 +55,36 @@ func (g *generator) emitInterface(d *ast.InterfaceDecl) {
 			result = " " + goType(f.Return)
 		}
 		g.line(1, "%s(%s)%s", exported(n), strings.Join(params, ", "), result)
+		g.line(1, "%s()", visibilityMethod(n))
 	}
 	g.line(0, "}")
 	g.line(0, "")
 }
 
-func defaultMethod(d *ast.FuncDecl) string { return "_hacha_default_" + exported(d.Name) }
+func visibilityMethod(name string) string { return "_cometa_public_" + exported(name) }
+
+// Go's structural assertions must honor Cometa visibility too. A private path
+// shadows any inherited marker with an incompatible signature, so conversion
+// through an empty interface cannot expose private methods.
+func (g *generator) emitVisibilityMethods(t sema.Type) {
+	members := g.model.Members(t)
+	var names []string
+	for name, member := range members {
+		if member.Method.Decl != nil && !member.Ambiguous {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		params := ""
+		if !members[name].Public() {
+			params = "_ bool"
+		}
+		g.line(0, "func (%s) %s(%s) {}", goType(t), visibilityMethod(name), params)
+	}
+}
+
+func defaultMethod(d *ast.FuncDecl) string { return "_cometa_default_" + exported(d.Name) }
 
 // Keep the public method's signature exact for structural interface satisfaction.
 func (g *generator) emitDefaultBridge(d *ast.FuncDecl, f sema.FuncInfo) {

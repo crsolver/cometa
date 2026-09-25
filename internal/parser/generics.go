@@ -1,8 +1,8 @@
 package parser
 
 import (
-	"hacha/internal/ast"
-	"hacha/internal/token"
+	"cometa/internal/ast"
+	"cometa/internal/token"
 )
 
 func (p *parser) startsNamedResult() bool {

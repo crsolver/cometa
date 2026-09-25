@@ -1,0 +1,65 @@
+usar std/mate
+usar std/azar
+usar std/pincel/juego
+usar std/pincel/graficos
+usar std/pincel/entrada
+usar std/pincel/audio
+usar std/pincel/recursos
+
+// Mueve al jugador con WASD o las flechas. Recoge el objetivo amarillo.
+tipo Jugador
+	pos mate.Vec2
+	vel mate.Vec2
+
+	fn dibujar()
+		graficos.imagen_v(sprite, jugador.pos)
+
+var sprite = recursos.imagen("assets/jugador.png")
+var sonido = recursos.sonido("assets/recoger.wav")
+
+var jugador = Jugador {
+	pos: {x: 80, y: 100}
+}
+
+var objetivo = mate.Rect {
+	pos: {280, 160}, 
+	tamano: {20, 20}
+}
+
+fn iniciar() retornar
+
+tipo Partida
+	pub fn actualizar(dt decimal)
+		var direccion = mate.Vec2 {}
+	
+		si entrada.tecla_mantenida(.Derecha) || entrada.tecla_mantenida(.D)
+			direccion.x = 1
+		si entrada.tecla_mantenida(.Izquierda) || entrada.tecla_mantenida(.A)
+			direccion.x = -1
+		si entrada.tecla_mantenida(.Abajo) || entrada.tecla_mantenida(.S)
+			direccion.y = 1
+		si entrada.tecla_mantenida(.Arriba) || entrada.tecla_mantenida(.W)
+			direccion.y = -1
+	
+		jugador.vel = direccion.normalizado() * 140
+		jugador.pos = jugador.pos + jugador.vel * dt
+		jugador.pos.x = mate.limitar(jugador.pos.x, 0, 464)
+		jugador.pos.y = mate.limitar(jugador.pos.y, 40, 304)
+	
+		si mate.Rect{jugador.pos, {16, 16}}.interseca(objetivo)
+			audio.reproducir(sonido, volumen = 0.3)
+			objetivo.pos = {
+				x: azar.entero(20, 440), 
+				y: azar.entero(60, 280)
+			}
+
+	pub fn pintar()
+		graficos.limpiar(.Negro)
+		jugador.dibujar()
+		graficos.rectangulo_rect(objetivo, .Amarillo)
+		graficos.texto_depuracion_v("WASD / flechas: mover. Recoge el objetivo amarillo.", {8, 12})
+
+fn inicio()
+	iniciar()
+	juego.ejecutar(Partida {}, 480, 320, titulo = "Cometa: recoge el objetivo", escala = 2) capturar |error|
+		imprimir(error)

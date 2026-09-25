@@ -4,7 +4,7 @@ import (
 	"context"
 	"github.com/owenrumney/go-lsp/lsp"
 	"github.com/owenrumney/go-lsp/servertest"
-	"hacha/internal/stdlib"
+	"cometa/internal/stdlib"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -23,7 +23,7 @@ func TestPincelImportedDefinitions(t *testing.T) {
 		{"usar std/pincel/color como c\nfn f(valor c.§Color) imprimir(valor)\n", "std/pincel/color", "tipo Color"},
 	} {
 		h := NewHandler()
-		uri := lsp.DocumentURI("file:///native-def.hacha")
+		uri := lsp.DocumentURI("file:///native-def.cometa")
 		source, pos := markerPosition(tc.source)
 		if _, err := h.documents.Open(&lsp.DidOpenTextDocumentParams{TextDocument: lsp.TextDocumentItem{URI: uri, Text: source}}); err != nil {
 			t.Fatal(err)
@@ -32,7 +32,7 @@ func TestPincelImportedDefinitions(t *testing.T) {
 		if err != nil || len(locations) != 1 {
 			t.Fatalf("definition for %s: %v %v", tc.source, locations, err)
 		}
-		if string(locations[0].URI) != "hacha-std:///"+tc.path+".hacha" {
+		if string(locations[0].URI) != "cometa-std:///"+tc.path+".cometa" {
 			t.Fatalf("wrong native URI: %v", locations)
 		}
 		reference, _ := stdlib.Source(tc.path)
@@ -45,9 +45,9 @@ func TestPincelImportedDefinitions(t *testing.T) {
 
 func TestNoImplicitGameCompletion(t *testing.T) {
 	h := servertest.New(t, NewHandler())
-	uri := lsp.DocumentURI("file:///no-native-import.hacha")
+	uri := lsp.DocumentURI("file:///no-native-import.cometa")
 	source, pos := markerPosition("fn inicio()\n\tgraficos.§\n")
-	if err := h.DidOpen(uri, "hacha", source); err != nil {
+	if err := h.DidOpen(uri, "cometa", source); err != nil {
 		t.Fatal(err)
 	}
 	list, err := h.Completion(uri, pos.Line, pos.Character)
@@ -73,7 +73,7 @@ func TestGameAssetsWithEncodedFileURI(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "assets", "jugador.png"), image, 0600); err != nil {
 		t.Fatal(err)
 	}
-	u, err := url.Parse(string(fileURI(filepath.Join(dir, "juego.hacha"))))
+	u, err := url.Parse(string(fileURI(filepath.Join(dir, "juego.cometa"))))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +82,7 @@ func TestGameAssetsWithEncodedFileURI(t *testing.T) {
 	h := servertest.New(t, NewHandler())
 	// The source only exists in the document overlay, as with an unsaved edit.
 	source := pincelImports + "var sprite = recursos.imagen(\"assets/jugador.png\")\nfn actualizar(dt decimal) imprimir(dt)\nfn pintar() graficos.imagen_v(sprite, mate.Vec2 {})\n"
-	if err := h.DidOpen(uri, "hacha", source); err != nil {
+	if err := h.DidOpen(uri, "cometa", source); err != nil {
 		t.Fatal(err)
 	}
 	if diagnostics := waitForDiagnostics(t, h, uri); len(diagnostics) != 0 {
@@ -137,9 +137,9 @@ func TestGameCompletion(t *testing.T) {
 	} {
 		t.Run(tt.label, func(t *testing.T) {
 			h := servertest.New(t, NewHandler())
-			uri := lsp.DocumentURI("file:///game.hacha")
+			uri := lsp.DocumentURI("file:///game.cometa")
 			source, pos := markerPosition("usar std/pincel/retro\n" + pincelImports + "fn actualizar(dt decimal) imprimir(dt)\nfn pintar()\n\t" + tt.body + "\n")
-			if err := h.DidOpen(uri, "hacha", source); err != nil {
+			if err := h.DidOpen(uri, "cometa", source); err != nil {
 				t.Fatal(err)
 			}
 			list, err := h.Completion(uri, pos.Line, pos.Character)
@@ -158,9 +158,9 @@ func TestGameCompletion(t *testing.T) {
 
 func TestVectorReceiverFieldCompletion(t *testing.T) {
 	h := servertest.New(t, NewHandler())
-	uri := lsp.DocumentURI("file:///vector-receiver.hacha")
+	uri := lsp.DocumentURI("file:///vector-receiver.cometa")
 	source, pos := markerPosition(pincelImports + "tipo Jugador\n\tpos mate.Vec2\n\tfn mover()\n\t\t@pos.§\n")
-	if err := h.DidOpen(uri, "hacha", source); err != nil {
+	if err := h.DidOpen(uri, "cometa", source); err != nil {
 		t.Fatal(err)
 	}
 	list, err := h.Completion(uri, pos.Line, pos.Character)
@@ -168,7 +168,7 @@ func TestVectorReceiverFieldCompletion(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, item := range list.Items {
-		if item.Label == "normalizado" && item.Detail == "fn normalizado() mate.Vec2" {
+		if item.Label == "normalizado" && item.Detail == "pub fn normalizado() mate.Vec2" {
 			return
 		}
 	}
@@ -177,9 +177,9 @@ func TestVectorReceiverFieldCompletion(t *testing.T) {
 
 func TestGameHover(t *testing.T) {
 	h := servertest.New(t, NewHandler())
-	uri := lsp.DocumentURI("file:///game.hacha")
+	uri := lsp.DocumentURI("file:///game.cometa")
 	source, pos := markerPosition(pincelImports + "fn actualizar(dt decimal) imprimir(dt)\nfn pintar()\n\tgraficos.§rectangulo_v(mate.Vec2 {}, mate.Vec2 {x: 2}, .Rojo)\n")
-	if err := h.DidOpen(uri, "hacha", source); err != nil {
+	if err := h.DidOpen(uri, "cometa", source); err != nil {
 		t.Fatal(err)
 	}
 	hover, err := h.Hover(uri, pos.Line, pos.Character)
@@ -191,9 +191,9 @@ func TestGameHover(t *testing.T) {
 func TestGameMethodHover(t *testing.T) {
 	for _, expr := range []string{"mate.Vec2 {}.§longitud()", "mate.Rect {}.§contiene({})", "mate.§pi"} {
 		h := servertest.New(t, NewHandler())
-		uri := lsp.DocumentURI("file:///game.hacha")
+		uri := lsp.DocumentURI("file:///game.cometa")
 		source, pos := markerPosition(pincelImports + "fn actualizar(dt decimal) imprimir(dt)\nfn pintar()\n\timprimir(" + expr + ")\n")
-		if err := h.DidOpen(uri, "hacha", source); err != nil {
+		if err := h.DidOpen(uri, "cometa", source); err != nil {
 			t.Fatal(err)
 		}
 		hover, err := h.Hover(uri, pos.Line, pos.Character)

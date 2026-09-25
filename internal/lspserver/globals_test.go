@@ -10,9 +10,9 @@ import (
 
 func TestGlobalSymbolsAndHover(t *testing.T) {
 	harness := servertest.New(t, NewHandler())
-	uri := lsp.DocumentURI("file:///globales.hacha")
+	uri := lsp.DocumentURI("file:///globales.cometa")
 	source := "const limite = 10\nvar contador entero = limite\nfn inicio()\n\timprimir(contador)\n"
-	if err := harness.DidOpen(uri, "hacha", source); err != nil {
+	if err := harness.DidOpen(uri, "cometa", source); err != nil {
 		t.Fatal(err)
 	}
 	if diagnostics := waitForDiagnostics(t, harness, uri); len(diagnostics) != 0 {

@@ -18,8 +18,8 @@ func TestListMethodCompletionForVariablesFieldsAndIndexes(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			harness := servertest.New(t, NewHandler())
-			uri := lsp.DocumentURI("file:///listas-completar-" + tc.name + ".hacha")
-			if err := harness.DidOpen(uri, "hacha", tc.source); err != nil {
+			uri := lsp.DocumentURI("file:///listas-completar-" + tc.name + ".cometa")
+			if err := harness.DidOpen(uri, "cometa", tc.source); err != nil {
 				t.Fatal(err)
 			}
 			_ = waitForDiagnostics(t, harness, uri)
@@ -44,9 +44,9 @@ func TestListMethodCompletionForVariablesFieldsAndIndexes(t *testing.T) {
 
 func TestListMethodHoverShowsConcreteSignatureAndMutation(t *testing.T) {
 	harness := servertest.New(t, NewHandler())
-	uri := lsp.DocumentURI("file:///listas-hover.hacha")
+	uri := lsp.DocumentURI("file:///listas-hover.cometa")
 	source := "fn inicio()\n\tvar valores = [1]\n\tvalores.agregar(2)\n"
-	if err := harness.DidOpen(uri, "hacha", source); err != nil {
+	if err := harness.DidOpen(uri, "cometa", source); err != nil {
 		t.Fatal(err)
 	}
 	if diagnostics := waitForDiagnostics(t, harness, uri); len(diagnostics) != 0 {

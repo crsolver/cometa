@@ -1,8 +1,8 @@
 package sema
 
 import (
-	"hacha/internal/ast"
-	"hacha/internal/stdlib"
+	"cometa/internal/ast"
+	"cometa/internal/stdlib"
 	"reflect"
 )
 
@@ -53,7 +53,7 @@ func (c *checker) installGameAPI() error {
 		}
 		methods[name] = info
 	}
-	c.model.Interfaces[stdlib.Symbol("Juego")] = &InterfaceInfo{Decl: &ast.InterfaceDecl{Name: stdlib.Symbol("Juego")}, Methods: methods}
+	c.model.Interfaces[stdlib.Symbol("Juego")] = &InterfaceInfo{Decl: &ast.InterfaceDecl{Name: stdlib.Symbol("Juego"), Public: true}, Methods: methods}
 	return nil
 }
 
@@ -136,7 +136,9 @@ func WalkSyntax(node any, visit func(any)) {
 }
 
 func (c *checker) checkGame(program *ast.Program) error {
-	if err := c.checkUIPhases(program); err != nil { return err }
+	if err := c.checkUIPhases(program); err != nil {
+		return err
+	}
 	WalkSyntax(program, func(n any) {
 		if ref, ok := n.(*ast.TypeRef); ok && stdlib.IsType(ref.Name) {
 			c.model.Game.Used = true

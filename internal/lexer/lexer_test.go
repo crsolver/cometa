@@ -4,11 +4,11 @@ import (
 	"strings"
 	"testing"
 
-	"hacha/internal/token"
+	"cometa/internal/token"
 )
 
 func TestRangeAndDecimalTokens(t *testing.T) {
-	tokens, err := Lex("rango.hacha", "0..5 0.5..2.5 1... 1.25 .Variante")
+	tokens, err := Lex("rango.cometa", "0..5 0.5..2.5 1... 1.25 .Variante")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -25,7 +25,7 @@ func TestRangeAndDecimalTokens(t *testing.T) {
 
 func TestIndentationAndComments(t *testing.T) {
 	source := "tipo Usuario\n\tnombre cadena\n\t// comentario ignorado\n\tfn valor() entero\n\t\t1\nfn inicio()\n\timprimir(\"ok\")\n"
-	tokens, err := Lex("prueba.hacha", source)
+	tokens, err := Lex("prueba.cometa", source)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +42,7 @@ func TestIndentationAndComments(t *testing.T) {
 }
 
 func TestLiteralsAndOperators(t *testing.T) {
-	tokens, err := Lex("prueba.hacha", "fn elegir(a entero) bool si (a <= 4.5) verdadero sino falso\n")
+	tokens, err := Lex("prueba.cometa", "fn elegir(a entero) bool si (a <= 4.5) verdadero sino falso\n")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +60,7 @@ func TestLiteralsAndOperators(t *testing.T) {
 }
 
 func TestVariableAndCompositeLiteralTokens(t *testing.T) {
-	tokens, err := Lex("variables.hacha", "fn inicio()\n\tvar usuario Usuario = {nombre: \"Ana\"}\n\tusuario.activar(verdadero)\n")
+	tokens, err := Lex("variables.cometa", "fn inicio()\n\tvar usuario Usuario = {nombre: \"Ana\"}\n\tusuario.activar(verdadero)\n")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +78,7 @@ func TestVariableAndCompositeLiteralTokens(t *testing.T) {
 }
 
 func TestRepeatAndLoopControlTokens(t *testing.T) {
-	tokens, err := Lex("ciclos.hacha", "fn inicio()\n\trepetir ([1, 2]) |valor, indice|\n\t\tsi (indice == 0) continuar\n\t\tromper\n")
+	tokens, err := Lex("ciclos.cometa", "fn inicio()\n\trepetir ([1, 2]) |valor, indice|\n\t\tsi (indice == 0) continuar\n\t\tromper\n")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,14 +101,14 @@ func TestRepeatAndLoopControlTokens(t *testing.T) {
 }
 
 func TestRejectsSpaceIndentation(t *testing.T) {
-	_, err := Lex("malo.hacha", "fn inicio()\n    imprimir(\"no\")\n")
-	if err == nil || !strings.Contains(err.Error(), "malo.hacha:2:1") {
+	_, err := Lex("malo.cometa", "fn inicio()\n    imprimir(\"no\")\n")
+	if err == nil || !strings.Contains(err.Error(), "malo.cometa:2:1") {
 		t.Fatalf("expected positioned indentation error, got %v", err)
 	}
 }
 
 func TestIgnoresWhitespaceOnBlankAndCommentLines(t *testing.T) {
-	_, err := Lex("bien.hacha", "fn inicio()\n   \n  // comentario\n\timprimir(\"sí\")\n")
+	_, err := Lex("bien.cometa", "fn inicio()\n   \n  // comentario\n\timprimir(\"sí\")\n")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,0 +1,17 @@
+fn inicio()
+	var valores = [
+		10,
+		20,
+		20,
+	]
+	valores.agregar(40)
+	valores.insertar(0, 5)
+
+	imprimir(valores.longitud())
+	imprimir(valores.contiene(20))
+	imprimir(valores.buscar_indice(40) o -1)
+	imprimir(valores.obtener(99) o 0)
+
+	var copia = valores.copiar()
+	copia.invertir()
+	repetir (copia) |valor| imprimir(valor)

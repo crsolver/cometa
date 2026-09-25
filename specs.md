@@ -1,6 +1,6 @@
-# Hacha: especificación del MVP
+# Cometa: especificación del MVP
 
-Hacha es un lenguaje estáticamente tipado, con sintaxis en español e indentación significativa, de propósito general con bibliotecas opcionales para juegos 2D. El compilador está escrito en Go y genera un único archivo Go perteneciente a `package main`.
+Cometa es un lenguaje estáticamente tipado, con sintaxis en español e indentación significativa, de propósito general con bibliotecas opcionales para juegos 2D. El compilador está escrito en Go y genera un único archivo Go perteneciente a `package main`.
 
 ## Diagnósticos y recuperación
 
@@ -20,9 +20,9 @@ Un AST o modelo parcial nunca permite generar Go, construir ni ejecutar. Los err
 
 Los tipos se califican: `mate.Vec2`, `mate.Rect`, `graficos.Camara2D`, `color.Color`, `entrada.Tecla`, `entrada.BotonRaton`, `graficos.Imagen`, `graficos.Fuente`, `audio.Sonido` y `audio.Reproduccion`. Los seis primeros conservan semántica de valor; los recursos son handles opacos compartidos. Sus nombres no están reservados globalmente. Se conservan operadores vectoriales, métodos, literales nombrados/posicionales y constantes contextuales.
 
-`fn inicio()` es el único punto de entrada. Se llama explícitamente a `juego.ejecutar(instancia, ...)`, que recibe un objeto compatible con la interfaz estructural `juego.Juego`: métodos `actualizar(dt decimal)` y `pintar()`, ambos sin resultado. La biblioteca invoca esos métodos; pueden pertenecer a un módulo importado. Los nombres de funciones globales no activan ningún perfil. No se invoca `iniciar` automáticamente y se elimina `juego.configuracion`.
+`fn inicio()` es el único punto de entrada. Se llama explícitamente a `juego.ejecutar(instancia, ...)`, que recibe un objeto compatible con la interfaz estructural `juego.Juego`: métodos `pub fn actualizar(dt decimal)` y `pub fn pintar()`, ambos sin resultado. La biblioteca invoca esos métodos; pueden pertenecer a un módulo importado. Los nombres de funciones globales no activan ningún perfil. No se invoca `iniciar` automáticamente y se elimina `juego.configuracion`.
 
-La llamada acepta dimensiones, título, escala, redimensionamiento, pantalla completa y TPS; mantiene los defaults 320×180, "Hacha", escala 1 y 60 TPS. Valida la configuración, inicia Ebitengine y bloquea hasta cerrar la ventana. Devuelve `!`: `.Ok` al cerrar, `.Error(cadena)` ante configuración inválida, otra ejecución en el mismo proceso o un error del backend. El usuario prepara su estado antes de la llamada. `dt` son segundos por tick.
+La llamada acepta dimensiones, título, escala, redimensionamiento, pantalla completa y TPS; mantiene los defaults 320×180, "Cometa", escala 1 y 60 TPS. Valida la configuración, inicia Ebitengine y bloquea hasta cerrar la ventana. Devuelve `!`: `.Ok` al cerrar, `.Error(cadena)` ante configuración inválida, otra ejecución en el mismo proceso o un error del backend. El usuario prepara su estado antes de la llamada. `dt` son segundos por tick.
 
 Dibujar requiere estar dentro de la fase activa de `pintar`; la biblioteca lo comprueba en ejecución, también en helpers. Ya no hay análisis de efectos del ciclo de juego en el compilador. Se conservan recursos con rutas literales en inicializadores globales directos, relativas al archivo declarante, validados e incorporados en compilación.
 
@@ -37,13 +37,13 @@ Los parámetros opcionales finales de `juego.ejecutar` son `pixelado bool = fals
 ## Compilar
 
 ```console
-hacha compilar programa.hacha
-hacha compilar programa.hacha -o salida.go
+cometa compilar programa.cometa
+cometa compilar programa.cometa -o salida.go
 ```
 
 Sin `-o`, la salida usa el mismo nombre base con la extensión `.go`. El compilador formatea y verifica los tipos del código Go antes de escribirlo. Los errores incluyen archivo, línea y columna.
 
-El mismo ejecutable inicia el servidor LSP mediante `hacha lsp`. El servidor se comunica por entrada/salida estándar, publica los errores del compilador al abrir, cambiar o guardar un documento, ofrece el esquema jerárquico del archivo, completa campos y métodos después de `.` o de `@` dentro de métodos, y muestra los tipos inferidos de variables y las firmas de funciones al pasar el cursor. Las líneas `//` consecutivas inmediatamente anteriores a una función se muestran como su documentación.
+El mismo ejecutable inicia el servidor LSP mediante `cometa lsp`. El servidor se comunica por entrada/salida estándar, publica los errores del compilador al abrir, cambiar o guardar un documento, ofrece el esquema jerárquico del archivo, completa campos y métodos después de `.` o de `@` dentro de métodos, y muestra los tipos inferidos de variables y las firmas de funciones al pasar el cursor. Las líneas `//` consecutivas inmediatamente anteriores a una función se muestran como su documentación.
 
 ## Indentación y comentarios
 
@@ -55,7 +55,7 @@ El mismo ejecutable inicia el servidor LSP mediante `hacha lsp`. El servidor se 
 
 ## Parámetros variádicos y argumentos nombrados
 
-```hacha
+```cometa
 fn sumar(base entero, valores ...entero) entero
 	var total = base
 	repetir (valores) |valor|
@@ -81,7 +81,7 @@ fn inicio()
 
 ## Valores predeterminados de parámetros
 
-```hacha
+```cometa
 fn saludar(nombre cadena = "mundo", saludo cadena = "hola " + nombre) cadena
 	saludo
 
@@ -100,7 +100,7 @@ fn inicio()
 
 ## Tipos
 
-| Hacha | Go |
+| Cometa | Go |
 | --- | --- |
 | `entero` | `int64` |
 | `decimal` | `float64` |
@@ -127,7 +127,7 @@ La promoción a `decimal` usa redondeo IEEE-754: por encima de `2^53` algunos en
 
 `+` concatena dos valores `cadena`; no convierte otros tipos automáticamente. Una cadena puede incluir expresiones con `${expresión}`. La interpolación acepta `cadena`, `entero`, `decimal` y `bool`, evalúa cada expresión una sola vez de izquierda a derecha y representa booleanos como `verdadero` o `falso`. `\${` escribe los caracteres `${` literalmente. Las cadenas interpoladas son expresiones de ejecución y no se admiten en `const`.
 
-```hacha
+```cometa
 var nombre = "Ana"
 imprimir("Hola " + nombre)
 imprimir("${nombre}, tienes ${20 + 1} años")
@@ -153,7 +153,7 @@ Los índices y longitudes cuentan puntos de código Unicode. Los índices deben 
 
 `dividir("")` divide por punto de código y devuelve una lista vacía para la cadena vacía. `reemplazar("", texto)` inserta el reemplazo en los límites entre puntos de código, incluidos ambos extremos. Los métodos no modifican el receptor.
 
-```hacha
+```cometa
 tipo Usuario
 	nombre cadena
 	edad entero
@@ -166,7 +166,7 @@ tipo Usuario
 
 `interfaz Nombre` declara un conjunto de firmas de métodos. Su cuerpo indentado contiene firmas `fn` sin cuerpo ni valores predeterminados, o nombres de otras interfaces que incorpora. Una declaración sin cuerpo es una interfaz vacía y acepta cualquier tipo que produzca un valor.
 
-```hacha
+```cometa
 interfaz Describible
 	fn describir() cadena
 
@@ -175,7 +175,7 @@ interfaz Proveedor<T>
 
 tipo Caja<T>
 	valor T
-	fn obtener() T @valor
+	pub fn obtener() T @valor
 
 fn identidad<T>(valor T) T valor
 fn describir<T Describible>(valor T) cadena valor.describir()
@@ -197,7 +197,7 @@ fn describir<T Describible>(valor T) cadena valor.describir()
 
 `como` tiene menor precedencia que la aritmética y mayor que las comparaciones. Para extraer el resultado antes de acceder a sus miembros, agrúpelo: `(valor como Usuario) o alternativa`.
 
-```hacha
+```cometa
 interfaz Cualquiera
 
 fn mostrar(valor Cualquiera)
@@ -221,13 +221,13 @@ En `casos` sobre una interfaz, las etiquetas son tipos completos. La ligadura ti
 - Las estructuras y enums instanciados conservan referencias: `Caja<Usuario>` genera `*Caja[*Usuario]` en Go. Los parámetros de tipo y las interfaces se generan sin añadir un puntero adicional.
 - En expresiones, una secuencia completa `<tipos>` después de un nombre seguida por `(`, `{` o `.` se interpreta como argumentos de tipo antes que como comparaciones. Se admiten cierres anidados `>>`. El resto de comparaciones conserva su sintaxis.
 
-Consulte `examples/interfaces_genericos.hacha`.
+Consulte `examples/interfaces_genericos.cometa`.
 
 ## Globales y constantes
 
-`var` y `const` pueden declararse sin indentación al nivel superior. Ambas formas requieren un inicializador y aceptan un tipo explícito opcional. Las globales forman parte del mismo espacio de nombres que los tipos y funciones, son públicas y se acceden desde otro módulo mediante su alias.
+`var` y `const` pueden declararse sin indentación al nivel superior. Ambas formas requieren un inicializador y aceptan un tipo explícito opcional. Las globales forman parte del mismo espacio de nombres que los tipos y funciones. Son privadas por defecto; `pub var` y `pub const` permiten acceder desde otro módulo mediante su alias.
 
-```hacha
+```cometa
 const limite entero = 10
 var contador = 0
 
@@ -245,7 +245,7 @@ Dentro de una función, `var` declara una variable local. El tipo puede inferirs
 
 Un literal puede usar valores posicionales, que corresponden a los campos directos en el orden de su declaración. Los campos embebidos ocupan una posición; los campos promovidos no. Se permite proporcionar solo un prefijo y los campos restantes usan las mismas reglas de valores predeterminados o de inicialización obligatoria. Un literal no puede mezclar valores posicionales y campos nombrados. Cambiar el orden de los campos cambia el significado de los literales posicionales existentes.
 
-```hacha
+```cometa
 var usuario1 = Usuario {
 	nombre: "andres",
 	edad: 29
@@ -261,7 +261,9 @@ var usuario3 = Usuario {"Ana", 29}
 
 Las listas no vacías infieren su tipo desde el primer elemento y exigen que los demás sean compatibles. Una lista vacía requiere un tipo esperado.
 
-```hacha
+Los literales de lista admiten varias líneas después de `[`: los elementos se indentan con tabuladores y `]` vuelve al nivel de la línea inicial. Los elementos se separan con comas; la coma final es opcional, también en una sola línea. Se permiten líneas vacías, comentarios y listas anidadas.
+
+```cometa
 var lista = []                 // error: no se puede inferir el elemento
 var lista2 [Usuario] = []      // válido
 var usuarios = [usuario1, usuario2]
@@ -269,7 +271,7 @@ var usuarios = [usuario1, usuario2]
 
 Una lista se indexa con una expresión `entero` entre corchetes. El acceso produce un valor del tipo de sus elementos y puede usarse dentro de otra expresión, incluso como argumento de una función.
 
-```hacha
+```cometa
 var primero = usuarios[0]
 procesar_usuario(usuarios[1])
 ```
@@ -293,7 +295,7 @@ Las listas ofrecen métodos incorporados. Los métodos `agregar`, `extender`, `i
 
 Los índices de estos métodos deben tener tipo `entero` y estar dentro del rango. Los decimales se rechazan durante el chequeo de tipos. `insertar` y `eliminar` devuelven `falso` sin modificar la lista ante un índice inválido. `obtener` devuelve `.Ninguno`. `contiene` y `buscar_indice` admiten números, cadenas, booleanos y estructuras, que se comparan por identidad; todavía no admiten enums, interfaces, wrappers, listas anidadas ni parámetros de tipo.
 
-```hacha
+```cometa
 var valores = [10, 20]
 valores.agregar(30)
 imprimir(valores.buscar_indice(20) o -1)
@@ -304,16 +306,49 @@ La asignación de una lista copia su descriptor de slice: cada alias conserva su
 
 Los campos y métodos de una variable se acceden con `.`. El marcador `@` sigue reservado para el receptor del método actual.
 
-```hacha
+```cometa
 usuario2.activar(verdadero)
 imprimir(usuario2.nombre)
 ```
+
+## Mapas
+
+Un mapa mutable tiene tipo `[K: V]`, con claves `cadena`, `entero` o `bool` y cualquier tipo almacenable como valor. Los parámetros genéricos solo se admiten como valores (`[cadena: T]`); no existen restricciones genéricas de claves comparables. Los mapas no admiten igualdad ni ordenación.
+
+```cometa
+var puntos [cadena: entero] = [:]
+var iniciales = ["Ana": 10, "Luis": 20]
+puntos["Ana"] = 10
+imprimir(puntos["Ana"] o 0)
+repetir (puntos) |valor, clave|
+	imprimir("${clave}: ${valor}")
+```
+
+`[:]` requiere un tipo esperado; `[]` sigue siendo una lista. Sin tipo esperado, la primera entrada determina ambos tipos y las siguientes deben ser compatibles. Con tipo esperado, se propaga a claves y valores, incluidos literales contextuales, genéricos y conversiones habituales. Los mapas ya construidos son invariantes en clave y valor. Se admiten literales multilínea con las mismas reglas de tabuladores, comentarios y comas finales que las listas.
+
+Las entradas se evalúan en orden escrito, primero la clave y luego el valor. Las claves repetidas conservan el último valor, sin omitir los efectos de entradas anteriores. `mapa[clave]` y `obtener(clave)` devuelven `V?`; una entrada existente cuyo valor sea `.Ninguno` se distingue de una clave ausente mediante el opcional exterior. La asignación `mapa[clave] = valor` recibe `V`, evalúa receptor, clave y valor una vez en ese orden, y solo entonces inserta o reemplaza. No se puede acceder directamente al contenido de una lectura sin extraer el opcional.
+
+| Método sobre `[K: V]` | Resultado | Comportamiento |
+|---|---|---|
+| `longitud()` | `entero` | Cantidad de entradas |
+| `esta_vacia()` | `bool` | Indica si no hay entradas |
+| `contiene(clave K)` | `bool` | Comprueba la presencia de una clave |
+| `obtener(clave K)` | `V?` | Valor presente o `.Ninguno` |
+| `eliminar(clave K)` | `bool` | Elimina la entrada; devuelve si existía |
+| `claves()` | `[K]` | Lista independiente de claves sin orden garantizado |
+| `valores()` | `[V]` | Lista independiente de valores sin orden garantizado |
+| `copiar()` | `[K: V]` | Copia superficial con almacenamiento independiente |
+| `vaciar()` | sin valor | Elimina todas las entradas |
+
+La asignación y el paso de parámetros comparten las entradas: insertar, reemplazar, eliminar y vaciar es visible para todos los aliases. Reasignar una variable de mapa no cambia las demás. `copiar()` conserva las referencias contenidas. Cada literal y cada campo de mapa omitido crea un mapa nuevo y escribible; los campos de mapa permiten recursión sin construir entradas predeterminadas. Los métodos mutadores también aceptan receptores temporales. Estas operaciones incorporadas no satisfacen requisitos de métodos de interfaces; los mapas sí se pueden almacenar en interfaces vacías e inspeccionar con `como`.
+
+`repetir (mapa) |valor, clave|` liga primero el valor y después la clave; con una sola variable liga el valor. El receptor se evalúa una vez, las variables son locales al ciclo y reasignarlas no modifica la entrada. El orden no está garantizado, tampoco en `claves()` y `valores()`, y dos llamadas separadas no prometen correspondencia por índice. Durante un recorrido, las entradas eliminadas antes de visitarlas se omiten; las entradas nuevas pueden visitarse o no. `romper` y `continuar` conservan sus reglas habituales.
 
 ## Funciones y métodos
 
 Los parámetros siempre declaran su tipo. Un tipo después de `)` declara el resultado. Si no aparece, la función no devuelve ningún valor. La última expresión de una función con resultado se devuelve implícitamente.
 
-```hacha
+```cometa
 fn sumar(a entero, b entero) entero a + b
 
 fn inicio()
@@ -324,7 +359,7 @@ Una función anidada dentro de un `tipo` es un método. Dentro de ella, `@nombre
 
 Una línea que contiene únicamente un tipo de estructura declara un campo embebido, como en Go:
 
-```hacha
+```cometa
 tipo Persona
 	nombre cadena
 	fn saludar() imprimir(@nombre)
@@ -341,7 +376,7 @@ fn inicio()
 	imprimir(empleado.Persona.nombre)
 ```
 
-- El nombre implícito del campo es el nombre del tipo, con su capitalización original en Hacha. Para `Caja<entero>` es `Caja`; no se permiten dos instanciaciones del mismo tipo base en una estructura. El nombre no puede duplicar un campo o método directo.
+- El nombre implícito del campo es el nombre del tipo, con su capitalización original en Cometa. Para `Caja<entero>` es `Caja`; no se permiten dos instanciaciones del mismo tipo base en una estructura. El nombre no puede duplicar un campo o método directo.
 - Solo se pueden embeber estructuras declaradas, incluidas instanciaciones genéricas. No se permiten tipos primitivos, enums, interfaces, listas, opcionales, resultados ni parámetros de tipo sin instanciar. La incorporación de interfaces dentro de `interfaz` conserva sus reglas propias.
 - Los campos y métodos se promueven recursivamente para lecturas, asignaciones, llamadas y acceso mediante `@`. Los miembros directos ocultan a los promovidos; gana el único miembro a menor profundidad. Campos y métodos comparten este espacio de nombres. Si hay varias rutas a esa profundidad, el miembro es ambiguo, incluso cuando llegan a la misma declaración. La ambigüedad se diagnostica al usar el selector; las rutas explícitas siguen disponibles.
 - Los métodos promovidos no ambiguos participan en la implementación estructural de interfaces y restricciones genéricas. Conservan sus parámetros nombrados, valores predeterminados y receptor original; los métodos del tipo embebido no despachan a los métodos del contenedor.
@@ -349,7 +384,7 @@ fn inicio()
 - Omitir un campo embebido crea una estructura nueva con los valores predeterminados habituales. Los campos requeridos se diagnostican con su ruta, por ejemplo `Persona.estado`; los ciclos de campos obligatorios siguen prohibidos. Suministrar una instancia conserva la referencia compartida.
 - Go recibe un campo anónimo de tipo puntero, por ejemplo `*Persona` o `*Caja[int64]`, con la convención de nombres exportados del compilador. El LSP incluye miembros promovidos no ambiguos en completado y hover, y el campo embebido en el esquema del documento.
 
-```hacha
+```cometa
 tipo Contador
 	valor entero
 	fn incrementar(cantidad entero)
@@ -362,7 +397,7 @@ La función superior `inicio` debe escribirse exactamente como `fn inicio()` y s
 
 Las condiciones deben ser `bool`. Los paréntesis son opcionales. `osi` pertenece al `si` alineado anterior y `sino` es opcional cuando el condicional se usa como sentencia.
 
-```hacha
+```cometa
 si (@edad < 18) @activo = falso
 osi (@edad == 18) @activo = verdadero
 sino
@@ -371,13 +406,13 @@ sino
 
 Un condicional también puede producir un valor. En ese caso requiere `sino` y todas sus ramas deben producir el mismo tipo.
 
-```hacha
+```cometa
 @activo = si (@edad < 18) falso sino verdadero
 ```
 
 Una función con resultado puede terminar en un condicional multilínea. Cada camino debe terminar en una expresión compatible con el resultado declarado.
 
-```hacha
+```cometa
 fn limitar(numero entero) entero
 	si (numero < 0) 0
 	osi (numero > 10) 10
@@ -388,7 +423,7 @@ fn limitar(numero entero) entero
 
 `enum` declara un tipo con un conjunto cerrado y no vacío de variantes. Cada variante tiene un nombre único y puede declarar un único tipo de payload explícito: `entero`, `decimal`, `cadena`, `bool`, una estructura, una lista u otro enum. El nombre `_` está reservado para el patrón comodín. Los enums comparten el espacio de nombres de tipos con `tipo`.
 
-```hacha
+```cometa
 tipo Buton_Presionado
 	caracter cadena
 
@@ -403,13 +438,13 @@ enum Evento
 
 Una variante sin payload se construye como `Evento.Cargar_Pagina`, sin paréntesis. Una variante con payload requiere exactamente un argumento compatible, por ejemplo `Evento.Texto("hola")` o `Evento.Buton_Presionado(Buton_Presionado {caracter: "a"})`. El nombre de una variante nunca infiere automáticamente un tipo de payload. No hay conversión implícita desde un payload a un enum.
 
-Los enums pueden usarse en parámetros, resultados, campos, variables y listas. Como los demás tipos declarados, se representan mediante referencias en Go. Un payload de estructura conserva la referencia original: modificar un campo mediante el payload modifica el objeto compartido; reasignar la variable ligada solo cambia esa variable local. Los payloads escalares se almacenan por valor; las listas conservan las reglas de las listas existentes. Los detalles internos del enum no son campos accesibles en Hacha.
+Los enums pueden usarse en parámetros, resultados, campos, variables y listas. Como los demás tipos declarados, se representan mediante referencias en Go. Un payload de estructura conserva la referencia original: modificar un campo mediante el payload modifica el objeto compartido; reasignar la variable ligada solo cambia esa variable local. Los payloads escalares se almacenan por valor; las listas conservan las reglas de las listas existentes. Los detalles internos del enum no son campos accesibles en Cometa.
 
 `casos` evalúa su operando una sola vez y ejecuta una sola rama. Las etiquetas se indentan debajo de `casos`; cada etiqueta usa `Evento.Variante`, `.Variante` o `_`, seguida de `=>`. No se aceptan nombres de variantes sin punto. El enum calificado debe coincidir con el tipo del operando; ambas formas identifican la misma variante para detectar duplicados y cobertura. Después de `=>`, el cuerpo contiene una sentencia o expresión en la misma línea, o un bloque indentado adicional cuando empieza en la línea siguiente. Una dedentación termina el bloque correspondiente.
 
 Los constructores aceptan `.Variante` y `.Variante(payload)` cuando existe un tipo enum esperado: argumentos de funciones y métodos, variables tipadas, asignaciones, retornos implícitos, campos de estructuras, elementos de listas y resultados de ramas. Se conserva el orden de inferencia contextual existente; no hay búsqueda global ni inferencia hacia atrás. `var ip = .V4` e `imprimir(.V4)` son errores por falta de tipo enum esperado. Las variantes unitarias no admiten paréntesis y las demás requieren exactamente un payload del tipo declarado.
 
-```hacha
+```cometa
 fn describir(evento Evento) cadena
 	casos evento |e|
 		.Cargar_Pagina => "cargando pagina"
@@ -426,7 +461,7 @@ Todo `casos`, incluso como sentencia, debe cubrir todas las variantes. `_` es op
 
 `casos` también produce valores en asignaciones, argumentos, listas y retornos implícitos. Todas las ramas deben terminar en un valor del mismo tipo; pueden contener sentencias previas y terminar en otro `casos` o un `si` completo. Un tipo esperado se propaga a los resultados para inferir literales de estructuras y listas vacías.
 
-```hacha
+```cometa
 fn texto(evento Evento) cadena
 	var resultado = casos evento |e|
 		.Texto => e
@@ -440,7 +475,7 @@ Dentro de un `casos` usado como sentencia, `romper` y `continuar` siguen control
 
 ## Opcionales, errores y retornos explícitos
 
-Los opcionales y resultados son constructores de tipos incorporados; no requieren genéricos definidos por el usuario. Un valor de tipo `T` siempre contiene un valor válido. Las representaciones internas de Go no exponen `nil`, etiquetas ni campos de payload al programa Hacha.
+Los opcionales y resultados son constructores de tipos incorporados; no requieren genéricos definidos por el usuario. Un valor de tipo `T` siempre contiene un valor válido. Las representaciones internas de Go no exponen `nil`, etiquetas ni campos de payload al programa Cometa.
 
 | Tipo | Significado |
 | --- | --- |
@@ -455,7 +490,7 @@ Los opcionales y resultados son constructores de tipos incorporados; no requiere
 
 Los constructores contextuales son `.Alguno(valor)` y `.Ninguno` para opcionales, y `.Ok(valor)` y `.Error(error)` para resultados. El éxito sin valor se escribe `.Ok`, sin paréntesis. Requieren un tipo esperado. Una expresión de tipo `T` se convierte implícitamente a presencia o éxito cuando se espera `T?` o `T!E`. Se añade una sola capa por conversión; un destino anidado no convierte recursivamente un valor simple. Por ejemplo, `entero?!` acepta `.Ok(.Ninguno)` o `.Ok(1)`, pero no `1` directamente. Un opcional puede envolverse en resultado si es exactamente su tipo de éxito, conservando su ausencia interna; nunca se transforma ausencia en error automáticamente.
 
-```hacha
+```cometa
 fn buscar(existe bool) Usuario?
 	si existe
 		Usuario {nombre: "Ana"}
@@ -481,13 +516,13 @@ Un wrapper no permite acceder directamente a campos, métodos o elementos de su 
 - `retornar expresión` sale de la función actual desde cualquier bloque, incluso dentro de una expresión. Una función sin resultado usa `retornar` sin valor. Una función con resultado sin payload usa `retornar .Ok`. Se conservan los retornos finales implícitos. Ni `retornar` ni `intentar` se permiten en expresiones de valores predeterminados de parámetros.
 - Se rechazan expresiones opcionales/resultados descartadas y variables locales de resultado (`T!E`) que nunca se leen. Las variables opcionales (`T?`) pueden declararse, copiarse y permanecer sin uso; acceder a su payload sigue requiriendo extracción explícita. Pasar, guardar, devolver o manejar explícitamente un resultado cuenta como uso. Esta comprobación no es un sistema de propiedad ni exige consumo en todos los caminos; una rama explícita puede ignorar un error.
 
-Cada operando se evalúa una sola vez, en el orden escrito; las alternativas y los operadores booleanos mantienen evaluación condicional. Los retornos y la propagación salen de la función Hacha original, incluso en argumentos nombrados, listas, campos y `casos` usados como expresiones. `inicio` conserva su firma sin resultado y maneja los errores localmente. Consulte `examples/errores.hacha`.
+Cada operando se evalúa una sola vez, en el orden escrito; las alternativas y los operadores booleanos mantienen evaluación condicional. Los retornos y la propagación salen de la función Cometa original, incluso en argumentos nombrados, listas, campos y `casos` usados como expresiones. `inicio` conserva su firma sin resultado y maneja los errores localmente. Consulte `examples/errores.cometa`.
 
 ## Ciclos
 
 `repetir` recorre una lista y liga cada elemento a la variable escrita entre `|`. Una segunda variable opcional recibe el índice como `entero`, comenzando en `0`. Ambas variables solo existen dentro del cuerpo del ciclo.
 
-```hacha
+```cometa
 repetir (usuarios) |usuario|
 	imprimir(usuario.nombre)
 
@@ -499,7 +534,7 @@ repetir (usuarios) |usuario, indice|
 
 Los rangos `inicio..final` solo se permiten dentro de los paréntesis de `repetir`; no son valores que puedan guardarse, pasarse a funciones o incluirse en listas. Ambos límites deben ser expresiones `entero` y se evalúan una sola vez, de izquierda a derecha, antes del ciclo. El inicio se incluye y el final se excluye. El paso es `1` si el inicio es menor y `-1` si es mayor; límites iguales producen cero iteraciones. Se permiten límites negativos; los límites decimales se rechazan. La variable del ciclo es `entero`; una segunda variable opcional recibe el índice desde `0`. Modificar estas variables dentro del cuerpo no altera la progresión del rango.
 
-```hacha
+```cometa
 repetir (0..5) |i| imprimir(i) // 0, 1, 2, 3, 4
 repetir (5..0) |i|
 	imprimir(i) // 5, 4, 3, 2, 1
@@ -511,7 +546,7 @@ repetir (0..2) |valor, indice|
 
 Sin una lista ni variables, `repetir` crea un ciclo infinito. Su cuerpo también puede escribirse en la misma línea.
 
-```hacha
+```cometa
 repetir imprimir("hola")
 ```
 
@@ -519,24 +554,30 @@ repetir imprimir("hola")
 
 El MVP incluye declaraciones de tipos, interfaces implícitas, funciones y tipos genéricos con restricciones de interfaz, inspección segura de interfaces, enums con payloads explícitos, campos, funciones, métodos y variables locales; parámetros; llamadas; asignaciones; acceso mediante `@` y `.`, e indexación de listas; literales escalares, de estructuras y listas; inferencia contextual de literales compuestos; operadores numéricos, booleanos y de comparación; condicionales y `casos` exhaustivos como sentencias o valores; ciclos sobre listas e infinitos; listas como tipos; y retornos implícitos.
 
-Quedan fuera por ahora un literal nulo independiente, las referencias explícitas, los operadores genéricos y la resolución de paquetes remotos de Hacha. Los ejecutables de escritorio se construyen mediante el toolchain Go.
+Quedan fuera por ahora un literal nulo independiente, las referencias explícitas, los operadores genéricos y la resolución de paquetes remotos de Cometa. Los ejecutables de escritorio se construyen mediante el toolchain Go.
 
 ## Módulos e importaciones
 
-Cada archivo `.hacha` define un módulo. `usar` es una palabra reservada y solo aparece al nivel superior, antes de cualquier declaración:
+Cada archivo `.cometa` define un módulo. `usar` es una palabra reservada y solo aparece al nivel superior, antes de cualquier declaración:
 
-```hacha
+```cometa
 usar herramientas
 usar modelos como m
 usar interno/base_de_datos como bd
 usar ../compartido/fechas
 ```
 
-La ruta no lleva comillas ni extensión; el compilador agrega `.hacha`. Se resuelve desde la carpeta del archivo que importa, nunca desde el directorio de trabajo. Usa `/` en todas las plataformas y admite los prefijos `./` y `../` repetido. Los demás segmentos tienen forma de identificador. No admite rutas absolutas, segmentos vacíos ni espacios dentro de la ruta.
+La ruta no lleva comillas ni extensión; el compilador agrega `.cometa`. Se resuelve desde la carpeta del archivo que importa, nunca desde el directorio de trabajo. Usa `/` en todas las plataformas y admite los prefijos `./` y `../` repetido. Los demás segmentos tienen forma de identificador. No admite rutas absolutas, segmentos vacíos ni espacios dentro de la ruta.
 
 El alias predeterminado es el último segmento; `como` lo reemplaza por un identificador distinto de `_`. Los alias deben ser únicos y no pueden coincidir con declaraciones superiores. Variables y parámetros locales pueden ocultarlos en expresiones. Un namespace no es un valor.
 
-Cada módulo expone sus funciones, tipos, enums e interfaces; sus campos, métodos y variantes también son públicos. El acceso requiere el alias: `m.crear()`, `m.Usuario`, `m.Caja<entero>`, `m.Usuario {nombre: "Ana"}`, `m.Evento.Texto("hola")`. Los tipos calificados funcionan en restricciones, firmas, listas, wrappers, incrustaciones, inspecciones con `como` y patrones de `casos`. Una estructura incrustada conserva como nombre de campo el nombre base del tipo: `m.Usuario` crea el campo `Usuario`.
+Las declaraciones son privadas al archivo por defecto. `pub` es una palabra reservada que precede a `fn`, `tipo`, `enum`, `interfaz`, `var` o `const` para exponer la declaración. Dentro de una estructura se admiten `pub nombre Tipo`, `pub fn metodo(...)` y `pub TipoEmbebido`. Las variantes de enum y los requisitos de interfaz heredan la visibilidad del tipo y no admiten `pub` propio. Tampoco se admite `pub` en imports, variables locales, parámetros, ni `inicio`; duplicarlo es un error.
+
+Todo el código del archivo puede acceder a sus declaraciones y miembros privados. Desde otro archivo, cada paso de una ruta de incrustación y el miembro final deben ser accesibles. Se mantienen las reglas de sombreado y ambigüedad: un miembro privado no permite acceder a otra alternativa oculta. Solo los métodos concretos `pub`, a través de rutas de incrustación `pub`, satisfacen interfaces y restricciones, incluso dentro del archivo. La inspección dinámica con `como` o `casos` tampoco expone métodos privados.
+
+Los literales externos solo pueden inicializar campos accesibles. Los argumentos posicionales conservan el orden de los campos, sin saltar los privados. Los campos omitidos conservan sus reglas de valores predeterminados; si un campo privado requiere inicialización, la construcción debe realizarse en su módulo. Una API pública puede devolver o exponer tipos privados: los consumidores pueden usar valores inferidos y sus miembros públicos, pero no nombrar esos tipos.
+
+El acceso a declaraciones públicas importadas requiere el alias: `m.crear()`, `m.Usuario`, `m.Caja<entero>`, `m.Usuario {nombre: "Ana"}`, `m.Evento.Texto("hola")`. Los tipos calificados funcionan en restricciones, firmas, listas, wrappers, incrustaciones, inspecciones con `como` y patrones de `casos`. Una estructura incrustada conserva como nombre de campo el nombre base del tipo: `m.Usuario` crea el campo `Usuario`. La capitalización del Go generado es un detalle de implementación y no determina la visibilidad en Cometa.
 
 Los imports no se reexportan, no tienen efectos de inicialización y pueden quedar sin uso. Cada consumidor importa directamente los módulos cuyos nombres necesita. Solo el archivo raíz puede declarar `inicio`; una dependencia con `fn inicio()` causa error. El raíz puede omitir `inicio` al generar código sin punto de entrada.
 

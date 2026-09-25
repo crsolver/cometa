@@ -26,8 +26,8 @@ func TestEnumCompletion(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			harness := servertest.New(t, NewHandler())
-			uri := lsp.DocumentURI("file:///enum-completion.hacha")
-			if err := harness.DidOpen(uri, "hacha", tt.source); err != nil {
+			uri := lsp.DocumentURI("file:///enum-completion.cometa")
+			if err := harness.DidOpen(uri, "cometa", tt.source); err != nil {
 				t.Fatal(err)
 			}
 			_ = waitForDiagnostics(t, harness, uri)
@@ -55,9 +55,9 @@ func TestEnumCompletion(t *testing.T) {
 
 func TestEnumSymbolsHoverAndDiagnostics(t *testing.T) {
 	harness := servertest.New(t, NewHandler())
-	uri := lsp.DocumentURI("file:///enum.hacha")
+	uri := lsp.DocumentURI("file:///enum.cometa")
 	source := enumSource + "fn f(evento Evento) cadena\n\tcasos evento |e|\n\t\t.Boton =>\n\t\t\tvar texto = e.caracter\n\t\t\ttexto\n\t\t_ => \"otro\"\n"
-	if err := harness.DidOpen(uri, "hacha", source); err != nil {
+	if err := harness.DidOpen(uri, "cometa", source); err != nil {
 		t.Fatal(err)
 	}
 	if d := waitForDiagnostics(t, harness, uri); len(d) != 0 {

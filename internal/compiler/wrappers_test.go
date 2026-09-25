@@ -7,11 +7,11 @@ import (
 )
 
 func TestWrapperExample(t *testing.T) {
-	source, err := os.ReadFile("../../examples/errores.hacha")
+	source, err := os.ReadFile("../../examples/errores.cometa")
 	if err != nil {
 		t.Fatal(err)
 	}
-	runHacha(t, string(source), "Ana\nInvitado\nno se pudo leer el usuario\n")
+	runCometa(t, string(source), "Ana\nInvitado\nno se pudo leer el usuario\n")
 }
 
 func TestUnusedOptionalLocalsCompile(t *testing.T) {
@@ -26,13 +26,13 @@ fn nulable()
 	var implicito Usuario? = Usuario {}
 	var copia = mascota
 `
-	if _, err := Compile("opcionales.hacha", []byte(source)); err != nil {
+	if _, err := Compile("opcionales.cometa", []byte(source)); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestWrapperContextsAndLoops(t *testing.T) {
-	runHacha(t, `tipo Caja
+	runCometa(t, `tipo Caja
 	valor entero?
 	pendiente (entero!)?
 	lista [entero?]
@@ -84,7 +84,7 @@ fn inicio()
 }
 
 func TestWrapperShortCircuitAndReferenceCapture(t *testing.T) {
-	runHacha(t, `tipo Caja
+	runCometa(t, `tipo Caja
 	n entero
 	fn leer(ignorado entero, valor entero) entero @n + valor
 fn cambiar(c Caja) entero
@@ -108,7 +108,7 @@ fn inicio()
 }
 
 func TestReturnsInsideValueConstruction(t *testing.T) {
-	runHacha(t, `fn aceptar(n entero) entero n
+	runCometa(t, `fn aceptar(n entero) entero n
 fn llamada() entero!
 	var valor = aceptar(retornar .Error("llamada"))
 	valor
@@ -141,7 +141,7 @@ fn inicio()
 }
 
 func TestWrappersRuntime(t *testing.T) {
-	runHacha(t, `tipo Direccion
+	runCometa(t, `tipo Direccion
 	ciudad cadena
 tipo Usuario
 	nombre cadena
@@ -198,7 +198,7 @@ fn inicio()
 }
 
 func TestWrapperPropagationOrderAndLaziness(t *testing.T) {
-	runHacha(t, `tipo Contador
+	runCometa(t, `tipo Contador
 	n entero
 fn paso(c Contador, n entero) entero
 	c.n = c.n * 10 + n
@@ -268,7 +268,7 @@ func TestWrapperDiagnostics(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := Compile("wrapper.hacha", []byte(tc.source))
+			_, err := Compile("wrapper.cometa", []byte(tc.source))
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("wanted %q, got %v", tc.want, err)
 			}

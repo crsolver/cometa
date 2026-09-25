@@ -1,8 +1,8 @@
 package codegen
 
 import (
-	"hacha/internal/ast"
-	"hacha/internal/sema"
+	"cometa/internal/ast"
+	"cometa/internal/sema"
 )
 
 func (g *generator) numericCall(call *ast.CallExpr, to sema.Type, value string) string {

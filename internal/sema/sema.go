@@ -8,9 +8,9 @@ import (
 	"strconv"
 	"strings"
 
-	"hacha/internal/ast"
-	"hacha/internal/diagnostic"
-	"hacha/internal/stdlib"
+	"cometa/internal/ast"
+	"cometa/internal/diagnostic"
+	"cometa/internal/stdlib"
 )
 
 type Kind int
@@ -24,6 +24,7 @@ const (
 	Boolean
 	Named
 	Slice
+	Map
 	Enum
 	Optional
 	Result
@@ -33,6 +34,7 @@ const (
 )
 
 type Type struct {
+	Key   *Type
 	Args  []Type
 	Owner string // Declaration identity for a type parameter.
 	Kind  Kind
@@ -88,6 +90,8 @@ func (t Type) String() string {
 		return name
 	case Slice:
 		return "[" + t.Elem.String() + "]"
+	case Map:
+		return "[" + t.Key.String() + ": " + t.Elem.String() + "]"
 	default:
 		return "tipo inválido"
 	}
@@ -102,7 +106,10 @@ func (t Type) Equal(other Type) bool {
 			return false
 		}
 	}
-	if t.Kind == Slice || t.Wrapped() {
+	if t.Kind == Map && (t.Key == nil || other.Key == nil || !t.Key.Equal(*other.Key)) {
+		return false
+	}
+	if t.Kind == Slice || t.Kind == Map || t.Wrapped() {
 		return t.Elem != nil && other.Elem != nil && t.Elem.Equal(*other.Elem) && (t.Kind != Result || t.Err.Equal(*other.Err))
 	}
 	return true
@@ -136,7 +143,7 @@ type GlobalInfo struct {
 }
 
 type Model struct {
-	HasScopes bool
+	HasScopes        bool
 	NumericCoercions map[ast.Expr]Type
 	NumericCalls     map[*ast.CallExpr]Type
 	Assets           map[*ast.CallExpr]Asset
@@ -149,6 +156,7 @@ type Model struct {
 	Wraps            map[ast.Expr]Type
 	Calls            map[*ast.CallExpr]CallInfo
 	ListCalls        map[*ast.CallExpr]string
+	MapCalls         map[*ast.CallExpr]string
 	StringCalls      map[*ast.CallExpr]string
 	LocalNames       map[string]bool
 	Enums            map[string]*EnumInfo
@@ -241,6 +249,7 @@ func newChecker(filename string) *checker {
 		Wraps:         map[ast.Expr]Type{},
 		Calls:         map[*ast.CallExpr]CallInfo{},
 		ListCalls:     map[*ast.CallExpr]string{},
+		MapCalls:      map[*ast.CallExpr]string{},
 		StringCalls:   map[*ast.CallExpr]string{},
 		LocalNames:    map[string]bool{},
 		ExpectedTypes: map[ast.Expr]Type{},
@@ -319,6 +328,23 @@ func (c *checker) resolveBuiltinType(ref ast.TypeRef) (Type, error) {
 			t.Err = &e
 		}
 		return t, nil
+	}
+	if ref.Key != nil {
+		key, err := c.resolveType(*ref.Key)
+		if err != nil {
+			return Type{}, err
+		}
+		if !mapKeyAllowed(key) {
+			return Type{}, c.fail(ref.Key.Pos, "una clave de mapa debe ser cadena, entero o bool, no %s", key.String())
+		}
+		element, err := c.resolveType(*ref.Element)
+		if err != nil {
+			return Type{}, err
+		}
+		if element.Kind == Void {
+			return Type{}, c.fail(ref.Pos, "un mapa requiere valores")
+		}
+		return Type{Kind: Map, Key: &key, Elem: &element}, nil
 	}
 	if ref.IsSlice() {
 		element, err := c.resolveType(*ref.Element)
@@ -774,9 +800,16 @@ func (c *checker) checkStatement(stmt ast.Stmt) error {
 	case *ast.ScopeStmt:
 		c.model.HasScopes = true
 		t, err := c.checkExpr(statement.Value)
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 		methods := c.model.Methods(t)
 		for _, name := range []string{"entrar", "salir"} {
+			if t.Kind == Named {
+				if _, err := c.member(t, name, statement.Pos); err != nil {
+					return err
+				}
+			}
 			method, ok := methods[name]
 			if !ok || len(method.Params) != 0 || method.Return.Kind != Void {
 				return c.fail(statement.Pos, "con requiere entrar() y salir() sin parámetros ni resultado")
@@ -833,8 +866,8 @@ func (c *checker) checkRepeat(stmt *ast.RepeatStmt) error {
 			}
 		} else if err != nil {
 			elementType = Type{Kind: Invalid}
-		} else if iterable.Kind != Slice {
-			c.report(c.fail(stmt.Iterable.Position(), "repetir requiere una lista, no %s", iterable.String()))
+		} else if iterable.Kind != Slice && iterable.Kind != Map {
+			c.report(c.fail(stmt.Iterable.Position(), "repetir requiere una lista o mapa, no %s", iterable.String()))
 			c.damaged++
 			elementType = Type{Kind: Invalid}
 		} else {
@@ -852,6 +885,9 @@ func (c *checker) checkRepeat(stmt *ast.RepeatStmt) error {
 				return c.fail(stmt.Pos, "la variable %q ya fue declarada", stmt.Index)
 			}
 			c.vars[stmt.Index] = Type{Kind: Integer}
+			if iterable.Kind == Map && stmt.RangeEnd == nil {
+				c.vars[stmt.Index] = *iterable.Key
+			}
 		}
 	}
 
@@ -889,7 +925,11 @@ func (c *checker) assignmentTarget(expr ast.Expr) (Type, error) {
 	}
 	switch target := expr.(type) {
 	case *ast.IndexExpr:
-		return c.checkExpr(target)
+		t, err := c.checkExpr(target)
+		if err == nil && c.model.ExprTypes[target.Object].Kind == Map {
+			return *c.model.ExprTypes[target.Object].Elem, nil
+		}
+		return t, err
 	case *ast.IdentExpr:
 		valueType, exists := c.vars[target.Name]
 		if !exists {
@@ -988,7 +1028,7 @@ func (c *checker) checkExpression(expr ast.Expr, expected *Type) (Type, error) {
 	wrapperExpected := expected
 	if expected != nil && expected.Wrapped() && !isContextualConstructor(expr) {
 		switch expr.(type) {
-		case *ast.StructLiteralExpr, *ast.ListLiteralExpr:
+		case *ast.StructLiteralExpr, *ast.ListLiteralExpr, *ast.MapLiteralExpr:
 			expected = expected.Elem
 		}
 	}
@@ -1150,6 +1190,8 @@ func (c *checker) checkExpression(expr ast.Expr, expected *Type) (Type, error) {
 		result, err = c.checkStructLiteral(expression, expected)
 	case *ast.ListLiteralExpr:
 		result, err = c.checkListLiteral(expression, expected)
+	case *ast.MapLiteralExpr:
+		result, err = c.checkMapLiteral(expression, expected)
 	case *ast.UnaryExpr:
 		result, err = c.checkUnary(expression)
 	case *ast.BinaryExpr:
@@ -1205,8 +1247,21 @@ func (c *checker) checkIndex(expr *ast.IndexExpr) (Type, error) {
 	if err != nil {
 		return Type{}, err
 	}
+	if objectType.Kind == Map {
+		key, err := c.checkExprExpected(expr.Index, objectType.Key)
+		if err != nil {
+			return Type{}, err
+		}
+		if key.Kind != Never && !key.Equal(*objectType.Key) {
+			return Type{}, c.fail(expr.Index.Position(), "la clave debe ser %s, no %s", objectType.Key.String(), key.String())
+		}
+		if key.Kind == Never {
+			return key, nil
+		}
+		return Type{Kind: Optional, Elem: objectType.Elem}, nil
+	}
 	if objectType.Kind != Slice {
-		return Type{}, c.fail(expr.Object.Position(), "solo se pueden indexar listas, no %s", objectType.String())
+		return Type{}, c.fail(expr.Object.Position(), "solo se pueden indexar listas o mapas, no %s", objectType.String())
 	}
 	indexType, err := c.checkExpr(expr.Index)
 	if err != nil {
@@ -1257,6 +1312,9 @@ func (c *checker) checkStructLiteral(expr *ast.StructLiteralExpr, expected *Type
 	for index, value := range expr.Values {
 		err := func() error {
 			fieldDecl := info.Decl.Fields[index]
+			if !ast.Accessible(fieldDecl.Public, fieldDecl.Pos, value.Position()) {
+				return c.fail(value.Position(), "el campo %q es privado", fieldDecl.Name)
+			}
 			field := info.Fields[fieldDecl.Name]
 			seen[fieldDecl.Name] = true
 			actual, err := c.checkExprExpected(value, &field.Type)
@@ -1283,6 +1341,9 @@ func (c *checker) checkStructLiteral(expr *ast.StructLiteralExpr, expected *Type
 			field, exists := info.Fields[value.Name]
 			if !exists {
 				return c.fail(value.Pos, "el campo %q no existe en %s", value.Name, result.Name)
+			}
+			if !ast.Accessible(field.Decl.Public, field.Decl.Pos, value.Pos) {
+				return c.fail(value.Pos, "el campo %q es privado", value.Name)
 			}
 			actual, err := c.checkExprExpected(value.Value, &field.Type)
 			if err != nil {
@@ -1440,7 +1501,7 @@ func (c *checker) checkBinary(expr *ast.BinaryExpr) (Type, error) {
 			return Type{Kind: Boolean}, nil
 		}
 	case "==", "!=":
-		if left.Equal(right) && left.Kind != Void && left.Kind != Never && left.Kind != Slice && left.Kind != Enum && left.Kind != Interface && left.Kind != TypeParameter && !left.Wrapped() {
+		if left.Equal(right) && left.Kind != Void && left.Kind != Never && left.Kind != Slice && left.Kind != Map && left.Kind != Enum && left.Kind != Interface && left.Kind != TypeParameter && !left.Wrapped() {
 			return Type{Kind: Boolean}, nil
 		}
 	case "&&", "||":
@@ -1562,6 +1623,9 @@ func (c *checker) checkCall(call *ast.CallExpr) (Type, error) {
 		}
 		if objectType.Kind == Slice {
 			return c.checkListCall(call, callee, objectType)
+		}
+		if objectType.Kind == Map {
+			return c.checkMapCall(call, callee, objectType)
 		}
 		if objectType.Kind == String {
 			return c.checkStringCall(call, callee)

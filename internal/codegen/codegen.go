@@ -13,22 +13,22 @@ import (
 	"strings"
 	"unicode"
 
-	"hacha/internal/ast"
-	"hacha/internal/sema"
-	"hacha/internal/stdlib"
+	"cometa/internal/ast"
+	"cometa/internal/sema"
+	"cometa/internal/stdlib"
 )
 
 type generator struct {
-	receiver     string
-	flow         bool
-	returnType   sema.Type
-	buffer       bytes.Buffer
-	model        *sema.Model
-	nextName     int
-	loopLabel    string
-	scopes []string
+	receiver       string
+	flow           bool
+	returnType     sema.Type
+	buffer         bytes.Buffer
+	model          *sema.Model
+	nextName       int
+	loopLabel      string
+	scopes         []string
 	loopScopeDepth int
-	defaultFlags map[*ast.FuncDecl][]string
+	defaultFlags   map[*ast.FuncDecl][]string
 }
 
 func Generate(filename string, program *ast.Program, model *sema.Model) ([]byte, error) {
@@ -46,7 +46,7 @@ func Generate(filename string, program *ast.Program, model *sema.Model) ([]byte,
 		g.flow = true
 	}
 	for expr, t := range model.ExprTypes {
-		if t.Wrapped() {
+		if t.Wrapped() || t.Kind == sema.Map {
 			g.flow = true
 		}
 		switch expr.(type) {
@@ -114,6 +114,16 @@ func Generate(filename string, program *ast.Program, model *sema.Model) ([]byte,
 	}
 	if runtimeSource != "" {
 		g.write("%s\n", runtimeSource)
+		var nativeNames []string
+		for name := range model.Types {
+			if native := stdlib.GoType(name); native != "" && strings.Contains(runtimeSource, "type "+strings.TrimPrefix(native, "*")+" ") {
+				nativeNames = append(nativeNames, name)
+			}
+		}
+		sort.Strings(nativeNames)
+		for _, name := range nativeNames {
+			g.emitVisibilityMethods(sema.Type{Kind: sema.Named, Name: name})
+		}
 	}
 	if stringFeatures {
 		g.write("%s\n", stringRuntime)
@@ -190,6 +200,7 @@ func (g *generator) emitType(decl *ast.TypeDecl) {
 	}
 	g.line(0, "}")
 	g.line(0, "")
+	g.emitVisibilityMethods(sema.Type{Kind: sema.Named, Name: decl.Name, Args: g.model.TypeParams[decl]})
 }
 
 func (g *generator) emitFunction(decl *ast.FuncDecl) {
@@ -568,6 +579,8 @@ func goType(t sema.Type) string {
 		return "*" + namedGoType(t)
 	case sema.Slice:
 		return "[]" + goType(*t.Elem)
+	case sema.Map:
+		return "map[" + goType(*t.Key) + "]" + goType(*t.Elem)
 	default:
 		panic("invalid Go type")
 	}
@@ -661,7 +674,9 @@ func blockUsesPrint(body []ast.Stmt) bool {
 				return true
 			}
 		case *ast.ScopeStmt:
-			if exprUsesPrint(statement.Value) || blockUsesPrint(statement.Body) { return true }
+			if exprUsesPrint(statement.Value) || blockUsesPrint(statement.Body) {
+				return true
+			}
 		case *ast.RepeatStmt:
 			if statement.RangeEnd != nil && exprUsesPrint(statement.RangeEnd) {
 				return true
@@ -739,6 +754,12 @@ func exprUsesPrint(expr ast.Expr) bool {
 	case *ast.ListLiteralExpr:
 		for _, element := range expression.Elements {
 			if exprUsesPrint(element) {
+				return true
+			}
+		}
+	case *ast.MapLiteralExpr:
+		for _, entry := range expression.Entries {
+			if exprUsesPrint(entry.Key) || exprUsesPrint(entry.Value) {
 				return true
 			}
 		}

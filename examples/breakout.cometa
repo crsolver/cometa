@@ -1,0 +1,335 @@
+usar std/mate
+usar std/pincel/juego
+usar std/pincel/graficos
+usar std/pincel/color
+usar std/pincel/entrada
+usar std/pincel/audio
+usar std/pincel/recursos
+
+// Breakout: A/D o flechas para mover, Espacio para lanzar, P para pausa, R para reiniciar.
+// Todo el juego usa las APIs actuales; no necesita archivos al distribuir el ejecutable.
+enum Fase
+	Lista
+	Jugando
+	Pausa
+	Victoria
+	Derrota
+
+enum Premio
+	Ancho
+	Vida
+
+tipo Pelota
+	pos mate.Vec2
+	vel mate.Vec2
+
+tipo Ladrillo
+	caja mate.Rect
+	resistencia entero
+	premio Premio?
+
+tipo Caida
+	pos mate.Vec2
+	premio Premio
+
+const radio = 6
+const borde = 16
+const derecha = 624
+const techo = 64
+const ancho_normal = 88
+var sonido = recursos.sonido("assets/recoger.wav")
+var fase Fase = .Lista
+var pausada_desde Fase = .Lista
+var nivel = 1
+var puntos = 0
+var vidas = 3
+var restantes = 0
+var tiempo_ancho decimal = 0
+var paleta = mate.Rect {pos: {x: 276, y: 436}, tamano: {x: ancho_normal, y: 12}}
+var pelota = Pelota {}
+var ladrillos [Ladrillo] = []
+var caidas [Caida] = []
+
+fn iniciar()
+
+	reiniciar()
+
+fn rapidez() decimal 250 + (nivel - 1) * 45
+
+fn resto(valor entero, divisor entero) entero valor % divisor
+
+fn reiniciar()
+	nivel = 1
+	puntos = 0
+	vidas = 3
+	pausada_desde = .Lista
+	cargar_nivel()
+
+fn preparar_pelota()
+	tiempo_ancho = 0
+	caidas = []
+	paleta.tamano.x = ancho_normal
+	paleta.pos.x = 320 - ancho_normal / 2
+	pelota.pos = {x: 320, y: paleta.pos.y - radio - 1}
+	pelota.vel = {}
+	fase = .Lista
+
+// Tres patrones fijos: muro, pasillo central y tablero escalonado.
+fn cargar_nivel()
+	ladrillos = []
+	restantes = 0
+	repetir (0..5) |fila|
+		repetir (0..10) |columna|
+			si nivel == 2 && (columna == 4 || columna == 5) && fila > 0
+				continuar
+			si nivel == 3 && resto(fila, 2) == 1 && resto(columna, 2) == 1
+				continuar
+			var resistencia = 1
+			si nivel >= 2 && fila < 2
+				resistencia = 2
+			si nivel == 3 && fila == 0
+				resistencia = 3
+			var premio Premio? = .Ninguno
+			si columna == 2 && fila == 3
+				premio = Premio.Ancho
+			si columna == 7 && fila == 2
+				premio = Premio.Vida
+			si columna == 8 && fila == 4
+				premio = Premio.Ancho
+			ladrillos.agregar({
+				caja: {pos: {x: 24 + columna * 60, y: 90 + fila * 28}, tamano: {x: 52, y: 20}}
+				resistencia: resistencia
+				premio: premio
+			})
+			restantes = restantes + 1
+	preparar_pelota()
+
+
+fn mover_paleta(dt decimal)
+	var direccion = 0
+	si entrada.tecla_mantenida(.A) || entrada.tecla_mantenida(.Izquierda)
+		direccion = direccion - 1
+	si entrada.tecla_mantenida(.D) || entrada.tecla_mantenida(.Derecha)
+		direccion = direccion + 1
+	paleta.pos.x = mate.limitar(paleta.pos.x + direccion * 420 * dt, borde, derecha - paleta.tamano.x)
+
+
+// El AABB de la pelota aproxima su circulo. Cada paso recorre como maximo radio/2.
+fn caja_pelota() mate.Rect
+	{pos: pelota.pos - mate.Vec2 {x: radio, y: radio}, tamano: {x: radio * 2, y: radio * 2}}
+
+
+fn simular_pelota(dt decimal)
+	var pasos = mate.maximo(1, mate.techo(rapidez() * dt / (radio / 2)))
+	var paso = dt / pasos
+	repetir (0..pasos) |i|
+		var anterior = pelota.pos
+		pelota.pos = pelota.pos + pelota.vel * paso
+		si pelota.pos.x < borde + radio
+			pelota.pos.x = borde + radio
+			pelota.vel.x = mate.absoluto(pelota.vel.x)
+		si pelota.pos.x > derecha - radio
+			pelota.pos.x = derecha - radio
+			pelota.vel.x = -mate.absoluto(pelota.vel.x)
+		si pelota.pos.y < techo + radio
+			pelota.pos.y = techo + radio
+			pelota.vel.y = mate.absoluto(pelota.vel.y)
+		si pelota.vel.y > 0 && anterior.y + radio <= paleta.pos.y && caja_pelota().interseca(paleta)
+			var impacto = mate.limitar((pelota.pos.x - paleta.pos.x - paleta.tamano.x / 2) / (paleta.tamano.x / 2), -1, 1)
+			var angulo = impacto * mate.pi / 3
+			pelota.pos.y = paleta.pos.y - radio
+			pelota.vel = mate.Vec2 {x: mate.seno(angulo), y: -mate.coseno(angulo)} * rapidez()
+		golpear_ladrillos(anterior)
+		si restantes == 0
+			avanzar_nivel()
+			retornar
+		si pelota.pos.y - radio > 480
+			perder_vida()
+			retornar
+
+
+fn perder_vida()
+	vidas = vidas - 1
+	preparar_pelota()
+	si vidas == 0
+		fase = .Derrota
+
+
+fn avanzar_nivel()
+	si nivel == 3
+		preparar_pelota()
+		fase = .Victoria
+	sino
+		nivel = nivel + 1
+		cargar_nivel()
+
+
+// Resolver un solo ladrillo por subpaso evita invertir dos veces en una union.
+fn golpear_ladrillos(anterior mate.Vec2)
+	repetir (ladrillos) |ladrillo|
+		si ladrillo.resistencia <= 0
+			continuar
+		si caja_pelota().interseca(ladrillo.caja)
+			var caja = ladrillo.caja
+			si anterior.y + radio <= caja.pos.y
+				pelota.pos.y = caja.pos.y - radio
+				pelota.vel.y = -mate.absoluto(pelota.vel.y)
+			osi anterior.y - radio >= caja.pos.y + caja.tamano.y
+				pelota.pos.y = caja.pos.y + caja.tamano.y + radio
+				pelota.vel.y = mate.absoluto(pelota.vel.y)
+			osi anterior.x < caja.pos.x
+				pelota.pos.x = caja.pos.x - radio
+				pelota.vel.x = -mate.absoluto(pelota.vel.x)
+			sino
+				pelota.pos.x = caja.pos.x + caja.tamano.x + radio
+				pelota.vel.x = mate.absoluto(pelota.vel.x)
+			ladrillo.resistencia = ladrillo.resistencia - 1
+			puntos = puntos + 10
+			si ladrillo.resistencia == 0
+				restantes = restantes - 1
+				puntos = puntos + 40
+				si ladrillo.premio |premio|
+					caidas.agregar({pos: caja.pos + caja.tamano / 2, premio: premio})
+			audio.reproducir(sonido, volumen = 0.12)
+			romper
+
+
+fn aplicar_premio(premio Premio)
+	casos premio
+		.Ancho =>
+			var centro = paleta.pos.x + paleta.tamano.x / 2
+			paleta.tamano.x = 136
+			paleta.pos.x = mate.limitar(centro - 68, borde, derecha - 136)
+			tiempo_ancho = 10
+		.Vida => vidas = mate.minimo(5, vidas + 1)
+
+
+fn actualizar_premios(dt decimal)
+	si tiempo_ancho > 0
+		tiempo_ancho = mate.maximo(0, tiempo_ancho - dt)
+		si tiempo_ancho == 0
+			paleta.pos.x = paleta.pos.x + (paleta.tamano.x - ancho_normal) / 2
+			paleta.tamano.x = ancho_normal
+	var siguientes [Caida] = []
+	repetir (caidas) |caida|
+		caida.pos.y = caida.pos.y + 110 * dt
+		var caja = mate.Rect {pos: caida.pos - mate.Vec2 {x: 9, y: 9}, tamano: {x: 18, y: 18}}
+		si caja.interseca(paleta)
+			aplicar_premio(caida.premio)
+			audio.reproducir(sonido, volumen = 0.3)
+		osi caida.pos.y < 490
+			siguientes.agregar(caida)
+	caidas = siguientes
+
+
+// Dibuja digitos de derecha a izquierda: no requiere conversion ni concatenacion.
+fn pintar_entero(valor entero, x decimal, y decimal)
+	var digitos = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
+	var numero = mate.maximo(0, valor)
+	repetir
+		graficos.texto_depuracion(digitos[resto(numero, 10)], x, y)
+		x = x - 6
+		numero = numero / 10
+		si numero == 0
+			romper
+
+
+fn panel(titulo cadena, detalle cadena)
+	graficos.rectangulo(112, 250, 416, 104, color.rgba(15, 23, 42, 240))
+	graficos.rectangulo(112, 250, 4, 104, .Celeste)
+	graficos.texto_depuracion(titulo, 138, 270)
+	graficos.texto_depuracion(detalle, 138, 296)
+	graficos.texto_depuracion("R: nueva partida", 138, 322)
+
+tipo Partida
+	pub fn actualizar(dt decimal)
+		si entrada.tecla_presionada(.R)
+			reiniciar()
+			retornar
+		si entrada.tecla_presionada(.P)
+			casos fase
+				.Lista =>
+					pausada_desde = .Lista
+					fase = .Pausa
+				.Jugando =>
+					pausada_desde = .Jugando
+					fase = .Pausa
+				.Pausa => fase = pausada_desde
+				_ => retornar
+			retornar
+		casos fase
+			.Lista =>
+				mover_paleta(dt)
+				pelota.pos = {x: paleta.pos.x + paleta.tamano.x / 2, y: paleta.pos.y - radio - 1}
+				si entrada.tecla_presionada(.Espacio)
+					pelota.vel = mate.Vec2 {x: 0.35, y: -1}.normalizado() * rapidez()
+					fase = .Jugando
+			.Jugando =>
+				mover_paleta(dt)
+				actualizar_premios(dt)
+				simular_pelota(dt)
+			_ => retornar
+
+	pub fn pintar()
+		graficos.limpiar(color.rgba(9, 14, 26))
+		repetir (0..16) |columna|
+			graficos.linea(16 + columna * 40, techo, 16 + columna * 40, 464, color.rgba(18, 28, 44))
+		repetir (0..11) |fila|
+			graficos.linea(borde, techo + fila * 40, derecha, techo + fila * 40, color.rgba(18, 28, 44))
+		graficos.rectangulo(12, techo, 4, 400, .Celeste)
+		graficos.rectangulo(derecha, techo, 4, 400, .Celeste)
+		graficos.rectangulo(12, techo - 4, 616, 4, .Celeste)
+		repetir (ladrillos) |ladrillo|
+			si ladrillo.resistencia <= 0
+				continuar
+			var tinte = color.rgba(37, 179, 190)
+			si ladrillo.resistencia == 2
+				tinte = color.rgba(240, 163, 60)
+			si ladrillo.resistencia == 3
+				tinte = color.rgba(235, 88, 122)
+			graficos.rectangulo_rect(ladrillo.caja, tinte)
+			graficos.rectangulo_v(ladrillo.caja.pos, {x: ladrillo.caja.tamano.x, y: 3}, color.rgba(255, 255, 255, 90))
+			repetir (0..ladrillo.resistencia) |marca|
+				graficos.rectangulo_v(ladrillo.caja.pos + mate.Vec2 {x: 19 + marca * 6, y: 10}, {x: 3, y: 3}, .Blanco)
+			si ladrillo.premio |premio|
+				var tinte_premio color.Color = casos premio
+					.Ancho => .Celeste
+					.Vida => .Verde
+				graficos.circulo_v(ladrillo.caja.pos + mate.Vec2 {x: 6, y: 10}, 2, tinte_premio)
+		repetir (caidas) |caida|
+			casos caida.premio
+				.Ancho =>
+					graficos.rectangulo_v(caida.pos - mate.Vec2 {x: 9, y: 9}, {x: 18, y: 18}, .Celeste)
+					graficos.rectangulo_v(caida.pos - mate.Vec2 {x: 6, y: 2}, {x: 12, y: 4}, .Negro)
+				.Vida =>
+					graficos.circulo_v(caida.pos, 9, .Verde)
+					graficos.linea_v(caida.pos - mate.Vec2 {x: 5}, caida.pos + mate.Vec2 {x: 5}, .Negro, grosor = 2)
+					graficos.linea_v(caida.pos - mate.Vec2 {y: 5}, caida.pos + mate.Vec2 {y: 5}, .Negro, grosor = 2)
+		graficos.rectangulo_rect(paleta, .Celeste)
+		graficos.rectangulo_v(paleta.pos, {x: paleta.tamano.x, y: 3}, .Blanco)
+		graficos.circulo_v(pelota.pos, radio, .Blanco)
+		graficos.texto_depuracion("COMETA / BREAKOUT", 18, 10)
+		graficos.texto_depuracion("NIVEL   /3   PUNTOS        VIDAS", 250, 10)
+		pintar_entero(nivel, 286, 10)
+		pintar_entero(puntos, 442, 10)
+		pintar_entero(vidas, 454, 10)
+		graficos.texto_depuracion("A/D o flechas: mover | Espacio: lanzar | P: pausa | R: reiniciar", 18, 34)
+		graficos.texto_depuracion("Cian: paleta ancha 10s | Verde: vida extra (max. 5)", 18, 464)
+		si tiempo_ancho > 0
+			graficos.texto_depuracion("ANCHO    s", 500, 242)
+			pintar_entero(mate.techo(tiempo_ancho), 542, 242)
+		casos fase
+			.Lista => panel("LISTO / ROMPE TODOS LOS LADRILLOS", "Pulsa ESPACIO para lanzar")
+			.Pausa => panel("PAUSA", "Pulsa P para continuar")
+			.Victoria =>
+				panel("VICTORIA / TRES NIVELES COMPLETADOS", "Puntuacion final:")
+				pintar_entero(puntos, 312, 296)
+			.Derrota =>
+				panel("FIN DE LA PARTIDA", "Puntuacion final:")
+				pintar_entero(puntos, 312, 296)
+			.Jugando => retornar
+
+fn inicio()
+	iniciar()
+	juego.ejecutar(Partida {}, 640, 480, titulo = "Cometa: Breakout") capturar |error|
+		imprimir(error)

@@ -1,6 +1,6 @@
 package sema
 
-import "hacha/internal/ast"
+import "cometa/internal/ast"
 
 // An edge tracks how a declaration's type parameter flows into another's.
 // A cycle containing a constructor would require infinitely many Go instances.
@@ -19,6 +19,9 @@ func (c *checker) recordExpansion(params, args []Type, pos ast.Pos) {
 		}
 		if t.Elem != nil {
 			visit(*t.Elem, target, true)
+		}
+		if t.Key != nil {
+			visit(*t.Key, target, true)
 		}
 		if t.Err != nil {
 			visit(*t.Err, target, true)

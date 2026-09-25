@@ -15,17 +15,17 @@ func TestRetroStartupArguments(t *testing.T) {
 		`g, 320, 180, "Retro", 4, falso, falso, 60, falso, verdadero`,
 	} {
 		source := "usar std/pincel/juego\nfn iniciar(g juego.Juego)\n\tjuego.ejecutar(" + args + ") capturar |e| imprimir(e)\n"
-		if _, err := Compile("crt.hacha", []byte(source)); err != nil {
+		if _, err := Compile("crt.cometa", []byte(source)); err != nil {
 			t.Fatalf("%s: %v", args, err)
 		}
 	}
 	for _, value := range []string{"1", `"verdadero"`} {
 		source := "usar std/pincel/juego\nfn iniciar(g juego.Juego)\n\tjuego.ejecutar(g, retro = " + value + ") capturar |e| imprimir(e)\n"
-		if _, err := Compile("crt.hacha", []byte(source)); err == nil {
+		if _, err := Compile("crt.cometa", []byte(source)); err == nil {
 			t.Fatalf("accepted retro = %s", value)
 		}
 	}
-	generated, err := Compile("math.hacha", []byte("usar std/mate\nfn inicio() imprimir(mate.Vec2 {1, 2})\n"))
+	generated, err := Compile("math.cometa", []byte("usar std/mate\nfn inicio() imprimir(mate.Vec2 {1, 2})\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +38,7 @@ func TestCRTPresentationRuntime(t *testing.T) {
 	if testing.Short() {
 		t.Skip("desktop rendering")
 	}
-	generated, err := Compile("crt.hacha", []byte("usar std/pincel/juego\nusar std/pincel/retro\n"))
+	generated, err := Compile("crt.cometa", []byte("usar std/pincel/juego\nusar std/pincel/retro\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +106,7 @@ func (*crtCheck) Update() error {
   row+=h
   normal.Dispose();effect.Dispose()
  }
- if path:=os.Getenv("HACHA_CRT_PREVIEW");path!="" {
+ if path:=os.Getenv("COMETA_CRT_PREVIEW");path!="" {
   f,err:=os.Create(path);if err!=nil{panic(err)}
   if err:=png.Encode(f,preview);err!=nil{panic(err)};if err:=f.Close();err!=nil{panic(err)}
  }

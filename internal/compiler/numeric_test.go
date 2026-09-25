@@ -8,7 +8,7 @@ import (
 )
 
 func TestNumericRuntime(t *testing.T) {
-	runHacha(t, `interfaz Valor
+	runCometa(t, `interfaz Valor
 enum E
 	A
 	B
@@ -79,7 +79,7 @@ fn inicio()
 		.A => n
 	imprimir(r)
 `
-		runHacha(t, source, "2\n5.5\n2\n5\n")
+		runCometa(t, source, "2\n5.5\n2\n5\n")
 	}
 }
 
@@ -99,7 +99,7 @@ func TestNumericGameRuntime(t *testing.T) {
 fn actualizar(dt decimal) imprimir(dt)
 fn pintar() imprimir(0)
 `
-	generated, err := Compile("numeric-game.hacha", []byte(pincelImports+source))
+	generated, err := Compile("numeric-game.cometa", []byte(pincelImports+source))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +130,7 @@ func TestNumericDiagnostics(t *testing.T) {
 		{"fn inicio() imprimir(-9223372036854775809)\n", "fuera del rango de int64"},
 		{"fn inicio() imprimir(entero(verdadero))\n", "argumento numérico"},
 	} {
-		_, err := Compile("numeric.hacha", []byte(tc.source))
+		_, err := Compile("numeric.cometa", []byte(tc.source))
 		if err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Errorf("%s: got %v, want %q", tc.source, err, tc.want)
 		}
@@ -138,7 +138,7 @@ func TestNumericDiagnostics(t *testing.T) {
 }
 
 func TestNumericConversionFailureRuntime(t *testing.T) {
-	generated, err := Compile("numeric.hacha", []byte("fn inicio() imprimir(entero(1.5))\n"))
+	generated, err := Compile("numeric.cometa", []byte("fn inicio() imprimir(entero(1.5))\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,13 +156,13 @@ func main() {
 }
 
 func TestNumericExamples(t *testing.T) {
-	paths, err := filepath.Glob("../../examples/*.hacha")
+	paths, err := filepath.Glob("../../examples/*.cometa")
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, path := range paths {
-		// g.hacha is a pre-existing scratch file with an unresolved import.
-		if filepath.Base(path) == "g.hacha" {
+		// g.cometa is a pre-existing scratch file with an unresolved import.
+		if filepath.Base(path) == "g.cometa" {
 			continue
 		}
 		t.Run(filepath.Base(path), func(t *testing.T) {
