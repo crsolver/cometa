@@ -9,7 +9,7 @@ import (
 )
 
 func TestParsesGlobalVariablesAndConstants(t *testing.T) {
-	tokens, err := lexer.Lex("globales.hacha", "var contador num = 0\nconst limite = contador + 10\n")
+	tokens, err := lexer.Lex("globales.hacha", "var contador entero = 0\nconst limite = contador + 10\n")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -22,7 +22,7 @@ func TestParsesGlobalVariablesAndConstants(t *testing.T) {
 	}
 	variable := program.Decls[0].(*ast.GlobalDecl)
 	constant := program.Decls[1].(*ast.GlobalDecl)
-	if variable.Constant || variable.Type == nil || variable.Type.Name != "num" {
+	if variable.Constant || variable.Type == nil || variable.Type.Name != "entero" {
 		t.Fatalf("variable = %#v", variable)
 	}
 	if !constant.Constant || constant.Type != nil {
@@ -52,7 +52,7 @@ func TestParsesRangeLoop(t *testing.T) {
 }
 
 func TestParsesTypeMethodsAndConditionalExpression(t *testing.T) {
-	source := "tipo Usuario\n\tedad num\n\tactivo bool\n\tfn activar(valor bool)\n\t\t@activo = si (@edad < 18) verdadero sino valor\n"
+	source := "tipo Usuario\n\tedad entero\n\tactivo bool\n\tfn activar(valor bool)\n\t\t@activo = si (@edad < 18) verdadero sino valor\n"
 	tokens, err := lexer.Lex("usuario.hacha", source)
 	if err != nil {
 		t.Fatal(err)
@@ -75,7 +75,7 @@ func TestParsesTypeMethodsAndConditionalExpression(t *testing.T) {
 }
 
 func TestParsesNestedReturningConditionals(t *testing.T) {
-	source := "fn elegir(n num) num\n\tsi (n < 0) 0\n\tosi (n == 0) 1\n\tsino\n\t\tsi verdadero\n\t\t\t2\n\t\tsino\n\t\t\t3\n"
+	source := "fn elegir(n entero) entero\n\tsi (n < 0) 0\n\tosi (n == 0) 1\n\tsino\n\t\tsi verdadero\n\t\t\t2\n\t\tsino\n\t\t\t3\n"
 	tokens, err := lexer.Lex("elegir.hacha", source)
 	if err != nil {
 		t.Fatal(err)
@@ -123,7 +123,7 @@ func TestParsesVariablesCompositeLiteralsAndMemberCalls(t *testing.T) {
 }
 
 func TestParsesPositionalStructLiterals(t *testing.T) {
-	source := "tipo Punto\n\tx num\n\ty num\ntipo Caja<T>\n\tvalor T\nfn inicio()\n\tvar a = Punto {1, 2}\n\tvar b Punto = {3}\n\tvar c = Caja<num> {\n\t\t4,\n\t}\n"
+	source := "tipo Punto\n\tx entero\n\ty entero\ntipo Caja<T>\n\tvalor T\nfn inicio()\n\tvar a = Punto {1, 2}\n\tvar b Punto = {3}\n\tvar c = Caja<entero> {\n\t\t4,\n\t}\n"
 	tokens, err := lexer.Lex("posicionales.hacha", source)
 	if err != nil {
 		t.Fatal(err)
@@ -191,7 +191,7 @@ func TestParsesListAndInfiniteRepeats(t *testing.T) {
 }
 
 func TestParsesListIndexAsFunctionArgument(t *testing.T) {
-	source := "fn procesar_usuario(usuario num)\n\timprimir(usuario)\nfn inicio()\n\tvar lista = [1, 2]\n\tvar x = lista[1]\n\tprocesar_usuario(lista[0])\n"
+	source := "fn procesar_usuario(usuario entero)\n\timprimir(usuario)\nfn inicio()\n\tvar lista = [1, 2]\n\tvar x = lista[1]\n\tprocesar_usuario(lista[0])\n"
 	tokens, err := lexer.Lex("indices.hacha", source)
 	if err != nil {
 		t.Fatal(err)

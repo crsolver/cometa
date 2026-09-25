@@ -12,11 +12,11 @@ func TestWrapperCompletion(t *testing.T) {
 		source string
 		labels string
 	}{
-		{"fn f() num?\n\t.^\n", "Ninguno,Alguno"},
-		{"fn f() num!\n\t.^\n", "Ok,Error"},
+		{"fn f() entero?\n\t.^\n", "Ninguno,Alguno"},
+		{"fn f() entero!\n\t.^\n", "Ok,Error"},
 		{"fn f() !\n\t.^\n", "Ok,Error"},
-		{"fn f(n num?) num\n\tcasos n\n\t\t.^\n", "Ninguno,Alguno"},
-		{"fn f(n num!) num\n\tcasos n\n\t\t.^\n", "Ok,Error"},
+		{"fn f(n entero?) entero\n\tcasos n\n\t\t.^\n", "Ninguno,Alguno"},
+		{"fn f(n entero!) entero\n\tcasos n\n\t\t.^\n", "Ok,Error"},
 		{"tipo U\n\tnombre cadena\nfn f(u U?)\n\tsi u |v|\n\t\timprimir(v.^)\n", "nombre"},
 		{"tipo U\n\tnombre cadena\nfn f(u U?)\n\timprimir(u.^)\n", ""},
 	} {
@@ -46,9 +46,9 @@ func TestWrapperCompletion(t *testing.T) {
 
 func TestWrapperTypeDisplay(t *testing.T) {
 	for _, tc := range []struct{ source, want string }{
-		{"fn f(u num?) num! u o 1\n", "fn f(u num?) num!"},
+		{"fn f(u entero?) entero! u o 1\n", "fn f(u entero?) entero!"},
 		{"fn f() !bool .Ok\n", "fn f() !bool"},
-		{"fn f() (num!)? .Ninguno\n", "fn f() (num!)?"},
+		{"fn f() (entero!)? .Ninguno\n", "fn f() (entero!)?"},
 	} {
 		h := servertest.New(t, NewHandler())
 		uri := lsp.DocumentURI("file:///wrapper_hover.hacha")

@@ -113,7 +113,7 @@ func TestHoverShowsInferredVariablesAndFunctionDocumentation(t *testing.T) {
 func TestHoverTraversesPositionalStructValues(t *testing.T) {
 	harness := servertest.New(t, NewHandler())
 	uri := lsp.DocumentURI("file:///hover-positional.hacha")
-	source := "tipo Punto\n\tx num\nfn inicio()\n\tvar n = 1\n\tvar punto = Punto {n}\n"
+	source := "tipo Punto\n\tx entero\nfn inicio()\n\tvar n = 1\n\tvar punto = Punto {n}\n"
 	if err := harness.DidOpen(uri, "hacha", source); err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +121,7 @@ func TestHoverTraversesPositionalStructValues(t *testing.T) {
 		t.Fatalf("unexpected diagnostics: %+v", diagnostics)
 	}
 	hover, err := harness.Hover(uri, 4, 20)
-	if err != nil || hover == nil || !strings.Contains(hover.Contents.Value(), "var n num") {
+	if err != nil || hover == nil || !strings.Contains(hover.Contents.Value(), "var n entero") {
 		t.Fatalf("hover = %+v, %v; want inferred positional value", hover, err)
 	}
 }

@@ -1,20 +1,38 @@
 # Hacha: especificación del MVP
 
-Hacha es un lenguaje estáticamente tipado, con sintaxis en español e indentación significativa, orientado a juegos 2D con Ebitengine. El compilador está escrito en Go y genera un único archivo Go perteneciente a `package main`.
+Hacha es un lenguaje estáticamente tipado, con sintaxis en español e indentación significativa, de propósito general con bibliotecas opcionales para juegos 2D. El compilador está escrito en Go y genera un único archivo Go perteneciente a `package main`.
 
-## Perfil de juego
+## Diagnósticos y recuperación
 
-El módulo raíz que declara `actualizar` o `pintar` activa el perfil de juego y debe declarar ambas: `fn actualizar(dt num)` y `fn pintar()`, sin resultados, genéricos ni defaults. `fn iniciar()` es opcional. Desde él y sus helpers se puede llamar a `juego.configuracion` sin resultado y con todos los parámetros opcionales: 320×180, escala 1, título "Hacha", 60 TPS, sin redimensionamiento ni pantalla completa. La última llamada gana; la configuración se valida y aplica después de `iniciar`. `configurar` es una función ordinaria. No se admite `inicio` junto a este perfil ni callbacks en módulos importados. El runtime genera el adaptador de Ebitengine y su punto de entrada. `dt` se expresa en segundos por tick (1/60 por defecto).
+El frontend acumula errores léxicos, sintácticos y semánticos recuperables en una ejecución. Tanto la CLI como el editor los muestran ordenados por archivo y posición, sin duplicados, hasta 100 errores más un aviso de truncamiento. Se mantiene el formato `archivo:línea:columna: mensaje` de la CLI.
 
-`Vec2`, `Rect`, `Camara2D`, `Color`, `Tecla` y `BotonRaton` tienen semántica de valor; los recursos `Imagen`, `Fuente`, `Sonido` y `Reproduccion` son opacos. Los tipos y namespaces incorporados están reservados. La interfaz de ejemplo antes llamada `Fuente` ahora se llama `Proveedor`. Las estructuras del usuario conservan referencias.
+La recuperación usa límites de línea, declaración e indentación; no interpreta espacios como tabuladores. Se conservan fragmentos válidos para comprobar errores independientes y ofrecer navegación en el editor. Los nombres de declaraciones fallidas se conservan como inválidos para evitar errores derivados en sus usos. Cuando faltan datos necesarios, se posponen las comprobaciones dependientes, incluidas algunas validaciones globales y de resultados no usados. Corregir la causa puede revelar errores adicionales en esos fragmentos.
 
-`Vec2` y `Rect` exponen métodos de valor; la matemática escalar usa `mate`. El dibujo ofrece variantes escalares, `_v` y `_rect`, con rotación opcional en radianes para rectángulos, imágenes y texto.
+Un AST o modelo parcial nunca permite generar Go, construir ni ejecutar. Los errores del frontend no reemplazan archivos de salida existentes.
 
-El catálogo de APIs, las firmas, las coordenadas, los defaults y las reglas de recursos se especifican en [Juegos 2D](docs/juegos.md). Dibujo solo puede alcanzarse desde `pintar` y sus helpers; se rechaza desde globales, inicio o actualización. Los recursos usan rutas literales en inicializadores globales directos, relativas al módulo que los declara, y se validan e incorporan en compilación.
+## Biblioteca estándar y Pincel
 
-`hacha ejecutar juego.hacha` construye y ejecuta; `hacha construir juego.hacha -o juego.exe` construye sin abrir ventana. Ambos usan un módulo Go temporal y Ebitengine v2.10.1. `compilar` sigue produciendo Go; para juegos valida sintaxis, mientras que `ejecutar` y `construir` verifican el programa con `go build`. El perfil tradicional con `inicio` conserva su verificación de tipos Go.
+`usar std/mate/ruido` expone `suave(x decimal, y decimal, semilla entero = 0) decimal` y `fractal(x decimal, y decimal, semilla entero = 0, octavas entero = 4, persistencia decimal = 0.5, lacunaridad decimal = 2.0) decimal`. Son funciones puras de ruido de valores 2D, reproducibles por semilla, con resultado en [0, 1], sin Ebitengine ni estado aleatorio. El ruido suave interpola esquinas mediante suavizado quíntico; el fractal normaliza la suma ponderada de octavas con semillas derivadas (la primera usa la original). Se requieren coordenadas finitas dentro de (-2^52, 2^52) en cada octava, 1..16 octavas, persistencia en [0, 1] y lacunaridad finita >= 1; entradas inválidas provocan panic. Véase [la API de ruido](docs/ruido.md).
 
-Las llamadas permiten argumentos en líneas separadas, indentados con tabs, con el paréntesis de cierre al nivel de la llamada. Los vectores y las demás estructuras aceptan literales nombrados (`Vec2 {x: 10, y: 10}`) o posicionales (`Vec2 {10, 10}`).
+`usar std/mate/curvas` importa el namespace `curvas`, independiente de `std/mate` y de Ebitengine. Expone `lineal` y las familias `cuadratica`, `cubica`, `cuartica`, `quintica`, `senoidal`, `circular`, `exponencial`, `elastica`, `retroceso` y `rebote`, cada una con sufijos `_entrada`, `_salida` y `_entrada_salida`: 31 funciones puras `(progreso decimal) decimal`. Los enteros se amplían a decimal como en otras llamadas. Para progreso menor o igual a 0 devuelven exactamente 0; para progreso mayor o igual a 1 devuelven exactamente 1. Los infinitos se limitan a esos extremos y NaN se propaga. Solo se limita la entrada: las curvas elásticas y de retroceso conservan resultados fuera de [0, 1]. No administran tiempo ni estado. Véase [la API de curvas](docs/curvas.md).
+
+`usar std/mate` y `usar std/azar` importan matemáticas y azar sin Ebitengine. Pincel agrupa módulos independientes bajo `std/pincel/`: `juego`, `graficos`, `color`, `entrada`, `audio`, `ventana`, `tiempo`, `recursos` y `retro`. El último segmento es el alias predeterminado; se admite `como`. No existe importación global de `std/pincel`, importación comodín ni reexportación implícita. Cada archivo importa lo que utiliza. `./std/...` sigue siendo una ruta local.
+
+Los tipos se califican: `mate.Vec2`, `mate.Rect`, `graficos.Camara2D`, `color.Color`, `entrada.Tecla`, `entrada.BotonRaton`, `graficos.Imagen`, `graficos.Fuente`, `audio.Sonido` y `audio.Reproduccion`. Los seis primeros conservan semántica de valor; los recursos son handles opacos compartidos. Sus nombres no están reservados globalmente. Se conservan operadores vectoriales, métodos, literales nombrados/posicionales y constantes contextuales.
+
+`fn inicio()` es el único punto de entrada. Se llama explícitamente a `juego.ejecutar(instancia, ...)`, que recibe un objeto compatible con la interfaz estructural `juego.Juego`: métodos `actualizar(dt decimal)` y `pintar()`, ambos sin resultado. La biblioteca invoca esos métodos; pueden pertenecer a un módulo importado. Los nombres de funciones globales no activan ningún perfil. No se invoca `iniciar` automáticamente y se elimina `juego.configuracion`.
+
+La llamada acepta dimensiones, título, escala, redimensionamiento, pantalla completa y TPS; mantiene los defaults 320×180, "Hacha", escala 1 y 60 TPS. Valida la configuración, inicia Ebitengine y bloquea hasta cerrar la ventana. Devuelve `!`: `.Ok` al cerrar, `.Error(cadena)` ante configuración inválida, otra ejecución en el mismo proceso o un error del backend. El usuario prepara su estado antes de la llamada. `dt` son segundos por tick.
+
+Dibujar requiere estar dentro de la fase activa de `pintar`; la biblioteca lo comprueba en ejecución, también en helpers. Ya no hay análisis de efectos del ciclo de juego en el compilador. Se conservan recursos con rutas literales en inicializadores globales directos, relativas al archivo declarante, validados e incorporados en compilación.
+
+El compilador incorpora solamente el cierre de dependencias nativas de los módulos importados. `compilar` genera un único archivo Go; `construir` y `ejecutar` usan un módulo Go temporal con las dependencias requeridas. Pincel usa Ebitengine v2.10.1. Los programas sin dependencias Go externas conservan validación de tipos Go durante `compilar`; el resto se verifica completamente al construir.
+
+Las firmas, coordenadas y recursos se detallan en [Pincel](docs/juegos.md).
+
+`std/pincel/retro` añade dibujo incorporado de texto y glifos bitmap de 8×8: `texto`, `icono` y `glifo`, con coordenadas y escala enteras, color contextual y tipos opacos de valor `Icono` y `Atlas`. `texto` mapea Unicode al atlas Dungeon-437; `icono` usa nombres contextuales del atlas Dungeon-mode; `glifo` permite índices 0–255 y selección `.Dungeon`/`.ASCII`. Los atlas se incorporan al Go generado únicamente al importar este módulo. No son recursos declarados por el usuario. Los dibujos obedecen la cámara y la restricción de fase `pintar` de Pincel.
+
+Los parámetros opcionales finales de `juego.ejecutar` son `pixelado bool = falso` y `retro bool = falso`, en ese orden. `pixelado` controla la presentación por vecino más cercano; no cambia la resolución lógica ni impone escalas enteras. `retro = verdadero` activa vecino más cercano aunque `pixelado = falso` y aplica un shader CRT a toda la imagen, incluido el texto: líneas de barrido suaves, una máscara RGB tenue y viñeta ligera, sin curvatura ni parpadeo. Los patrones finos se atenúan a escalas pequeñas. Conserva la relación de aspecto, las bandas de presentación y las coordenadas del ratón y la cámara. No requiere importar `std/pincel/retro`. Los errores de inicialización del shader se devuelven mediante el resultado de `ejecutar`. El texto TTF existente conserva su API.
 
 ## Compilar
 
@@ -38,7 +56,7 @@ El mismo ejecutable inicia el servidor LSP mediante `hacha lsp`. El servidor se 
 ## Parámetros variádicos y argumentos nombrados
 
 ```hacha
-fn sumar(base num, valores ...num) num
+fn sumar(base entero, valores ...entero) entero
 	var total = base
 	repetir (valores) |valor|
 		total = total + valor
@@ -84,7 +102,8 @@ fn inicio()
 
 | Hacha | Go |
 | --- | --- |
-| `num` | `float64` |
+| `entero` | `int64` |
+| `decimal` | `float64` |
 | `cadena` | `string` |
 | `bool` | `bool` |
 | `Usuario` | `*Usuario` |
@@ -92,9 +111,21 @@ fn inicio()
 
 Las estructuras y enums declarados por el programa tienen semántica de referencia. Las interfaces conservan el valor dinámico y los parámetros de tipo conservan la representación de su argumento. Los tipos, campos, métodos y funciones generados se exportan en Go.
 
+### Números
+
+`entero` tiene signo y 64 bits; `decimal` usa IEEE-754 binario de 64 bits, no aritmética decimal exacta. `num` fue eliminado: debe elegirse uno de los dos tipos. Los literales sin punto son enteros, los literales con punto son decimales; se rechazan literales fuera del rango de su tipo, y se admite `-9223372036854775808`.
+
+`entero` se promueve implícitamente a `decimal` en asignaciones, argumentos, retornos, campos, ramas y elementos de literales. Dos operandos enteros conservan el tipo con `+`, `-`, `*` y `/`; `5 / 2` vale `2` y `-5 / 2` vale `-2`. `%` solo admite enteros y su resto tiene el signo del dividendo. Si algún operando es decimal, los operadores aritméticos y las comparaciones promueven el entero. El tipo esperado del resultado no cambia la división: `var x decimal = 5 / 2` vale `2.0`; use `5 / 2.0` para obtener `2.5`.
+
+Listas y ramas numéricas sin tipo explícito infieren `decimal` si contienen algún resultado decimal. Los contenedores ya construidos conservan su tipo: `[entero]` no se convierte a `[decimal]`, ni `entero?` a `decimal?`. Un valor entero individual sí puede promoverse antes de envolverse una vez en `decimal?` o `decimal!`. Las interfaces conservan la identidad dinámica de `entero` y `decimal`; las firmas de métodos y los argumentos genéricos siguen siendo exactos.
+
+`decimal(valor)` hace explícita la promoción opcional. `entero(valor)` trunca hacia cero y produce un error de ejecución en español ante NaN, infinito o valores fuera de `int64`. `mate.piso`, `mate.techo` y `mate.redondear` devuelven `entero`, con la misma validación después de redondear; los empates de `redondear` se alejan de cero. `mate.absoluto`, `minimo`, `maximo` y `limitar` conservan enteros si todos sus argumentos son enteros, y producen decimal si alguno es decimal.
+
+La promoción a `decimal` usa redondeo IEEE-754: por encima de `2^53` algunos enteros pierden precisión. La aritmética entera en ejecución sigue las reglas de `int64` de Go, incluido desbordamiento; la división entera por cero falla. Las expresiones constantes no representables son errores de compilación. La aritmética decimal admite NaN e infinitos en ejecución.
+
 ### Cadenas
 
-`+` concatena dos valores `cadena`; no convierte otros tipos automáticamente. Una cadena puede incluir expresiones con `${expresión}`. La interpolación acepta `cadena`, `num` y `bool`, evalúa cada expresión una sola vez de izquierda a derecha y representa booleanos como `verdadero` o `falso`. `\${` escribe los caracteres `${` literalmente. Las cadenas interpoladas son expresiones de ejecución y no se admiten en `const`.
+`+` concatena dos valores `cadena`; no convierte otros tipos automáticamente. Una cadena puede incluir expresiones con `${expresión}`. La interpolación acepta `cadena`, `entero`, `decimal` y `bool`, evalúa cada expresión una sola vez de izquierda a derecha y representa booleanos como `verdadero` o `falso`. `\${` escribe los caracteres `${` literalmente. Las cadenas interpoladas son expresiones de ejecución y no se admiten en `const`.
 
 ```hacha
 var nombre = "Ana"
@@ -102,14 +133,14 @@ imprimir("Hola " + nombre)
 imprimir("${nombre}, tienes ${20 + 1} años")
 ```
 
-Los índices y longitudes cuentan puntos de código Unicode. Los índices deben ser números finitos enteros. `subcadena` usa un límite final exclusivo; los límites inválidos devuelven `.Ninguno` y un rango vacío válido devuelve `.Alguno("")`.
+Los índices y longitudes cuentan puntos de código Unicode. Los índices deben tener tipo `entero`. `subcadena` usa un límite final exclusivo; los límites inválidos devuelven `.Ninguno` y un rango vacío válido devuelve `.Alguno("")`.
 
 | Método | Resultado |
 | --- | --- |
-| `longitud()` | `num` |
+| `longitud()` | `entero` |
 | `esta_vacia()` | `bool` |
 | `contiene(valor cadena)` | `bool` |
-| `buscar_indice(valor cadena)` | `num?` |
+| `buscar_indice(valor cadena)` | `entero?` |
 | `empieza_con(prefijo cadena)` | `bool` |
 | `termina_con(sufijo cadena)` | `bool` |
 | `mayusculas()` | `cadena` |
@@ -117,15 +148,15 @@ Los índices y longitudes cuentan puntos de código Unicode. Los índices deben 
 | `recortar()` | `cadena` |
 | `reemplazar(buscar cadena, reemplazo cadena)` | `cadena` |
 | `dividir(separador cadena)` | `[cadena]` |
-| `obtener(indice num)` | `cadena?` |
-| `subcadena(inicio num, fin num)` | `cadena?` |
+| `obtener(indice entero)` | `cadena?` |
+| `subcadena(inicio entero, fin entero)` | `cadena?` |
 
 `dividir("")` divide por punto de código y devuelve una lista vacía para la cadena vacía. `reemplazar("", texto)` inserta el reemplazo en los límites entre puntos de código, incluidos ambos extremos. Los métodos no modifican el receptor.
 
 ```hacha
 tipo Usuario
 	nombre cadena
-	edad num
+	edad entero
 	activo bool
 	referido Usuario?
 	amigos [Usuario]
@@ -173,7 +204,7 @@ fn mostrar(valor Cualquiera)
 	casos valor |dato|
 		Usuario => imprimir(dato.nombre)
 		Describible => imprimir(dato.describir())
-		[num] => imprimir(dato[0])
+		[entero] => imprimir(dato[0])
 		_ => imprimir("otro")
 ```
 
@@ -184,9 +215,9 @@ En `casos` sobre una interfaz, las etiquetas son tipos completos. La ligadura ti
 - Las funciones, estructuras, enums e interfaces aceptan parámetros `<T, U>`. Cada parámetro puede indicar una interfaz: `<T Describible>`. La restricción puede referirse a otros parámetros de la misma declaración; incorporar interfaces permite combinar requisitos. Los nombres de parámetros deben ser únicos y no ocultar tipos declarados.
 - Los cuerpos genéricos se verifican aunque no se utilicen. Un parámetro sin restricción puede guardarse, pasarse y devolverse; sus métodos requieren una restricción que los declare. No se permite aritmética, orden ni igualdad sobre parámetros de tipo. No existen restricciones de campos, uniones de tipos, tipos subyacentes, especializaciones ni valores predeterminados de parámetros de tipo.
 - Los métodos de estructuras genéricas heredan sus parámetros y no pueden declarar otros. Los enums continúan sin métodos.
-- Las llamadas de función infieren parámetros emparejando estructuralmente los tipos de los argumentos explícitos con los tipos formales. Se incluyen argumentos nombrados, elementos variádicos y expansiones. Las apariciones repetidas de un parámetro deben coincidir exactamente. No se infiere desde el resultado esperado, argumentos omitidos ni métodos de las restricciones. Si falta información, se deben escribir todos los argumentos: `f<num, Usuario>(...)`.
-- Los usos de tipos requieren argumentos explícitos: `Caja<Usuario>`, `Evento<num>.Dato(1)`. Los literales contextuales y constructores `.Variante` pueden recibir una instanciación completa como tipo esperado. No hay inferencia de parámetros desde los campos de `Caja { ... }`.
-- Un campo declarado directamente como `T` requiere un valor incluso en `Caja<num>`. `[T]` y `T?` conservan valores predeterminados válidos. Las estructuras anidadas conservan sus requisitos de inicialización. Se rechazan ciclos de campos obligatorios e instanciaciones recursivas que expandan indefinidamente sus argumentos; las listas y opcionales permiten recursión regular.
+- Las llamadas de función infieren parámetros emparejando estructuralmente los tipos de los argumentos explícitos con los tipos formales. Se incluyen argumentos nombrados, elementos variádicos y expansiones. Las apariciones repetidas de un parámetro deben coincidir exactamente. No se infiere desde el resultado esperado, argumentos omitidos ni métodos de las restricciones. Si falta información, se deben escribir todos los argumentos: `f<entero, Usuario>(...)`.
+- Los usos de tipos requieren argumentos explícitos: `Caja<Usuario>`, `Evento<entero>.Dato(1)`. Los literales contextuales y constructores `.Variante` pueden recibir una instanciación completa como tipo esperado. No hay inferencia de parámetros desde los campos de `Caja { ... }`.
+- Un campo declarado directamente como `T` requiere un valor incluso en `Caja<entero>`. `[T]` y `T?` conservan valores predeterminados válidos. Las estructuras anidadas conservan sus requisitos de inicialización. Se rechazan ciclos de campos obligatorios e instanciaciones recursivas que expandan indefinidamente sus argumentos; las listas y opcionales permiten recursión regular.
 - Las estructuras y enums instanciados conservan referencias: `Caja<Usuario>` genera `*Caja[*Usuario]` en Go. Los parámetros de tipo y las interfaces se generan sin añadir un puntero adicional.
 - En expresiones, una secuencia completa `<tipos>` después de un nombre seguida por `(`, `{` o `.` se interpreta como argumentos de tipo antes que como comparaciones. Se admiten cierres anidados `>>`. El resto de comparaciones conserva su sintaxis.
 
@@ -197,14 +228,14 @@ Consulte `examples/interfaces_genericos.hacha`.
 `var` y `const` pueden declararse sin indentación al nivel superior. Ambas formas requieren un inicializador y aceptan un tipo explícito opcional. Las globales forman parte del mismo espacio de nombres que los tipos y funciones, son públicas y se acceden desde otro módulo mediante su alias.
 
 ```hacha
-const limite num = 10
+const limite entero = 10
 var contador = 0
 
 fn incrementar()
 	contador = contador + 1
 ```
 
-Una `var` global puede leerse y reasignarse desde funciones. Una `const` nunca puede ser objetivo de una asignación y solo admite `num`, `cadena` o `bool`, formados por literales, otras constantes y operadores unarios o binarios compatibles. No admite llamadas, listas, estructuras, enums ni wrappers.
+Una `var` global puede leerse y reasignarse desde funciones. Una `const` nunca puede ser objetivo de una asignación y solo admite `entero`, `decimal`, `cadena` o `bool`, formados por literales, otras constantes y operadores unarios o binarios compatibles. No admite llamadas, listas, estructuras, enums ni wrappers.
 
 Los inicializadores de `var` admiten literales compuestos, constructores, referencias a otras globales y llamadas ordinarias. No admiten `retornar`, `intentar`, `capturar`, bloques ni expresiones `si` o `casos`. Las referencias adelantadas son válidas; un ciclo entre inicializadores globales es un error. Los módulos importados se inicializan antes que el módulo que los importa.
 
@@ -236,7 +267,7 @@ var lista2 [Usuario] = []      // válido
 var usuarios = [usuario1, usuario2]
 ```
 
-Una lista se indexa con una expresión `num` entre corchetes. El acceso produce un valor del tipo de sus elementos y puede usarse dentro de otra expresión, incluso como argumento de una función.
+Una lista se indexa con una expresión `entero` entre corchetes. El acceso produce un valor del tipo de sus elementos y puede usarse dentro de otra expresión, incluso como argumento de una función.
 
 ```hacha
 var primero = usuarios[0]
@@ -247,20 +278,20 @@ Las listas ofrecen métodos incorporados. Los métodos `agregar`, `extender`, `i
 
 | Método sobre `[T]` | Resultado | Comportamiento |
 |---|---|---|
-| `longitud()` | `num` | Cantidad de elementos |
+| `longitud()` | `entero` | Cantidad de elementos |
 | `esta_vacia()` | `bool` | Indica si la lista está vacía |
 | `contiene(valor T)` | `bool` | Busca un valor igual |
-| `buscar_indice(valor T)` | `num?` | Primer índice, o `.Ninguno` |
-| `obtener(indice num)` | `T?` | Elemento, o `.Ninguno` si el índice no es válido |
+| `buscar_indice(valor T)` | `entero?` | Primer índice, o `.Ninguno` |
+| `obtener(indice entero)` | `T?` | Elemento, o `.Ninguno` si el índice no es válido |
 | `primero()` / `ultimo()` | `T?` | Elemento extremo, o `.Ninguno` |
 | `agregar(valor T)` | sin valor | Agrega al final |
 | `extender(otra [T])` | sin valor | Agrega todos los elementos de otra lista |
-| `insertar(indice num, valor T)` | `bool` | Inserta antes del índice; permite el final |
-| `eliminar(indice num)` | `bool` | Elimina el elemento conservando el orden |
+| `insertar(indice entero, valor T)` | `bool` | Inserta antes del índice; permite el final |
+| `eliminar(indice entero)` | `bool` | Elimina el elemento conservando el orden |
 | `copiar()` | `[T]` | Copia superficial con almacenamiento independiente |
 | `invertir()` | sin valor | Invierte los elementos en el mismo almacenamiento |
 
-Los índices de estos métodos deben ser números finitos, enteros y dentro del rango. `insertar` y `eliminar` devuelven `falso` sin modificar la lista ante un índice inválido. `obtener` devuelve `.Ninguno`. `contiene` y `buscar_indice` admiten números, cadenas, booleanos y estructuras, que se comparan por identidad; todavía no admiten enums, interfaces, wrappers, listas anidadas ni parámetros de tipo.
+Los índices de estos métodos deben tener tipo `entero` y estar dentro del rango. Los decimales se rechazan durante el chequeo de tipos. `insertar` y `eliminar` devuelven `falso` sin modificar la lista ante un índice inválido. `obtener` devuelve `.Ninguno`. `contiene` y `buscar_indice` admiten números, cadenas, booleanos y estructuras, que se comparan por identidad; todavía no admiten enums, interfaces, wrappers, listas anidadas ni parámetros de tipo.
 
 ```hacha
 var valores = [10, 20]
@@ -283,7 +314,7 @@ imprimir(usuario2.nombre)
 Los parámetros siempre declaran su tipo. Un tipo después de `)` declara el resultado. Si no aparece, la función no devuelve ningún valor. La última expresión de una función con resultado se devuelve implícitamente.
 
 ```hacha
-fn sumar(a num, b num) num a + b
+fn sumar(a entero, b entero) entero a + b
 
 fn inicio()
 	imprimir("hola")
@@ -310,18 +341,18 @@ fn inicio()
 	imprimir(empleado.Persona.nombre)
 ```
 
-- El nombre implícito del campo es el nombre del tipo, con su capitalización original en Hacha. Para `Caja<num>` es `Caja`; no se permiten dos instanciaciones del mismo tipo base en una estructura. El nombre no puede duplicar un campo o método directo.
+- El nombre implícito del campo es el nombre del tipo, con su capitalización original en Hacha. Para `Caja<entero>` es `Caja`; no se permiten dos instanciaciones del mismo tipo base en una estructura. El nombre no puede duplicar un campo o método directo.
 - Solo se pueden embeber estructuras declaradas, incluidas instanciaciones genéricas. No se permiten tipos primitivos, enums, interfaces, listas, opcionales, resultados ni parámetros de tipo sin instanciar. La incorporación de interfaces dentro de `interfaz` conserva sus reglas propias.
 - Los campos y métodos se promueven recursivamente para lecturas, asignaciones, llamadas y acceso mediante `@`. Los miembros directos ocultan a los promovidos; gana el único miembro a menor profundidad. Campos y métodos comparten este espacio de nombres. Si hay varias rutas a esa profundidad, el miembro es ambiguo, incluso cuando llegan a la misma declaración. La ambigüedad se diagnostica al usar el selector; las rutas explícitas siguen disponibles.
 - Los métodos promovidos no ambiguos participan en la implementación estructural de interfaces y restricciones genéricas. Conservan sus parámetros nombrados, valores predeterminados y receptor original; los métodos del tipo embebido no despachan a los métodos del contenedor.
 - Los literales solo aceptan nombres de campos directos: `{Persona: persona}` es válido; `{nombre: "Ana"}` no inicializa el campo promovido. El tipo esperado se propaga al literal anidado.
 - Omitir un campo embebido crea una estructura nueva con los valores predeterminados habituales. Los campos requeridos se diagnostican con su ruta, por ejemplo `Persona.estado`; los ciclos de campos obligatorios siguen prohibidos. Suministrar una instancia conserva la referencia compartida.
-- Go recibe un campo anónimo de tipo puntero, por ejemplo `*Persona` o `*Caja[float64]`, con la convención de nombres exportados del compilador. El LSP incluye miembros promovidos no ambiguos en completado y hover, y el campo embebido en el esquema del documento.
+- Go recibe un campo anónimo de tipo puntero, por ejemplo `*Persona` o `*Caja[int64]`, con la convención de nombres exportados del compilador. El LSP incluye miembros promovidos no ambiguos en completado y hover, y el campo embebido en el esquema del documento.
 
 ```hacha
 tipo Contador
-	valor num
-	fn incrementar(cantidad num)
+	valor entero
+	fn incrementar(cantidad entero)
 		@valor = @valor + cantidad
 ```
 
@@ -347,7 +378,7 @@ Un condicional también puede producir un valor. En ese caso requiere `sino` y t
 Una función con resultado puede terminar en un condicional multilínea. Cada camino debe terminar en una expresión compatible con el resultado declarado.
 
 ```hacha
-fn limitar(numero num) num
+fn limitar(numero entero) entero
 	si (numero < 0) 0
 	osi (numero > 10) 10
 	sino numero
@@ -355,7 +386,7 @@ fn limitar(numero num) num
 
 ## Enums y casos exhaustivos
 
-`enum` declara un tipo con un conjunto cerrado y no vacío de variantes. Cada variante tiene un nombre único y puede declarar un único tipo de payload explícito: `num`, `cadena`, `bool`, una estructura, una lista u otro enum. El nombre `_` está reservado para el patrón comodín. Los enums comparten el espacio de nombres de tipos con `tipo`.
+`enum` declara un tipo con un conjunto cerrado y no vacío de variantes. Cada variante tiene un nombre único y puede declarar un único tipo de payload explícito: `entero`, `decimal`, `cadena`, `bool`, una estructura, una lista u otro enum. El nombre `_` está reservado para el patrón comodín. Los enums comparten el espacio de nombres de tipos con `tipo`.
 
 ```hacha
 tipo Buton_Presionado
@@ -365,7 +396,7 @@ enum Evento
 	Cargar_Pagina
 	Buton_Presionado Buton_Presionado
 	Texto cadena
-	Cantidad num
+	Cantidad entero
 	Activado bool
 	Eventos [Evento]
 ```
@@ -420,9 +451,9 @@ Los opcionales y resultados son constructores de tipos incorporados; no requiere
 | `T?!` | Resultado cuyo éxito contiene un opcional |
 | `(T!)?` | Opcional que contiene un resultado |
 
-`?` envuelve el tipo anterior. `!E` introduce un resultado. El tipo de error se escribe inmediatamente después de `!`, sin espacio; así `fn f(n num) num! n` tiene resultado con error cadena y cuerpo `n`. Los errores compuestos y resultados repetidos se agrupan con paréntesis, por ejemplo `T!(E?)` y `(T!E)!F`. `T!E?` no sustituye a una agrupación explícita. La forma sin valor `!E` también puede usarse en campos, listas y parámetros.
+`?` envuelve el tipo anterior. `!E` introduce un resultado. El tipo de error se escribe inmediatamente después de `!`, sin espacio; así `fn f(n entero) entero! n` tiene resultado con error cadena y cuerpo `n`. Los errores compuestos y resultados repetidos se agrupan con paréntesis, por ejemplo `T!(E?)` y `(T!E)!F`. `T!E?` no sustituye a una agrupación explícita. La forma sin valor `!E` también puede usarse en campos, listas y parámetros.
 
-Los constructores contextuales son `.Alguno(valor)` y `.Ninguno` para opcionales, y `.Ok(valor)` y `.Error(error)` para resultados. El éxito sin valor se escribe `.Ok`, sin paréntesis. Requieren un tipo esperado. Una expresión de tipo `T` se convierte implícitamente a presencia o éxito cuando se espera `T?` o `T!E`. Se añade una sola capa por conversión; un destino anidado no convierte recursivamente un valor simple. Por ejemplo, `num?!` acepta `.Ok(.Ninguno)` o `.Ok(1)`, pero no `1` directamente. Un opcional puede envolverse en resultado si es exactamente su tipo de éxito, conservando su ausencia interna; nunca se transforma ausencia en error automáticamente.
+Los constructores contextuales son `.Alguno(valor)` y `.Ninguno` para opcionales, y `.Ok(valor)` y `.Error(error)` para resultados. El éxito sin valor se escribe `.Ok`, sin paréntesis. Requieren un tipo esperado. Una expresión de tipo `T` se convierte implícitamente a presencia o éxito cuando se espera `T?` o `T!E`. Se añade una sola capa por conversión; un destino anidado no convierte recursivamente un valor simple. Por ejemplo, `entero?!` acepta `.Ok(.Ninguno)` o `.Ok(1)`, pero no `1` directamente. Un opcional puede envolverse en resultado si es exactamente su tipo de éxito, conservando su ausencia interna; nunca se transforma ausencia en error automáticamente.
 
 ```hacha
 fn buscar(existe bool) Usuario?
@@ -454,7 +485,7 @@ Cada operando se evalúa una sola vez, en el orden escrito; las alternativas y l
 
 ## Ciclos
 
-`repetir` recorre una lista y liga cada elemento a la variable escrita entre `|`. Una segunda variable opcional recibe el índice como `num`, comenzando en `0`. Ambas variables solo existen dentro del cuerpo del ciclo.
+`repetir` recorre una lista y liga cada elemento a la variable escrita entre `|`. Una segunda variable opcional recibe el índice como `entero`, comenzando en `0`. Ambas variables solo existen dentro del cuerpo del ciclo.
 
 ```hacha
 repetir (usuarios) |usuario|
@@ -466,13 +497,13 @@ repetir (usuarios) |usuario, indice|
 	imprimir(usuario)
 ```
 
-Los rangos `inicio..final` solo se permiten dentro de los paréntesis de `repetir`; no son valores que puedan guardarse, pasarse a funciones o incluirse en listas. Ambos límites deben ser expresiones `num` y se evalúan una sola vez, de izquierda a derecha, antes del ciclo. El inicio se incluye y el final se excluye. El paso es `1` si el inicio es menor y `-1` si es mayor; límites iguales producen cero iteraciones. Se permiten límites negativos y decimales, sin redondearlos. La variable del ciclo es `num`; una segunda variable opcional recibe el índice desde `0`. Modificar estas variables dentro del cuerpo no altera la progresión del rango.
+Los rangos `inicio..final` solo se permiten dentro de los paréntesis de `repetir`; no son valores que puedan guardarse, pasarse a funciones o incluirse en listas. Ambos límites deben ser expresiones `entero` y se evalúan una sola vez, de izquierda a derecha, antes del ciclo. El inicio se incluye y el final se excluye. El paso es `1` si el inicio es menor y `-1` si es mayor; límites iguales producen cero iteraciones. Se permiten límites negativos; los límites decimales se rechazan. La variable del ciclo es `entero`; una segunda variable opcional recibe el índice desde `0`. Modificar estas variables dentro del cuerpo no altera la progresión del rango.
 
 ```hacha
 repetir (0..5) |i| imprimir(i) // 0, 1, 2, 3, 4
 repetir (5..0) |i|
 	imprimir(i) // 5, 4, 3, 2, 1
-repetir (0.5..2) |valor, indice|
+repetir (0..2) |valor, indice|
 	imprimir(valor) // 0.5, 1.5
 ```
 
@@ -505,7 +536,7 @@ La ruta no lleva comillas ni extensión; el compilador agrega `.hacha`. Se resue
 
 El alias predeterminado es el último segmento; `como` lo reemplaza por un identificador distinto de `_`. Los alias deben ser únicos y no pueden coincidir con declaraciones superiores. Variables y parámetros locales pueden ocultarlos en expresiones. Un namespace no es un valor.
 
-Cada módulo expone sus funciones, tipos, enums e interfaces; sus campos, métodos y variantes también son públicos. El acceso requiere el alias: `m.crear()`, `m.Usuario`, `m.Caja<num>`, `m.Usuario {nombre: "Ana"}`, `m.Evento.Texto("hola")`. Los tipos calificados funcionan en restricciones, firmas, listas, wrappers, incrustaciones, inspecciones con `como` y patrones de `casos`. Una estructura incrustada conserva como nombre de campo el nombre base del tipo: `m.Usuario` crea el campo `Usuario`.
+Cada módulo expone sus funciones, tipos, enums e interfaces; sus campos, métodos y variantes también son públicos. El acceso requiere el alias: `m.crear()`, `m.Usuario`, `m.Caja<entero>`, `m.Usuario {nombre: "Ana"}`, `m.Evento.Texto("hola")`. Los tipos calificados funcionan en restricciones, firmas, listas, wrappers, incrustaciones, inspecciones con `como` y patrones de `casos`. Una estructura incrustada conserva como nombre de campo el nombre base del tipo: `m.Usuario` crea el campo `Usuario`.
 
 Los imports no se reexportan, no tienen efectos de inicialización y pueden quedar sin uso. Cada consumidor importa directamente los módulos cuyos nombres necesita. Solo el archivo raíz puede declarar `inicio`; una dependencia con `fn inicio()` causa error. El raíz puede omitir `inicio` al generar código sin punto de entrada.
 

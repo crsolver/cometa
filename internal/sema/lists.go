@@ -22,7 +22,7 @@ func ListMethods(list Type) map[string]FuncInfo {
 	}
 	element := *list.Elem
 	optionalElement := Type{Kind: Optional, Elem: &element}
-	number := Type{Kind: Number}
+	number := Type{Kind: Integer}
 	optionalNumber := Type{Kind: Optional, Elem: &number}
 	methods := map[string]FuncInfo{}
 	add := func(name string, params []ast.Param, types []Type, result Type) {
@@ -70,7 +70,7 @@ func ListMethodDocumentation(name string) string {
 
 func listElementComparable(t Type) bool {
 	switch t.Kind {
-	case Number, String, Boolean, Named:
+	case Integer, Decimal, String, Boolean, Named:
 		return true
 	default:
 		return false

@@ -48,12 +48,12 @@ func TestEnumRuntimeAndReferenceSemantics(t *testing.T) {
 	source := `tipo Boton
 	caracter cadena
 tipo Contador
-	valor num
+	valor entero
 enum E
 	A
 	Boton Boton
 	Texto cadena
-	Numero num
+	Numero entero
 	Activo bool
 	Lista [E]
 	Anidado E
@@ -126,7 +126,7 @@ func TestMatchLoopControlAndExpressionContexts(t *testing.T) {
 	source := `enum E
 	A
 	B
-fn identidad(n num) num n
+fn identidad(n entero) entero n
 fn inicio()
 	var suma = 0
 	repetir ([1, 2, 3]) |i|
@@ -154,7 +154,7 @@ fn inicio()
 		.A => 8
 		.B => 9
 	))
-	var lista [num] = [casos E.B
+	var lista [entero] = [casos E.B
 		_ => 10
 	]
 	imprimir(lista[0])

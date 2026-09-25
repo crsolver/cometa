@@ -3,8 +3,8 @@ package codegen
 import (
 	"fmt"
 	"hacha/internal/ast"
-	"hacha/internal/gameapi"
 	"hacha/internal/sema"
+	"hacha/internal/stdlib"
 	"strings"
 )
 
@@ -17,7 +17,7 @@ func (g *generator) flowBlock(body []ast.Stmt, indent int, target string) {
 			dest = target
 		}
 		g.flowStmt(stmt, indent, dest)
-		if g.model.Terminates(stmt) {
+		if g.leavesBlock(stmt) {
 			break
 		}
 	}
@@ -38,6 +38,17 @@ func (g *generator) deliver(value string, indent int, target string) {
 
 func (g *generator) flowStmt(stmt ast.Stmt, indent int, target string) {
 	switch s := stmt.(type) {
+	case *ast.ScopeStmt:
+		value := g.flowExpr(s.Value, indent)
+		name := g.freshName()
+		g.line(indent, "{")
+		g.line(indent+1, "%s := %s", name, value)
+		g.line(indent+1, "%s.Entrar()", name)
+		g.scopes = append(g.scopes, name)
+		g.flowBlock(s.Body, indent+1, "")
+		if !g.leavesBlock(s) { g.line(indent+1, "%s.Salir()", name) }
+		g.scopes = g.scopes[:len(g.scopes)-1]
+		g.line(indent, "}")
 	case *ast.ExprStmt:
 		v := g.flowExpr(s.Expr, indent)
 		g.deliver(v, indent, target)
@@ -62,8 +73,10 @@ func (g *generator) flowStmt(stmt ast.Stmt, indent int, target string) {
 	case *ast.RepeatStmt:
 		g.flowLoop(s, indent)
 	case *ast.ContinueStmt:
+		g.closeScopes(indent, g.loopScopeDepth)
 		g.line(indent, "continue")
 	case *ast.BreakStmt:
+		g.closeScopes(indent, g.loopScopeDepth)
 		if g.loopLabel != "" {
 			g.line(indent, "break %s", g.loopLabel)
 		} else {
@@ -82,14 +95,14 @@ func (g *generator) flowTarget(e ast.Expr, indent int) string {
 	case *ast.ReceiverExpr:
 		return "_self." + g.fieldName(sema.Type{Kind: sema.Named, Name: g.receiver}, v.Name)
 	case *ast.MemberExpr:
-		if gameapi.IsValue(g.model.ExprTypes[v.Object].Name) {
+		if stdlib.IsValue(g.model.ExprTypes[v.Object].Name) {
 			return g.flowTarget(v.Object, indent) + "." + g.fieldName(g.model.ExprTypes[v.Object], v.Name)
 		}
 		return g.flowExpr(v.Object, indent) + "." + g.fieldName(g.model.ExprTypes[v.Object], v.Name)
 	case *ast.IndexExpr:
 		object := g.flowExpr(v.Object, indent)
 		index := g.flowExpr(v.Index, indent)
-		return object + "[int(" + index + ")]"
+		return object + "[" + index + "]"
 	}
 	panic("invalid assignment target")
 }
@@ -165,9 +178,17 @@ func (g *generator) flowExpr(e ast.Expr, indent int) string {
 	if raw, ok := g.model.RawTypes[e]; ok {
 		rawType = raw
 	}
+	if _, ok := g.model.NumericCoercions[e]; ok {
+		rawType = sema.Type{Kind: sema.Integer}
+	}
 	value := g.flowRaw(e, rawType, indent)
-	if value != "" && rawType.Kind == sema.Number && (t.Kind == sema.Interface || wrapped && wrap.Elem.Kind == sema.Interface) {
-		value = "float64(" + value + ")"
+	if value != "" {
+		if _, ok := g.model.NumericCoercions[e]; ok {
+			value = "float64(" + value + ")"
+		}
+	}
+	if value != "" && rawType.Numeric() && (t.Kind == sema.Interface || wrapped && wrap.Elem.Kind == sema.Interface) {
+		value = goType(rawType) + "(" + value + ")"
 	}
 	if wrapped {
 		value = goType(wrap) + "{tag: 1, payload1: " + value + "}"
@@ -209,10 +230,13 @@ func (g *generator) flowRaw(e ast.Expr, t sema.Type, indent int) string {
 		return result
 	case *ast.ReturnExpr:
 		if v.Value == nil {
+			g.closeScopes(indent, 0)
 			g.line(indent, "return")
 		} else {
 			value := g.flowExpr(v.Value, indent)
 			if value != "" {
+				if len(g.scopes) > 0 { name := g.freshName(); g.line(indent, "%s := %s", name, value); value = name }
+				g.closeScopes(indent, 0)
 				g.line(indent, "return %s", value)
 			}
 		}
@@ -224,6 +248,8 @@ func (g *generator) flowRaw(e ast.Expr, t sema.Type, indent int) string {
 		if g.returnType.Kind == sema.Result {
 			failure = goType(g.returnType) + "{tag: 2, payload2: " + value + ".payload2}"
 		}
+		if len(g.scopes) > 0 { name := g.freshName(); g.line(indent+1, "%s := %s", name, failure); failure = name }
+		g.closeScopes(indent+1, 0)
 		g.line(indent+1, "return %s", failure)
 		g.line(indent, "}")
 		if t.Kind == sema.Void {
@@ -286,9 +312,12 @@ func (g *generator) flowRaw(e ast.Expr, t sema.Type, indent int) string {
 	case *ast.IndexExpr:
 		object := g.flowExpr(v.Object, indent)
 		index := g.flowExpr(v.Index, indent)
-		return object + "[int(" + index + ")]"
+		return object + "[" + index + "]"
 	case *ast.UnaryExpr:
-		if t.Name == "Vec2" {
+		if lit, ok := v.Value.(*ast.LiteralExpr); ok && v.Operator == "-" && lit.Kind == "entero" && lit.Value == "9223372036854775808" {
+			return "int64(-9223372036854775808)"
+		}
+		if t.Name == stdlib.Symbol("Vec2") {
 			return "_hgscale(" + g.flowExpr(v.Value, indent) + ", -1)"
 		}
 		return "(" + v.Operator + g.flowExpr(v.Value, indent) + ")"
@@ -310,14 +339,14 @@ func (g *generator) flowRaw(e ast.Expr, t sema.Type, indent int) string {
 			return result
 		}
 		right := g.flowExpr(v.Right, indent)
-		if t.Name == "Vec2" {
+		if t.Name == stdlib.Symbol("Vec2") {
 			switch v.Operator {
 			case "+":
 				return "_hgadd(" + left + "," + right + ")"
 			case "-":
 				return "_hgsub(" + left + "," + right + ")"
 			case "*":
-				if g.model.ExprTypes[v.Left].Name == "Vec2" {
+				if g.model.ExprTypes[v.Left].Name == stdlib.Symbol("Vec2") {
 					return "_hgscale(" + left + "," + right + ")"
 				}
 				return "_hgscale(" + right + "," + left + ")"
@@ -339,7 +368,7 @@ func (g *generator) flowRaw(e ast.Expr, t sema.Type, indent int) string {
 			fields = append(fields, g.fieldName(t, f.Name)+": "+value)
 		}
 		fields = append(fields, g.defaultFields(t, explicit)...)
-		if gameapi.IsValue(t.Name) {
+		if stdlib.IsValue(t.Name) {
 			return goType(t) + "{" + strings.Join(fields, ", ") + "}"
 		}
 		return "&" + namedGoType(t) + "{" + strings.Join(fields, ", ") + "}"
@@ -370,6 +399,9 @@ func (g *generator) flowValueBlock(body []ast.Stmt, t sema.Type, indent int) str
 }
 
 func (g *generator) flowCall(call *ast.CallExpr, indent int) string {
+	if t, ok := g.model.NumericCalls[call]; ok {
+		return g.numericCall(call, t, g.flowExpr(call.Args[0], indent))
+	}
 	if f, ok := g.model.Game.Calls[call]; ok {
 		return g.gameCall(call, f, indent)
 	}
@@ -476,7 +508,7 @@ func (g *generator) flowListCall(call *ast.CallExpr, operation string, indent in
 
 	switch operation {
 	case "longitud":
-		return "float64(len(" + receiver + "))"
+		return "int64(len(" + receiver + "))"
 	case "esta_vacia":
 		return "len(" + receiver + ") == 0"
 	case "contiene", "buscar_indice":
@@ -492,7 +524,7 @@ func (g *generator) flowListCall(call *ast.CallExpr, operation string, indent in
 		if operation == "contiene" {
 			g.line(indent+2, "%s = true", found)
 		} else {
-			g.line(indent+2, "%s = %s{tag: 1, payload1: float64(%s)}", found, goType(info.Signature.Return), index)
+			g.line(indent+2, "%s = %s{tag: 1, payload1: int64(%s)}", found, goType(info.Signature.Return), index)
 		}
 		g.line(indent+2, "break")
 		g.line(indent+1, "}")
@@ -563,7 +595,7 @@ func validListIndex(index, receiver string, existing bool) string {
 	if existing {
 		bound = "<"
 	}
-	return index + " >= 0 && " + index + " " + bound + " float64(len(" + receiver + ")) && " + index + " == float64(int(" + index + "))"
+	return index + " >= 0 && " + index + " " + bound + " int64(len(" + receiver + "))"
 }
 
 func (g *generator) flowStringCall(call *ast.CallExpr, operation string, indent int) string {
@@ -580,7 +612,7 @@ func (g *generator) flowStringCall(call *ast.CallExpr, operation string, indent 
 	}
 	switch operation {
 	case "longitud":
-		return "float64(len([]rune(" + receiver + ")))"
+		return "int64(len([]rune(" + receiver + ")))"
 	case "esta_vacia":
 		return "len(" + receiver + ") == 0"
 	case "contiene":
@@ -603,7 +635,7 @@ func (g *generator) flowStringCall(call *ast.CallExpr, operation string, indent 
 		result, index := g.freshName(), g.freshName()
 		g.line(indent, "var %s %s", result, goType(info.Signature.Return))
 		g.line(indent, "if %s := _hsindice(%s, %s); %s >= 0 {", index, receiver, ordered[0], index)
-		g.line(indent+1, "%s = %s{tag: 1, payload1: float64(%s)}", result, goType(info.Signature.Return), index)
+		g.line(indent+1, "%s = %s{tag: 1, payload1: int64(%s)}", result, goType(info.Signature.Return), index)
 		g.line(indent, "}")
 		return result
 	case "obtener", "subcadena":
@@ -629,7 +661,7 @@ func validRuneIndex(index, length string, existing bool) string {
 	if existing {
 		op = "<"
 	}
-	return index + " >= 0 && " + index + " " + op + " float64(" + length + ") && " + index + " == float64(int(" + index + "))"
+	return index + " >= 0 && " + index + " " + op + " int64(" + length + ")"
 }
 
 func validRuneEnd(index, length string) string { return validRuneIndex(index, length, false) }
@@ -656,20 +688,23 @@ func (g *generator) defaultFields(t sema.Type, supplied []ast.FieldValue) []stri
 	for _, field := range info.Decl.Fields {
 		ft := info.Fields[field.Name].Type
 		if !seen[field.Name] && ft.Kind == sema.Named {
-			if gameapi.IsValue(ft.Name) {
+			if stdlib.IsValue(ft.Name) {
 				fields = append(fields, g.fieldName(t, field.Name)+": "+goType(ft)+"{"+strings.Join(g.defaultFields(ft, nil), ", ")+"}")
 				continue
 			}
 			fields = append(fields, g.fieldName(t, field.Name)+": &"+namedGoType(ft)+"{"+strings.Join(g.defaultFields(ft, nil), ", ")+"}")
 		}
 	}
-	if t.Name == "Camara2D" && !seen["zoom"] {
+	if t.Name == stdlib.Symbol("Camara2D") && !seen["zoom"] {
 		fields = append(fields, "Zoom: 1")
 	}
 	return fields
 }
 
 func (g *generator) flowLoop(s *ast.RepeatStmt, indent int) {
+	outerDepth := g.loopScopeDepth
+	g.loopScopeDepth = len(g.scopes)
+	defer func() { g.loopScopeDepth = outerDepth }()
 	outer := g.loopLabel
 	g.loopLabel = ""
 	defer func() { g.loopLabel = outer }()
@@ -683,7 +718,7 @@ func (g *generator) flowLoop(s *ast.RepeatStmt, indent int) {
 	step := ""
 	if end != "" {
 		step = g.freshName()
-		g.line(indent, "%s := float64(1)", step)
+		g.line(indent, "%s := int64(1)", step)
 		g.line(indent, "if %s > %s { %s = -1 }", start, end, step)
 	}
 	if needsLoopLabel(s.Body, false) {
@@ -694,7 +729,7 @@ func (g *generator) flowLoop(s *ast.RepeatStmt, indent int) {
 		g.line(indent, "for {")
 	} else if end != "" {
 		current, index := g.freshName(), g.freshName()
-		g.line(indent, "for %s, %s := %s, float64(0); (%s > 0 && %s < %s) || (%s < 0 && %s > %s); %s, %s = %s + %s, %s + 1 {", current, index, start, step, current, end, step, current, end, current, index, current, step, index)
+		g.line(indent, "for %s, %s := %s, int64(0); (%s > 0 && %s < %s) || (%s < 0 && %s > %s); %s, %s = %s + %s, %s + 1 {", current, index, start, step, current, end, step, current, end, current, index, current, step, index)
 		g.line(indent+1, "%s := %s", localName(s.Element), current)
 		if s.Index != "" {
 			g.line(indent+1, "%s := %s", localName(s.Index), index)
@@ -706,7 +741,7 @@ func (g *generator) flowLoop(s *ast.RepeatStmt, indent int) {
 		}
 		g.line(indent, "for %s, %s := range %s {", index, localName(s.Element), start)
 		if s.Index != "" {
-			g.line(indent+1, "%s := float64(%s)", localName(s.Index), index)
+			g.line(indent+1, "%s := int64(%s)", localName(s.Index), index)
 		}
 	}
 	if s.Element != "" {
@@ -715,4 +750,23 @@ func (g *generator) flowLoop(s *ast.RepeatStmt, indent int) {
 	}
 	g.flowBlock(s.Body, indent+1, "")
 	g.line(indent, "}")
+}
+
+func (g *generator) closeScopes(indent, depth int) {
+	for i := len(g.scopes)-1; i >= depth; i-- { g.line(indent, "%s.Salir()", g.scopes[i]) }
+}
+
+// Local block exits also include loop control, which must not be treated as
+// function returns by semantic result checking.
+func (g *generator) leavesBlock(stmt ast.Stmt) bool {
+	block := func(body []ast.Stmt) bool { for _,s:=range body {if g.leavesBlock(s) {return true}};return false }
+	switch s:=stmt.(type) {
+	case *ast.BreakStmt,*ast.ContinueStmt:return true
+	case *ast.ScopeStmt:return block(s.Body)
+	case *ast.IfStmt:
+		if len(s.Else)==0||!block(s.Else){return false};for _,b:=range s.Branches{if !block(b.Body){return false}};return true
+	case *ast.MatchStmt:
+		if len(s.Match.Arms)==0{return false};for _,a:=range s.Match.Arms{if !block(a.Body){return false}};return true
+	}
+	return g.model.Terminates(stmt)
 }

@@ -96,23 +96,32 @@ func (p *parser) parseInterfaceDecl() (*ast.InterfaceDecl, error) {
 		if p.match(token.Newline) {
 			continue
 		}
-		if p.at(token.Fn) {
-			p.interfaceSignature = true
-			method, err := p.parseFuncDecl("")
-			p.interfaceSignature = false
-			if err != nil {
-				return nil, err
+		start := p.index
+		err := func() error {
+			if p.at(token.Fn) {
+				p.interfaceSignature = true
+				method, err := p.parseFuncDecl("")
+				p.interfaceSignature = false
+				if err != nil {
+					return err
+				}
+				d.Methods = append(d.Methods, method)
+			} else {
+				ref, err := p.parseTypeRef()
+				if err != nil {
+					return err
+				}
+				d.Embeds = append(d.Embeds, ref)
+				if _, err = p.expect(token.Newline, "se esperaba el final de la interfaz incrustada"); err != nil {
+					return err
+				}
 			}
-			d.Methods = append(d.Methods, method)
-		} else {
-			ref, err := p.parseTypeRef()
-			if err != nil {
-				return nil, err
-			}
-			d.Embeds = append(d.Embeds, ref)
-			if _, err = p.expect(token.Newline, "se esperaba el final de la interfaz incrustada"); err != nil {
-				return nil, err
-			}
+			return nil
+		}()
+		if err != nil {
+			p.report(start, err)
+			p.invalidNames[d.Name] = d.Pos
+			p.synchronize(start, false)
 		}
 	}
 	_, err = p.expect(token.Dedent, "se esperaba el final de la interfaz")

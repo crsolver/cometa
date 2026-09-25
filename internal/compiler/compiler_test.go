@@ -25,7 +25,7 @@ func TestUsuarioGolden(t *testing.T) {
 }
 
 func TestDiagnosticContainsSourcePosition(t *testing.T) {
-	_, err := Compile("roto.hacha", []byte("fn f() num\n\tno_existe\n"))
+	_, err := Compile("roto.hacha", []byte("fn f() entero\n\tno_existe\n"))
 	if err == nil || !strings.Contains(err.Error(), "roto.hacha:2:2") {
 		t.Fatalf("expected positioned diagnostic, got %v", err)
 	}
@@ -37,7 +37,7 @@ func TestCompilesVariablesCompositeLiteralsAndMemberCall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range []string{"usuario1 := &Usuario{Nombre: \"andres\"}", "usuarios := []*Usuario{usuario1, usuario2}", "_ = usuarios[int(0)]", "Procesar_usuario(usuarios[int(1)])", "usuario2.Activar(true)"} {
+	for _, expected := range []string{"usuario1 := &Usuario{Nombre: \"andres\"}", "usuarios := []*Usuario{usuario1, usuario2}", "_ = usuarios[0]", "Procesar_usuario(usuarios[1])", "usuario2.Activar(true)"} {
 		if !strings.Contains(string(got), expected) {
 			t.Errorf("generated Go does not contain %q:\n%s", expected, got)
 		}
@@ -53,7 +53,7 @@ func TestCompilesListAndInfiniteRepeats(t *testing.T) {
 	for _, expected := range []string{
 		"for _, valor := range lista {",
 		"for indice, valor := range lista {",
-		"indice := float64(indice)",
+		"indice := int64(indice)",
 		"continue",
 		"break",
 		"for {\n\t\tfmt.Println(\"hola\")",

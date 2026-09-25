@@ -1,10 +1,10 @@
-fn sumar(base num, valores ...num) num
+fn sumar(base entero, valores ...entero) entero
 	var total = base
 	repetir (valores) |valor|
 		total = total + valor
 	total
 
-fn reenviar(valores ...num) num sumar(0, valores...)
+fn reenviar(valores ...entero) entero sumar(0, valores...)
 
 fn inicio()
 	var lista = [1, 2, 3]

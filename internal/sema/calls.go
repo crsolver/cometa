@@ -20,6 +20,7 @@ func (c *checker) plainArguments(call *ast.CallExpr) error {
 }
 
 func (c *checker) bindArguments(call *ast.CallExpr, signature FuncInfo) (Type, error) {
+	broken := false
 	info := CallInfo{Signature: signature}
 	n := len(signature.Params)
 	variadic := n > 0 && signature.Decl.Params[n-1].Variadic
@@ -78,10 +79,14 @@ func (c *checker) bindArguments(call *ast.CallExpr, signature FuncInfo) (Type, e
 		}
 		actual, err := c.checkExprExpected(arg, &expected)
 		if err != nil {
-			return Type{}, err
+			c.report(err)
+			broken = true
+			continue
 		}
 		if !c.model.Assignable(actual, expected) {
-			return Type{}, c.fail(arg.Position(), "el argumento %d debe ser %s, no %s", i+1, expected.String(), actual.String())
+			c.report(c.fail(arg.Position(), "el argumento %d debe ser %s, no %s", i+1, expected.String(), actual.String()))
+			broken = true
+			continue
 		}
 		info.Parameters = append(info.Parameters, index)
 		info.Spread = append(info.Spread, spread)
@@ -92,5 +97,8 @@ func (c *checker) bindArguments(call *ast.CallExpr, signature FuncInfo) (Type, e
 		}
 	}
 	c.model.Calls[call] = info
+	if broken {
+		return Type{}, errInvalid
+	}
 	return signature.Return, nil
 }

@@ -14,9 +14,11 @@ import (
 	"github.com/owenrumney/go-lsp/lsp"
 	"hacha/internal/ast"
 	"hacha/internal/compiler"
+	"hacha/internal/diagnostic"
 	"hacha/internal/lexer"
 	"hacha/internal/parser"
 	"hacha/internal/sema"
+	"hacha/internal/stdlib"
 )
 
 func hasImports(text string) bool {
@@ -47,6 +49,9 @@ func pathFromURI(uri lsp.DocumentURI) (string, error) {
 }
 
 func fileURI(path string) lsp.DocumentURI {
+	if strings.HasPrefix(path, "hacha-std:///") {
+		return lsp.DocumentURI(path)
+	}
 	path = filepath.ToSlash(path)
 	if !strings.HasPrefix(path, "/") {
 		path = "/" + path
@@ -101,6 +106,10 @@ func (h *Handler) project(uri lsp.DocumentURI, override *string) (*compiler.Proj
 }
 
 func errorFile(err error) string {
+	if d, ok := err.(diagnostic.Located); ok {
+		file, _, _, _ := d.Diagnostic()
+		return file
+	}
 	switch e := err.(type) {
 	case *lexer.Error:
 		return e.Filename
@@ -154,14 +163,15 @@ func (h *Handler) publishProjectDiagnostics(ctx context.Context, changed lsp.Doc
 		text, _ := h.documents.Text(uri)
 		report := map[lsp.DocumentURI][]lsp.Diagnostic{uri: {}}
 		var analysisErr error
-		if hasImports(text) {
+		if _, pathErr := pathFromURI(uri); pathErr == nil {
 			p, err := h.project(uri, nil)
 			h.projects[uri], analysisErr = p, err
 		} else {
 			delete(h.projects, uri)
 			_, _, analysisErr = compiler.Analyze(analysisFilename(uri), []byte(text))
 		}
-		if analysisErr != nil {
+		for _, analysisErr := range diagnostic.Flatten(analysisErr) {
+			text := text
 			destination := uri
 			if path := errorFile(analysisErr); filepath.IsAbs(path) {
 				if original, ok := uris[path]; ok {
@@ -188,7 +198,7 @@ func (h *Handler) publishProjectDiagnostics(ctx context.Context, changed lsp.Doc
 				aggregate[uri] = []lsp.Diagnostic{}
 			}
 			for _, diagnostic := range diagnostics {
-				key := fmt.Sprintf("%s:%v", uri, diagnostic.Range)
+				key := fmt.Sprintf("%s:%v:%s", uri, diagnostic.Range, diagnostic.Message)
 				if !seen[key] {
 					seen[key] = true
 					aggregate[uri] = append(aggregate[uri], diagnostic)
@@ -407,6 +417,12 @@ func (h *Handler) locations(p *compiler.Project, pos ast.Pos) []lsp.Location {
 	if m := p.Modules[pos.Filename]; m != nil {
 		return []lsp.Location{declarationLocation(pos, string(m.Source))}
 	}
+	if strings.HasPrefix(pos.Filename, "hacha-std:///") {
+		path := strings.TrimSuffix(strings.TrimPrefix(pos.Filename, "hacha-std:///"), ".hacha")
+		if source, ok := stdlib.Source(path); ok {
+			return []lsp.Location{declarationLocation(pos, source)}
+		}
+	}
 	return nil
 }
 
@@ -429,10 +445,18 @@ func (h *Handler) moduleCompletion(params *lsp.CompletionParams, text string) *l
 		return empty
 	}
 	match := moduleSelector.FindStringSubmatch(prefix)
-	if len(match) == 0 {
+	receiver := ""
+	if len(match) > 0 {
+		receiver = match[1]
+	} else if dot := strings.LastIndex(prefix, "."); dot >= 0 {
+		receiver = strings.TrimSpace(prefix[memberReceiverStart(prefix, dot):dot])
+	}
+	if receiver == "" {
 		return h.moduleContextualCompletion(params, lines, prefix)
 	}
-	receiver := match[1]
+	if start := strings.LastIndex(prefix, receiver+"."); start > 0 && prefix[start-1] == '@' {
+		receiver = "@" + receiver
+	}
 	indent := lines[line][:len(lines[line])-len(strings.TrimLeft(lines[line], "\t"))]
 	replacement := indent + receiver + ".__hacha_probe__"
 	if arrow := strings.Index(prefix, "=>"); arrow >= 0 {
@@ -442,7 +466,18 @@ func (h *Handler) moduleCompletion(params *lsp.CompletionParams, text string) *l
 	if p != nil && p.Model != nil {
 		var selected ast.Expr
 		var resolved sema.Type
+		sema.WalkSyntax(p.Root.Bound, func(node any) {
+			if member, ok := node.(*ast.MemberExpr); ok && member.Name == "__hacha_probe__" && member.Pos.Line == line+1 {
+				if t, ok := p.Model.ExprTypes[member.Object]; ok {
+					selected, resolved = member.Object, t
+				}
+			}
+		})
+		probeResolved := selected != nil
 		for expr, t := range p.Model.ExprTypes {
+			if probeResolved {
+				break
+			}
 			if expr.Position().Filename == p.Root.Path && expr.Position().Line == line+1 {
 				if selected == nil || expr.Position().Column > selected.Position().Column {
 					selected, resolved = expr, t
@@ -501,6 +536,9 @@ func (h *Handler) moduleCompletion(params *lsp.CompletionParams, text string) *l
 				}
 			}
 			detail := declarationDetail(d)
+			if target.Native {
+				detail = stdlib.QualifiedSignature(detail)
+			}
 			if headerProject.Model != nil {
 				if global := headerProject.Model.Globals[d.Symbol]; global != nil {
 					detail = globalHover(d.Name, global.Type, global.Constant).detail
@@ -571,7 +609,7 @@ func (h *Handler) moduleContextualCompletion(params *lsp.CompletionParams, lines
 			for expr, t := range p.Model.ExpectedTypes {
 				if expr.Position().Filename == p.Root.Path && expr.Position().Line == line+1 {
 					if list := gameConstantCompletion(t); list != nil {
-						return list
+						return displayItems(p, list)
 					}
 					if info := p.Model.EnumFor(t); info != nil {
 						return displayItems(p, enumCompletionItems(info))

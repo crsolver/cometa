@@ -15,9 +15,9 @@ tipo Otra
 	valor cadena
 	fn obtener() cadena @valor
 tipo Derivada
-	Caja<num>
+	Caja<entero>
 tipo Ambigua
-	Caja<num>
+	Caja<entero>
 	Otra
 `
 
@@ -48,10 +48,10 @@ func TestEmbeddingCompletion(t *testing.T) {
 				found[item.Label] = item.Detail
 			}
 			if tc.promoted {
-				if found["valor"] != "num" || found["obtener"] != "fn obtener() num" {
+				if found["valor"] != "entero" || found["obtener"] != "fn obtener() entero" {
 					t.Fatalf("items: %+v", found)
 				}
-			} else if found["valor"] != "" || found["obtener"] != "" || found["Caja"] != "Caja<num>" || found["Otra"] != "Otra" {
+			} else if found["valor"] != "" || found["obtener"] != "" || found["Caja"] != "Caja<entero>" || found["Otra"] != "Otra" {
 				t.Fatalf("items: %+v", found)
 			}
 		})
@@ -59,7 +59,7 @@ func TestEmbeddingCompletion(t *testing.T) {
 }
 
 func TestEmbeddingHoverAndSymbols(t *testing.T) {
-	source := embeddingDeclarations + "tipo Receptor\n\tDerivada\n\tfn f() num @valor\nfn f(v Derivada)\n\timprimir(v.valor)\n\timprimir(v.obtener())\n"
+	source := embeddingDeclarations + "tipo Receptor\n\tDerivada\n\tfn f() entero @valor\nfn f(v Derivada)\n\timprimir(v.valor)\n\timprimir(v.obtener())\n"
 	h := servertest.New(t, NewHandler())
 	uri := lsp.DocumentURI("file:///embedding.hacha")
 	if err := h.DidOpen(uri, "hacha", source); err != nil {
@@ -68,7 +68,7 @@ func TestEmbeddingHoverAndSymbols(t *testing.T) {
 	if diagnostics := waitForDiagnostics(t, h, uri); len(diagnostics) != 0 {
 		t.Fatalf("diagnostics: %+v", diagnostics)
 	}
-	for _, tc := range []struct{ needle, want string }{{"valor)", "var valor num"}, {"valor\nfn f", "var valor num"}, {"obtener())", "fn obtener() num"}} {
+	for _, tc := range []struct{ needle, want string }{{"valor)", "var valor entero"}, {"valor\nfn f", "var valor entero"}, {"obtener())", "fn obtener() entero"}} {
 		before := source[:strings.Index(source, tc.needle)]
 		hover, err := h.Hover(uri, strings.Count(before, "\n"), utf16Length(before[strings.LastIndex(before, "\n")+1:]))
 		if err != nil {
@@ -86,7 +86,7 @@ func TestEmbeddingHoverAndSymbols(t *testing.T) {
 		t.Fatal(err)
 	}
 	field := symbols[2].Children[0]
-	if field.Name != "Caja" || field.Detail != "Caja<num>" || field.Kind != lsp.SymbolKindField {
+	if field.Name != "Caja" || field.Detail != "Caja<entero>" || field.Kind != lsp.SymbolKindField {
 		t.Fatalf("symbol: %+v", field)
 	}
 }

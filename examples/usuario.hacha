@@ -33,7 +33,7 @@ enum Evento
 	Cargar_Pagina
 	Buton_Presionado Buton_Presionado
 	Texto cadena
-	Cantidad num
+	Cantidad entero
 	Activado bool
 
 

@@ -1,3 +1,5 @@
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as vscode from "vscode";
@@ -18,6 +20,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     void vscode.window.showErrorMessage(message);
     return;
   }
+
+  context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider("hacha-std", {
+    async provideTextDocumentContent(uri: vscode.Uri): Promise<string> {
+      const modulePath = uri.path.replace(/^\//, "").replace(/\.hacha$/, "");
+      const { stdout } = await promisify(execFile)(serverPath, ["biblioteca", modulePath], { windowsHide: true });
+      return stdout;
+    },
+  }));
 
   const workspaceDirectory = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? context.extensionPath;
   const executable: Executable = {

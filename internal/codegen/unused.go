@@ -229,7 +229,7 @@ func discardable(expr ast.Expr) bool {
 	case *ast.CallExpr:
 		if id, ok := e.Fun.(*ast.Ident); ok && id.Obj == nil && len(e.Args) == 1 {
 			switch id.Name {
-			case "float64", "int", "bool", "string":
+			case "float64", "int64", "int", "bool", "string":
 				return discardable(e.Args[0])
 			}
 		}

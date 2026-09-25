@@ -10,10 +10,11 @@ import (
 
 	"hacha/internal/ast"
 	"hacha/internal/codegen"
-	"hacha/internal/gameapi"
+	"hacha/internal/diagnostic"
 	"hacha/internal/lexer"
 	"hacha/internal/parser"
 	"hacha/internal/sema"
+	"hacha/internal/stdlib"
 )
 
 // SourceLoader reads canonical absolute paths. Editors can overlay unsaved buffers.
@@ -28,6 +29,8 @@ type Declaration struct {
 }
 
 type Module struct {
+	Native       bool
+	Unavailable  bool
 	Path         string
 	Source       []byte
 	Program      *ast.Program // Original names for editor presentation.
@@ -65,23 +68,25 @@ func CanonicalPath(path string) (string, error) {
 }
 
 func parseModule(path string, source []byte) (*ast.Program, error) {
+	var errors diagnostic.List
 	tokens, err := lexer.Lex(path, string(source))
-	if err != nil {
-		return nil, err
-	}
+	errors.Add(err)
 	for i := range tokens {
 		tokens[i].Pos.Filename = path
 	}
-	return parser.Parse(path, tokens)
+	program, err := parser.Parse(path, tokens)
+	errors.Add(err)
+	return program, errors.Err()
 }
 
 // AnalyzeProject returns the partial graph even on failure for dependency
 // tracking and editor navigation. No writes or network access are performed.
 func AnalyzeProject(entry string, loader SourceLoader) (*Project, error) {
+	var errors diagnostic.List
 	if loader == nil {
 		loader = os.ReadFile
 	}
-	p := &Project{Modules: map[string]*Module{}, Reverse: map[string][]string{}, References: map[ast.Pos]*Declaration{}, Program: &ast.Program{}}
+	p := &Project{Modules: map[string]*Module{}, Reverse: map[string][]string{}, References: map[ast.Pos]*Declaration{}, Program: &ast.Program{InvalidNames: map[string]ast.Pos{}}}
 	root, err := CanonicalPath(entry)
 	if err != nil {
 		return p, err
@@ -103,23 +108,16 @@ func AnalyzeProject(entry string, loader SourceLoader) (*Project, error) {
 			p.Root = m
 		}
 		m.Program, err = parseModule(path, source)
-		if err != nil {
-			return m, err
-		}
-		m.Bound, err = parseModule(path, source)
-		if err != nil {
-			return m, err
+		errors.Add(err)
+		m.Bound, _ = parseModule(path, source)
+		for name, pos := range m.Program.InvalidNames {
+			m.Declarations[name] = &Declaration{Module: m, Name: name, Pos: pos}
 		}
 		for _, node := range m.Program.Decls {
 			name, pos := declarationName(node)
-			if gameapi.Reserved(name) {
-				return m, projectError(pos, "nombre reservado por el runtime: %s", name)
-			}
-			if path != root && (name == "actualizar" || name == "pintar" || name == "iniciar") {
-				return m, projectError(pos, "el callback %s solo puede declararse en el módulo raíz", name)
-			}
-			if m.Declarations[name] != nil {
-				return m, projectError(pos, "declaración duplicada %q", name)
+			if previous := m.Declarations[name]; previous != nil && previous.Node != nil {
+				errors.Add(projectError(pos, "declaración duplicada %q", name))
+				continue
 			}
 			m.Declarations[name] = &Declaration{Module: m, Node: node, Name: name, Pos: pos}
 		}
@@ -128,35 +126,87 @@ func AnalyzeProject(entry string, loader SourceLoader) (*Project, error) {
 		defer func() { delete(active, path); stack = stack[:len(stack)-1] }()
 		seen := map[string]bool{}
 		for _, imp := range m.Program.Imports {
-			if gameapi.Reserved(imp.Alias) {
-				return m, projectError(imp.AliasPos, "alias reservado por el runtime: %s", imp.Alias)
-			}
 			if m.Imports[imp.Alias] != nil || m.Declarations[imp.Alias] != nil {
-				return m, projectError(imp.AliasPos, "alias duplicado o en conflicto %q", imp.Alias)
+				errors.Add(projectError(imp.AliasPos, "alias duplicado o en conflicto %q", imp.Alias))
+				continue
+			}
+			if strings.HasPrefix(imp.Path, "std/") {
+				if seen[imp.Path] {
+					errors.Add(projectError(imp.PathPos, "importación duplicada: %s", imp.Path))
+					continue
+				}
+				seen[imp.Path] = true
+				source, ok := stdlib.Source(imp.Path)
+				if !ok {
+					errors.Add(projectError(imp.PathPos, "módulo estándar desconocido %q", imp.Path))
+					continue
+				}
+				target := "hacha-std:///" + imp.Path + ".hacha"
+				dependency := p.Modules[target]
+				if dependency == nil {
+					dependency = &Module{Native: true, Path: target, Source: []byte(source), Imports: map[string]*Module{}, Declarations: map[string]*Declaration{}}
+					dependency.Program, _ = parseModule(target, []byte(source))
+					ns, _ := stdlib.Namespace(imp.Path)
+					// Opaque native types have no Hacha fields or body to parse.
+					for name, owner := range stdlib.TypeModules {
+						if owner != ns || name == "Juego" || stdlib.Fields[stdlib.Symbol(name)] != "" {
+							continue
+						}
+						for i, line := range strings.Split(source, "\n") {
+							if line == "tipo "+name {
+								pos := ast.Pos{Filename: target, Line: i + 1, Column: 6}
+								dependency.Program.Decls = append(dependency.Program.Decls, &ast.TypeDecl{Name: name, NamePos: pos, Pos: ast.Pos{Filename: target, Line: i + 1, Column: 1}})
+								break
+							}
+						}
+					}
+					for _, node := range dependency.Program.Decls {
+						name, pos := declarationName(node)
+						symbol := stdlib.Symbol(name)
+						if _, ok := node.(*ast.FuncDecl); ok {
+							symbol = stdlib.FunctionSymbol(ns, name)
+						}
+						if name == "pi" {
+							symbol = stdlib.FunctionSymbol(ns, name)
+						}
+						dependency.Declarations[name] = &Declaration{Module: dependency, Node: node, Name: name, Symbol: symbol, Pos: pos}
+					}
+					p.Modules[target] = dependency
+					p.Program.NativeModules = append(p.Program.NativeModules, imp.Path)
+				}
+				m.Imports[imp.Alias] = dependency
+				continue
 			}
 			target, err := CanonicalPath(filepath.Join(filepath.Dir(path), filepath.FromSlash(imp.Path)+".hacha"))
 			if err != nil {
-				return m, projectError(imp.PathPos, "%s", err)
+				errors.Add(projectError(imp.PathPos, "%s", err))
+				continue
 			}
 			p.Reverse[target] = append(p.Reverse[target], path)
 			chain := strings.Join(append(append([]string{}, stack...), target), " -> ")
 			if active[target] {
-				return m, projectError(imp.PathPos, "ciclo de importaciones: %s", chain)
+				errors.Add(projectError(imp.PathPos, "ciclo de importaciones: %s", chain))
+				m.Imports[imp.Alias] = p.Modules[target]
+				continue
 			}
 			if seen[target] {
-				return m, projectError(imp.PathPos, "importación duplicada: %s", chain)
+				errors.Add(projectError(imp.PathPos, "importación duplicada: %s", chain))
+				m.Imports[imp.Alias] = p.Modules[target]
+				continue
 			}
 			seen[target] = true
 			dependency, err := load(target)
 			if err != nil {
 				if dependency == nil {
-					return m, projectError(imp.PathPos, "no se pudo importar %s: %v (cadena: %s)", imp.Path, err, chain)
+					errors.Add(projectError(imp.PathPos, "no se pudo importar %s: %v (cadena: %s)", imp.Path, err, chain))
+					m.Imports[imp.Alias] = &Module{Path: target, Unavailable: true, Declarations: map[string]*Declaration{}}
+					continue
 				}
-				return m, err
+				errors.Add(err)
 			}
 			m.Imports[imp.Alias] = dependency
 			if dependency.Declarations["inicio"] != nil {
-				return m, projectError(imp.PathPos, "un módulo importado no puede declarar inicio (cadena: %s)", chain)
+				errors.Add(projectError(imp.PathPos, "un módulo importado no puede declarar inicio (cadena: %s)", chain))
 			}
 		}
 		p.Order = append(p.Order, m)
@@ -186,23 +236,33 @@ func AnalyzeProject(entry string, loader SourceLoader) (*Project, error) {
 				d.Symbol = fmt.Sprintf("%s%d_%s", prefix, i, name)
 			}
 			p.References[d.Pos] = d
+			if _, invalid := m.Program.InvalidNames[name]; invalid {
+				p.Program.InvalidNames[d.Symbol] = d.Pos
+			}
 		}
 	}
 	for _, m := range p.Order {
+		// Keep the first declaration identity; duplicates were diagnosed while loading.
+		decls := m.Bound.Decls[:0]
+		for _, node := range m.Bound.Decls {
+			name, pos := declarationName(node)
+			if d := m.Declarations[name]; d != nil && d.Pos == pos {
+				decls = append(decls, node)
+			}
+		}
+		m.Bound.Decls = decls
 		b := binder{project: p, module: m}
 		if err := b.bind(); err != nil {
-			return p, err
+			errors.Add(err)
 		}
 		p.Program.Decls = append(p.Program.Decls, m.Bound.Decls...)
 	}
 	p.Model, err = sema.Check(root, p.Program)
-	if err != nil {
-		p.Model, _ = sema.CheckForTooling(root, p.Program)
-	}
+	errors.Add(err)
 	for _, m := range p.Order {
 		m.Model = p.Model
 	}
-	if err != nil {
+	if err := errors.Err(); err != nil {
 		return p, p.displayError(err)
 	}
 	if err = loadAssets(root, p.Model); err != nil {
@@ -242,7 +302,7 @@ func projectError(pos ast.Pos, format string, args ...any) error {
 // Display removes private linkage symbols from diagnostics and editor details.
 func (p *Project) Display(s string) string {
 	var declarations []*Declaration
-	for _, m := range p.Order {
+	for _, m := range p.Modules {
 		for _, d := range m.Declarations {
 			if d.Symbol != d.Name {
 				declarations = append(declarations, d)
@@ -253,10 +313,17 @@ func (p *Project) Display(s string) string {
 	for _, d := range declarations {
 		s = strings.ReplaceAll(s, d.Symbol, strings.TrimSuffix(filepath.Base(d.Module.Path), ".hacha")+"."+d.Name)
 	}
-	return s
+	return stdlib.Display(s)
 }
 
 func (p *Project) displayError(err error) error {
+	if many, ok := err.(interface{ Unwrap() []error }); ok {
+		var out diagnostic.List
+		for _, item := range many.Unwrap() {
+			out.Add(p.displayError(item))
+		}
+		return out.Err()
+	}
 	if e, ok := err.(*sema.Error); ok {
 		copy := *e
 		copy.Message = p.Display(e.Message)

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"hacha/internal/ast"
+	"hacha/internal/diagnostic"
 	"hacha/internal/lexer"
 	"hacha/internal/token"
 )
@@ -20,7 +21,13 @@ func (e *Error) Error() string {
 	return fmt.Sprintf("%s:%d:%d: %s", e.Filename, e.Pos.Line, e.Pos.Column, e.Message)
 }
 
+func (e *Error) Diagnostic() (string, ast.Pos, string, string) {
+	return e.Filename, e.Pos, "parser", e.Message
+}
+
 type parser struct {
+	invalidNames       map[string]ast.Pos
+	errors             diagnostic.List
 	aliases            map[string]bool
 	interfaceSignature bool
 	filename           string
@@ -30,19 +37,30 @@ type parser struct {
 
 func Parse(filename string, tokens []token.Token) (*ast.Program, error) {
 	p := &parser{filename: filename, tokens: tokens, aliases: map[string]bool{}}
-	program := &ast.Program{}
+	program := &ast.Program{InvalidNames: map[string]ast.Pos{}}
+	p.invalidNames = program.InvalidNames
 	for !p.at(token.EOF) {
 		if p.match(token.Newline) {
 			continue
 		}
 		var decl ast.Decl
+		start := p.index
+		if p.match(token.Invalid) {
+			if name := p.tokens[start].Lexeme; name != "" {
+				program.InvalidNames[name] = p.tokens[start].Pos
+			}
+			p.synchronize(start, true)
+			continue
+		}
 		if p.at(token.Usar) {
 			if len(program.Decls) != 0 {
-				return nil, p.error(p.current(), "'usar' debe preceder a las declaraciones")
+				p.errors.Add(p.error(p.current(), "'usar' debe preceder a las declaraciones"))
 			}
 			imp, err := p.parseImport()
 			if err != nil {
-				return nil, err
+				p.report(start, err)
+				p.synchronize(start, true)
+				continue
 			}
 			program.Imports = append(program.Imports, imp)
 			p.aliases[imp.Alias] = true
@@ -64,11 +82,61 @@ func Parse(filename string, tokens []token.Token) (*ast.Program, error) {
 			err = p.error(p.current(), "se esperaba una declaración 'tipo', 'enum', 'fn', 'var' o 'const'")
 		}
 		if err != nil {
-			return nil, err
+			p.report(start, err)
+			if start+1 < len(tokens) && tokens[start+1].Kind == token.Ident {
+				program.InvalidNames[tokens[start+1].Lexeme] = tokens[start+1].Pos
+			}
+			p.synchronize(start, true)
+			continue
 		}
 		program.Decls = append(program.Decls, decl)
 	}
-	return program, nil
+	return program, p.errors.Err()
+}
+
+func (p *parser) report(start int, err error) {
+	if p.at(token.Invalid) || p.index > start && p.previous().Kind == token.Invalid {
+		return
+	}
+	p.errors.Add(err)
+}
+
+// synchronize restarts at a sibling line, skipping the failed statement's suite.
+// Scanning from start also handles parsers which consumed a boundary before failing.
+func (p *parser) synchronize(start int, top bool) {
+	depth := 0
+	for i := 0; i < start; i++ {
+		if p.tokens[i].Kind == token.Indent {
+			depth++
+		}
+		if p.tokens[i].Kind == token.Dedent {
+			depth--
+		}
+	}
+	base := depth
+	p.index = start
+	for !p.at(token.EOF) {
+		t := p.advance()
+		if t.Kind == token.Indent {
+			depth++
+		}
+		if t.Kind == token.Dedent {
+			depth--
+		}
+		if p.index <= start {
+			continue
+		}
+		if top {
+			if depth == 0 && (t.Kind == token.Newline || t.Kind == token.Dedent) && !p.at(token.Indent) {
+				return
+			}
+		} else if depth < base {
+			p.index--
+			return
+		} else if depth == base && (t.Kind == token.Newline || t.Kind == token.Dedent) && !p.at(token.Indent) {
+			return
+		}
+	}
 }
 
 func (p *parser) parseGlobalDecl() (*ast.GlobalDecl, error) {
@@ -119,41 +187,50 @@ func (p *parser) parseTypeDecl() (*ast.TypeDecl, error) {
 		if p.match(token.Newline) {
 			continue
 		}
-		if p.at(token.Fn) {
-			method, parseErr := p.parseFuncDecl(decl.Name)
-			if parseErr != nil {
-				return nil, parseErr
+		start := p.index
+		err := func() error {
+			if p.at(token.Fn) {
+				method, parseErr := p.parseFuncDecl(decl.Name)
+				if parseErr != nil {
+					return parseErr
+				}
+				decl.Methods = append(decl.Methods, method)
+				return nil
 			}
-			decl.Methods = append(decl.Methods, method)
-			continue
-		}
-		// A name followed by another type starts an ordinary field. Otherwise
-		// parse the complete bare type and let semantic analysis validate embedding.
-		// Preserve named success-only result fields such as "error !".
-		attachedResult := p.peekAt(1, token.Bang) && p.tokens[p.index+1].Pos.Column == p.current().Pos.Column+len([]rune(p.current().Lexeme))
-		if !p.at(token.Ident) || p.peekAt(1, token.Newline) || p.peekAt(1, token.Less) || p.peekAt(1, token.Question) || p.peekAt(1, token.Dot) || attachedResult {
+			// A name followed by another type starts an ordinary field. Otherwise
+			// parse the complete bare type and let semantic analysis validate embedding.
+			// Preserve named success-only result fields such as "error !".
+			attachedResult := p.peekAt(1, token.Bang) && p.tokens[p.index+1].Pos.Column == p.current().Pos.Column+len([]rune(p.current().Lexeme))
+			if !p.at(token.Ident) || p.peekAt(1, token.Newline) || p.peekAt(1, token.Less) || p.peekAt(1, token.Question) || p.peekAt(1, token.Dot) || attachedResult {
+				fieldType, parseErr := p.parseTypeRef()
+				if parseErr != nil {
+					return parseErr
+				}
+				if _, parseErr = p.expect(token.Newline, "se esperaba el final del tipo embebido"); parseErr != nil {
+					return parseErr
+				}
+				decl.Fields = append(decl.Fields, &ast.Field{Pos: fieldType.Pos, Name: baseName(fieldType.Name), Type: fieldType, Embedded: true})
+				return nil
+			}
+			fieldName, parseErr := p.expect(token.Ident, "se esperaba un campo o método")
+			if parseErr != nil {
+				return parseErr
+			}
 			fieldType, parseErr := p.parseTypeRef()
 			if parseErr != nil {
-				return nil, parseErr
+				return parseErr
 			}
-			if _, parseErr = p.expect(token.Newline, "se esperaba el final del tipo embebido"); parseErr != nil {
-				return nil, parseErr
+			if _, parseErr = p.expect(token.Newline, "se esperaba el final de la declaración del campo"); parseErr != nil {
+				return parseErr
 			}
-			decl.Fields = append(decl.Fields, &ast.Field{Pos: fieldType.Pos, Name: baseName(fieldType.Name), Type: fieldType, Embedded: true})
-			continue
+			decl.Fields = append(decl.Fields, &ast.Field{Pos: fieldName.Pos, Name: fieldName.Lexeme, Type: fieldType})
+			return nil
+		}()
+		if err != nil {
+			p.report(start, err)
+			p.invalidNames[decl.Name] = decl.Pos
+			p.synchronize(start, false)
 		}
-		fieldName, parseErr := p.expect(token.Ident, "se esperaba un campo o método")
-		if parseErr != nil {
-			return nil, parseErr
-		}
-		fieldType, parseErr := p.parseTypeRef()
-		if parseErr != nil {
-			return nil, parseErr
-		}
-		if _, parseErr = p.expect(token.Newline, "se esperaba el final de la declaración del campo"); parseErr != nil {
-			return nil, parseErr
-		}
-		decl.Fields = append(decl.Fields, &ast.Field{Pos: fieldName.Pos, Name: fieldName.Lexeme, Type: fieldType})
 	}
 	if _, err = p.expect(token.Dedent, "se esperaba el final del bloque de tipo"); err != nil {
 		return nil, err
@@ -254,7 +331,7 @@ func (p *parser) parseTypeRef() (ast.TypeRef, error) {
 		if op.Kind == token.Bang {
 			errorType := ast.TypeRef{Pos: op.Pos, Name: "cadena"}
 			adjacent := p.current().Pos.Line == op.Pos.Line && p.current().Pos.Column == op.Pos.Column+1
-			if adjacent && (p.at(token.Ident) || p.at(token.Num) || p.at(token.Cadena) || p.at(token.Bool) || p.at(token.LParen) || p.at(token.LBracket)) {
+			if adjacent && (p.at(token.Ident) || (p.at(token.Num) || p.at(token.Entero) || p.at(token.Decimal)) || p.at(token.Cadena) || p.at(token.Bool) || p.at(token.LParen) || p.at(token.LBracket)) {
 				errorType, err = p.parseTypeAtom()
 				if err != nil {
 					return base, err
@@ -288,7 +365,7 @@ func (p *parser) parseTypeAtom() (ast.TypeRef, error) {
 		return ast.TypeRef{Pos: start.Pos, Element: &element}, nil
 	}
 	current := p.current()
-	if current.Kind != token.Num && current.Kind != token.Cadena && current.Kind != token.Bool && current.Kind != token.Ident {
+	if current.Kind != token.Num && current.Kind != token.Entero && current.Kind != token.Decimal && current.Kind != token.Cadena && current.Kind != token.Bool && current.Kind != token.Ident {
 		return ast.TypeRef{}, p.error(current, "se esperaba un tipo")
 	}
 	p.advance()
@@ -310,6 +387,25 @@ func (p *parser) parseTypeAtom() (ast.TypeRef, error) {
 	return ref, nil
 }
 
+func (p *parser) recoverStatement() ast.Stmt {
+	start := p.index
+	bad := &ast.BadStmt{Pos: p.current().Pos}
+	if p.at(token.Invalid) {
+		bad.Name = p.current().Lexeme
+	} else {
+		stmt, err := p.parseStatement()
+		if err == nil {
+			return stmt
+		}
+		p.report(start, err)
+		if p.tokens[start].Kind == token.Var && start+1 < len(p.tokens) && p.tokens[start+1].Kind == token.Ident {
+			bad.Name = p.tokens[start+1].Lexeme
+		}
+	}
+	p.synchronize(start, false)
+	return bad
+}
+
 func (p *parser) parseSuite() ([]ast.Stmt, error) {
 	if p.match(token.Newline) {
 		if _, err := p.expect(token.Indent, "se esperaba un bloque indentado"); err != nil {
@@ -320,11 +416,7 @@ func (p *parser) parseSuite() ([]ast.Stmt, error) {
 			if p.match(token.Newline) {
 				continue
 			}
-			stmt, err := p.parseStatement()
-			if err != nil {
-				return nil, err
-			}
-			body = append(body, stmt)
+			body = append(body, p.recoverStatement())
 		}
 		if _, err := p.expect(token.Dedent, "se esperaba el final del bloque"); err != nil {
 			return nil, err
@@ -334,20 +426,28 @@ func (p *parser) parseSuite() ([]ast.Stmt, error) {
 		}
 		return body, nil
 	}
-	stmt, err := p.parseStatement()
-	if err != nil {
-		return nil, err
+	stmt := p.recoverStatement()
+	if _, bad := stmt.(*ast.BadStmt); bad {
+		return []ast.Stmt{stmt}, nil
 	}
 	if p.previous().Kind == token.Newline || p.previous().Kind == token.Dedent {
 		return []ast.Stmt{stmt}, nil
 	}
-	if _, err = p.expect(token.Newline, "el cuerpo en línea debe terminar al final de la línea"); err != nil {
+	if _, err := p.expect(token.Newline, "el cuerpo en línea debe terminar al final de la línea"); err != nil {
 		return nil, err
 	}
 	return []ast.Stmt{stmt}, nil
 }
 
 func (p *parser) parseStatement() (ast.Stmt, error) {
+	if p.at(token.Con) {
+		start := p.advance()
+		value, err := p.parseExpression(0)
+		if err != nil { return nil, err }
+		if !p.at(token.Newline) { return nil, p.error(p.current(), "con requiere un bloque indentado") }
+		body, err := p.parseSuite()
+		return &ast.ScopeStmt{Pos:start.Pos, Value:value, Body:body}, err
+	}
 	if p.at(token.Casos) {
 		match, err := p.parseMatch()
 		if err != nil {
@@ -677,14 +777,18 @@ func (p *parser) parsePrefix() (ast.Expr, error) {
 		return p.parseMatch()
 	case token.Number:
 		p.advance()
-		return &ast.LiteralExpr{Pos: current.Pos, Kind: "num", Value: current.Lexeme}, nil
+		kind := "entero"
+		if strings.Contains(current.Lexeme, ".") {
+			kind = "decimal"
+		}
+		return &ast.LiteralExpr{Pos: current.Pos, Kind: kind, Value: current.Lexeme}, nil
 	case token.String:
 		p.advance()
 		return p.parseString(current)
 	case token.True, token.False:
 		p.advance()
 		return &ast.LiteralExpr{Pos: current.Pos, Kind: "bool", Value: current.Lexeme}, nil
-	case token.Ident:
+	case token.Ident, token.Entero, token.Decimal:
 		p.advance()
 		return &ast.IdentExpr{Pos: current.Pos, Name: current.Lexeme}, nil
 	case token.At:
@@ -868,6 +972,13 @@ func (p *parser) parseInterpolation(source string, column, line int) (ast.Expr, 
 }
 
 func shiftParseError(err error, column, line int) error {
+	if many, ok := err.(interface{ Unwrap() []error }); ok {
+		var errors diagnostic.List
+		for _, e := range many.Unwrap() {
+			errors.Add(shiftParseError(e, column, line))
+		}
+		return errors.Err()
+	}
 	if e, ok := err.(*lexer.Error); ok {
 		return &Error{Filename: e.Filename, Pos: ast.Pos{Line: line, Column: e.Pos.Column + column - 1}, Message: e.Message}
 	}
@@ -1087,7 +1198,7 @@ func (p *parser) parseIfExpr() (ast.Expr, error) {
 }
 
 func (p *parser) startsDefiniteType() bool {
-	return p.at(token.Num) || p.at(token.Cadena) || p.at(token.Bool) || p.at(token.LBracket) || p.at(token.Bang) || p.at(token.LParen)
+	return (p.at(token.Num) || p.at(token.Entero) || p.at(token.Decimal)) || p.at(token.Cadena) || p.at(token.Bool) || p.at(token.LBracket) || p.at(token.Bang) || p.at(token.LParen)
 }
 
 func (p *parser) parseBinding() (string, ast.Pos, error) {
@@ -1135,6 +1246,10 @@ func (p *parser) match(kind token.Kind) bool {
 }
 
 func (p *parser) expect(kind token.Kind, message string) (token.Token, error) {
+	// Numeric type names are also compiler-owned callable/member names.
+	if kind == token.Ident && (p.at(token.Entero) || p.at(token.Decimal)) {
+		return p.advance(), nil
+	}
 	if !p.at(kind) {
 		return token.Token{}, p.error(p.current(), message)
 	}

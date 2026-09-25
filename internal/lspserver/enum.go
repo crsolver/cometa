@@ -25,14 +25,8 @@ func completionModel(filename string, lines []string, line int, replacement stri
 	for _, input := range [][]string{lines[:line+1], lines, tail} {
 		copy := append([]string(nil), input...)
 		copy[line] = replacement
-		tokens, err := lexer.Lex(filename, strings.Join(copy, "\n")+"\n")
-		if err != nil {
-			continue
-		}
-		program, err := parser.Parse(filename, tokens)
-		if err != nil {
-			continue
-		}
+		tokens, _ := lexer.Lex(filename, strings.Join(copy, "\n")+"\n")
+		program, _ := parser.Parse(filename, tokens)
 		model, _ := sema.CheckForTooling(filename, program)
 		if best == nil || completionScore(model, line) > completionScore(best, line) {
 			best = model

@@ -70,6 +70,9 @@ func (c *checker) receiverType() Type {
 }
 
 func (c *checker) member(t Type, name string, pos ast.Pos) (MemberInfo, error) {
+	if c.invalidType(t) {
+		return MemberInfo{}, errInvalid
+	}
 	member := c.model.Members(t)[name]
 	if member.Ambiguous {
 		return member, c.fail(pos, "el miembro %q es ambiguo en %s; use la ruta explícita del tipo embebido", name, t.String())

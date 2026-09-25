@@ -1,14 +1,65 @@
 package lspserver
 
 import (
+	"context"
 	"github.com/owenrumney/go-lsp/lsp"
 	"github.com/owenrumney/go-lsp/servertest"
+	"hacha/internal/stdlib"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestPincelImportedDefinitions(t *testing.T) {
+	for _, tc := range []struct{ source, path, needle string }{
+		{"usar std/pincel/juego\nfn f(g juego.Juego)\n\tjuego.§ejecutar(g, retro = verdadero) capturar |e| imprimir(e)\n", "std/pincel/juego", "retro bool = falso"},
+		{"usar std/pincel/retro como r\nfn pintar() r.§texto(\"hola\", 0, 0)\n", "std/pincel/retro", "fn texto("},
+		{"usar std/pincel/retro como r\nfn pintar() r.§icono(.Llave, 0, 0)\n", "std/pincel/retro", "fn icono("},
+		{"usar std/pincel/retro como r\nfn f(valor r.§Icono) imprimir(valor)\n", "std/pincel/retro", "tipo Icono"},
+		{"usar std/pincel/graficos como g\nfn pintar() g.§limpiar(.Negro)\n", "std/pincel/graficos", "fn limpiar("},
+		{"usar std/mate como m\nfn inicio() imprimir(m.Vec2 {3,4}.§longitud())\n", "std/mate", "fn longitud("},
+		{"usar std/pincel/color como c\nfn f(valor c.§Color) imprimir(valor)\n", "std/pincel/color", "tipo Color"},
+	} {
+		h := NewHandler()
+		uri := lsp.DocumentURI("file:///native-def.hacha")
+		source, pos := markerPosition(tc.source)
+		if _, err := h.documents.Open(&lsp.DidOpenTextDocumentParams{TextDocument: lsp.TextDocumentItem{URI: uri, Text: source}}); err != nil {
+			t.Fatal(err)
+		}
+		locations, err := h.Definition(context.Background(), &lsp.DefinitionParams{TextDocumentPositionParams: lsp.TextDocumentPositionParams{TextDocument: lsp.TextDocumentIdentifier{URI: uri}, Position: pos}})
+		if err != nil || len(locations) != 1 {
+			t.Fatalf("definition for %s: %v %v", tc.source, locations, err)
+		}
+		if string(locations[0].URI) != "hacha-std:///"+tc.path+".hacha" {
+			t.Fatalf("wrong native URI: %v", locations)
+		}
+		reference, _ := stdlib.Source(tc.path)
+		lines := strings.Split(reference, "\n")
+		if !strings.Contains(lines[locations[0].Range.Start.Line], tc.needle) {
+			t.Fatalf("wrong declaration line: %v", locations)
+		}
+	}
+}
+
+func TestNoImplicitGameCompletion(t *testing.T) {
+	h := servertest.New(t, NewHandler())
+	uri := lsp.DocumentURI("file:///no-native-import.hacha")
+	source, pos := markerPosition("fn inicio()\n\tgraficos.§\n")
+	if err := h.DidOpen(uri, "hacha", source); err != nil {
+		t.Fatal(err)
+	}
+	list, err := h.Completion(uri, pos.Line, pos.Character)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list.Items) != 0 {
+		t.Fatalf("unimported namespace leaked: %v", list)
+	}
+}
+
+const pincelImports = "usar std/mate\nusar std/azar\nusar std/pincel/juego\nusar std/pincel/graficos\nusar std/pincel/color\nusar std/pincel/entrada\nusar std/pincel/audio\nusar std/pincel/ventana\nusar std/pincel/tiempo\nusar std/pincel/recursos\n"
 
 func TestGameAssetsWithEncodedFileURI(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "game with spaces")
@@ -30,14 +81,14 @@ func TestGameAssetsWithEncodedFileURI(t *testing.T) {
 	uri := lsp.DocumentURI(u.String())
 	h := servertest.New(t, NewHandler())
 	// The source only exists in the document overlay, as with an unsaved edit.
-	source := "var sprite = recursos.imagen(\"assets/jugador.png\")\nfn actualizar(dt num) imprimir(dt)\nfn pintar() graficos.imagen_v(sprite, Vec2 {})\n"
+	source := pincelImports + "var sprite = recursos.imagen(\"assets/jugador.png\")\nfn actualizar(dt decimal) imprimir(dt)\nfn pintar() graficos.imagen_v(sprite, mate.Vec2 {})\n"
 	if err := h.DidOpen(uri, "hacha", source); err != nil {
 		t.Fatal(err)
 	}
 	if diagnostics := waitForDiagnostics(t, h, uri); len(diagnostics) != 0 {
 		t.Fatalf("asset URI diagnostics: %+v", diagnostics)
 	}
-	hover, err := h.Hover(uri, 0, 5)
+	hover, err := h.Hover(uri, strings.Count(pincelImports, "\n"), 5)
 	if err != nil || hover == nil || !strings.Contains(hover.Contents.Value(), "Imagen") {
 		t.Fatalf("resource hover: %+v, %v", hover, err)
 	}
@@ -64,27 +115,30 @@ func TestGameAssetsWithEncodedFileURI(t *testing.T) {
 
 func TestGameCompletion(t *testing.T) {
 	for _, tt := range []struct{ body, label, detail string }{
-		{"graficos.§", "rectangulo_v", "pos Vec2"},
+		{"graficos.§", "rectangulo_v", "pos mate.Vec2"},
+		{"retro.§", "texto", "x entero"},
+		{"retro.icono(.§, 0, 0)", "Corazon", "Icono.Corazon"},
+		{"retro.glifo(0, 0, 0, atlas = .§)", "ASCII", "Atlas.ASCII"},
 		{"entrada.§", "tecla_presionada", "Tecla"},
 		{"graficos.limpiar(.§)", "Rojo", "Color.Rojo"},
 		{"entrada.tecla_mantenida(.§)", "Espacio", "Tecla.Espacio"},
-		{"var v = Vec2 {}\n\tv.§", "x", "num"},
-		{"Vec§", "Vec2", "incorporado"},
-		{"mate.§", "pi", "num"},
-		{"mate.§", "limitar", "num"},
-		{"graficos.§", "imagen_rect", "destino Rect"},
-		{"var v = Vec2 {}\n\tv.§", "normalizado", "Vec2"},
-		{"var r = Rect {}\n\tr.pos.§", "normalizado", "Vec2"},
-		{"var vs = [Vec2 {}]\n\tvs[0].§", "longitud", "num"},
-		{"var v = Vec2 {}\n\tv.normalizado().§", "distancia_a", "otro Vec2"},
-		{"Vec2 {}.§", "rotado", "angulo num"},
-		{"var v = Vec2 {}\n\t(v + v).§", "normalizado", "Vec2"},
-		{"var r = Rect {}\n\tr.§", "interseca", "otro Rect"},
+		{"var v = mate.Vec2 {}\n\tv.§", "x", "decimal"},
+		{"mate.Vec§", "Vec2", "tipo"},
+		{"mate.§", "pi", "decimal"},
+		{"mate.§", "limitar", "decimal"},
+		{"graficos.§", "imagen_rect", "destino mate.Rect"},
+		{"var v = mate.Vec2 {}\n\tv.§", "normalizado", "mate.Vec2"},
+		{"var r = mate.Rect {}\n\tr.pos.§", "normalizado", "mate.Vec2"},
+		{"var vs = [mate.Vec2 {}]\n\tvs[0].§", "longitud", "decimal"},
+		{"var v = mate.Vec2 {}\n\tv.normalizado().§", "distancia_a", "otro mate.Vec2"},
+		{"mate.Vec2 {}.§", "rotado", "angulo decimal"},
+		{"var v = mate.Vec2 {}\n\t(v + v).§", "normalizado", "mate.Vec2"},
+		{"var r = mate.Rect {}\n\tr.§", "interseca", "otro mate.Rect"},
 	} {
 		t.Run(tt.label, func(t *testing.T) {
 			h := servertest.New(t, NewHandler())
 			uri := lsp.DocumentURI("file:///game.hacha")
-			source, pos := markerPosition("fn actualizar(dt num) imprimir(dt)\nfn pintar()\n\t" + tt.body + "\n")
+			source, pos := markerPosition("usar std/pincel/retro\n" + pincelImports + "fn actualizar(dt decimal) imprimir(dt)\nfn pintar()\n\t" + tt.body + "\n")
 			if err := h.DidOpen(uri, "hacha", source); err != nil {
 				t.Fatal(err)
 			}
@@ -105,7 +159,7 @@ func TestGameCompletion(t *testing.T) {
 func TestVectorReceiverFieldCompletion(t *testing.T) {
 	h := servertest.New(t, NewHandler())
 	uri := lsp.DocumentURI("file:///vector-receiver.hacha")
-	source, pos := markerPosition("tipo Jugador\n\tpos Vec2\n\tfn mover()\n\t\t@pos.§\n")
+	source, pos := markerPosition(pincelImports + "tipo Jugador\n\tpos mate.Vec2\n\tfn mover()\n\t\t@pos.§\n")
 	if err := h.DidOpen(uri, "hacha", source); err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +168,7 @@ func TestVectorReceiverFieldCompletion(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, item := range list.Items {
-		if item.Label == "normalizado" && item.Detail == "fn normalizado() Vec2" {
+		if item.Label == "normalizado" && item.Detail == "fn normalizado() mate.Vec2" {
 			return
 		}
 	}
@@ -124,7 +178,7 @@ func TestVectorReceiverFieldCompletion(t *testing.T) {
 func TestGameHover(t *testing.T) {
 	h := servertest.New(t, NewHandler())
 	uri := lsp.DocumentURI("file:///game.hacha")
-	source, pos := markerPosition("fn actualizar(dt num) imprimir(dt)\nfn pintar()\n\tgraficos.§rectangulo_v(Vec2 {}, Vec2 {x: 2}, .Rojo)\n")
+	source, pos := markerPosition(pincelImports + "fn actualizar(dt decimal) imprimir(dt)\nfn pintar()\n\tgraficos.§rectangulo_v(mate.Vec2 {}, mate.Vec2 {x: 2}, .Rojo)\n")
 	if err := h.DidOpen(uri, "hacha", source); err != nil {
 		t.Fatal(err)
 	}
@@ -135,10 +189,10 @@ func TestGameHover(t *testing.T) {
 }
 
 func TestGameMethodHover(t *testing.T) {
-	for _, expr := range []string{"Vec2 {}.§longitud()", "Rect {}.§contiene({})", "mate.§pi"} {
+	for _, expr := range []string{"mate.Vec2 {}.§longitud()", "mate.Rect {}.§contiene({})", "mate.§pi"} {
 		h := servertest.New(t, NewHandler())
 		uri := lsp.DocumentURI("file:///game.hacha")
-		source, pos := markerPosition("fn actualizar(dt num) imprimir(dt)\nfn pintar()\n\timprimir(" + expr + ")\n")
+		source, pos := markerPosition(pincelImports + "fn actualizar(dt decimal) imprimir(dt)\nfn pintar()\n\timprimir(" + expr + ")\n")
 		if err := h.DidOpen(uri, "hacha", source); err != nil {
 			t.Fatal(err)
 		}

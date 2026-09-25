@@ -20,8 +20,8 @@ func TestRangeHover(t *testing.T) {
 	}
 	for _, col := range []int{13, 19, 22, 39} {
 		hover, err := h.Hover(uri, 2, col)
-		if err != nil || hover == nil || !strings.Contains(hover.Contents.Value(), "num") {
-			t.Fatalf("hover at %d = %+v, %v; want num", col, hover, err)
+		if err != nil || hover == nil || !strings.Contains(hover.Contents.Value(), "entero") {
+			t.Fatalf("hover at %d = %+v, %v; want entero", col, hover, err)
 		}
 	}
 }

@@ -37,7 +37,7 @@ fn inicio()
 	var caja = m.Caja<m.Usuario> {valor: usuario}
 	imprimir(recibir(caja.valor))
 	imprimir(m.saludar(saludo = "hola "))
-	imprimir(util.identidad<num>(3))
+	imprimir(util.identidad<entero>(3))
 	var evento = m.Evento.Texto("texto")
 	casos evento |dato|
 		m.Evento.Texto => imprimir(dato)
@@ -104,7 +104,7 @@ tipo Usuario
 }
 
 func TestProjectStableOutputAndNoEntry(t *testing.T) {
-	files := map[string]string{"main.hacha": "usar a\nfn crear() a.Usuario a.Usuario {}\n", "a.hacha": "tipo Usuario\n\tx num\n"}
+	files := map[string]string{"main.hacha": "usar a\nfn crear() a.Usuario a.Usuario {}\n", "a.hacha": "tipo Usuario\n\tx entero\n"}
 	first, loadFirst := memoryProject(t, files)
 	second, loadSecond := memoryProject(t, files)
 	a, err := CompileProject(first, loadFirst)
@@ -148,8 +148,8 @@ func TestProjectFailures(t *testing.T) {
 		{"entry", "usar a\n", "fn inicio() imprimir(1)\n", "", "inicio"},
 		{"reexport", "usar a\nfn inicio() a.b.f()\n", "usar b\n", "fn f() imprimir(1)\n", "desconocida"},
 		{"leak", "usar a\nfn inicio() f()\n", "fn f() imprimir(1)\n", "", "desconocida"},
-		{"nominal", "usar a\nusar b\nfn f(valor a.Usuario)\n\timprimir(valor)\nfn inicio() f(b.Usuario {})\n", "tipo Usuario\n\tx num\n", "tipo Usuario\n\tx num\n", "Usuario"},
-		{"dependency error", "usar a\n", "fn f() num \"error\"\n", "", "num"},
+		{"nominal", "usar a\nusar b\nfn f(valor a.Usuario)\n\timprimir(valor)\nfn inicio() f(b.Usuario {})\n", "tipo Usuario\n\tx entero\n", "tipo Usuario\n\tx entero\n", "Usuario"},
+		{"dependency error", "usar a\n", "fn f() entero \"error\"\n", "", "entero"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			entry, loader := memoryProject(t, map[string]string{"main.hacha": tc.root, "a.hacha": tc.a, "b.hacha": tc.b})

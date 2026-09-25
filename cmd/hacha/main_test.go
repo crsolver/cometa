@@ -71,7 +71,7 @@ func TestRunResolvesFileModules(t *testing.T) {
 	if err := os.WriteFile(input, []byte("usar biblioteca como b\nfn inicio() imprimir(b.valor())\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(directory, "biblioteca.hacha"), []byte("fn valor() num 42\n"), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(directory, "biblioteca.hacha"), []byte("fn valor() entero 42\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	output := filepath.Join(directory, "salida.go")

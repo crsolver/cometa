@@ -1,0 +1,146 @@
+// Scalar easing curves inspired by Odin core:math/ease and AHEasing.
+// Public entry points clamp progress, preserve overshoot and return exact endpoints.
+// NaN propagates; infinities map to their respective endpoints.
+func _hgcurva_lineal(p float64) float64 {
+ if p <= 0 { return 0 }; if p >= 1 { return 1 }; return p
+}
+
+func _hgcurva_cuadratica_entrada(p float64) float64 {
+ if p <= 0 { return 0 }; if p >= 1 { return 1 }; return _hgcurvaBase_cuadratica(p)
+}
+
+func _hgcurva_cuadratica_salida(p float64) float64 {
+ if p <= 0 { return 0 }; if p >= 1 { return 1 }; return 1 - _hgcurvaBase_cuadratica(1-p)
+}
+
+func _hgcurva_cuadratica_entrada_salida(p float64) float64 {
+ if p <= 0 { return 0 }; if p >= 1 { return 1 }; if p < 0.5 { return 0.5 * _hgcurvaBase_cuadratica(2*p) }; return 1 - 0.5 * _hgcurvaBase_cuadratica(2-2*p)
+}
+
+func _hgcurva_cubica_entrada(p float64) float64 {
+ if p <= 0 { return 0 }; if p >= 1 { return 1 }; return _hgcurvaBase_cubica(p)
+}
+
+func _hgcurva_cubica_salida(p float64) float64 {
+ if p <= 0 { return 0 }; if p >= 1 { return 1 }; return 1 - _hgcurvaBase_cubica(1-p)
+}
+
+func _hgcurva_cubica_entrada_salida(p float64) float64 {
+ if p <= 0 { return 0 }; if p >= 1 { return 1 }; if p < 0.5 { return 0.5 * _hgcurvaBase_cubica(2*p) }; return 1 - 0.5 * _hgcurvaBase_cubica(2-2*p)
+}
+
+func _hgcurva_cuartica_entrada(p float64) float64 {
+ if p <= 0 { return 0 }; if p >= 1 { return 1 }; return _hgcurvaBase_cuartica(p)
+}
+
+func _hgcurva_cuartica_salida(p float64) float64 {
+ if p <= 0 { return 0 }; if p >= 1 { return 1 }; return 1 - _hgcurvaBase_cuartica(1-p)
+}
+
+func _hgcurva_cuartica_entrada_salida(p float64) float64 {
+ if p <= 0 { return 0 }; if p >= 1 { return 1 }; if p < 0.5 { return 0.5 * _hgcurvaBase_cuartica(2*p) }; return 1 - 0.5 * _hgcurvaBase_cuartica(2-2*p)
+}
+
+func _hgcurva_quintica_entrada(p float64) float64 {
+ if p <= 0 { return 0 }; if p >= 1 { return 1 }; return _hgcurvaBase_quintica(p)
+}
+
+func _hgcurva_quintica_salida(p float64) float64 {
+ if p <= 0 { return 0 }; if p >= 1 { return 1 }; return 1 - _hgcurvaBase_quintica(1-p)
+}
+
+func _hgcurva_quintica_entrada_salida(p float64) float64 {
+ if p <= 0 { return 0 }; if p >= 1 { return 1 }; if p < 0.5 { return 0.5 * _hgcurvaBase_quintica(2*p) }; return 1 - 0.5 * _hgcurvaBase_quintica(2-2*p)
+}
+
+func _hgcurva_senoidal_entrada(p float64) float64 {
+ if p <= 0 { return 0 }; if p >= 1 { return 1 }; return _hgcurvaBase_senoidal(p)
+}
+
+func _hgcurva_senoidal_salida(p float64) float64 {
+ if p <= 0 { return 0 }; if p >= 1 { return 1 }; return 1 - _hgcurvaBase_senoidal(1-p)
+}
+
+func _hgcurva_senoidal_entrada_salida(p float64) float64 {
+ if p <= 0 { return 0 }; if p >= 1 { return 1 }; if p < 0.5 { return 0.5 * _hgcurvaBase_senoidal(2*p) }; return 1 - 0.5 * _hgcurvaBase_senoidal(2-2*p)
+}
+
+func _hgcurva_circular_entrada(p float64) float64 {
+ if p <= 0 { return 0 }; if p >= 1 { return 1 }; return _hgcurvaBase_circular(p)
+}
+
+func _hgcurva_circular_salida(p float64) float64 {
+ if p <= 0 { return 0 }; if p >= 1 { return 1 }; return 1 - _hgcurvaBase_circular(1-p)
+}
+
+func _hgcurva_circular_entrada_salida(p float64) float64 {
+ if p <= 0 { return 0 }; if p >= 1 { return 1 }; if p < 0.5 { return 0.5 * _hgcurvaBase_circular(2*p) }; return 1 - 0.5 * _hgcurvaBase_circular(2-2*p)
+}
+
+func _hgcurva_exponencial_entrada(p float64) float64 {
+ if p <= 0 { return 0 }; if p >= 1 { return 1 }; return _hgcurvaBase_exponencial(p)
+}
+
+func _hgcurva_exponencial_salida(p float64) float64 {
+ if p <= 0 { return 0 }; if p >= 1 { return 1 }; return 1 - _hgcurvaBase_exponencial(1-p)
+}
+
+func _hgcurva_exponencial_entrada_salida(p float64) float64 {
+ if p <= 0 { return 0 }; if p >= 1 { return 1 }; if p < 0.5 { return 0.5 * _hgcurvaBase_exponencial(2*p) }; return 1 - 0.5 * _hgcurvaBase_exponencial(2-2*p)
+}
+
+func _hgcurva_elastica_entrada(p float64) float64 {
+ if p <= 0 { return 0 }; if p >= 1 { return 1 }; return _hgcurvaBase_elastica(p)
+}
+
+func _hgcurva_elastica_salida(p float64) float64 {
+ if p <= 0 { return 0 }; if p >= 1 { return 1 }; return 1 - _hgcurvaBase_elastica(1-p)
+}
+
+func _hgcurva_elastica_entrada_salida(p float64) float64 {
+ if p <= 0 { return 0 }; if p >= 1 { return 1 }; if p < 0.5 { return 0.5 * _hgcurvaBase_elastica(2*p) }; return 1 - 0.5 * _hgcurvaBase_elastica(2-2*p)
+}
+
+func _hgcurva_retroceso_entrada(p float64) float64 {
+ if p <= 0 { return 0 }; if p >= 1 { return 1 }; return _hgcurvaBase_retroceso(p)
+}
+
+func _hgcurva_retroceso_salida(p float64) float64 {
+ if p <= 0 { return 0 }; if p >= 1 { return 1 }; return 1 - _hgcurvaBase_retroceso(1-p)
+}
+
+func _hgcurva_retroceso_entrada_salida(p float64) float64 {
+ if p <= 0 { return 0 }; if p >= 1 { return 1 }; if p < 0.5 { return 0.5 * _hgcurvaBase_retroceso(2*p) }; return 1 - 0.5 * _hgcurvaBase_retroceso(2-2*p)
+}
+
+func _hgcurva_rebote_entrada(p float64) float64 {
+ if p <= 0 { return 0 }; if p >= 1 { return 1 }; return _hgcurvaBase_rebote(p)
+}
+
+func _hgcurva_rebote_salida(p float64) float64 {
+ if p <= 0 { return 0 }; if p >= 1 { return 1 }; return 1 - _hgcurvaBase_rebote(1-p)
+}
+
+func _hgcurva_rebote_entrada_salida(p float64) float64 {
+ if p <= 0 { return 0 }; if p >= 1 { return 1 }; if p < 0.5 { return 0.5 * _hgcurvaBase_rebote(2*p) }; return 1 - 0.5 * _hgcurvaBase_rebote(2-2*p)
+}
+
+// Entrance curves; exit and entrance-exit use reflection and half-interval scaling.
+func _hgcurvaBase_cuadratica(p float64) float64 { return p*p }
+func _hgcurvaBase_cubica(p float64) float64 { return p*p*p }
+func _hgcurvaBase_cuartica(p float64) float64 { return p*p*p*p }
+func _hgcurvaBase_quintica(p float64) float64 { return p*p*p*p*p }
+func _hgcurvaBase_senoidal(p float64) float64 { return 1-math.Cos(p*math.Pi/2) }
+func _hgcurvaBase_circular(p float64) float64 { return 1-math.Sqrt(1-p*p) }
+func _hgcurvaBase_exponencial(p float64) float64 { return math.Exp2(10*(p-1)) }
+func _hgcurvaBase_elastica(p float64) float64 { return math.Sin(13*math.Pi*p/2)*math.Exp2(10*(p-1)) }
+func _hgcurvaBase_retroceso(p float64) float64 { return p*p*p-p*math.Sin(p*math.Pi) }
+func _hgcurvaBase_rebote(p float64) float64 { return 1-_hgcurvaReboteSalida(1-p) }
+func _hgcurvaReboteSalida(p float64) float64 {
+ switch {
+ case p < 4.0/11: return 121*p*p/16
+ case p < 8.0/11: return 363.0/40*p*p-99.0/10*p+17.0/5
+ case p < 9.0/10: return 4356.0/361*p*p-35442.0/1805*p+16061.0/1805
+ default: return 54.0/5*p*p-513.0/25*p+268.0/25
+ }
+}

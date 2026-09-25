@@ -1,0 +1,26 @@
+usar std/mate/ruido
+
+fn terreno(semilla entero) cadena
+	var mapa = ""
+	repetir (0..12) |y|
+		repetir (0..48) |x|
+			var altura = ruido.fractal(x * 0.12, y * 0.12, semilla)
+			mapa = mapa + si altura < 0.4 "~" sino si altura < 0.55 "." sino si altura < 0.7 "+" sino "^"
+		mapa = mapa + "\n"
+	mapa
+
+fn cuevas(semilla entero) cadena
+	var mapa = ""
+	repetir (0..12) |y|
+		repetir (0..48) |x|
+			var densidad = ruido.suave(x * 0.18, y * 0.18, semilla)
+			mapa = mapa + si densidad < 0.5 " " sino "#"
+		mapa = mapa + "\n"
+	mapa
+
+fn inicio()
+	var semilla = 42
+	imprimir("Terreno: ~ agua, . llanura, + colina, ^ montana")
+	imprimir(terreno(semilla))
+	imprimir("Cuevas: # pared, espacio libre (puede haber zonas desconectadas)")
+	imprimir(cuevas(semilla))

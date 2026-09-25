@@ -1,0 +1,14 @@
+usar std/mate
+usar std/mate/curvas
+
+// El tiempo y la duración pertenecen al programa; las curvas solo reciben progreso.
+fn posicion(transcurrido decimal, duracion decimal) decimal
+	mate.interpolar(20, 140, curvas.cubica_entrada_salida(transcurrido / duracion))
+
+fn inicio()
+	// En un juego, acumular dt desde actualizar(dt decimal).
+	var transcurrido = 0.0
+	var duracion = 2.0
+	repetir ([0.0, 0.5, 1.0, 1.5, 2.0, 2.5]) |segundos|
+		transcurrido = segundos
+		imprimir(posicion(transcurrido, duracion))

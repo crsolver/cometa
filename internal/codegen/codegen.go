@@ -8,13 +8,14 @@ import (
 	"go/parser"
 	"go/token"
 	"go/types"
+	"sort"
 	"strconv"
 	"strings"
 	"unicode"
 
 	"hacha/internal/ast"
-	"hacha/internal/gameapi"
 	"hacha/internal/sema"
+	"hacha/internal/stdlib"
 )
 
 type generator struct {
@@ -25,15 +26,16 @@ type generator struct {
 	model        *sema.Model
 	nextName     int
 	loopLabel    string
+	scopes []string
+	loopScopeDepth int
 	defaultFlags map[*ast.FuncDecl][]string
 }
 
 func Generate(filename string, program *ast.Program, model *sema.Model) ([]byte, error) {
-	if model.Game.Used && !model.Game.Enabled {
-		return nil, &sema.Error{Filename: filename, Pos: ast.Pos{Line: 1, Column: 1}, Message: "las APIs de juego requieren actualizar y pintar en el módulo raíz"}
-	}
+
 	g := &generator{model: model, defaultFlags: map[*ast.FuncDecl][]string{}}
-	if model.Game.Enabled {
+	g.flow = model.HasScopes
+	if model.Game.Used {
 		g.flow = true
 	}
 	if len(model.ListCalls) > 0 {
@@ -79,36 +81,45 @@ func Generate(filename string, program *ast.Program, model *sema.Model) ([]byte,
 	}
 	g.line(0, "package main")
 	g.line(0, "")
-	if model.Game.Enabled {
-		imports := gameImports
-		if stringFeatures {
-			imports = strings.Replace(imports, ` "strings"`, " \"strconv\"\n \"strings\"", 1)
+	runtimeSource, runtimeImports, err := stdlib.Runtime(model.Game.Modules)
+	if err != nil {
+		return nil, err
+	}
+	imports := map[string]bool{}
+	for _, path := range runtimeImports {
+		imports[path] = true
+	}
+	if usesPrint(program) {
+		imports[`"fmt"`] = true
+	}
+	if stringFeatures {
+		imports[`"strconv"`] = true
+		imports[`"strings"`] = true
+	}
+	var paths []string
+	for path := range imports {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	if len(paths) == 1 {
+		g.line(0, "import %s", paths[0])
+		g.line(0, "")
+	} else if len(paths) > 1 {
+		g.line(0, "import (")
+		for _, path := range paths {
+			g.line(1, "%s", path)
 		}
-		g.write("%s\n", imports)
-		g.write("%s\n", gameRuntime)
-	} else {
-		var imports []string
-		if usesPrint(program) {
-			imports = append(imports, "fmt")
-		}
-		if stringFeatures {
-			imports = append(imports, "strconv", "strings")
-		}
-		if len(imports) == 1 {
-			g.line(0, `import %q`, imports[0])
-			g.line(0, "")
-		}
-		if len(imports) > 1 {
-			g.line(0, "import (")
-			for _, name := range imports {
-				g.line(1, "%q", name)
-			}
-			g.line(0, ")")
-			g.line(0, "")
-		}
+		g.line(0, ")")
+		g.line(0, "")
+	}
+	if runtimeSource != "" {
+		g.write("%s\n", runtimeSource)
 	}
 	if stringFeatures {
 		g.write("%s\n", stringRuntime)
+	}
+	if len(model.NumericCalls) > 0 || model.Game.Used {
+		g.write("%s\n", numericRuntime)
 	}
 
 	for _, decl := range program.Decls {
@@ -138,14 +149,11 @@ func Generate(filename string, program *ast.Program, model *sema.Model) ([]byte,
 		}
 	}
 
-	if model.Game.Enabled {
-		g.emitGameEntry()
-	}
 	formatted, err := eliminateUnusedLocals(g.buffer.Bytes())
 	if err != nil {
 		return nil, fmt.Errorf("no se pudo formatear el Go generado: %w\n%s", err, g.buffer.String())
 	}
-	if !model.Game.Enabled {
+	if !strings.Contains(strings.Join(runtimeImports, " "), "github.com/") {
 		if err = validate(filename, formatted); err != nil {
 			return nil, err
 		}
@@ -263,6 +271,10 @@ func (g *generator) emitStmt(stmt ast.Stmt, indent int, returnValue bool) {
 	case *ast.ExprStmt:
 		expression := g.expr(statement.Expr)
 		_, constructor := g.model.Constructors[statement.Expr]
+		if call, ok := statement.Expr.(*ast.CallExpr); ok {
+			_, numeric := g.model.NumericCalls[call]
+			constructor = constructor || numeric
+		}
 		if returnValue {
 			g.line(indent, "return %s", expression)
 		} else if _, call := statement.Expr.(*ast.CallExpr); call && !constructor {
@@ -275,8 +287,8 @@ func (g *generator) emitStmt(stmt ast.Stmt, indent int, returnValue bool) {
 	case *ast.VarDeclStmt:
 		name := localName(statement.Name)
 		value := g.expr(statement.Value)
-		if g.model.VarTypes[statement].Kind == sema.Number {
-			value = "float64(" + value + ")"
+		if g.model.VarTypes[statement].Numeric() {
+			value = goType(g.model.VarTypes[statement]) + "(" + value + ")"
 		}
 		g.line(indent, "%s := %s", name, value)
 	case *ast.IfStmt:
@@ -319,7 +331,7 @@ func (g *generator) emitRepeat(stmt *ast.RepeatStmt, indent int) {
 	} else {
 		index := localName(stmt.Index)
 		g.line(indent, "for %s, %s := range %s {", index, element, g.expr(stmt.Iterable))
-		g.line(indent+1, "%s := float64(%s)", index, index)
+		g.line(indent+1, "%s := int64(%s)", index, index)
 	}
 	g.emitBlock(stmt.Body, indent+1, false)
 	g.line(indent, "}")
@@ -330,15 +342,15 @@ func (g *generator) emitRange(stmt *ast.RepeatStmt, indent int) {
 	// Evaluate bounds once, in source order, before introducing loop bindings.
 	g.line(indent, "{")
 	indent++
-	g.line(indent, "%s := float64(%s)", current, g.expr(stmt.Iterable))
-	g.line(indent, "%s := float64(%s)", end, g.expr(stmt.RangeEnd))
-	g.line(indent, "%s := float64(1)", step)
+	g.line(indent, "%s := int64(%s)", current, g.expr(stmt.Iterable))
+	g.line(indent, "%s := int64(%s)", end, g.expr(stmt.RangeEnd))
+	g.line(indent, "%s := int64(1)", step)
 	g.line(indent, "if %s > %s { %s = -1 }", current, end, step)
 	if needsLoopLabel(stmt.Body, false) {
 		g.loopLabel = g.freshName()
 		g.line(indent, "%s:", g.loopLabel)
 	}
-	g.line(indent, "for %s := float64(0); (%s > 0 && %s < %s) || (%s < 0 && %s > %s); %s, %s = %s + %s, %s + 1 {", index, step, current, end, step, current, end, current, index, current, step, index)
+	g.line(indent, "for %s := int64(0); (%s > 0 && %s < %s) || (%s < 0 && %s > %s); %s, %s = %s + %s, %s + 1 {", index, step, current, end, step, current, end, current, index, current, step, index)
 	g.line(indent+1, "%s := %s", localName(stmt.Element), current)
 	if stmt.Index != "" {
 		g.line(indent+1, "%s := %s", localName(stmt.Index), index)
@@ -365,6 +377,14 @@ func (g *generator) emitIf(stmt *ast.IfStmt, indent int, returnValue bool) {
 }
 
 func (g *generator) expr(expr ast.Expr) string {
+	value := g.rawExpr(expr)
+	if _, ok := g.model.NumericCoercions[expr]; ok {
+		return "float64(" + value + ")"
+	}
+	return value
+}
+
+func (g *generator) rawExpr(expr ast.Expr) string {
 	if value, ok := g.model.Game.Constants[expr]; ok {
 		return value
 	}
@@ -378,7 +398,11 @@ func (g *generator) expr(expr ast.Expr) string {
 	switch expression := expr.(type) {
 	case *ast.MatchExpr:
 		child := &generator{model: g.model, nextName: g.nextName}
-		child.line(0, "func() %s {", goType(g.model.ExprTypes[expr]))
+		raw := g.model.ExprTypes[expr]
+		if _, ok := g.model.NumericCoercions[expr]; ok {
+			raw = sema.Type{Kind: sema.Integer}
+		}
+		child.line(0, "func() %s {", goType(raw))
 		child.emitMatch(expression, 1, true)
 		child.line(0, "}()")
 		g.nextName = child.nextName
@@ -393,7 +417,7 @@ func (g *generator) expr(expr ast.Expr) string {
 	case *ast.MemberExpr:
 		return g.expr(expression.Object) + "." + g.fieldName(g.model.ExprTypes[expression.Object], expression.Name)
 	case *ast.IndexExpr:
-		return g.expr(expression.Object) + "[int(" + g.expr(expression.Index) + ")]"
+		return g.expr(expression.Object) + "[" + g.expr(expression.Index) + "]"
 	case *ast.LiteralExpr:
 		if expression.Kind == "bool" {
 			if expression.Value == "verdadero" {
@@ -409,6 +433,9 @@ func (g *generator) expr(expr ast.Expr) string {
 	case *ast.BinaryExpr:
 		return "(" + g.expr(expression.Left) + " " + expression.Operator + " " + g.expr(expression.Right) + ")"
 	case *ast.CallExpr:
+		if t, ok := g.model.NumericCalls[expression]; ok {
+			return g.numericCall(expression, t, g.expr(expression.Args[0]))
+		}
 		var callee string
 		switch called := expression.Callee.(type) {
 		case *ast.IdentExpr:
@@ -433,7 +460,7 @@ func (g *generator) expr(expr ast.Expr) string {
 			fields[index] = g.fieldName(typeInfo, field.Name) + ": " + g.expr(field.Value)
 		}
 		fields = append(fields, g.defaultFields(typeInfo, explicit)...)
-		if gameapi.IsValue(typeInfo.Name) {
+		if stdlib.IsValue(typeInfo.Name) {
 			return goType(typeInfo) + "{" + strings.Join(fields, ", ") + "}"
 		}
 		return "&" + namedGoType(typeInfo) + "{" + strings.Join(fields, ", ") + "}"
@@ -446,6 +473,9 @@ func (g *generator) expr(expr ast.Expr) string {
 		return goType(typeInfo) + "{" + strings.Join(elements, ", ") + "}"
 	case *ast.IfExpr:
 		resultType := goType(g.model.ExprTypes[expr])
+		if _, ok := g.model.NumericCoercions[expr]; ok {
+			resultType = "int64"
+		}
 		var out strings.Builder
 		out.WriteString("func() ")
 		out.WriteString(resultType)
@@ -482,8 +512,10 @@ func (g *generator) interpolated(expression *ast.InterpolatedStringExpr, emit fu
 			return ""
 		}
 		switch g.model.ExprTypes[part.Expr].Kind {
-		case sema.Number:
+		case sema.Decimal:
 			value = "_hsnumero(" + value + ")"
+		case sema.Integer:
+			value = "strconv.FormatInt(" + value + ", 10)"
 		case sema.Boolean:
 			value = "_hsbool(" + value + ")"
 		}
@@ -496,8 +528,11 @@ func (g *generator) interpolated(expression *ast.InterpolatedStringExpr, emit fu
 }
 
 func goType(t sema.Type) string {
-	if name := gameapi.GoType(t.Name); name != "" && t.Kind == sema.Named {
-		if gameapi.IsValue(t.Name) {
+	if t.Name == stdlib.Symbol("Juego") && t.Kind == sema.Interface {
+		return "_hgJuego"
+	}
+	if name := stdlib.GoType(t.Name); name != "" && t.Kind == sema.Named {
+		if stdlib.IsValue(t.Name) {
 			return name
 		}
 		return "*" + name
@@ -514,8 +549,10 @@ func goType(t sema.Type) string {
 			fields += "; payload2 " + goType(*t.Err)
 		}
 		return fields + " }"
-	case sema.Number:
+	case sema.Decimal:
 		return "float64"
+	case sema.Integer:
+		return "int64"
 	case sema.String:
 		return "string"
 	case sema.Boolean:
@@ -623,6 +660,8 @@ func blockUsesPrint(body []ast.Stmt) bool {
 			if blockUsesPrint(statement.Else) {
 				return true
 			}
+		case *ast.ScopeStmt:
+			if exprUsesPrint(statement.Value) || blockUsesPrint(statement.Body) { return true }
 		case *ast.RepeatStmt:
 			if statement.RangeEnd != nil && exprUsesPrint(statement.RangeEnd) {
 				return true

@@ -12,4 +12,4 @@ fn inicio()
 	casos evento |dato|
 		m.Evento.Usuario => imprimir(dato.nombre)
 		m.Evento.Vacio => imprimir("sin usuario")
-	imprimir(herramientas.identidad<num>(42))
+	imprimir(herramientas.identidad<entero>(42))

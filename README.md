@@ -1,19 +1,22 @@
 # Hacha
 
-Hacha is a statically typed language with Spanish syntax for small 2D games, powered by Go and Ebitengine. Tabs define blocks. Vectors, drawing, input, audio, math and collision helpers are available without imports; existing general-purpose features remain available.
+Hacha is a statically typed, general-purpose language with Spanish syntax, compiled to Go. Tabs define blocks. Its bundled standard library provides math and random helpers; Pincel provides optional 2D games, graphics, input, audio, and resources through explicit imports.
 
 ```hacha
-tipo Jugador
-	pos Vec2
-	vel Vec2
+usar std/mate
+usar std/pincel/juego
+usar std/pincel/graficos
 
-var jugador = Jugador {vel: {x: 40}}
+tipo Partida
+	pos mate.Vec2
+	fn actualizar(dt decimal)
+		@pos.x = @pos.x + 40 * dt
+	fn pintar()
+		graficos.rectangulo_v(@pos, {10, 10}, .Rojo)
 
-fn actualizar(dt num)
-	jugador.pos = jugador.pos + jugador.vel * dt
-
-fn pintar()
-	graficos.rectangulo_v(jugador.pos, Vec2 {x: 10, y: 10}, .Rojo)
+fn inicio()
+	juego.ejecutar(Partida {}, titulo = "Mi juego") capturar |error|
+		imprimir(error)
 ```
 
 ```console
@@ -22,16 +25,30 @@ bin/hacha ejecutar examples/juego.hacha
 bin/hacha construir examples/juego.hacha -o juego.exe
 ```
 
-On Windows use `bin\hacha.exe`. Go 1.25+ is required; `HACHA_GO` can select the executable. The first build downloads pinned Ebitengine v2.10.1 dependencies. Linux/macOS require Ebitengine's native development dependencies. Builds use an isolated temporary module and embed all assets. They do not modify your project's Go module. `ejecutar` builds and runs; `construir` builds without opening a window.
+On Windows use `bin\hacha.exe`. Go 1.25+ is required; `HACHA_GO` can select the executable. The first Pincel build downloads pinned Ebitengine v2.10.1 dependencies; math-only programs do not depend on Ebitengine. Linux/macOS require Ebitengine's native development dependencies. Builds use an isolated temporary module and embed all assets. They do not modify your project's Go module. `ejecutar` builds and runs; `construir` builds without opening a window.
 
 The [playable example](examples/juego.hacha) includes keyboard movement, a sprite, collision, text and sound. Use WASD or arrow keys to collect the yellow target. See [the game API guide](docs/juegos.md) for signatures and lifecycle rules.
 
-Game entries require `actualizar(dt num)` and `pintar()`, with optional `iniciar()`. Call `juego.configuracion(...)` inside `iniciar` to override the defaults: 320×180, scale 1, title "Hacha", and 60 TPS. The compiler creates the loop and entry point. A game cannot also declare `inicio`. Built-in type/namespace names are reserved, so older interfaces named `Fuente` should be renamed (the examples use `Proveedor`). `Vec2` uses value semantics; user structures continue to use reference semantics. Vector math uses methods such as `pos.normalizado()`; rectangles expose `interseca` and `contiene`. Drawing uses scalar, `_v`, and `_rect` variants; rotations are optional radians. The math namespace is `mate`. Vectors and other structures accept named or positional literals, such as `Vec2 {x: 10, y: 10}` and `Vec2 {10, 10}`.
+For easing, import `std/mate/curvas` and use `mate.interpolar(a, b, curvas.cubica_entrada_salida(elapsed / duration))` with a positive duration. The module provides 31 pure scalar curves, clamps progress to `[0, 1]`, and preserves elastic/back overshoot. Import `std/mate` separately for interpolation. Neither module requires Ebitengine. See [the curve API](docs/curvas.md) and [runnable example](examples/curvas.hacha).
+
+For procedural levels, `usar std/mate/ruido` provides seeded 2D smooth and fractal noise in `[0, 1]`, without graphics dependencies or shared random state. See [the noise API](docs/ruido.md) and [console terrain/cave example](examples/ruido.hacha).
+
+Import individual Pincel modules with `usar std/pincel/juego`, `std/pincel/graficos`, `std/pincel/color`, `std/pincel/entrada`, `std/pincel/audio`, `std/pincel/ventana`, `std/pincel/tiempo`, `std/pincel/recursos`, and `std/pincel/retro`. Math and random remain independent: `usar std/mate` and `usar std/azar`. Aliases use `como`; each source file imports its own dependencies.
+
+Prototype without asset files using `retro.texto("¡Hola!", 8, 8)` and `retro.icono(.Corazon, 8, 24, color = .Rojo)`. The bundled CC0 DUNGEON.mode atlases provide 8×8 bitmap text, Spanish characters, and fantasy icons. Use `pixelado = verdadero` in `juego.ejecutar` with an integer window scale for crisp presentation. For a subtle CRT look, use `retro = verdadero`: it enables nearest-neighbor scaling plus soft scanlines, a faint RGB mask, and a gentle vignette across the whole image. This flag works with any Pincel game and needs no extra import. See [the retro guide](docs/juegos.md#juegos-retro-sin-recursos), [playable dungeon](examples/dungeon2.hacha), and [atlas gallery](examples/retro.hacha).
+
+[La última luz](examples/escape_retro.hacha) is a three-floor, turn-based retro adventure with Spanish story dialogues and a fixed 24-color palette. Find each floor's key, fight skeletons, and restore the tower's light. Arrow keys move or attack, Space waits, Enter advances dialogue, and R restarts. Run it with `hacha ejecutar examples/escape_retro.hacha`.
+
+[Bajo la tierra](examples/plataformas.hacha) is a 320×180 procedural platformer sandbox with 8×8 DUNGEON.mode blocks, surface terrain and connected caves across 6×3 fixed camera sections. It includes variable-height jumps, coyote time, jump buffering, mining, mouse-aimed shooting, slimes and cave bats. A/D or arrows move, Space jumps, left mouse shoots, and right mouse mines within reach. R returns to the refuge, N generates a new world, and H shows help. Run `bin/hacha ejecutar examples/plataformas.hacha`; see [controls and world details](docs/juegos.md#bajo-la-tierra). Its [simulation module](examples/plataformas/mundo.hacha) runs without graphics and has automated gameplay checks.
+
+Games start from `inicio()` by calling `juego.ejecutar(instance, ...)`. The instance implements `juego.Juego` through `actualizar(dt decimal)` and `pintar()` methods. Configuration is passed to that call, which returns `!` and blocks until the window closes. Defaults remain 320×180, scale 1, title "Hacha", and 60 TPS. Initialize state before calling it. Top-level `actualizar`, `pintar`, and `iniciar` have no special meaning; `juego.configuracion` has been removed.
+
+Library types require qualification: `mate.Vec2`, `mate.Rect`, and `color.Color`, for example. Contextual literals such as `{x: 10}` and constants such as `.Rojo` still work when their type is known. Library value semantics and vector operators are preserved; user structures retain reference semantics. Library names are no longer globally reserved. Drawing outside the active `pintar` phase fails at runtime.
 
 `hacha compilar archivo.hacha -o salida.go` still emits formatted Go. Game output receives syntax validation; `ejecutar` and `construir` perform full Go compilation. General programs retain generated-Go type checking and their traditional entry point:
 
 ```hacha
-fn sumar(a num, b num) num a + b
+fn sumar(a entero, b entero) entero a + b
 
 fn inicio()
 	imprimir("hola desde Hacha")
@@ -68,14 +85,14 @@ fn inicio()
 
 Paths are unquoted, use `/`, omit `.hacha`, and resolve relative to the importing file. The default namespace is the final path segment; `como` changes it. Namespace aliases must be unique and cannot conflict with top-level declarations. Local variables and parameters may shadow aliases in expressions.
 
-Functions, types, interfaces, enums, fields, methods and variants are public. Imports do not re-export other imports, execute initialization code, or require use. Access imported declarations with `m.crear()`, `m.Usuario`, `m.Caja<num>`, or `m.Evento.Texto("hola")`. Imports of the same physical file share type identity; types with the same name from different files remain distinct.
+Functions, types, interfaces, enums, fields, methods and variants are public. Imports do not re-export other imports, execute initialization code, or require use. Access imported declarations with `m.crear()`, `m.Usuario`, `m.Caja<entero>`, or `m.Evento.Texto("hola")`. Imports of the same physical file share type identity; types with the same name from different files remain distinct.
 
 The compiler loads all reachable modules and emits one formatted, checked Go file. Only the entry file may declare `fn inicio()`; importing a file that declares it is an error. Missing files, duplicate imports, alias conflicts and import cycles are errors. Paths may use `../` to leave the entry directory. There is no manifest or remote package resolution.
 
 Top-level `var` and `const` declarations define public module globals. Mutable globals can be reassigned from functions; constants are limited to numeric, string, and boolean constant expressions. Imported values use the normal namespace syntax, such as `config.limite`. Forward references are supported and initialization cycles are rejected.
 
 ```hacha
-const limite num = 10
+const limite entero = 10
 var contador = 0
 
 fn incrementar()
@@ -130,9 +147,9 @@ fn inicio()
 
 Embedded fields and methods are promoted recursively, including through `@` inside methods and for structural interface conformance. Direct members shadow promoted members; the unique member at the shallowest depth wins. Multiple matches at that depth make the selector ambiguous, even if they reach the same declaration. Use an explicit path such as `empleado.Persona.nombre` to select the embedded value.
 
-Literal keys must name direct fields: initialize `Persona`, not its promoted `nombre`. Omitted embeddings receive fresh recursive defaults; required nested fields and required cycles follow the ordinary struct rules. Explicitly supplied objects retain their references. `Caja<num>` can be embedded with the implicit field name `Caja`; two instantiations of `Caja` cannot be embedded together. Only declared structs can be embedded, not interfaces, enums, primitives, lists, wrappers, or bare type parameters. See [the embedding example](examples/embebidos.hacha).
+Literal keys must name direct fields: initialize `Persona`, not its promoted `nombre`. Omitted embeddings receive fresh recursive defaults; required nested fields and required cycles follow the ordinary struct rules. Explicitly supplied objects retain their references. `Caja<entero>` can be embedded with the implicit field name `Caja`; two instantiations of `Caja` cannot be embedded together. Only declared structs can be embedded, not interfaces, enums, primitives, lists, wrappers, or bare type parameters. See [the embedding example](examples/embebidos.hacha).
 
-Functions, structs, enums and interfaces support `<T>` parameters with optional interface constraints (`<T Describible>`). Function calls infer types from explicit arguments or accept all type arguments explicitly, such as `identidad<num>(1)`. Type uses require arguments, such as `Caja<Usuario> {valor: usuario}`. Methods inherit the struct's parameters. A field typed directly as `T` always requires initialization; `[T]` and `T?` have their usual defaults. Generic arithmetic, equality, type unions and independently generic methods are not supported.
+Functions, structs, enums and interfaces support `<T>` parameters with optional interface constraints (`<T Describible>`). Function calls infer types from explicit arguments or accept all type arguments explicitly, such as `identidad<entero>(1)`. Type uses require arguments, such as `Caja<Usuario> {valor: usuario}`. Methods inherit the struct's parameters. A field typed directly as `T` always requires initialization; `[T]` and `T?` have their usual defaults. Generic arithmetic, equality, type unions and independently generic methods are not supported.
 
 `valor como Usuario` safely tests an interface value and returns `Usuario?`. Interface `casos` accepts type patterns, binds the narrowed value, chooses the first matching arm and requires a final `_`:
 
@@ -148,7 +165,7 @@ See [the runnable example](examples/interfaces_genericos.hacha) and [the languag
 ## Variadic parameters and named arguments
 
 ```hacha
-fn sumar(base num, valores ...num) num
+fn sumar(base entero, valores ...entero) entero
 	var total = base
 	repetir (valores) |valor|
 		total = total + valor
@@ -187,13 +204,13 @@ Omitted defaults evaluate once per call, in declaration order, after the receive
 Use `T?` for a value that may be absent, `T!` for a value or string error, and `T!E` for a typed error. `!` and `!E` represent operations with no success payload. A plain value implicitly becomes present/successful when the expected type allows one wrapping step. Absence and failure use `.Ninguno` and `.Error(error)` explicitly.
 
 ```hacha
-fn buscar(existe bool) num?
+fn buscar(existe bool) entero?
 	si existe 42
 	sino .Ninguno
 
-fn cargar() num! .Error("no disponible")
+fn cargar() entero! .Error("no disponible")
 
-fn siguiente() num!
+fn siguiente() entero!
 	var valor = intentar cargar()
 	valor + 1
 
@@ -232,7 +249,9 @@ npm run build
 
 Open this repository in VS Code, press `F5`, and choose **Run Hacha Extension**. The build task compiles the TypeScript client and places the Go server in `bin/` before opening an Extension Development Host on the `examples` directory.
 
-Open `usuario.hacha`, replace one leading tab with spaces, and check the **Problems** panel for a Hacha diagnostic. Restore the tab and the diagnostic should disappear immediately. The **Outline** view should show `Direccion`, `Evento`, their variants, `Buton_Presionado`, and the functions.
+The compiler and editor report multiple recoverable frontend errors together, including type errors in valid parts of a file with syntax errors. Diagnostics are ordered by file and position, deduplicated, and limited to 100 errors plus a truncation notice. Recovery suppresses errors that depend on damaged declarations or expressions; some checks require those errors to be corrected first. Compilation, building and execution stop before producing output whenever frontend errors remain.
+
+Open `usuario.hacha`, introduce errors on several independent lines, and check the **Problems** panel. Correcting one error removes its diagnostic while leaving the others visible. Replacing a leading tab with spaces also produces an indentation diagnostic. The **Outline** view should show the declarations whose syntax can still be recovered.
 
 If the server executable lives elsewhere, set `hacha.server.path` in VS Code settings to its absolute path. Open **Output → Hacha Language Server** to inspect client or server startup failures.
 
@@ -242,7 +261,7 @@ Hacha also supports list loops with `repetir (lista) |elemento, indice|`, loop c
 
 Lists have built-in methods such as `valores.longitud()`, `valores.buscar_indice(40)`, `valores.obtener(2)`, and mutating calls such as `valores.agregar(40)`, `valores.insertar(0, 10)`, and `valores.invertir()`. Search and safe access return optionals; insertion and deletion return `bool` for invalid-index handling. See `examples/listas.hacha` and the full method table in [specs.md](specs.md).
 
-Numeric ranges are available only in loops: `repetir (0..5) |i| imprimir(i)` prints `0` through `4`, and `repetir (5..0) |i| imprimir(i)` prints `5` through `1`. Bounds are `num` expressions evaluated once, with an exclusive end and an automatic step of `1` or `-1`. Equal bounds produce no iterations. An optional second binding receives the index starting at zero.
+Numeric ranges are available only in loops: `repetir (0..5) |i| imprimir(i)` prints `0` through `4`, and `repetir (5..0) |i| imprimir(i)` prints `5` through `1`. Bounds are `entero` expressions evaluated once, with an exclusive end and an automatic step of `1` or `-1`. Equal bounds produce no iterations. An optional second binding receives the index starting at zero.
 
 ## Enums and exhaustive matches
 

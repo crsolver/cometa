@@ -1,11 +1,20 @@
+usar std/mate
+usar std/pincel/juego
+usar std/pincel/graficos
+
 tipo Jugador
-	pos Vec2
-	vel Vec2
+	pos mate.Vec2
+	vel mate.Vec2
 
 var jugador = Jugador {}
 
-fn actualizar(dt num)
-	jugador.pos = jugador.pos + jugador.vel * dt
+tipo Partida
+	fn actualizar(dt decimal)
+		jugador.pos = jugador.pos + jugador.vel * dt
 
-fn pintar()
-	graficos.rectangulo_v(jugador.pos, Vec2 {x: 10, y: 10}, .Rojo)
+	fn pintar()
+		graficos.rectangulo_v(jugador.pos, mate.Vec2 {x: 10, y: 10}, .Rojo)
+
+fn inicio()
+	juego.ejecutar(Partida {}) capturar |error|
+		imprimir(error)

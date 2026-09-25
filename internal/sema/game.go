@@ -2,23 +2,23 @@ package sema
 
 import (
 	"hacha/internal/ast"
-	"hacha/internal/gameapi"
+	"hacha/internal/stdlib"
 	"reflect"
 )
 
 type GameModel struct {
-	Enabled   bool
+	Modules   []string
 	Used      bool
-	Calls     map[*ast.CallExpr]gameapi.Function
+	Calls     map[*ast.CallExpr]stdlib.Function
 	Constants map[ast.Expr]string
 }
 
 type Asset struct{ Path, Data string }
 
 func (c *checker) installGameAPI() error {
-	c.model.Game = GameModel{Calls: map[*ast.CallExpr]gameapi.Function{}, Constants: map[ast.Expr]string{}}
-	for name := range gameapi.Fields {
-		c.model.Types[name] = &TypeInfo{Decl: gameapi.TypeDeclaration(name), Fields: map[string]FieldInfo{}, Methods: map[string]FuncInfo{}}
+	c.model.Game = GameModel{Calls: map[*ast.CallExpr]stdlib.Function{}, Constants: map[ast.Expr]string{}}
+	for name := range stdlib.Fields {
+		c.model.Types[name] = &TypeInfo{Decl: stdlib.TypeDeclaration(name), Fields: map[string]FieldInfo{}, Methods: map[string]FuncInfo{}}
 	}
 	for _, info := range c.model.Types {
 		for _, field := range info.Decl.Fields {
@@ -29,8 +29,9 @@ func (c *checker) installGameAPI() error {
 			info.Fields[field.Name] = FieldInfo{Decl: field, Type: t}
 		}
 	}
-	for _, f := range gameapi.Methods {
+	for _, f := range stdlib.Methods {
 		d := f.Declaration()
+		d.Name = f.Name
 		d.Receiver = f.Namespace
 		sig, err := c.signature(d)
 		if err != nil {
@@ -38,27 +39,58 @@ func (c *checker) installGameAPI() error {
 		}
 		c.model.Types[f.Namespace].Methods[f.Name] = sig
 	}
+	methods := map[string]FuncInfo{}
+	for _, name := range []string{"actualizar", "pintar"} {
+		signature := ")"
+		if name == "actualizar" {
+			signature = "dt decimal)"
+		}
+		d := (stdlib.Function{Namespace: "juego", Name: name, Signature: signature}).Declaration()
+		d.Name = name
+		info, err := c.signature(d)
+		if err != nil {
+			return err
+		}
+		methods[name] = info
+	}
+	c.model.Interfaces[stdlib.Symbol("Juego")] = &InterfaceInfo{Decl: &ast.InterfaceDecl{Name: stdlib.Symbol("Juego")}, Methods: methods}
 	return nil
 }
 
 func (c *checker) gameCall(call *ast.CallExpr) (Type, bool, error) {
-	m, ok := call.Callee.(*ast.MemberExpr)
+	id, ok := call.Callee.(*ast.IdentExpr)
 	if !ok {
 		return Type{}, false, nil
 	}
-	id, ok := m.Object.(*ast.IdentExpr)
-	if !ok || !gameapi.IsNamespace(id.Name) {
-		return Type{}, false, nil
-	}
-	f, ok := gameapi.Lookup(id.Name, m.Name)
+	f, ok := stdlib.LookupSymbol(id.Name)
 	if !ok {
-		return Type{}, true, c.fail(m.NamePos, "la función %s.%s no existe", id.Name, m.Name)
+		return Type{}, false, nil
 	}
 	c.model.Game.Used = true
 	c.model.Game.Calls[call] = f
 	sig, err := c.signature(f.Declaration())
 	if err != nil {
 		return Type{}, true, err
+	}
+	if f.Namespace == "mate" && (f.Name == "absoluto" || f.Name == "minimo" || f.Name == "maximo" || f.Name == "limitar") {
+		kind := Integer
+		for _, arg := range call.Args {
+			t, err := c.checkExpr(arg)
+			if err != nil {
+				return Type{}, true, err
+			}
+			if t.Kind == Decimal {
+				kind = Decimal
+			}
+		}
+		if kind == Integer {
+			for i := range sig.Params {
+				sig.Params[i] = Type{Kind: Integer}
+			}
+			sig.Return = Type{Kind: Integer}
+			f.GoName += "Entero"
+			c.model.Game.Calls[call] = f
+		}
 	}
 	// Check defaults against the same types used for explicit arguments.
 	for i, p := range sig.Decl.Params {
@@ -104,43 +136,15 @@ func WalkSyntax(node any, visit func(any)) {
 }
 
 func (c *checker) checkGame(program *ast.Program) error {
+	if err := c.checkUIPhases(program); err != nil { return err }
 	WalkSyntax(program, func(n any) {
-		if ref, ok := n.(*ast.TypeRef); ok && gameapi.IsType(ref.Name) {
+		if ref, ok := n.(*ast.TypeRef); ok && stdlib.IsType(ref.Name) {
 			c.model.Game.Used = true
 		}
 	})
 	for _, t := range c.model.ExprTypes {
-		if gameapi.IsType(t.Name) {
+		if stdlib.IsType(t.Name) {
 			c.model.Game.Used = true
-		}
-	}
-	get := func(name string) *ast.FuncDecl { return c.model.Functions[name].Decl }
-	c.model.Game.Enabled = get("actualizar") != nil || get("pintar") != nil
-	if c.model.Game.Enabled {
-		if get("inicio") != nil {
-			return c.fail(get("inicio").Pos, "un juego no puede declarar inicio; use iniciar")
-		}
-		for _, name := range []string{"actualizar", "pintar", "iniciar"} {
-			f := get(name)
-			if f == nil {
-				if name == "actualizar" || name == "pintar" {
-					return c.fail(ast.Pos{Line: 1, Column: 1}, "un juego requiere fn %s", name)
-				}
-				continue
-			}
-			sig := c.model.Functions[name]
-			n := 0
-			if name == "actualizar" {
-				n = 1
-			}
-			valid := len(f.TypeParams) == 0 && len(f.Params) == n
-			valid = valid && sig.Return.Kind == Void
-			if n == 1 && len(f.Params) == 1 {
-				valid = valid && sig.Params[0].Kind == Number && !f.Params[0].Variadic && f.Params[0].Default == nil
-			}
-			if !valid {
-				return c.fail(f.Pos, "firma inválida del callback %s", name)
-			}
 		}
 	}
 	// Only direct global resource constructors are declarations. Helpers and
@@ -163,65 +167,5 @@ func (c *checker) checkGame(program *ast.Program) error {
 			}
 		}
 	}
-	// Resolve effects transitively, including defaults, methods and conservative
-	// structural-interface dispatch. Recursion is bounded by declaration identity.
-	var effect func(any, map[*ast.FuncDecl]bool) *ast.CallExpr
-	effect = func(node any, seen map[*ast.FuncDecl]bool) *ast.CallExpr {
-		var found *ast.CallExpr
-		WalkSyntax(node, func(n any) {
-			if found != nil {
-				return
-			}
-			call, ok := n.(*ast.CallExpr)
-			if !ok {
-				return
-			}
-			if c.model.Game.Calls[call].Draw {
-				found = call
-				return
-			}
-			sig := c.model.Calls[call].Signature
-			var candidates []*ast.FuncDecl
-			if sig.Decl != nil {
-				candidates = append(candidates, sig.Decl)
-			}
-			if m, ok := call.Callee.(*ast.MemberExpr); ok {
-				t := c.model.ExprTypes[m.Object]
-				if t.Kind == Interface || t.Kind == TypeParameter {
-					for _, typ := range c.model.Types {
-						if fn, ok := typ.Methods[m.Name]; ok {
-							candidates = append(candidates, fn.Decl)
-						}
-					}
-				}
-			}
-			for _, fn := range candidates {
-				if fn != nil && !seen[fn] {
-					seen[fn] = true
-					if v := effect(fn, seen); v != nil {
-						found = v
-						return
-					}
-				}
-			}
-		})
-		return found
-	}
-	for _, d := range program.Decls {
-		var root any
-		switch d := d.(type) {
-		case *ast.GlobalDecl:
-			root = d.Value
-		case *ast.FuncDecl:
-			if d.Name == "actualizar" || d.Name == "iniciar" || d.Name == "inicio" {
-				root = d
-			}
-		}
-		if root != nil {
-			if call := effect(root, map[*ast.FuncDecl]bool{}); call != nil {
-				return c.fail(call.Pos, "dibujar solo se permite desde pintar y sus helpers")
-			}
-		}
-	}
-	return c.checkConfigEffects(program)
+	return nil
 }

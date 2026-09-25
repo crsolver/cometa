@@ -28,7 +28,7 @@ fn inicio()
 	imprimir("ñ🙂".obtener(1) o "no")
 	imprimir("añ🙂z".subcadena(fin = 3, inicio = 1) o "no")
 	imprimir("abc".subcadena(1, 1) o "no")
-	imprimir("abc".obtener(1.5) o "no")
+	imprimir("abc".obtener(99) o "no")
 	imprimir("".dividir("").longitud())
 	imprimir("ab".reemplazar("", "-"))
 `, "Hola Ana\nHola Ana\nAna, 21, verdadero, ab\n${nombre}\n11\nfalse\ntrue\n5\ntrue\ntrue\n  ÁNA🙂ANA  \n  ána🙂ana  \nÁna🙂ana\nbXnXnX\n4\n🙂\nñ🙂\n\nno\n0\n-a-b-\n")
@@ -36,8 +36,8 @@ fn inicio()
 
 func TestStringDiagnosticsAndConstants(t *testing.T) {
 	tests := []struct{ name, source, want string }{
-		{"mixed concatenation", "fn inicio() imprimir(\"x\" + 1)\n", `no acepta cadena y num`},
-		{"interpolation type", "fn inicio() imprimir(\"${[1]}\")\n", `requiere cadena, num o bool`},
+		{"mixed concatenation", "fn inicio() imprimir(\"x\" + 1)\n", `no acepta cadena y entero`},
+		{"interpolation type", "fn inicio() imprimir(\"${[1]}\")\n", `requiere cadena, entero o bool`},
 		{"empty interpolation", "fn inicio() imprimir(\"${}\")\n", `no puede estar vacía`},
 		{"unclosed interpolation", "fn inicio() imprimir(\"${1\")\n", `interpolación sin cerrar`},
 		{"interpolated const", "const x = \"${1}\"\nfn inicio() imprimir(x)\n", `inicializador de una constante`},
@@ -57,10 +57,10 @@ func TestStringDiagnosticsAndConstants(t *testing.T) {
 
 func TestInterpolationEvaluationOrderNestingAndPropagation(t *testing.T) {
 	runHacha(t, `var contador = 0
-fn siguiente() num
+fn siguiente() entero
 	contador = contador + 1
 	contador
-fn falla() num! .Error("fallo")
+fn falla() entero! .Error("fallo")
 fn texto() cadena!
 	"valor ${intentar falla()}"
 fn inicio()

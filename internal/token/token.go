@@ -5,6 +5,7 @@ import "hacha/internal/ast"
 type Kind string
 
 const (
+	Invalid Kind = "INVALID"
 	EOF     Kind = "EOF"
 	Newline Kind = "NEWLINE"
 	Indent  Kind = "INDENT"
@@ -17,6 +18,7 @@ const (
 	Usar      Kind = "usar"
 	Interfaz  Kind = "interfaz"
 	Como      Kind = "como"
+	Con       Kind = "con"
 	Enum      Kind = "enum"
 	Casos     Kind = "casos"
 	Arrow     Kind = "=>"
@@ -30,6 +32,8 @@ const (
 	Continuar Kind = "continuar"
 	Romper    Kind = "romper"
 	Num       Kind = "num"
+	Entero    Kind = "entero"
+	Decimal   Kind = "decimal"
 	Cadena    Kind = "cadena"
 	Bool      Kind = "bool"
 	True      Kind = "verdadero"

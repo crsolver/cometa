@@ -73,7 +73,7 @@ func TestContextualEnumErrors(t *testing.T) {
 	for _, tt := range []struct{ source, want string }{
 		{"var ip = .V4", "no se puede inferir"},
 		{"imprimir(.V4)", "no se puede inferir"},
-		{"var n num = .V4", "no se puede inferir"},
+		{"var n entero = .V4", "no se puede inferir"},
 		{"f(.Nada)", "no existe en IP"},
 		{"f(.Otro)", "requiere un payload"},
 		{"f(.Otro())", "exactamente un payload"},

@@ -19,7 +19,7 @@ func TestEmbeddedFields(t *testing.T) {
 	if len(fields) != 4 || !fields[0].Embedded || fields[0].Name != "Persona" || !fields[1].Embedded || fields[1].Name != "Caja" || fields[1].Type.Args[0].Name != "T" || fields[2].Embedded || fields[3].Embedded || fields[3].Name != "error" {
 		t.Fatalf("unexpected fields: %+v", fields)
 	}
-	for _, source := range []string{"tipo A\n\tCaja<>\n", "tipo A\n\tCaja<num> extra\n", "tipo A\n\tPersona Persona extra\n"} {
+	for _, source := range []string{"tipo A\n\tCaja<>\n", "tipo A\n\tCaja<entero> extra\n", "tipo A\n\tPersona Persona extra\n"} {
 		tokens, err := lexer.Lex("bad.hacha", source)
 		if err != nil {
 			t.Fatal(err)

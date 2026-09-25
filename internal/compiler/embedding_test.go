@@ -34,12 +34,12 @@ tipo Final<T>
 	Medio<T>
 	fn leer() T @elegir()
 tipo Base
-	n num
-	fn subir(v num = 1)
+	n entero
+	fn subir(v entero = 1)
 		@n = @n + v
 tipo Otra
-	n num
-	fn subir(v num = 100)
+	n entero
+	fn subir(v entero = 100)
 		@n = @n + v
 tipo Profunda
 	Otra
@@ -53,9 +53,9 @@ tipo Sombra
 	Base
 	n cadena
 	fn subir() cadena "local"
-fn tomar<T Proveedor<num>>(v T) num v.obtener()
+fn tomar<T Proveedor<entero>>(v T) entero v.obtener()
 fn inicio()
-	var f = Final<num> {Medio: {Caja: {valor: 7}}}
+	var f = Final<entero> {Medio: {Caja: {valor: 7}}}
 	imprimir(f.valor)
 	imprimir(f.leer())
 	imprimir(f.elegir(v = 8))
@@ -74,33 +74,33 @@ fn inicio()
 }
 
 func TestEmbeddingDiagnostics(t *testing.T) {
-	const base = "tipo A\n\tx num\n\tfn f() num @x\ntipo B\n\tx num\n\tfn f() num @x\ntipo C\n\tA\n\tB\n"
+	const base = "tipo A\n\tx entero\n\tfn f() entero @x\ntipo B\n\tx entero\n\tfn f() entero @x\ntipo C\n\tA\n\tB\n"
 	for _, tc := range []struct{ name, source, want string }{
-		{"read ambiguity", base + "fn g(c C) num c.x\n", "ambiguo"},
+		{"read ambiguity", base + "fn g(c C) entero c.x\n", "ambiguo"},
 		{"write ambiguity", base + "fn g(c C)\n\tc.x = 1\n", "ambiguo"},
-		{"call ambiguity", base + "fn g(c C) num c.f()\n", "ambiguo"},
-		{"receiver ambiguity", base + "\tfn g() num @x\n", "ambiguo"},
-		{"receiver call ambiguity", base + "\tfn g() num @f()\n", "ambiguo"},
+		{"call ambiguity", base + "fn g(c C) entero c.f()\n", "ambiguo"},
+		{"receiver ambiguity", base + "\tfn g() entero @x\n", "ambiguo"},
+		{"receiver call ambiguity", base + "\tfn g() entero @f()\n", "ambiguo"},
 		{"receiver write ambiguity", base + "\tfn g()\n\t\t@x = 1\n", "ambiguo"},
-		{"diamond", "tipo A\n\tx num\ntipo B\n\tA\ntipo C\n\tA\ntipo D\n\tB\n\tC\nfn f(d D) num d.x\n", "ambiguo"},
-		{"field method collision", "tipo A\n\tx num\ntipo B\n\tfn x() num 1\ntipo C\n\tA\n\tB\nfn f(c C) num c.x()\n", "ambiguo"},
+		{"diamond", "tipo A\n\tx entero\ntipo B\n\tA\ntipo C\n\tA\ntipo D\n\tB\n\tC\nfn f(d D) entero d.x\n", "ambiguo"},
+		{"field method collision", "tipo A\n\tx entero\ntipo B\n\tfn x() entero 1\ntipo C\n\tA\n\tB\nfn f(c C) entero c.x()\n", "ambiguo"},
 		{"promoted literal", base + "fn g() C C {x: 1}\n", "no existe"},
-		{"duplicate", "tipo A\n\tx num\ntipo B\n\tA\n\tA\n", "ya fue declarado"},
-		{"named conflict", "tipo A\n\tx num\ntipo B\n\tA\n\tA num\n", "ya fue declarado"},
-		{"method conflict", "tipo A\n\tx num\ntipo B\n\tA\n\tfn A() num 1\n", "ya fue declarado"},
-		{"generic duplicate", "tipo A<T>\n\tx T?\ntipo B\n\tA<num>\n\tA<cadena>\n", "ya fue declarado"},
-		{"primitive", "tipo B\n\tnum\n", "solo se pueden embeber"},
-		{"list", "tipo B\n\t[num]\n", "solo se pueden embeber"},
-		{"optional", "tipo A\n\tx num\ntipo B\n\tA?\n", "solo se pueden embeber"},
-		{"result", "tipo A\n\tx num\ntipo B\n\tA!\n", "solo se pueden embeber"},
+		{"duplicate", "tipo A\n\tx entero\ntipo B\n\tA\n\tA\n", "ya fue declarado"},
+		{"named conflict", "tipo A\n\tx entero\ntipo B\n\tA\n\tA entero\n", "ya fue declarado"},
+		{"method conflict", "tipo A\n\tx entero\ntipo B\n\tA\n\tfn A() entero 1\n", "ya fue declarado"},
+		{"generic duplicate", "tipo A<T>\n\tx T?\ntipo B\n\tA<entero>\n\tA<cadena>\n", "ya fue declarado"},
+		{"primitive", "tipo B\n\tentero\n", "solo se pueden embeber"},
+		{"list", "tipo B\n\t[entero]\n", "solo se pueden embeber"},
+		{"optional", "tipo A\n\tx entero\ntipo B\n\tA?\n", "solo se pueden embeber"},
+		{"result", "tipo A\n\tx entero\ntipo B\n\tA!\n", "solo se pueden embeber"},
 		{"interface", "interfaz I\ntipo B\n\tI\n", "solo se pueden embeber"},
 		{"enum", "enum E\n\tV\ntipo B\n\tE\n", "solo se pueden embeber"},
 		{"parameter", "tipo B<T>\n\tT\n", "solo se pueden embeber"},
 		{"cycle", "tipo A\n\tB\ntipo B\n\tA\n", "ciclo de campos"},
 		{"self cycle", "tipo A\n\tA\n", "ciclo de campos"},
-		{"required default", "tipo A\n\tx num!\ntipo B\n\tA\nfn f() B B {}\n", "A.x requiere inicialización"},
-		{"generic default", "tipo A<T>\n\tx T\ntipo B\n\tA<num>\nfn f() B B {}\n", "A.x requiere inicialización"},
-		{"ambiguous interface", base + "interfaz I\n\tfn f() num\nfn g(c C) I c\n", "I"},
+		{"required default", "tipo A\n\tx entero!\ntipo B\n\tA\nfn f() B B {}\n", "A.x requiere inicialización"},
+		{"generic default", "tipo A<T>\n\tx T\ntipo B\n\tA<entero>\nfn f() B B {}\n", "A.x requiere inicialización"},
+		{"ambiguous interface", base + "interfaz I\n\tfn f() entero\nfn g(c C) I c\n", "I"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, _, err := Analyze("bad.hacha", []byte(tc.source))
@@ -112,13 +112,13 @@ func TestEmbeddingDiagnostics(t *testing.T) {
 }
 
 func TestUnusedAmbiguousEmbeddingAndExplicitPaths(t *testing.T) {
-	runHacha(t, "tipo A\n\tx num\ntipo B\n\tA\ntipo C\n\tA\ntipo D\n\tB\n\tC\nfn inicio()\n\tvar d = D {}\n\td.B.x = 9\n\timprimir(d.B.A.x)\n\timprimir(d.C.x)\n", "9\n0\n")
+	runHacha(t, "tipo A\n\tx entero\ntipo B\n\tA\ntipo C\n\tA\ntipo D\n\tB\n\tC\nfn inicio()\n\tvar d = D {}\n\td.B.x = 9\n\timprimir(d.B.A.x)\n\timprimir(d.C.x)\n", "9\n0\n")
 }
 
 func TestEmbeddingDefaultCallsWithoutFlowLowering(t *testing.T) {
 	runHacha(t, `tipo Base
-	n num
-	fn leer(v num = @n) num v
+	n entero
+	fn leer(v entero = @n) entero v
 tipo Izquierda
 	Base
 tipo Derecha
@@ -127,7 +127,7 @@ tipo Exterior
 	Base
 	Izquierda
 	Derecha
-	fn leerBase() num @leer()
+	fn leerBase() entero @leer()
 fn inicio()
 	var e = Exterior {Base: {n: 6}}
 	imprimir(e.leer())

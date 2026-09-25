@@ -2,7 +2,7 @@ package sema
 
 import (
 	"hacha/internal/ast"
-	"hacha/internal/gameapi"
+	"hacha/internal/stdlib"
 )
 
 func (t Type) Wrapped() bool { return t.Kind == Optional || t.Kind == Result }
@@ -153,6 +153,8 @@ func (m *Model) Terminates(stmt ast.Stmt) bool {
 		return false
 	}
 	switch s := stmt.(type) {
+	case *ast.ScopeStmt:
+		return block(s.Body)
 	case *ast.ExprStmt:
 		return m.ExprTypes[s.Expr].Kind == Never
 	case *ast.VarDeclStmt:
@@ -253,6 +255,9 @@ func (c *checker) checkCondition(e ast.Expr, binding string, pos ast.Pos) error 
 func (c *checker) checkRequiredCycles(program *ast.Program) error {
 	var visit func(Type, map[string]bool, ast.Pos) error
 	visit = func(t Type, path map[string]bool, pos ast.Pos) error {
+		if c.invalid[t.Name] {
+			return errInvalid
+		}
 		if t.Kind != Named {
 			return nil
 		}
@@ -273,7 +278,8 @@ func (c *checker) checkRequiredCycles(program *ast.Program) error {
 	for _, decl := range program.Decls {
 		if d, ok := decl.(*ast.TypeDecl); ok {
 			if err := visit(Type{Kind: Named, Name: d.Name, Args: c.model.TypeParams[d]}, map[string]bool{}, d.Pos); err != nil {
-				return err
+				c.report(err)
+				c.invalid[d.Name] = true
 			}
 		}
 	}
@@ -281,7 +287,7 @@ func (c *checker) checkRequiredCycles(program *ast.Program) error {
 }
 
 func (c *checker) missingDefault(t Type, path string) string {
-	if gameapi.IsType(t.Name) && !gameapi.IsValue(t.Name) {
+	if stdlib.IsType(t.Name) && !stdlib.IsValue(t.Name) {
 		return path
 	}
 	if t.Kind == Result || t.Kind == Enum || t.Kind == Interface || t.Kind == TypeParameter {

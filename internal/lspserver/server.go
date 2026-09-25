@@ -241,14 +241,8 @@ func receiverCompletion(filename string, lines []string, lineIndex int, prefix s
 	} else {
 		return &lsp.CompletionList{}
 	}
-	tokens, err := lexer.Lex(filename, strings.Join(analysisLines, "\n"))
-	if err != nil {
-		return &lsp.CompletionList{}
-	}
-	program, err := parser.Parse(filename, tokens)
-	if err != nil {
-		return &lsp.CompletionList{}
-	}
+	tokens, _ := lexer.Lex(filename, strings.Join(analysisLines, "\n"))
+	program, _ := parser.Parse(filename, tokens)
 	typeDecl := enclosingTypeAt(program, lineIndex+1)
 	if typeDecl == nil {
 		return &lsp.CompletionList{}
@@ -296,16 +290,13 @@ func (h *Handler) Hover(_ context.Context, params *lsp.HoverParams) (*lsp.Hover,
 		return h.moduleHover(params, text), nil
 	}
 	filename := analysisFilename(params.TextDocument.URI)
-	program, model, err := compiler.Analyze(filename, []byte(text))
-	if err != nil || program == nil || model == nil {
+	program, model, _ := compiler.Analyze(filename, []byte(text))
+	if program == nil || model == nil {
 		return nil, nil
 	}
 	normalized := strings.ReplaceAll(strings.ReplaceAll(text, "\r\n", "\n"), "\r", "\n")
 	lines := strings.Split(normalized, "\n")
-	tokens, err := lexer.Lex(string(params.TextDocument.URI), normalized)
-	if err != nil {
-		return nil, nil
-	}
+	tokens, _ := lexer.Lex(string(params.TextDocument.URI), normalized)
 	identifier, hoverRange, ok := identifierAt(tokens, lines, params.Position)
 	if !ok {
 		return nil, nil
@@ -511,6 +502,9 @@ func hoverInStatements(statements []ast.Stmt, model *sema.Model, position ast.Po
 			if info, ok := hoverInStatements(stmt.Else, model, position, lines, receiverName); ok {
 				return info, true
 			}
+		case *ast.ScopeStmt:
+			if info, ok := hoverInExpression(stmt.Value, model, position, lines, receiverName); ok { return info, true }
+			if info, ok := hoverInStatements(stmt.Body, model, position, lines, receiverName); ok { return info, true }
 		case *ast.RepeatStmt:
 			if info, ok := hoverInExpression(stmt.RangeEnd, model, position, lines, receiverName); ok {
 				return info, true
@@ -520,7 +514,7 @@ func hoverInStatements(statements []ast.Stmt, model *sema.Model, position ast.Po
 				if stmt.IndexPos == position {
 					name = stmt.Index
 				}
-				return variableHover(name, sema.Type{Kind: sema.Number}), true
+				return variableHover(name, sema.Type{Kind: sema.Integer}), true
 			}
 			if info, ok := hoverInExpression(stmt.Iterable, model, position, lines, receiverName); ok {
 				return info, true
@@ -530,7 +524,7 @@ func hoverInStatements(statements []ast.Stmt, model *sema.Model, position ast.Po
 					return variableHover(stmt.Element, *iterableType.Elem), true
 				}
 				if stmt.IndexPos == position {
-					return variableHover(stmt.Index, sema.Type{Kind: sema.Number}), true
+					return variableHover(stmt.Index, sema.Type{Kind: sema.Integer}), true
 				}
 			}
 			if info, ok := hoverInStatements(stmt.Body, model, position, lines, receiverName); ok {
@@ -796,6 +790,11 @@ func (h *Handler) publishDiagnostics(ctx context.Context, uri lsp.DocumentURI) e
 func diagnosticFromError(err error, text string) lsp.Diagnostic {
 	position := ast.Pos{Line: 1, Column: 1}
 	message := err.Error()
+	if located, ok := err.(interface {
+		Diagnostic() (string, ast.Pos, string, string)
+	}); ok {
+		_, position, _, message = located.Diagnostic()
+	}
 	switch typed := err.(type) {
 	case *lexer.Error:
 		position, message = typed.Pos, typed.Message

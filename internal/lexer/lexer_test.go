@@ -24,7 +24,7 @@ func TestRangeAndDecimalTokens(t *testing.T) {
 }
 
 func TestIndentationAndComments(t *testing.T) {
-	source := "tipo Usuario\n\tnombre cadena\n\t// comentario ignorado\n\tfn valor() num\n\t\t1\nfn inicio()\n\timprimir(\"ok\")\n"
+	source := "tipo Usuario\n\tnombre cadena\n\t// comentario ignorado\n\tfn valor() entero\n\t\t1\nfn inicio()\n\timprimir(\"ok\")\n"
 	tokens, err := Lex("prueba.hacha", source)
 	if err != nil {
 		t.Fatal(err)
@@ -34,7 +34,7 @@ func TestIndentationAndComments(t *testing.T) {
 		kinds = append(kinds, string(tok.Kind))
 	}
 	joined := strings.Join(kinds, " ")
-	for _, expected := range []string{"tipo IDENT NEWLINE INDENT", "fn IDENT ( ) num NEWLINE INDENT", "NUMBER NEWLINE DEDENT DEDENT fn"} {
+	for _, expected := range []string{"tipo IDENT NEWLINE INDENT", "fn IDENT ( ) entero NEWLINE INDENT", "NUMBER NEWLINE DEDENT DEDENT fn"} {
 		if !strings.Contains(joined, expected) {
 			t.Fatalf("token stream does not contain %q:\n%s", expected, joined)
 		}
@@ -42,7 +42,7 @@ func TestIndentationAndComments(t *testing.T) {
 }
 
 func TestLiteralsAndOperators(t *testing.T) {
-	tokens, err := Lex("prueba.hacha", "fn elegir(a num) bool si (a <= 4.5) verdadero sino falso\n")
+	tokens, err := Lex("prueba.hacha", "fn elegir(a entero) bool si (a <= 4.5) verdadero sino falso\n")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -7,7 +7,7 @@ import (
 )
 
 func TestEnumAndMatchAST(t *testing.T) {
-	source := "enum E\n\tA\n\tB [num]\nfn inicio()\n\tvar e = E.A\n\tvar n = casos e |p|\n\t\t.A => 1\n\t\t.B =>\n\t\t\timprimir(p)\n\t\t\t2\n\timprimir(n)\n\tcasos e\n\t\t_ => imprimir(3)\n"
+	source := "enum E\n\tA\n\tB [entero]\nfn inicio()\n\tvar e = E.A\n\tvar n = casos e |p|\n\t\t.A => 1\n\t\t.B =>\n\t\t\timprimir(p)\n\t\t\t2\n\timprimir(n)\n\tcasos e\n\t\t_ => imprimir(3)\n"
 	tokens, err := lexer.Lex("enum.hacha", source)
 	if err != nil {
 		t.Fatal(err)
@@ -39,7 +39,7 @@ func TestRejectsInvalidEnumAndMatchSyntax(t *testing.T) {
 		"fn inicio()\n\tcasos e\n\t\t.A(1) => 1\n",
 		"enum E\nfn inicio() imprimir(1)\n",
 		"enum E\nA\n",
-		"enum E\n\tA num bool\n",
+		"enum E\n\tA entero bool\n",
 		"fn inicio()\n\tcasos e\n\t.A => imprimir(1)\n",
 		"fn inicio()\n\tcasos e\n\t\tA imprimir(1)\n",
 		"fn inicio()\n\tcasos e\n\t\t.A =>\n\t\t.B => imprimir(1)\n",

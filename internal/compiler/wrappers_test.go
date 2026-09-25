@@ -33,30 +33,30 @@ fn nulable()
 
 func TestWrapperContextsAndLoops(t *testing.T) {
 	runHacha(t, `tipo Caja
-	valor num?
-	pendiente (num!)?
-	lista [num?]
-fn envolver(n num) num! n
-fn aceptar(n num? = .Ninguno, valores ...num?) num
+	valor entero?
+	pendiente (entero!)?
+	lista [entero?]
+fn envolver(n entero) entero! n
+fn aceptar(n entero? = .Ninguno, valores ...entero?) entero
 	var suma = n o 0
 	repetir (valores) |v|
 		suma = suma + (v o 0)
 	suma
-fn elegir(n num?) num
+fn elegir(n entero?) entero
 	si n |v|
 		retornar v
 	sino
 		retornar 9
-fn condicional(n num?) num
+fn condicional(n entero?) entero
 	var valor = si n |v| v sino 8
 	valor
-fn prueba(n num?) num
+fn prueba(n entero?) entero
 	var valor = si n |v|
 		v
 	sino
 		7
 	valor
-fn operar() num!
+fn operar() entero!
 	var total = 0
 	repetir (0..4) |i|
 		casos envolver(i) |n|
@@ -85,9 +85,9 @@ fn inicio()
 
 func TestWrapperShortCircuitAndReferenceCapture(t *testing.T) {
 	runHacha(t, `tipo Caja
-	n num
-	fn leer(ignorado num, valor num) num @n + valor
-fn cambiar(c Caja) num
+	n entero
+	fn leer(ignorado entero, valor entero) entero @n + valor
+fn cambiar(c Caja) entero
 	c.n = 10
 	1
 fn falla() bool! .Error("falló")
@@ -108,18 +108,18 @@ fn inicio()
 }
 
 func TestReturnsInsideValueConstruction(t *testing.T) {
-	runHacha(t, `fn aceptar(n num) num n
-fn llamada() num!
+	runHacha(t, `fn aceptar(n entero) entero n
+fn llamada() entero!
 	var valor = aceptar(retornar .Error("llamada"))
 	valor
-fn constructor() num!
-	var valor num! = .Ok(retornar .Error("constructor"))
+fn constructor() entero!
+	var valor entero! = .Ok(retornar .Error("constructor"))
 	valor
-fn asignacion() num!
+fn asignacion() entero!
 	var numero = 0
 	numero = retornar .Error("asignacion")
 	numero
-fn ramas(b bool) num!
+fn ramas(b bool) entero!
 	si b
 		retornar 3
 	sino
@@ -199,25 +199,25 @@ fn inicio()
 
 func TestWrapperPropagationOrderAndLaziness(t *testing.T) {
 	runHacha(t, `tipo Contador
-	n num
-fn paso(c Contador, n num) num
+	n entero
+fn paso(c Contador, n entero) entero
 	c.n = c.n * 10 + n
 	n
-fn falla(c Contador) num!
+fn falla(c Contador) entero!
 	paso(c, 2)
 	.Error("fallo")
-fn suma(a num, b num) num a + b
-fn operacion(c Contador) num!
+fn suma(a entero, b entero) entero a + b
+fn operacion(c Contador) entero!
 	var valor = suma(b = paso(c, 1), a = intentar falla(c))
 	paso(c, 3)
 	valor
-fn salida(c Contador) num!
+fn salida(c Contador) entero!
 	var valor = casos verdadero_opcional()
 		.Alguno => intentar falla(c)
 		.Ninguno => 0
 	valor
 fn verdadero_opcional() bool? verdadero
-fn recuperar(c Contador) num!
+fn recuperar(c Contador) entero!
 	var valor = falla(c) capturar |e|
 		retornar .Error(e)
 	paso(c, 9)
@@ -226,9 +226,9 @@ fn inicio()
 	var c = Contador {}
 	imprimir(operacion(c) capturar 42)
 	imprimir(c.n)
-	var presente num? = 7
+	var presente entero? = 7
 	imprimir(presente o paso(c, 3))
-	var correcto num! = 8
+	var correcto entero! = 8
 	imprimir(correcto capturar paso(c, 4))
 	imprimir(c.n)
 	imprimir(salida(c) capturar 5)
@@ -240,31 +240,31 @@ fn inicio()
 
 func TestWrapperDiagnostics(t *testing.T) {
 	cases := []struct{ name, source, want string }{
-		{"unchecked field", "tipo U\n\tn num\nfn f(u U?) num u.n\n", "no tiene miembros"},
-		{"unchecked argument", "fn f(n num) num n\nfn g(n num?) num f(n)\n", "num"},
-		{"nonexhaustive", "fn f(n num?) num\n\tcasos n |v|\n\t\t.Alguno => v\n", "Ninguno"},
-		{"discarded", "fn f() num! 1\nfn inicio()\n\tf()\n", "descartar"},
-		{"unread", "fn inicio()\n\tvar r num! = 1\n", "debe usarse"},
-		{"default result", "tipo C\n\tr num!\nfn f() C C {}\n", "r requiere"},
-		{"nested default result", "tipo C\n\tr num!\ntipo P\n\tc C\nfn f() P P {}\n", "c.r requiere"},
+		{"unchecked field", "tipo U\n\tn entero\nfn f(u U?) entero u.n\n", "no tiene miembros"},
+		{"unchecked argument", "fn f(n entero) entero n\nfn g(n entero?) entero f(n)\n", "entero"},
+		{"nonexhaustive", "fn f(n entero?) entero\n\tcasos n |v|\n\t\t.Alguno => v\n", "Ninguno"},
+		{"discarded", "fn f() entero! 1\nfn inicio()\n\tf()\n", "descartar"},
+		{"unread", "fn inicio()\n\tvar r entero! = 1\n", "debe usarse"},
+		{"default result", "tipo C\n\tr entero!\nfn f() C C {}\n", "r requiere"},
+		{"nested default result", "tipo C\n\tr entero!\ntipo P\n\tc C\nfn f() P P {}\n", "c.r requiere"},
 		{"default enum", "enum E\n\tA\ntipo C\n\te E\nfn f() C C {}\n", "e requiere"},
 		{"cycle", "tipo U\n\tu U\n", "ciclo"},
 		{"indirect cycle", "tipo A\n\tb B\ntipo B\n\ta A\n", "ciclo"},
-		{"incompatible try", "fn f(n num?) num! intentar n\n", "propagar"},
-		{"typed error mismatch", "fn f(n num!bool) num! intentar n\n", "propagar"},
-		{"default try", "fn f(n num!, otro num = intentar n) num otro\n", "predeterminados"},
-		{"default return", "fn f(n num = retornar 1) num n\n", "predeterminados"},
-		{"nested implicit", "fn f() num?! 1\n", "produce"},
+		{"incompatible try", "fn f(n entero?) entero! intentar n\n", "propagar"},
+		{"typed error mismatch", "fn f(n entero!bool) entero! intentar n\n", "propagar"},
+		{"default try", "fn f(n entero!, otro entero = intentar n) entero otro\n", "predeterminados"},
+		{"default return", "fn f(n entero = retornar 1) entero n\n", "predeterminados"},
+		{"nested implicit", "fn f() entero?! 1\n", "produce"},
 		{"bare result return", "fn f() !\n\tretornar\n", "requiere"},
-		{"wrapper comparison", "fn f(n num?) bool n == n\n", "no acepta"},
-		{"wrapper indexing", "fn f(n [num]?) num n[0]\n", "solo se pueden indexar"},
-		{"wrapper arithmetic", "fn f(n num!) num n + 1\n", "no acepta"},
+		{"wrapper comparison", "fn f(n entero?) bool n == n\n", "no acepta"},
+		{"wrapper indexing", "fn f(n [entero]?) entero n[0]\n", "solo se pueden indexar"},
+		{"wrapper arithmetic", "fn f(n entero!) entero n + 1\n", "no acepta"},
 		{"bare absence", "fn inicio()\n\tvar n = .Ninguno\n", "inferir"},
 		{"unit parentheses", "fn f() ! .Ok()\n", "no acepta"},
 		{"unit payload binding", "fn f(n !)\n\tcasos n |v|\n\t\t.Ok => imprimir(v)\n\t\t.Error => imprimir(v)\n", "no existe"},
-		{"wrong recovery type", "fn f(n num!) num n capturar \"no\"\n", "recuperación"},
-		{"branch unused result", "fn inicio()\n\tsi verdadero\n\t\tvar n num! = 1\n\tsino\n\t\tvar n num! = 2\n\t\tcasos n\n\t\t\t_ => imprimir(1)\n", "debe usarse"},
-		{"optional binding scope", "fn f(n num?) num\n\tsi n |v| imprimir(v)\n\tv\n", "no existe"},
+		{"wrong recovery type", "fn f(n entero!) entero n capturar \"no\"\n", "recuperación"},
+		{"branch unused result", "fn inicio()\n\tsi verdadero\n\t\tvar n entero! = 1\n\tsino\n\t\tvar n entero! = 2\n\t\tcasos n\n\t\t\t_ => imprimir(1)\n", "debe usarse"},
+		{"optional binding scope", "fn f(n entero?) entero\n\tsi n |v| imprimir(v)\n\tv\n", "no existe"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

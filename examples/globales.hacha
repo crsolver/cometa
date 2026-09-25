@@ -1,5 +1,5 @@
 const saludo = "Hola"
-const incremento num = 2
+const incremento entero = 2
 var contador = 1
 
 fn avanzar()

@@ -6,6 +6,7 @@ import (
 	"unicode"
 
 	"hacha/internal/ast"
+	"hacha/internal/diagnostic"
 	"hacha/internal/token"
 )
 
@@ -19,14 +20,19 @@ func (e *Error) Error() string {
 	return fmt.Sprintf("%s:%d:%d: %s", e.Filename, e.Pos.Line, e.Pos.Column, e.Message)
 }
 
+func (e *Error) Diagnostic() (string, ast.Pos, string, string) {
+	return e.Filename, e.Pos, "lexer", e.Message
+}
+
 var keywords = map[string]token.Kind{
+	"con": token.Con,
 	"usar":     token.Usar,
 	"interfaz": token.Interfaz, "como": token.Como,
 	"o": token.Fallback, "capturar": token.Catch, "intentar": token.Try, "retornar": token.Return,
 	"enum": token.Enum, "casos": token.Casos,
 	"tipo": token.Tipo, "fn": token.Fn, "si": token.Si, "osi": token.Osi,
 	"var": token.Var, "const": token.Const,
-	"sino": token.Sino, "num": token.Num, "cadena": token.Cadena, "bool": token.Bool,
+	"sino": token.Sino, "num": token.Num, "entero": token.Entero, "decimal": token.Decimal, "cadena": token.Cadena, "bool": token.Bool,
 	"repetir": token.Repetir, "continuar": token.Continuar, "romper": token.Romper,
 	"verdadero": token.True, "falso": token.False,
 }
@@ -38,6 +44,7 @@ func Lex(filename, source string) ([]token.Token, error) {
 	source = strings.ReplaceAll(source, "\r", "\n")
 	lines := strings.Split(source, "\n")
 	var out []token.Token
+	var errors diagnostic.List
 	indents := []int{0}
 
 	for lineIndex, raw := range lines {
@@ -52,7 +59,9 @@ func Lex(filename, source string) ([]token.Token, error) {
 			i++
 		}
 		if i < len(runes) && runes[i] == ' ' {
-			return nil, lexError(filename, lineNo, i+1, "la indentación debe usar tabuladores, no espacios")
+			errors.Add(lexError(filename, lineNo, i+1, "la indentación debe usar tabuladores, no espacios"))
+			out = append(out, token.Token{Kind: token.Invalid, Pos: ast.Pos{Filename: filename, Line: lineNo, Column: i + 1}}, token.Token{Kind: token.Newline, Pos: ast.Pos{Line: lineNo, Column: len(runes) + 1}})
+			continue
 		}
 		level := i
 		current := indents[len(indents)-1]
@@ -66,15 +75,27 @@ func Lex(filename, source string) ([]token.Token, error) {
 				out = append(out, token.Token{Kind: token.Dedent, Pos: ast.Pos{Line: lineNo, Column: 1}})
 			}
 			if level != indents[len(indents)-1] {
-				return nil, lexError(filename, lineNo, 1, "la dedentación no coincide con un bloque anterior")
+				errors.Add(lexError(filename, lineNo, 1, "la dedentación no coincide con un bloque anterior"))
+				out = append(out, token.Token{Kind: token.Invalid, Pos: ast.Pos{Filename: filename, Line: lineNo, Column: 1}}, token.Token{Kind: token.Newline, Pos: ast.Pos{Line: lineNo, Column: len(runes) + 1}})
+				continue
 			}
 		}
 
 		lineTokens, err := lexLine(filename, lineNo, i, runes)
 		if err != nil {
-			return nil, err
+			errors.Add(err)
+			name := ""
+			words := strings.Fields(string(runes[i:]))
+			if len(words) > 1 && (words[0] == "var" || words[0] == "const" || words[0] == "fn" || words[0] == "tipo" || words[0] == "enum" || words[0] == "interfaz") {
+				name = words[1]
+				if at := strings.IndexAny(name, "=(<"); at >= 0 {
+					name = name[:at]
+				}
+			}
+			out = append(out, token.Token{Kind: token.Invalid, Lexeme: name, Pos: ast.Pos{Filename: filename, Line: lineNo, Column: i + 1}})
+		} else {
+			out = append(out, lineTokens...)
 		}
-		out = append(out, lineTokens...)
 		out = append(out, token.Token{Kind: token.Newline, Pos: ast.Pos{Line: lineNo, Column: len(runes) + 1}})
 	}
 
@@ -84,7 +105,7 @@ func Lex(filename, source string) ([]token.Token, error) {
 		out = append(out, token.Token{Kind: token.Dedent, Pos: ast.Pos{Line: eofLine, Column: 1}})
 	}
 	out = append(out, token.Token{Kind: token.EOF, Pos: ast.Pos{Line: eofLine, Column: 1}})
-	return out, nil
+	return out, errors.Err()
 }
 
 func lexLine(filename string, lineNo, start int, runes []rune) ([]token.Token, error) {

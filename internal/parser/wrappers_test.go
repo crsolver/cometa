@@ -7,7 +7,7 @@ import (
 )
 
 func TestWrapperTypeGroupingAndRecoveryPrecedence(t *testing.T) {
-	source := "fn f(a num?!, b (num!)?, c num!(bool?), d [num?], e !bool) num! a o b o c\n"
+	source := "fn f(a entero?!, b (entero!)?, c entero!(bool?), d [entero?], e !bool) entero! a o b o c\n"
 	tokens, err := lexer.Lex("types.hacha", source)
 	if err != nil {
 		t.Fatal(err)
@@ -18,10 +18,10 @@ func TestWrapperTypeGroupingAndRecoveryPrecedence(t *testing.T) {
 	}
 	f := program.Decls[0].(*ast.FuncDecl)
 	if f.Params[0].Type.Wrapper != "!" || f.Params[0].Type.Payload.Wrapper != "?" {
-		t.Fatal("num?! must be result(optional(num))")
+		t.Fatal("entero?! must be result(optional(entero))")
 	}
 	if f.Params[1].Type.Wrapper != "?" || f.Params[1].Type.Payload.Wrapper != "!" {
-		t.Fatal("(num!)? must be optional(result(num))")
+		t.Fatal("(entero!)? must be optional(result(entero))")
 	}
 	if f.Params[2].Type.ErrorType.Wrapper != "?" {
 		t.Fatal("parenthesized error type lost")
@@ -42,7 +42,7 @@ func TestWrapperTypeGroupingAndRecoveryPrecedence(t *testing.T) {
 }
 
 func TestTryCallPrecedence(t *testing.T) {
-	tokens, err := lexer.Lex("try.hacha", "fn f() num! intentar g(1) + 2\n")
+	tokens, err := lexer.Lex("try.hacha", "fn f() entero! intentar g(1) + 2\n")
 	if err != nil {
 		t.Fatal(err)
 	}

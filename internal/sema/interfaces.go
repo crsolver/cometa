@@ -44,54 +44,78 @@ func (c *checker) checkTypeMatch(m *ast.MatchExpr, value bool, expected *Type, s
 	var seen []Type
 	wildcard := false
 	result := Type{Kind: Void}
+	broken := false
 	for i, arm := range m.Arms {
-		if wildcard {
-			return Type{}, c.fail(arm.Pos, "no se permiten ramas después de '_'")
+		if arm.Invalid {
+			broken = true
+			c.damaged++
+			continue
 		}
-		c.vars = cloneVars(outer)
-		c.bindings = cloneBindings(outerBindings)
-		if arm.Pattern == "_" {
-			wildcard = true
-		} else {
-			if arm.TypePattern == nil {
-				return Type{}, c.fail(arm.Pos, "casos sobre una interfaz requiere un tipo o '_'")
+		err := func() error {
+			if wildcard {
+				return c.fail(arm.Pos, "no se permiten ramas después de '_'")
 			}
-			t, err := c.assertionTarget(source, *arm.TypePattern)
-			if err != nil {
-				return Type{}, err
-			}
-			for _, prior := range seen {
-				if prior.Equal(t) {
-					return Type{}, c.fail(arm.Pos, "tipo duplicado en casos: %s", t.String())
+			c.vars = cloneVars(outer)
+			c.bindings = cloneBindings(outerBindings)
+			if arm.Pattern == "_" {
+				wildcard = true
+			} else {
+				if arm.TypePattern == nil {
+					return c.fail(arm.Pos, "casos sobre una interfaz requiere un tipo o '_'")
+				}
+				t, err := c.assertionTarget(source, *arm.TypePattern)
+				if err != nil {
+					return err
+				}
+				for _, prior := range seen {
+					if prior.Equal(t) {
+						return c.fail(arm.Pos, "tipo duplicado en casos: %s", t.String())
+					}
+				}
+				seen = append(seen, t)
+				c.model.PatternTypes[arm] = t
+				if m.Binding != "" {
+					c.vars[m.Binding] = t
 				}
 			}
-			seen = append(seen, t)
-			c.model.PatternTypes[arm] = t
-			if m.Binding != "" {
-				c.vars[m.Binding] = t
-			}
-		}
-		if value {
-			want := expected
-			if want == nil && i > 0 {
-				want = &result
-			}
-			t, err := c.checkValueBlock(arm.Body, want)
-			if err != nil {
-				return Type{}, err
-			}
-			if i == 0 || result.Kind == Never {
-				result = t
-			} else if t.Kind != Never && !result.Equal(t) {
-				return Type{}, c.fail(arm.Pos, "las ramas producen %s y %s", result.String(), t.String())
-			}
-		} else {
-			for _, stmt := range arm.Body {
-				if err := c.checkStmt(stmt); err != nil {
-					return Type{}, err
+			if value {
+				want := expected
+				if want == nil && i > 0 && result.Kind != Void {
+					want = &result
+				}
+				t, err := c.checkValueBlock(arm.Body, want)
+				if err != nil {
+					return err
+				}
+				if result.Kind == Void || result.Kind == Never {
+					result = t
+				} else if t.Kind != Never && !result.Equal(t) {
+					if result.Kind == Integer && t.Kind == Decimal {
+						for _, prior := range m.Arms[:i] {
+							c.promoteBlock(prior.Body)
+						}
+						result = t
+						return nil
+					}
+					return c.fail(arm.Pos, "las ramas producen %s y %s", result.String(), t.String())
+				}
+			} else {
+				for _, stmt := range arm.Body {
+					if err := c.checkStmt(stmt); err != nil {
+						return err
+					}
 				}
 			}
+			return nil
+		}()
+		if err != nil {
+			c.report(err)
+			broken = true
+			c.damaged++
 		}
+	}
+	if broken {
+		return Type{}, errInvalid
 	}
 	if !wildcard {
 		return Type{}, c.fail(m.Pos, "casos sobre una interfaz requiere una rama '_' final")

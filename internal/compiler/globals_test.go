@@ -7,9 +7,9 @@ import (
 
 func TestGlobalVariablesAndConstantsRuntime(t *testing.T) {
 	source := `const base = 2
-const limite num = base + 3
+const limite entero = base + 3
 var siguiente = limite
-var contador num = siguiente
+var contador entero = siguiente
 fn subir()
 	contador = contador + 1
 fn inicio()
@@ -22,9 +22,9 @@ fn inicio()
 	}
 	goSource := string(generated)
 	for _, expected := range []string{
-		"const Base float64 = 2",
-		"const Limite float64 = (Base + 3)",
-		"var Siguiente float64 = func() float64",
+		"const Base int64 = 2",
+		"const Limite int64 = (Base + 3)",
+		"var Siguiente int64 = func() int64",
 		"Contador = (Contador + 1)",
 	} {
 		if !strings.Contains(goSource, expected) {
@@ -40,7 +40,7 @@ func TestGlobalCompositeValuesAndFunctionCalls(t *testing.T) {
 fn crear() Usuario Usuario {nombre: "Ana"}
 var usuario_global = crear()
 var nombres = ["uno", "dos"]
-var opcional num? = .Alguno(7)
+var opcional entero? = .Alguno(7)
 fn inicio()
 	imprimir(usuario_global.nombre)
 	imprimir(nombres[1])
@@ -60,13 +60,13 @@ func TestGlobalDiagnostics(t *testing.T) {
 		want   string
 	}{
 		{"constant assignment", "const limite = 3\nfn inicio()\n\tlimite = 4\n", "no puede reasignarse"},
-		{"constant list", "const valores = [1]\n", "solo puede ser num, cadena o bool"},
-		{"constant call", "fn valor() num 1\nconst limite = valor()\n", "expresión constante simple"},
+		{"constant list", "const valores = [1]\n", "solo puede ser entero, cadena o bool"},
+		{"constant call", "fn valor() entero 1\nconst limite = valor()\n", "expresión constante simple"},
 		{"constant reads variable", "var base = 1\nconst limite = base + 1\n", "solo puede referirse a otras constantes"},
-		{"global control flow", "fn valor() num! .Ok(1)\nvar global = intentar valor()\n", "no admite control de flujo"},
+		{"global control flow", "fn valor() entero! .Ok(1)\nvar global = intentar valor()\n", "no admite control de flujo"},
 		{"global cycle", "var primero = segundo\nvar segundo = primero\n", "ciclo de inicialización global"},
-		{"global cycle through function", "var primero = leer()\nfn leer() num primero\n", "ciclo de inicialización global"},
-		{"name conflict", "var dato = 1\nfn dato() num 2\n", "declarado como global"},
+		{"global cycle through function", "var primero = leer()\nfn leer() entero primero\n", "ciclo de inicialización global"},
+		{"name conflict", "var dato = 1\nfn dato() entero 2\n", "declarado como global"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

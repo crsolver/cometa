@@ -44,7 +44,7 @@ func TestStringMethodCompletionAndHover(t *testing.T) {
 	if err != nil || hover == nil {
 		t.Fatalf("hover = %+v, %v", hover, err)
 	}
-	if value := hover.Contents.Value(); !strings.Contains(value, "fn longitud() num") || !strings.Contains(value, "puntos de código Unicode") {
+	if value := hover.Contents.Value(); !strings.Contains(value, "fn longitud() entero") || !strings.Contains(value, "puntos de código Unicode") {
 		t.Fatalf("hover = %q", value)
 	}
 }

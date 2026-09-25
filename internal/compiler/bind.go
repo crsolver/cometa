@@ -2,7 +2,7 @@ package compiler
 
 import (
 	"hacha/internal/ast"
-	"hacha/internal/gameapi"
+	"hacha/internal/diagnostic"
 	"reflect"
 	"strings"
 )
@@ -13,7 +13,7 @@ type binder struct {
 	project *Project
 	module  *Module
 	types   map[string]bool
-	err     error
+	errors  diagnostic.List
 }
 
 func copyScope(scope map[string]bool, names ...string) map[string]bool {
@@ -30,7 +30,7 @@ func copyScope(scope map[string]bool, names ...string) map[string]bool {
 }
 
 func (b *binder) name(name string, pos ast.Pos) string {
-	if name == "" || gameapi.IsType(name) || gameapi.IsNamespace(name) {
+	if name == "" {
 		return name
 	}
 	m := b.module
@@ -52,14 +52,16 @@ func (b *binder) name(name string, pos ast.Pos) string {
 		b.project.References[pos] = d
 		return d.Symbol
 	}
-	b.fail(pos, "declaración desconocida %q en el módulo %s", name, m.Path)
-	return name
+	if !m.Unavailable {
+		b.fail(pos, "declaración desconocida %q en el módulo %s", name, m.Path)
+	}
+	invalid := "\x00" + m.Path + ":" + name
+	b.project.Program.InvalidNames[invalid] = pos
+	return invalid
 }
 
 func (b *binder) fail(pos ast.Pos, format string, args ...any) {
-	if b.err == nil {
-		b.err = projectError(pos, format, args...)
-	}
+	b.errors.Add(projectError(pos, format, args...))
 }
 
 func (b *binder) typeRef(t *ast.TypeRef) {
@@ -72,7 +74,7 @@ func (b *binder) typeRef(t *ast.TypeRef) {
 	for i := range t.Args {
 		b.typeRef(&t.Args[i])
 	}
-	if t.Name == "" || t.Name == "num" || t.Name == "cadena" || t.Name == "bool" || t.Name == "$unidad" || b.types[t.Name] {
+	if t.Name == "" || t.Name == "entero" || t.Name == "decimal" || t.Name == "num" || t.Name == "cadena" || t.Name == "bool" || t.Name == "$unidad" || b.types[t.Name] {
 		return
 	}
 	t.Name = b.name(t.Name, t.Pos)
@@ -130,11 +132,8 @@ func (b *binder) bind() error {
 			b.typeRef(d.Type)
 			d.Value = b.expr(d.Value, map[string]bool{})
 		}
-		if b.err != nil {
-			return b.err
-		}
 	}
-	return nil
+	return b.errors.Err()
 }
 
 func (b *binder) function(f *ast.FuncDecl) {
@@ -153,6 +152,10 @@ func (b *binder) statements(body []ast.Stmt, parent map[string]bool) {
 	scope := copyScope(parent)
 	for _, stmt := range body {
 		switch s := stmt.(type) {
+		case *ast.BadStmt:
+			if s.Name != "" {
+				scope[s.Name] = true
+			}
 		case *ast.MatchStmt:
 			b.expr(s.Match, scope)
 		case *ast.VarDeclStmt:
@@ -166,6 +169,9 @@ func (b *binder) statements(body []ast.Stmt, parent map[string]bool) {
 				b.statements(branch.Body, copyScope(scope, branch.Binding))
 			}
 			b.statements(s.Else, scope)
+		case *ast.ScopeStmt:
+			s.Value = b.expr(s.Value, scope)
+			b.statements(s.Body, copyScope(scope))
 		case *ast.RepeatStmt:
 			s.Iterable = b.expr(s.Iterable, scope)
 			s.RangeEnd = b.expr(s.RangeEnd, scope)
@@ -182,7 +188,7 @@ func (b *binder) expr(expr ast.Expr, scope map[string]bool) ast.Expr {
 	}
 	switch e := expr.(type) {
 	case *ast.IdentExpr:
-		if !scope[e.Name] && !b.types[e.Name] && e.Name != "imprimir" {
+		if !scope[e.Name] && !b.types[e.Name] && e.Name != "imprimir" && e.Name != "entero" && e.Name != "decimal" {
 			e.Name = b.name(e.Name, e.Pos)
 		}
 		return e

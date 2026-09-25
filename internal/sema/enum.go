@@ -2,7 +2,7 @@ package sema
 
 import (
 	"hacha/internal/ast"
-	"hacha/internal/gameapi"
+	"hacha/internal/stdlib"
 	"strings"
 )
 
@@ -24,8 +24,8 @@ type ConstructorInfo struct {
 }
 
 func (c *checker) checkContextualVariant(expr *ast.ContextualVariantExpr, call *ast.CallExpr, expected *Type) (Type, error) {
-	if expected != nil && gameapi.Constants[expected.Name] != nil {
-		value, ok := gameapi.Constants[expected.Name][expr.Name]
+	if expected != nil && stdlib.Constants[expected.Name] != nil {
+		value, ok := stdlib.Constants[expected.Name][expr.Name]
 		if !ok || call != nil {
 			return Type{}, c.fail(expr.Pos, "constante inválida .%s para %s", expr.Name, expected.Name)
 		}
@@ -87,6 +87,9 @@ func (c *checker) enumMember(member *ast.MemberExpr) (*EnumInfo, VariantInfo, bo
 	if _, local := c.vars[ident.Name]; local {
 		return nil, VariantInfo{}, false, nil
 	}
+	if c.invalid[ident.Name] {
+		return nil, VariantInfo{}, true, errInvalid
+	}
 	info := c.model.Enums[ident.Name]
 	if info == nil {
 		return nil, VariantInfo{}, false, nil
@@ -141,66 +144,90 @@ func (c *checker) checkMatch(m *ast.MatchExpr, value bool, expected *Type) (Type
 	seen := map[string]bool{}
 	wildcard := false
 	result := Type{Kind: Void}
+	broken := false
 	for index, arm := range m.Arms {
-		c.bindings = cloneBindings(outerBindings)
-		c.model.PatternTypes[arm] = t
-		if arm.TypePattern != nil {
-			return Type{}, c.fail(arm.Pos, "las variantes de casos requieren Enum.Variante o .Variante")
+		if arm.Invalid {
+			broken = true
+			c.damaged++
+			continue
 		}
-		if arm.QualifierType != nil {
-			q, err := c.resolveType(*arm.QualifierType)
-			if err != nil {
-				return Type{}, err
+		err := func() error {
+			c.bindings = cloneBindings(outerBindings)
+			c.model.PatternTypes[arm] = t
+			if arm.TypePattern != nil {
+				return c.fail(arm.Pos, "las variantes de casos requieren Enum.Variante o .Variante")
 			}
-			if !q.Equal(t) {
-				return Type{}, c.fail(arm.Pos, "el patrón debe pertenecer a %s", t.String())
-			}
-		}
-		if arm.Qualifier != "" && arm.Qualifier != t.Name {
-			return Type{}, c.fail(arm.QualifierPos, "el patrón debe pertenecer a %s, no %s", t.Name, arm.Qualifier)
-		}
-		if wildcard {
-			return Type{}, c.fail(arm.Pos, "no se permiten ramas después de '_'")
-		}
-		if seen[arm.Pattern] {
-			return Type{}, c.fail(arm.Pos, "la variante %q está duplicada en casos", arm.Pattern)
-		}
-		seen[arm.Pattern] = true
-		c.vars = cloneVars(outer)
-		if arm.Pattern == "_" {
-			wildcard = true
-		} else {
-			variant, exists := info.Variants[arm.Pattern]
-			if !exists {
-				return Type{}, c.fail(arm.Pos, "la variante %q no existe en %s", arm.Pattern, t.Name)
-			}
-			if m.Binding != "" && variant.Payload.Kind != Void {
-				c.vars[m.Binding] = variant.Payload
-			}
-		}
-		if value {
-			branchExpected := expected
-			if branchExpected == nil && index > 0 {
-				branchExpected = &result
-			}
-			actual, err := c.checkValueBlock(arm.Body, branchExpected)
-			if err != nil {
-				return Type{}, err
-			}
-			if index == 0 {
-				result = actual
-			} else if result.Kind == Never {
-				result = actual
-			} else if actual.Kind != Never && !result.Equal(actual) {
-				return Type{}, c.fail(arm.Pos, "las ramas producen %s y %s", result.String(), actual.String())
-			}
-		} else {
-			for _, stmt := range arm.Body {
-				if err := c.checkStmt(stmt); err != nil {
-					return Type{}, err
+			if arm.QualifierType != nil {
+				q, err := c.resolveType(*arm.QualifierType)
+				if err != nil {
+					return err
+				}
+				if !q.Equal(t) {
+					return c.fail(arm.Pos, "el patrón debe pertenecer a %s", t.String())
 				}
 			}
+			if arm.Qualifier != "" && arm.Qualifier != t.Name {
+				return c.fail(arm.QualifierPos, "el patrón debe pertenecer a %s, no %s", t.Name, arm.Qualifier)
+			}
+			if wildcard {
+				return c.fail(arm.Pos, "no se permiten ramas después de '_'")
+			}
+			if seen[arm.Pattern] {
+				return c.fail(arm.Pos, "la variante %q está duplicada en casos", arm.Pattern)
+			}
+			seen[arm.Pattern] = true
+			c.vars = cloneVars(outer)
+			if arm.Pattern == "_" {
+				wildcard = true
+			} else {
+				variant, exists := info.Variants[arm.Pattern]
+				if !exists {
+					return c.fail(arm.Pos, "la variante %q no existe en %s", arm.Pattern, t.Name)
+				}
+				if m.Binding != "" && variant.Payload.Kind != Void {
+					c.vars[m.Binding] = variant.Payload
+				}
+			}
+			if value {
+				branchExpected := expected
+				if branchExpected == nil && index > 0 && result.Kind != Void {
+					branchExpected = &result
+				}
+				actual, err := c.checkValueBlock(arm.Body, branchExpected)
+				if err != nil {
+					return err
+				}
+				if result.Kind == Void {
+					result = actual
+				} else if result.Kind == Never {
+					result = actual
+				} else if actual.Kind != Never && !result.Equal(actual) {
+					if result.Kind == Integer && actual.Kind == Decimal {
+						for _, prior := range m.Arms[:index] {
+							c.promoteBlock(prior.Body)
+						}
+						result = actual
+						return nil
+					}
+					return c.fail(arm.Pos, "las ramas producen %s y %s", result.String(), actual.String())
+				}
+			} else {
+				for _, stmt := range arm.Body {
+					if err := c.checkStmt(stmt); err != nil {
+						return err
+					}
+				}
+			}
+			return nil
+		}()
+		if err != nil {
+			c.report(err)
+			broken = true
+			c.damaged++
 		}
+	}
+	if broken {
+		return Type{}, errInvalid
 	}
 	if !wildcard {
 		var missing []string
@@ -220,6 +247,7 @@ func (c *checker) checkMatch(m *ast.MatchExpr, value bool, expected *Type) (Type
 // Check final expressions with their expected type before asking for a block
 // result, so contextual struct/list literals work through nested branches.
 func (c *checker) checkValueBlock(body []ast.Stmt, expected *Type) (Type, error) {
+	before := c.damaged
 	defer c.bindingScope()()
 	outer := c.vars
 	c.vars = cloneVars(outer)
@@ -235,6 +263,9 @@ func (c *checker) checkValueBlock(body []ast.Stmt, expected *Type) (Type, error)
 			continue
 		}
 		switch final := stmt.(type) {
+		case *ast.BadStmt:
+			c.checkStmt(final)
+			return Type{}, errInvalid
 		case *ast.ExprStmt:
 			t, err := c.checkExprExpected(final.Expr, expected)
 			if err != nil {
@@ -250,37 +281,59 @@ func (c *checker) checkValueBlock(body []ast.Stmt, expected *Type) (Type, error)
 				break
 			}
 			var common Type
+			broken := false
 			for i, branch := range final.Branches {
 				branchOuter := c.vars
 				c.vars = cloneVars(branchOuter)
 				if err := c.checkCondition(branch.Condition, branch.Binding, branch.BindingPos); err != nil {
-					c.vars = branchOuter
-					return Type{}, err
+					c.report(err)
+					broken = true
+					if branch.Binding != "" {
+						c.vars[branch.Binding] = Type{Kind: Invalid}
+					}
 				}
 				branchExpected := expected
-				if branchExpected == nil && i > 0 {
+				if branchExpected == nil && i > 0 && common.Kind != Invalid {
 					branchExpected = &common
 				}
 				t, err := c.checkValueBlock(branch.Body, branchExpected)
 				c.vars = branchOuter
 				if err != nil {
-					return Type{}, err
+					c.report(err)
+					broken = true
+					continue
 				}
-				if i == 0 || common.Kind == Never {
+				if common.Kind == Invalid || common.Kind == Never {
 					common = t
 				} else if t.Kind != Never && !common.Equal(t) {
+					if common.Kind == Integer && t.Kind == Decimal {
+						for _, prior := range final.Branches[:i] {
+							c.promoteBlock(prior.Body)
+						}
+						common = t
+						continue
+					}
 					return Type{}, c.fail(branch.Pos, "las ramas producen %s y %s", common.String(), t.String())
 				}
 			}
 			elseExpected := expected
-			if elseExpected == nil {
+			if elseExpected == nil && common.Kind != Invalid {
 				elseExpected = &common
 			}
 			t, err := c.checkValueBlock(final.Else, elseExpected)
 			if err != nil {
 				return Type{}, err
 			}
+			if broken {
+				return Type{}, errInvalid
+			}
 			if common.Kind != Never && t.Kind != Never && !common.Equal(t) {
+				if common.Kind == Integer && t.Kind == Decimal {
+					for _, prior := range final.Branches {
+						c.promoteBlock(prior.Body)
+					}
+					return t, nil
+				}
 				return Type{}, c.fail(final.Pos, "las ramas producen %s y %s", common.String(), t.String())
 			}
 			if common.Kind == Never {
@@ -291,6 +344,10 @@ func (c *checker) checkValueBlock(body []ast.Stmt, expected *Type) (Type, error)
 			if err := c.checkStmt(stmt); err != nil {
 				return Type{}, err
 			}
+			if c.model.Terminates(stmt) { return Type{Kind: Never}, nil }
+		}
+		if c.damaged != before {
+			return Type{}, errInvalid
 		}
 	}
 	pos := ast.Pos{Line: 1, Column: 1}

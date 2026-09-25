@@ -1,0 +1,197 @@
+// Immediate-mode layout and interaction. No renderer or input API calls here.
+type _hgMedida struct { mode int; min,max,value float64 }
+type _hgAlineacion int64
+type _hgBordes struct { Izquierda,Derecha,Arriba,Abajo float64 }
+type _hgTema struct {
+ Fondo,Normal,Sobre,Presionado,Foco,Deshabilitado,Texto _hgColor
+ Espacio float64
+ font *_hgFuente
+ size float64
+ scale int64
+}
+type _hgUINode struct {
+ id string
+ parent int
+ children []int
+ kind int // 0 column, 1 row, 2 panel, 3 text, 4 image, 5 button, 6 checkbox, 7 slider
+ width,height _hgMedida
+ pad _hgBordes
+ gap float64
+ ax,ay _hgAlineacion
+ scroll,enabled,checked bool
+ value float64
+ label string
+ img *_hgImagen
+ tint _hgColor
+ theme _hgTema
+ rect,clip _hgRect
+ natural,extent _hgVec2
+ lines []string
+}
+type _hgUIInput struct {
+ pointer,wheel _hgVec2
+ press,release,down,tab,shift,activate,left,right bool
+}
+type _hgContexto struct {
+ nodes,previous []_hgUINode
+ stack []int
+ themes []_hgTema
+ ids map[string]int
+ offsets map[string]_hgVec2
+ hover,active,focus,clicked string
+ input _hgUIInput
+ mouse,keyboard bool
+ measure func(string,_hgTema) float64
+}
+type _hgAmbitoUI struct {
+ context *_hgContexto
+ node *_hgUINode
+ theme *_hgTema
+ kind,depth int
+ entered,closed bool
+}
+var _hgUIActive *_hgContexto
+func _hgUIFinite(v float64) bool { return !math.IsNaN(v)&&!math.IsInf(v,0) }
+func _hgUIRequire(ok bool, message string) { if !ok { panic("ui: "+message) } }
+func _hgUIClamp(v,lo,hi float64) float64 { return math.Max(lo,math.Min(hi,v)) }
+func _hguiFijo(v float64) *_hgMedida { _hgUIRequire(_hgUIFinite(v)&&v>=0,"medida fija inválida"); return &_hgMedida{mode:1,min:v,max:v,value:v} }
+func _hguiContenido(lo,hi float64) *_hgMedida { _hgUIRequire(_hgUIFinite(lo)&&_hgUIFinite(hi)&&lo>=0&&hi>=lo,"límites inválidos");return &_hgMedida{min:lo,max:hi} }
+func _hguiExpandir(lo,hi float64) *_hgMedida { m:=_hguiContenido(lo,hi);m.mode=2;return m }
+func _hguiPorcentaje(v float64) *_hgMedida { _hgUIRequire(_hgUIFinite(v)&&v>=0&&v<=1,"porcentaje fuera de [0,1]");return &_hgMedida{mode:3,max:1e9,value:v} }
+func _hguiCrear() *_hgContexto {return &_hgContexto{ids:map[string]int{},offsets:map[string]_hgVec2{}}}
+func _hgUIDefaultTheme() _hgTema {return _hgTema{Fondo:_hgColor{24,30,42,255},Normal:_hgColor{68,63,65,255},Sobre:_hgColor{71,114,191,255},Presionado:_hgColor{67,62,166,255},Foco:_hgColor{255,185,21,255},Deshabilitado:_hgColor{52,52,52,255},Texto:_hgColor{255,249,228,255},Espacio:4,scale:1,size:8}}
+func _hguiRetro(scale int64) *_hgTema {_hgUIRequire(scale>0,"escala debe ser positiva");t:=_hgUIDefaultTheme();t.scale=scale;t.size=8*float64(scale);return &t}
+func _hguiCuadro(c *_hgContexto) *_hgAmbitoUI {_hgUIRequire(c!=nil,"contexto ausente");return &_hgAmbitoUI{context:c}}
+func _hguiTema(t *_hgTema) *_hgAmbitoUI {_hgUIRequire(t!=nil,"tema ausente");copy:=*t;if copy.font==nil&&copy.scale==0 {copy.scale=1;copy.size=8};_hgUIRequire(_hgUIFinite(copy.Espacio)&&copy.Espacio>=0,"espacio inválido");return &_hgAmbitoUI{kind:2,theme:&copy}}
+func _hgUIContext() *_hgContexto {_hgUIRequire(_hgUIActive!=nil,"requiere con ui.cuadro durante actualizar");return _hgUIActive}
+func (s *_hgAmbitoUI) Entrar() {
+ _hgUIRequire(!s.entered&&!s.closed,"ámbito ya utilizado")
+ if s.kind==0 { _hgUIRequire(_hgUIActive==nil,"cuadros anidados");_hgUIBegin(s.context);_hgUIActive=s.context
+ } else {s.context=_hgUIContext();s.depth=len(s.context.stack);if s.kind==1 {i:=s.context.add(*s.node);s.context.stack=append(s.context.stack,i)} else {s.depth=len(s.context.themes);s.context.themes=append(s.context.themes,*s.theme)}}
+ s.entered=true
+}
+func (s *_hgAmbitoUI) Salir() {
+ _hgUIRequire(s.entered&&!s.closed&&_hgUIActive==s.context,"cierre de ámbito inválido")
+ c:=s.context
+ if s.kind==0 {_hgUIRequire(len(c.stack)==1&&len(c.themes)==1,"ámbitos abiertos");c.finish();_hgUIActive=nil
+ } else if s.kind==1 {_hgUIRequire(len(c.stack)==s.depth+1,"orden de cierre inválido");c.stack=c.stack[:s.depth]
+ } else {_hgUIRequire(len(c.themes)==s.depth+1,"orden de tema inválido");c.themes=c.themes[:s.depth]}
+ s.closed=true
+}
+func _hguiEntrar(s *_hgAmbitoUI) {s.Entrar()}
+func _hguiSalir(s *_hgAmbitoUI) {s.Salir()}
+func _hgUIContainer(kind int,id string,w,h *_hgMedida,gap float64,pad _hgBordes,ax,ay _hgAlineacion,scroll bool) *_hgAmbitoUI {
+ c:=_hgUIContext();_hgUIRequire(id!="","contenedor requiere id")
+ _hgUIRequire(w!=nil&&h!=nil,"medida ausente")
+ for _,v:=range []float64{pad.Izquierda,pad.Derecha,pad.Arriba,pad.Abajo} {_hgUIRequire(_hgUIFinite(v)&&v>=0,"relleno inválido")}
+ if gap==-1 {gap=c.themes[len(c.themes)-1].Espacio};_hgUIRequire(_hgUIFinite(gap)&&gap>=0,"espacio inválido")
+ return &_hgAmbitoUI{kind:1,node:&_hgUINode{id:id,kind:kind,width:*w,height:*h,gap:gap,pad:pad,ax:ax,ay:ay,scroll:scroll,enabled:true}}
+}
+func _hguiFila(id string,w,h *_hgMedida,g float64,p _hgBordes,x,y _hgAlineacion,s bool) *_hgAmbitoUI {return _hgUIContainer(1,id,w,h,g,p,x,y,s)}
+func _hguiColumna(id string,w,h *_hgMedida,g float64,p _hgBordes,x,y _hgAlineacion,s bool) *_hgAmbitoUI {return _hgUIContainer(0,id,w,h,g,p,x,y,s)}
+func _hguiPanel(id string,w,h *_hgMedida,g float64,p _hgBordes,x,y _hgAlineacion,s bool) *_hgAmbitoUI {return _hgUIContainer(2,id,w,h,g,p,x,y,s)}
+func (c *_hgContexto) add(n _hgUINode) int {
+ n.parent=c.stack[len(c.stack)-1]; n.theme=c.themes[len(c.themes)-1]
+ if n.id!="" {n.id=c.nodes[n.parent].id+"/"+strconv.Itoa(len(n.id))+":"+n.id;_,exists:=c.ids[n.id];_hgUIRequire(!exists,"id duplicado: "+n.id)}
+ i:=len(c.nodes);c.nodes=append(c.nodes,n);c.nodes[n.parent].children=append(c.nodes[n.parent].children,i)
+ if n.id!="" {c.ids[n.id]=i};return i
+}
+func _hgUILeaf(kind int,id,label string,w,h *_hgMedida,enabled bool) (*_hgContexto,int) {
+ c:=_hgUIContext();_hgUIRequire(w!=nil&&h!=nil,"medida ausente");if kind>=5 {_hgUIRequire(id!="","control requiere id")}
+ n:=_hgUINode{kind:kind,id:id,label:label,width:*w,height:*h,enabled:enabled}
+ if kind>=5 {n.pad=_hgBordes{4,4,4,4}}
+ return c,c.add(n)
+}
+func _hguiTexto(s string,w,h *_hgMedida) {_hgUILeaf(3,"",s,w,h,true)}
+func _hguiBoton(id,label string,w,h *_hgMedida,enabled bool) bool {c,i:=_hgUILeaf(5,id,label,w,h,enabled);return enabled&&c.clicked==c.nodes[i].id}
+func _hguiCasilla(id string,value bool,label string,w,h *_hgMedida,enabled bool) bool {
+ c,i:=_hgUILeaf(6,id,label,w,h,enabled);if enabled&&c.clicked==c.nodes[i].id {value=!value};c.nodes[i].checked=value;return value
+}
+func _hguiDeslizador(id string,value,lo,hi float64,w,h *_hgMedida,enabled bool) float64 {
+ _hgUIRequire(_hgUIFinite(value)&&_hgUIFinite(lo)&&_hgUIFinite(hi)&&hi>=lo,"límites del deslizador inválidos")
+ c,i:=_hgUILeaf(7,id,"",w,h,enabled);key:=c.nodes[i].id;value=_hgUIClamp(value,lo,hi)
+ if enabled&&c.active==key&&(c.input.down||c.input.release) {for _,n:=range c.previous {if n.id==key&&n.rect.Tamano.X>0 {value=lo+(hi-lo)*_hgUIClamp((c.input.pointer.X-n.rect.Pos.X)/n.rect.Tamano.X,0,1);break}}}
+ if enabled&&c.focus==key {if c.input.left {value-=(hi-lo)/100};if c.input.right {value+=(hi-lo)/100}}
+ value=_hgUIClamp(value,lo,hi);if hi>lo {c.nodes[i].value=(value-lo)/(hi-lo)};return value
+}
+func _hguiCapturaRaton(c *_hgContexto) bool {return c.mouse}
+func _hguiCapturaTeclado(c *_hgContexto) bool {return c.keyboard}
+func _hgUIInside(r _hgRect,p _hgVec2) bool {return p.X>=r.Pos.X&&p.Y>=r.Pos.Y&&p.X<r.Pos.X+r.Tamano.X&&p.Y<r.Pos.Y+r.Tamano.Y}
+func _hgUIIntersect(a,b _hgRect) _hgRect {x:=math.Max(a.Pos.X,b.Pos.X);y:=math.Max(a.Pos.Y,b.Pos.Y);return _hgRect{_hgVec2{x,y},_hgVec2{math.Max(0,math.Min(a.Pos.X+a.Tamano.X,b.Pos.X+b.Tamano.X)-x),math.Max(0,math.Min(a.Pos.Y+a.Tamano.Y,b.Pos.Y+b.Tamano.Y)-y)}}}
+func (c *_hgContexto) begin(size _hgVec2,input _hgUIInput,measure func(string,_hgTema)float64) {
+ c.input=input;c.measure=measure;c.hover="";c.clicked="";c.mouse=false
+ focusable:=[]string{};scrollIndex:=-1
+ for i,n:=range c.previous {
+  if n.kind>=5&&n.enabled {focusable=append(focusable,n.id)}
+  if !_hgUIInside(n.rect,input.pointer)||!_hgUIInside(n.clip,input.pointer) {continue}
+  if n.kind==2||n.scroll||n.kind>=5 {c.mouse=true;c.hover="";scrollIndex=-1;if n.enabled&&n.kind>=5 {c.hover=n.id};for j:=i;j>0;j=c.previous[j].parent {if c.previous[j].scroll {scrollIndex=j;break}}}
+ }
+ if input.tab&&len(focusable)>0 {at:=-1;for i,id:=range focusable {if id==c.focus {at=i;break}};if input.shift {if at<0 {at=0};at=(at-1+len(focusable))%len(focusable)} else {at=(at+1)%len(focusable)};c.focus=focusable[at]}
+ if input.press {c.active=c.hover;c.focus=c.hover}
+ if input.release&&c.active!=""&&c.hover==c.active {c.clicked=c.active}
+ if input.activate&&c.focus!="" {c.clicked=c.focus}
+ c.mouse=c.mouse||c.active!="";c.keyboard=c.focus!=""
+ remaining:=_hgVec2{-input.wheel.X*24,-input.wheel.Y*24}
+ for j:=scrollIndex;j>0;j=c.previous[j].parent {n:=c.previous[j];if !n.scroll {continue};old:=c.offsets[n.id];v:=_hgVec2{_hgUIClamp(old.X+remaining.X,0,math.Max(0,n.extent.X-n.rect.Tamano.X)),_hgUIClamp(old.Y+remaining.Y,0,math.Max(0,n.extent.Y-n.rect.Tamano.Y))};c.offsets[n.id]=v;remaining.X-=v.X-old.X;remaining.Y-=v.Y-old.Y}
+ clear(c.ids);c.nodes=c.nodes[:0];c.nodes=append(c.nodes,_hgUINode{id:"root",parent:-1,width:*_hguiFijo(size.X),height:*_hguiFijo(size.Y),rect:_hgRect{Tamano:size},theme:_hgUIDefaultTheme()});c.stack=append(c.stack[:0],0);c.themes=append(c.themes[:0],_hgUIDefaultTheme())
+}
+func _hgUISize(m _hgMedida,natural,parent float64) float64 {switch m.mode {case 1:return m.value;case 3:return parent*m.value;case 2:return _hgUIClamp(parent,m.min,m.max)};return _hgUIClamp(natural,m.min,m.max)}
+func _hgUILineHeight(t _hgTema) float64 {if t.font==nil {return 8*float64(t.scale)};return t.size*1.2}
+func (c *_hgContexto) textWidth(s string,t _hgTema) float64 {return c.measure(s,t)}
+func (c *_hgContexto) wrap(s string,t _hgTema,width float64) []string {
+ lines:=[]string{}
+ for _,paragraph:=range strings.Split(strings.ReplaceAll(strings.ReplaceAll(s,"\r",""),"\t","    "),"\n") {
+  if paragraph=="" {lines=append(lines,"");continue}
+  runes:=[]rune(paragraph)
+  for len(runes)>0 {end,lastSpace:=0,-1;for end<len(runes) {if c.textWidth(string(runes[:end+1]),t)>width&&end>0 {break};if runes[end]==' ' {lastSpace=end};end++};if end<len(runes)&&lastSpace>0 {end=lastSpace};if end==0 {end=1};lines=append(lines,string(runes[:end]));runes=runes[end:];for len(runes)>0&&runes[0]==' ' {runes=runes[1:]}}
+ }
+ return lines
+}
+func (c *_hgContexto) natural(i int) {
+ n:=&c.nodes[i];n.natural=_hgVec2{}
+ if n.kind>=3 {
+  if n.kind==4 {n.natural=n.extent} else if n.kind==7 {n.natural=_hgVec2{120,16}} else {label:=n.label;if n.kind==6 {label="[ ] "+label};for _,s:=range strings.Split(label,"\n") {n.natural.X=math.Max(n.natural.X,c.textWidth(s,n.theme))};n.natural.Y=float64(len(strings.Split(label,"\n")))*_hgUILineHeight(n.theme)}
+ } else {for _,j:=range n.children {child:=&c.nodes[j];_hgUIRequire(!(n.width.mode==0&&child.width.mode==3)&&!(n.height.mode==0&&child.height.mode==3),"porcentaje bajo contenido en el mismo eje");c.natural(j);w:=_hgUISize(child.width,child.natural.X,0);h:=_hgUISize(child.height,child.natural.Y,0);if n.kind==1 {n.natural.X+=w;n.natural.Y=math.Max(n.natural.Y,h)} else {n.natural.X=math.Max(n.natural.X,w);n.natural.Y+=h}};if len(n.children)>1 {if n.kind==1 {n.natural.X+=float64(len(n.children)-1)*n.gap}else{n.natural.Y+=float64(len(n.children)-1)*n.gap}}}
+ n.natural.X+=n.pad.Izquierda+n.pad.Derecha;n.natural.Y+=n.pad.Arriba+n.pad.Abajo
+}
+// Water filling shares free space equally, then respects every child's bounds.
+func (c *_hgContexto) allocate(ids []int,available float64,x bool,gap float64,scroll bool) []float64 {
+ sizes:=make([]float64,len(ids));total:=math.Max(0,float64(len(ids)-1))*gap
+ for k,i:=range ids {n:=&c.nodes[i];m,natural:=n.height,n.natural.Y;if x {m,natural=n.width,n.natural.X};sizes[k]=_hgUISize(m,natural,available);if m.mode==2 {sizes[k]=m.min};total+=sizes[k]}
+ delta:=available-total
+ for pass:=0;pass<=len(ids)&&math.Abs(delta)>0.000001;pass++ {
+  candidates:=[]int{};for k,i:=range ids {n:=&c.nodes[i];m:=n.height;if x {m=n.width};if delta>0&&m.mode==2&&sizes[k]<m.max||delta<0&&!scroll&&(m.mode==0||m.mode==2)&&sizes[k]>m.min {candidates=append(candidates,k)}}
+  if len(candidates)==0 {break};share:=delta/float64(len(candidates));for _,k:=range candidates {n:=&c.nodes[ids[k]];m:=n.height;if x {m=n.width};v:=_hgUIClamp(sizes[k]+share,m.min,m.max);delta-=v-sizes[k];sizes[k]=v}
+ }
+ return sizes
+}
+func (c *_hgContexto) widths(i int,w float64) {
+ n:=&c.nodes[i];n.rect.Tamano.X=w;inner:=math.Max(0,w-n.pad.Izquierda-n.pad.Derecha)
+ if n.kind>=3 {if n.kind!=4&&n.kind!=7 {label:=n.label;if n.kind==6 {if n.checked {label="[x] "+label}else{label="[ ] "+label}};n.lines=c.wrap(label,n.theme,inner);n.natural.Y=float64(len(n.lines))*_hgUILineHeight(n.theme)+n.pad.Arriba+n.pad.Abajo};return}
+ var sizes []float64;if n.kind==1 {sizes=c.allocate(n.children,inner,true,n.gap,n.scroll)}
+ height:=0.0;for k,j:=range n.children {ch:=&c.nodes[j];cw:=_hgUISize(ch.width,ch.natural.X,inner);if n.kind==1 {cw=sizes[k]} else if !n.scroll&&ch.width.mode==0 {cw=math.Max(ch.width.min,math.Min(cw,inner))};c.widths(j,cw);h:=_hgUISize(ch.height,ch.natural.Y,0);if n.kind==1 {height=math.Max(height,h)}else{height+=h}}
+ if n.kind!=1 {height+=math.Max(0,float64(len(n.children)-1))*n.gap};n.natural.Y=height+n.pad.Arriba+n.pad.Abajo
+}
+func (c *_hgContexto) heights(i int,h float64) {
+ n:=&c.nodes[i];n.rect.Tamano.Y=h;if n.kind>=3 {return};inner:=math.Max(0,h-n.pad.Arriba-n.pad.Abajo)
+ var sizes []float64;if n.kind!=1 {sizes=c.allocate(n.children,inner,false,n.gap,n.scroll)}
+ for k,j:=range n.children {ch:=&c.nodes[j];chh:=_hgUISize(ch.height,ch.natural.Y,inner);if n.kind!=1 {chh=sizes[k]}else if !n.scroll&&ch.height.mode==0 {chh=math.Max(ch.height.min,math.Min(chh,inner))};c.heights(j,chh)}
+}
+func _hgUIAlign(a _hgAlineacion,space float64) float64 {space=math.Max(0,space);if a==1{return space/2};if a==2{return space};return 0}
+func (c *_hgContexto) position(i int,pos _hgVec2,clip _hgRect) {
+ n:=&c.nodes[i];if n.theme.font==nil {pos.X=math.Round(pos.X);pos.Y=math.Round(pos.Y)};n.rect.Pos=pos;n.clip=clip
+ inner:=_hgVec2{math.Max(0,n.rect.Tamano.X-n.pad.Izquierda-n.pad.Derecha),math.Max(0,n.rect.Tamano.Y-n.pad.Arriba-n.pad.Abajo)}
+ used:=_hgVec2{};for _,j:=range n.children {s:=c.nodes[j].rect.Tamano;if n.kind==1 {used.X+=s.X;used.Y=math.Max(used.Y,s.Y)}else{used.X=math.Max(used.X,s.X);used.Y+=s.Y}}
+ if n.kind==1 {used.X+=math.Max(0,float64(len(n.children)-1))*n.gap}else{used.Y+=math.Max(0,float64(len(n.children)-1))*n.gap}
+ n.extent=_hgVec2{used.X+n.pad.Izquierda+n.pad.Derecha,used.Y+n.pad.Arriba+n.pad.Abajo};offset:=_hgVec2{}
+ if n.scroll {offset=c.offsets[n.id];offset.X=_hgUIClamp(offset.X,0,math.Max(0,used.X-inner.X));offset.Y=_hgUIClamp(offset.Y,0,math.Max(0,used.Y-inner.Y));c.offsets[n.id]=offset;clip=_hgUIIntersect(clip,n.rect)}
+ cursor:=0.0;if n.kind==1 {cursor=_hgUIAlign(n.ax,inner.X-used.X)}else{cursor=_hgUIAlign(n.ay,inner.Y-used.Y)}
+ for _,j:=range n.children {ch:=&c.nodes[j];p:=_hgVec2{pos.X+n.pad.Izquierda-offset.X,pos.Y+n.pad.Arriba-offset.Y};if n.kind==1 {p.X+=cursor;p.Y+=_hgUIAlign(n.ay,inner.Y-ch.rect.Tamano.Y);cursor+=ch.rect.Tamano.X+n.gap}else{p.Y+=cursor;p.X+=_hgUIAlign(n.ax,inner.X-ch.rect.Tamano.X);cursor+=ch.rect.Tamano.Y+n.gap};c.position(j,p,clip)}
+}
+func (c *_hgContexto) finish() {
+ size:=c.nodes[0].rect.Tamano;c.natural(0);c.widths(0,size.X);c.heights(0,size.Y);c.position(0,_hgVec2{},_hgRect{Tamano:size})
+ for id:=range c.offsets {if _,ok:=c.ids[id];!ok {delete(c.offsets,id)}}
+ valid:=func(id string)bool {i,ok:=c.ids[id];return ok&&c.nodes[i].enabled&&c.nodes[i].kind>=5}
+ if !valid(c.active)||c.input.release {c.active=""};if !valid(c.focus){c.focus=""};c.keyboard=c.focus!=""
+ c.previous,c.nodes=c.nodes,c.previous
+}

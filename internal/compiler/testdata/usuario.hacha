@@ -1,17 +1,17 @@
 tipo Usuario
 	nombre cadena
-	edad num
+	edad entero
 	activo bool
 	referido Usuario?
 	amigos [Usuario]
-	fn sumar(a num, b num) num a + b
+	fn sumar(a entero, b entero) entero a + b
 	fn activar(activar bool)
 		imprimir("activando")
 		@activo = activar
 		si @edad < 18 @activo = falso
 		sino @activo = verdadero
 		@activo = si @edad < 18 verdadero sino falso
-	fn devolver(numero num) num
+	fn devolver(numero entero) entero
 		si @edad < 10 numero
 		osi @edad != 4 4
 		sino

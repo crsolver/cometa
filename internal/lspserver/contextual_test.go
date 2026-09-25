@@ -19,7 +19,7 @@ func TestContextualCompletion(t *testing.T) {
 		{"variadic call", "fn v(ips ...IP) imprimir(ips)\nfn inicio()\n\tv(IP.V4, .|)\n", true},
 		{"named variadic call", "fn v(ips ...IP) imprimir(ips)\nfn inicio()\n\tv(ips = [.|])\n", true},
 		{"unclosed call", "fn inicio()\n\timprimir(f(.|\n", true},
-		{"missing later argument", "fn h(ip IP, n num)\n\timprimir(n)\nfn inicio()\n\th(.|\n", true},
+		{"missing later argument", "fn h(ip IP, n entero)\n\timprimir(n)\nfn inicio()\n\th(.|\n", true},
 		{"partial", "fn inicio()\n\tf(.V|4)\n", true},
 		{"payload", "fn inicio()\n\tf(.Otro(.|))\n", true},
 		{"variable", "fn inicio()\n\tvar ip IP = .|\n", true},

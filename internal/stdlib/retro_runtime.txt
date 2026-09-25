@@ -1,0 +1,72 @@
+// DUNGEON.mode by datagoblin (CC0). Original 8x8 atlas artwork.
+type _hgIcono int64
+type _hgAtlas int64
+var _hgretroImages [2]*ebiten.Image
+var _hgretroData = [2]string{"DUNGEON_ATLAS_DATA", "ASCII_ATLAS_DATA"}
+// Each row corresponds to exactly sixteen cells in dungeon-437.png.
+const _hgretroCharacters = " ☺☻♥♦♣♠•◘○◙♂♀♪♫☼" +
+ "►◄↕‼¶§▬↨↑↓→←∟↔▲▼" +
+ "…!\"#$%&'()*+,-./" +
+ "0123456789:;<=>?" +
+ "@ABCDEFGHIJKLMNO" +
+ "PQRSTUVWXYZ[\\]^_" +
+ "`abcdefghijklmno" +
+ "pqrstuvwxyz{|}~⌂" +
+ "ÇüéâäàåçêëèïîìÄÅ" +
+ "ÉæÆôöòûùÿÖÜ¢£¥₧ƒ" +
+ "áíóúñÑªº¿⌐¬½¼¡«»" +
+ "░▒▓│┤╡╢╖╕╣║╗╝╜╛┐" +
+ "└┴┬├─┼╞╟╚╔╩╦╠═╬╧" +
+ "╨╤╥╙╘╒╓╫╪┘┌█▄▌▐▀" +
+ "αßΓπΣσµτΦΘΩδ∞φε∩" +
+ "≡±≥≤⌠⌡÷≈°∙·√ⁿ²■□"
+var _hgretroCodes = func() map[rune]int64 {
+ codes:=map[rune]int64{}
+ for i,r:=range []rune(_hgretroCharacters){codes[r]=int64(i)}
+ return codes
+}()
+func _hgretroImage(atlas _hgAtlas) *ebiten.Image {
+ if atlas<0 || atlas>1 {panic("atlas retro inválido")}
+ if _hgretroImages[atlas]==nil {
+  data,err:=base64.StdEncoding.DecodeString(_hgretroData[atlas]);if err!=nil{panic(err)}
+  img,_,err:=image.Decode(bytes.NewReader(data));if err!=nil{panic(err)}
+  mask:=image.NewNRGBA(img.Bounds())
+  for y:=img.Bounds().Min.Y;y<img.Bounds().Max.Y;y++ {
+   for x:=img.Bounds().Min.X;x<img.Bounds().Max.X;x++ {
+    r,_,_,_:=img.At(x,y).RGBA()
+    mask.SetNRGBA(x,y,color.NRGBA{255,255,255,uint8(r>>8)})
+   }
+  }
+  _hgretroImages[atlas]=ebiten.NewImageFromImage(mask)
+ }
+ return _hgretroImages[atlas]
+}
+func _hgretroScale(scale int64){if scale<=0 {panic("escala retro debe ser positiva")}}
+func _hgretroGlifo(index,x,y,scale int64,c _hgColor,atlas _hgAtlas){
+ _hgdraw();_hgretroScale(scale)
+ if index<0 || index>255 {panic("índice de glifo retro debe estar entre 0 y 255")}
+ img:=_hgretroImage(atlas)
+ sx,sy:=int(index%16)*8,int(index/16)*8
+ op:=&ebiten.DrawImageOptions{Filter:ebiten.FilterNearest}
+ op.GeoM=_hgtransform(_hgVec2{float64(x),float64(y)},_hgVec2{},_hgVec2{float64(scale),float64(scale)},0,false)
+ op.ColorScale.ScaleWithColor(c)
+ _hgscreen.DrawImage(img.SubImage(image.Rect(sx,sy,sx+8,sy+8)).(*ebiten.Image),op)
+}
+func _hgretroIcono(icon _hgIcono,x,y,scale int64,c _hgColor){_hgretroGlifo(int64(icon),x,y,scale,c,0)}
+func _hgretroLayout(value string,draw func(index,col,row int64)) {
+ var col,row int64
+ for _,r:=range value {
+  switch r {
+  case '\r':continue
+  case '\n':col=0;row++;continue
+  case '\t':col=(col/4+1)*4;continue
+  case ' ':col++;continue
+  }
+  index,ok:=_hgretroCodes[r];if !ok{index=63}
+  draw(index,col,row);col++
+ }
+}
+func _hgretroTexto(value string,x,y,scale int64,c _hgColor){
+ _hgdraw();_hgretroScale(scale)
+ _hgretroLayout(value,func(index,col,row int64){_hgretroGlifo(index,x+col*8*scale,y+row*8*scale,scale,c,1)})
+}

@@ -6,8 +6,8 @@ func TestRangeRuntime(t *testing.T) {
 	runHacha(t, `enum E
 	A
 tipo Contador
-	n num
-fn limite(c Contador, n num) num
+	n entero
+fn limite(c Contador, n entero) entero
 	c.n = c.n + 1
 	imprimir(n)
 	n
@@ -16,8 +16,8 @@ fn inicio()
 	repetir (3..0) |i, indice| imprimir(i + indice)
 	repetir (2..2) |i| imprimir("incorrecto")
 	repetir (-2..1) |i| imprimir(i)
-	repetir (0.5..2) |i| imprimir(i)
-	repetir (2.5..0) |i| imprimir(i)
+	repetir (0..2) |i| imprimir(i)
+	repetir (3..0) |i| imprimir(i)
 	var c = Contador {n: 0}
 	var final = 3
 	repetir (limite(c, 0)..limite(c, final)) |i|
@@ -36,7 +36,7 @@ fn inicio()
 		i = 100
 		imprimir(i)
 	imprimir(_hacha1)
-`, "0\n1\n2\n3\n4\n3\n3\n3\n-2\n-1\n0\n0.5\n1.5\n2.5\n1.5\n0.5\n0\n3\n1\n2\n2\n100\n100\n9\n")
+`, "0\n1\n2\n3\n4\n3\n3\n3\n-2\n-1\n0\n0\n1\n3\n2\n1\n0\n3\n1\n2\n2\n100\n100\n9\n")
 }
 
 func TestRangesAreOnlyLoopSyntax(t *testing.T) {

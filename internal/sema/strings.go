@@ -10,7 +10,7 @@ var stringMethodOrder = []string{
 
 func StringMethods() map[string]FuncInfo {
 	stringType := Type{Kind: String}
-	number := Type{Kind: Number}
+	number := Type{Kind: Integer}
 	optionalNumber := Type{Kind: Optional, Elem: &number}
 	optionalString := Type{Kind: Optional, Elem: &stringType}
 	methods := map[string]FuncInfo{}

@@ -14,7 +14,7 @@ func TestListMethodsRuntime(t *testing.T) {
 	imprimir(valores.buscar_indice(20) o -1)
 	imprimir(valores.buscar_indice(99) o -1)
 	imprimir(valores.obtener(1) o -1)
-	imprimir(valores.obtener(1.5) o -1)
+	imprimir(valores.obtener(99) o -1)
 	imprimir(valores.primero() o -1)
 	imprimir(valores.ultimo() o -1)
 	valores.agregar(30)
@@ -30,17 +30,17 @@ func TestListMethodsRuntime(t *testing.T) {
 	imprimir(valores[0])
 	imprimir(copia[0])
 	imprimir(valores.longitud())
-	var vacia [num] = []
+	var vacia [entero] = []
 	imprimir(vacia.primero() o -1)
 `, "3\nfalse\ntrue\n1\n-1\n20\n-1\n10\n20\ntrue\ntrue\nfalse\ntrue\nfalse\n60\n999\n7\n-1\n")
 }
 
 func TestListMutationReceiversAliasingAndOrder(t *testing.T) {
 	runHacha(t, `tipo Objeto
-	valor num
+	valor entero
 tipo Caja
-	valores [num]
-fn sumar_local(valores [num]) num
+	valores [entero]
+fn sumar_local(valores [entero]) entero
 	valores.agregar(9)
 	valores.longitud()
 fn inicio()
@@ -80,8 +80,8 @@ fn inicio()
 
 func TestListMutationWaitsForPropagatingArguments(t *testing.T) {
 	runHacha(t, `tipo Caja
-	valores [num]
-fn falla() num! .Error("fallo")
+	valores [entero]
+fn falla() entero! .Error("fallo")
 fn cambiar(c Caja) !
 	c.valores.agregar(intentar falla())
 	.Ok
@@ -96,13 +96,13 @@ func TestListMethodDiagnostics(t *testing.T) {
 	tests := []struct {
 		name, source, want string
 	}{
-		{"wrong element", "fn inicio()\n\tvar xs = [1]\n\txs.agregar(verdadero)\n", "debe ser num"},
+		{"wrong element", "fn inicio()\n\tvar xs = [1]\n\txs.agregar(verdadero)\n", "debe ser entero"},
 		{"unknown named argument", "fn inicio()\n\tvar xs = [1]\n\txs.agregar(otro = 2)\n", `el parámetro "otro" no existe`},
-		{"temporary mutation", "fn lista() [num] [1]\nfn inicio()\n\tlista().agregar(2)\n", "requiere una lista asignable"},
-		{"nested list equality", "fn inicio()\n\tvar xs = [[1]]\n\timprimir(xs.contiene([1]))\n", "no admite elementos de tipo [num]"},
+		{"temporary mutation", "fn lista() [entero] [1]\nfn inicio()\n\tlista().agregar(2)\n", "requiere una lista asignable"},
+		{"nested list equality", "fn inicio()\n\tvar xs = [[1]]\n\timprimir(xs.contiene([1]))\n", "no admite elementos de tipo [entero]"},
 		{"enum equality", "enum E\n\tA\nfn inicio()\n\tvar xs = [E.A]\n\timprimir(xs.contiene(E.A))\n", "no admite elementos de tipo E"},
 		{"interface equality", "interfaz I\nfn inicio()\n\tvar xs [I] = [1]\n\timprimir(xs.contiene(1))\n", "no admite elementos de tipo I"},
-		{"optional equality", "fn inicio()\n\tvar xs [num?] = [1]\n\timprimir(xs.contiene(.Ninguno))\n", "no admite elementos de tipo num?"},
+		{"optional equality", "fn inicio()\n\tvar xs [entero?] = [1]\n\timprimir(xs.contiene(.Ninguno))\n", "no admite elementos de tipo entero?"},
 		{"type parameter equality", "fn buscar<T>(xs [T], valor T) bool xs.contiene(valor)\nfn inicio() imprimir(verdadero)\n", "no admite elementos de tipo T"},
 	}
 	for _, test := range tests {

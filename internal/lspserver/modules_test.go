@@ -50,17 +50,17 @@ func TestModuleCompletion(t *testing.T) {
 	for _, tc := range []struct{ name, body, label, detail string }{
 		{"namespace", "fn inicio()\n\tm.§\n", "Usuario", "tipo Usuario"},
 		{"qualified type", "fn f(valor m.§)\n\timprimir(valor)\n", "Usuario", "tipo Usuario"},
-		{"generic enum", "fn inicio()\n\tvar e = m.Evento<num>.§\n", "Dato", "modelos.Evento<num>.Dato(num)"},
+		{"generic enum", "fn inicio()\n\tvar e = m.Evento<entero>.§\n", "Dato", "modelos.Evento<entero>.Dato(entero)"},
 		{"imported variable", "fn f(valor m.Usuario)\n\tvalor.§\n", "nombre", "cadena"},
-		{"generic variable", "fn f(valor m.Caja<num>)\n\tvalor.§\n", "obtener", "fn obtener() num"},
+		{"generic variable", "fn f(valor m.Caja<entero>)\n\tvalor.§\n", "obtener", "fn obtener() entero"},
 		{"interface", "fn f(valor m.Proveedor<cadena>)\n\tvalor.§\n", "obtener", "fn obtener() cadena"},
-		{"constraint", "fn f<T m.Proveedor<num>>(valor T)\n\tvalor.§\n", "obtener", "fn obtener() num"},
-		{"contextual", "fn f() m.Evento<num>\n\t.§\n", "Dato", "modelos.Evento<num>.Dato(num)"},
+		{"constraint", "fn f<T m.Proveedor<entero>>(valor T)\n\tvalor.§\n", "obtener", "fn obtener() entero"},
+		{"contextual", "fn f() m.Evento<entero>\n\t.§\n", "Dato", "modelos.Evento<entero>.Dato(entero)"},
 		{"shadow", "fn f(m m.Usuario)\n\tm.§\n", "nombre", "cadena"},
 		{"alias", "fn inicio()\n\tm§\n", "m", "módulo m"},
-		{"root type argument", "tipo Propio\n\tx num\nfn inicio()\n\tvar e = m.Evento<Propio>.§\n", "Dato", "modelos.Evento<Propio>.Dato(Propio)"},
-		{"global constant", "fn inicio()\n\timprimir(m.§)\n", "limite", "const limite num"},
-		{"global variable", "fn inicio()\n\timprimir(m.§)\n", "contador", "var contador num"},
+		{"root type argument", "tipo Propio\n\tx entero\nfn inicio()\n\tvar e = m.Evento<Propio>.§\n", "Dato", "modelos.Evento<Propio>.Dato(Propio)"},
+		{"global constant", "fn inicio()\n\timprimir(m.§)\n", "limite", "const limite entero"},
+		{"global variable", "fn inicio()\n\timprimir(m.§)\n", "contador", "var contador entero"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			uri, _ := moduleURIs(t)
@@ -90,14 +90,14 @@ func TestModuleHoverAndDefinition(t *testing.T) {
 		body, want string
 		line       int
 	}{
-		{"fn inicio() imprimir(m.§identidad(1))\n", "identidad<num>(valor num) num", 1},
+		{"fn inicio() imprimir(m.§identidad(1))\n", "identidad<entero>(valor entero) entero", 1},
 		{"fn f(valor m.§Usuario)\n\timprimir(valor)\n", "tipo Usuario", 2},
-		{"fn inicio()\n\tvar x = m.Evento<num>.§Dato(1)\n\timprimir(x)\n", "Evento<num>.Dato(num)", 9},
+		{"fn inicio()\n\tvar x = m.Evento<entero>.§Dato(1)\n\timprimir(x)\n", "Evento<entero>.Dato(entero)", 9},
 		{"fn f(valor m.Usuario)\n\timprimir(valor.§nombre)\n", "cadena", 3},
 		{"fn f(valor m.Usuario)\n\timprimir(valor.§describir())\n", "fn describir() cadena", 4},
-		{"fn inicio() imprimir(m.§identidad<num>(1))\n", "identidad<num>(valor num) num", 1},
-		{"fn inicio() imprimir(m.§limite)\n", "const limite num", 13},
-		{"fn inicio() imprimir(m.§contador)\n", "var contador num", 14},
+		{"fn inicio() imprimir(m.§identidad<entero>(1))\n", "identidad<entero>(valor entero) entero", 1},
+		{"fn inicio() imprimir(m.§limite)\n", "const limite entero", 13},
+		{"fn inicio() imprimir(m.§contador)\n", "var contador entero", 14},
 	} {
 		source, pos := markerPosition("usar modelos como m\n" + tc.body)
 		h := NewHandler()
@@ -123,7 +123,7 @@ func TestModuleOverlayDiagnosticsAndClose(t *testing.T) {
 	if ds := waitForDiagnostics(t, h, uri); len(ds) != 0 {
 		t.Fatal(ds)
 	}
-	bad := "fn identidad(valor num) num\n\t\"😀\" + ausente\n"
+	bad := "fn identidad(valor entero) entero\n\t\"😀\" + ausente\n"
 	h.ClearDiagnostics()
 	if err := h.DidOpen(depURI, "hacha", bad); err != nil {
 		t.Fatal(err)

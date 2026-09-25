@@ -7,7 +7,7 @@ import (
 
 func TestUnusedLocals(t *testing.T) {
 	for _, tt := range []struct{ name, body, want, absent string }{
-		{"transitive", `a := float64(1); b := a; _ = b`, "func main()", "a :="},
+		{"transitive", `a := int64(1); b := a; _ = b`, "func main()", "a :="},
 		{"effects", `a := effect(); b := a; _ = b`, "_ = effect()", "a :="},
 		{"write only", `a := 1; a = effect()`, "_ = effect()", "a :="},
 		{"shadow", `a := 1; { a := 2; _ = a }; println(a)`, "println(a)", "a := 2"},

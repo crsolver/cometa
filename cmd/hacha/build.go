@@ -2,11 +2,14 @@ package main
 
 import (
 	"fmt"
-	"hacha/internal/gameapi"
+	"go/parser"
+	"go/token"
+	"hacha/internal/stdlib"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 )
 
 func goExecutable() string {
@@ -29,7 +32,17 @@ func buildProgram(source []byte, output string, execute bool) error {
 		return err
 	}
 	defer os.RemoveAll(dir)
-	module := "module hacha-game\n\ngo 1.25.0\n\nrequire github.com/hajimehoshi/ebiten/v2 " + gameapi.EbitenVersion + "\n"
+	module := "module hacha-programa\n\ngo 1.25.0\n"
+	file, err := parser.ParseFile(token.NewFileSet(), "main.go", source, parser.ImportsOnly)
+	if err != nil {
+		return err
+	}
+	for _, imp := range file.Imports {
+		if strings.HasPrefix(imp.Path.Value, "\"github.com/hajimehoshi/ebiten/v2") {
+			module += "\nrequire github.com/hajimehoshi/ebiten/v2 " + stdlib.EbitenVersion + "\n"
+			break
+		}
+	}
 	if err = os.WriteFile(filepath.Join(dir, "go.mod"), []byte(module), 0600); err != nil {
 		return err
 	}

@@ -7,17 +7,17 @@ import (
 
 func TestPositionalStructLiteralsRuntime(t *testing.T) {
 	runHacha(t, `tipo Base
-	n num
+	n entero
 tipo Punto
 	Base
-	x num
-	y num
+	x entero
+	y entero
 tipo Caja<T>
 	valor T
 tipo Par
 	izquierda Punto
 	derecha Punto
-fn valor(n num) num
+fn valor(n entero) entero
 	imprimir(n)
 	n
 fn inicio()
@@ -27,7 +27,7 @@ fn inicio()
 	imprimir(parcial.y)
 	var contextual Punto = {{8}, 3, 4}
 	imprimir(contextual.n)
-	var caja = Caja<num> {9}
+	var caja = Caja<entero> {9}
 	imprimir(caja.valor)
 	var par = Par {{Base {1}, 2, 3}, {Base {4}, 5, 6}}
 	imprimir(par.derecha.y)
@@ -37,14 +37,14 @@ fn inicio()
 }
 
 func TestPositionalBuiltInStructLiterals(t *testing.T) {
-	source := `fn actualizar(dt num)
-	var v = Vec2 {1, 2}
+	source := `fn actualizar(dt decimal)
+	var v = mate.Vec2 {1, 2}
 	imprimir(v.x + v.y + dt)
 fn pintar()
-	var r = Rect {{3, 4}, {5, 6}}
+	var r = mate.Rect {{3, 4}, {5, 6}}
 	graficos.rectangulo_rect(r, .Rojo)
 `
-	generated, err := Compile("posicionales_juego.hacha", []byte(source))
+	generated, err := Compile("posicionales_juego.hacha", []byte(pincelImports+source))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,18 +61,18 @@ func TestPositionalStructLiteralDiagnostics(t *testing.T) {
 		source string
 		want   string
 	}{
-		{"mixed after positional", "tipo P\n\tx num\n\ty num\nfn inicio()\n\tvar p = P {1, y: 2}\n", "no se pueden mezclar"},
-		{"mixed after named", "tipo P\n\tx num\n\ty num\nfn inicio()\n\tvar p = P {x: 1, 2}\n", "no se pueden mezclar"},
-		{"too many", "tipo P\n\tx num\nfn inicio()\n\tvar p = P {1, 2}\n", "más valores posicionales"},
-		{"wrong type", "tipo P\n\tx num\nfn inicio()\n\tvar p = P {\"x\"}\n", "campo \"x\" debe ser num"},
+		{"mixed after positional", "tipo P\n\tx entero\n\ty entero\nfn inicio()\n\tvar p = P {1, y: 2}\n", "no se pueden mezclar"},
+		{"mixed after named", "tipo P\n\tx entero\n\ty entero\nfn inicio()\n\tvar p = P {x: 1, 2}\n", "no se pueden mezclar"},
+		{"too many", "tipo P\n\tx entero\nfn inicio()\n\tvar p = P {1, 2}\n", "más valores posicionales"},
+		{"wrong type", "tipo P\n\tx entero\nfn inicio()\n\tvar p = P {\"x\"}\n", "campo \"x\" debe ser entero"},
 		{"cannot infer", "fn inicio()\n\tvar p = {1}\n", "no se puede inferir"},
-		{"opaque", "fn inicio()\n\tvar imagen = Imagen {1}\n", "tipo opaco"},
-		{"required trailing", "tipo P\n\tx num\n\testado num!\nfn inicio()\n\tvar p = P {1}\n", "campo estado requiere inicialización"},
-		{"generic required empty", "tipo Caja<T>\n\tvalor T\nfn inicio()\n\tvar c = Caja<num> {}\n", "campo valor requiere inicialización"},
-		{"unknown named unchanged", "tipo P\n\tx num\nfn inicio()\n\tvar p = P {y: 1}\n", "campo \"y\" no existe"},
+		{"opaque", "fn inicio()\n\tvar imagen = graficos.Imagen {1}\n", "tipo opaco"},
+		{"required trailing", "tipo P\n\tx entero\n\testado entero!\nfn inicio()\n\tvar p = P {1}\n", "campo estado requiere inicialización"},
+		{"generic required empty", "tipo Caja<T>\n\tvalor T\nfn inicio()\n\tvar c = Caja<entero> {}\n", "campo valor requiere inicialización"},
+		{"unknown named unchanged", "tipo P\n\tx entero\nfn inicio()\n\tvar p = P {y: 1}\n", "campo \"y\" no existe"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := Compile("posicionales.hacha", []byte(tc.source))
+			_, err := Compile("posicionales.hacha", []byte(pincelImports+tc.source))
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("got %v, want %q", err, tc.want)
 			}

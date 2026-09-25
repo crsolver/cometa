@@ -46,7 +46,7 @@ fn inicio()
 	imprimir(caja.obtener().nombre)
 	imprimir(leer<Usuario, Caja<Usuario>>(caja).nombre)
 	imprimir(identidad(3))
-	imprimir(identidad<num>(4))
+	imprimir(identidad<entero>(4))
 	var presente = primero([5])
 	imprimir(presente o 0)
 	var evento = Evento<Usuario>.Dato(u)
@@ -56,7 +56,7 @@ fn inicio()
 	var valor Cualquiera = u
 	var convertido = valor como Usuario
 	si convertido |p| imprimir(p.nombre)
-	var no = valor como num
+	var no = valor como entero
 	imprimir(no o 9)
 	var descripcion = valor como Describible
 	si descripcion |p| imprimir(p.describir("ok"))
@@ -67,10 +67,10 @@ fn inicio()
 	var mixtos [Cualquiera] = [1, "dos", u, [3]]
 	repetir (mixtos) |v|
 		casos v |p|
-			num => imprimir(p)
+			entero => imprimir(p)
 			cadena => imprimir(p)
 			Usuario => imprimir(p.nombre)
-			[num] => imprimir(p[0])
+			[entero] => imprimir(p[0])
 			_ => imprimir("otro")
 `
 	generated := runHacha(t, source, "hola\npredeterminado\ninterfaz\nAna\nAna\n3\n4\n5\nLuis\n9\nok\nprimero\n1\ndos\nLuis\n3\n")
@@ -86,32 +86,32 @@ func TestGenericAndInterfaceErrors(t *testing.T) {
 		{"expanding type", "tipo A<T>\n\thijos [A<[T]>]\n", "expande"},
 		{"expanding function", "fn f<T>(v T)\n\tf<[T]>([v])\n", "expande"},
 		{"generic required cycle", "tipo Caja<T>\n\tvalor T\ntipo A\n\tcaja Caja<A>\n", "ciclo de campos"},
-		{"generic invariance", "interfaz I\ntipo Caja<T>\n\tvalor T\nfn f(v Caja<I>) imprimir(v)\nfn inicio() f(Caja<num> {valor: 1})\n", "se esperaba Caja<I>"},
+		{"generic invariance", "interfaz I\ntipo Caja<T>\n\tvalor T\nfn f(v Caja<I>) imprimir(v)\nfn inicio() f(Caja<entero> {valor: 1})\n", "se esperaba Caja<I>"},
 		{"no parameter equality", "fn f<T>(a T, b T) bool a == b\n", "no acepta"},
 		{"method type parameters", "tipo A\n\tfn f<T>(v T) T v\n", "métodos no pueden"},
 		{"unused generic constraint", "interfaz I\n\tfn f()\ntipo Caja<T I>\n\tvalor T\nfn inutil<T>(v Caja<T>) imprimir(v)\n", "no satisface"},
-		{"too few explicit types", "fn f<T, U>(t T, u U) T t\nfn inicio() imprimir(f<num>(1, 2))\n", "requiere 2"},
+		{"too few explicit types", "fn f<T, U>(t T, u U) T t\nfn inicio() imprimir(f<entero>(1, 2))\n", "requiere 2"},
 		{"no type inference", "tipo Caja<T>\n\tvalor T\nfn inicio()\n\tvar c = Caja {valor: 1}\n", "requiere 1"},
-		{"nested required generic", "tipo Caja<T>\n\tvalor T\ntipo Externa<T>\n\tcaja Caja<T>\nfn inicio()\n\tvar c = Externa<num> {}\n", "caja.valor"},
-		{"wrapper invariant", "interfaz I\nfn f(v num?) I? v\n", "produce num?"},
-		{"argument names", "interfaz I\n\tfn f(n num)\ninterfaz J\n\tfn f(x num)\ninterfaz K\n\tI\n\tJ\n", "redeclaración"},
-		{"signature conflict", "interfaz I\n\tfn f(n num)\ninterfaz J\n\tfn f(n cadena)\ninterfaz K\n\tI\n\tJ\n", "incompatibles"},
-		{"missing interface argument", "interfaz I\n\tfn f(n num)\ntipo A\n\tfn f(n num = 1) imprimir(n)\nfn inicio()\n\tvar a I = A {}\n\ta.f()\n", "falta el parámetro"},
-		{"missing method", "interfaz I\n\tfn f() num\ntipo A\n\tn num\nfn inicio()\n\tvar i I = A {}\n", "se esperaba I"},
-		{"wrong return", "interfaz I\n\tfn f() num\ntipo A\n\tfn f() cadena \"a\"\nfn inicio()\n\tvar i I = A {}\n", "se esperaba I"},
-		{"interface defaults", "interfaz I\n\tfn f(n num = 1)\n", "no admite valores predeterminados"},
+		{"nested required generic", "tipo Caja<T>\n\tvalor T\ntipo Externa<T>\n\tcaja Caja<T>\nfn inicio()\n\tvar c = Externa<entero> {}\n", "caja.valor"},
+		{"wrapper invariant", "interfaz I\nfn f(v entero?) I? v\n", "produce entero?"},
+		{"argument names", "interfaz I\n\tfn f(n entero)\ninterfaz J\n\tfn f(x entero)\ninterfaz K\n\tI\n\tJ\n", "redeclaración"},
+		{"signature conflict", "interfaz I\n\tfn f(n entero)\ninterfaz J\n\tfn f(n cadena)\ninterfaz K\n\tI\n\tJ\n", "incompatibles"},
+		{"missing interface argument", "interfaz I\n\tfn f(n entero)\ntipo A\n\tfn f(n entero = 1) imprimir(n)\nfn inicio()\n\tvar a I = A {}\n\ta.f()\n", "falta el parámetro"},
+		{"missing method", "interfaz I\n\tfn f() entero\ntipo A\n\tn entero\nfn inicio()\n\tvar i I = A {}\n", "se esperaba I"},
+		{"wrong return", "interfaz I\n\tfn f() entero\ntipo A\n\tfn f() cadena \"a\"\nfn inicio()\n\tvar i I = A {}\n", "se esperaba I"},
+		{"interface defaults", "interfaz I\n\tfn f(n entero = 1)\n", "no admite valores predeterminados"},
 		{"composition cycle", "interfaz A\n\tB\ninterfaz B\n\tA\n", "ciclo"},
 		{"required interface", "interfaz I\ntipo A\n\ti I\nfn inicio()\n\tvar a = A {}\n", "inicialización explícita"},
-		{"required parameter", "tipo Caja<T>\n\tvalor T\nfn inicio()\n\tvar c = Caja<num> {}\n", "inicialización explícita"},
-		{"unused invalid body", "fn f<T>(v T) num v + 1\n", "no acepta"},
+		{"required parameter", "tipo Caja<T>\n\tvalor T\nfn inicio()\n\tvar c = Caja<entero> {}\n", "inicialización explícita"},
+		{"unused invalid body", "fn f<T>(v T) entero v + 1\n", "no acepta"},
 		{"constraint", "interfaz I\n\tfn f()\nfn consumir<T I>(v T)\n\tv.f()\nfn inicio() consumir(1)\n", "no satisface"},
 		{"inference conflict", "fn f<T>(a T, b T) T a\nfn inicio() imprimir(f(1, verdadero))\n", "incompatibles"},
-		{"no return inference", "fn f<T>() T? .Ninguno\nfn inicio()\n\tvar v num? = f()\n", "no se puede inferir"},
+		{"no return inference", "fn f<T>() T? .Ninguno\nfn inicio()\n\tvar v entero? = f()\n", "no se puede inferir"},
 		{"invariant list", "interfaz I\nfn f(v [I]) imprimir(v)\nfn inicio()\n\tvar ns = [1]\n\tf(ns)\n", "debe ser"},
 		{"interface equality", "interfaz I\nfn f(a I, b I) bool a == b\n", "no acepta"},
-		{"type match fallback", "interfaz I\nfn f(a I)\n\tcasos a\n\t\tnum => imprimir(1)\n", "rama '_'"},
-		{"duplicate pattern", "interfaz I\nfn f(a I)\n\tcasos a\n\t\tnum => imprimir(1)\n\t\tnum => imprimir(2)\n\t\t_ => imprimir(3)\n", "duplicado"},
-		{"impossible assertion", "interfaz I\n\tfn f()\nfn f(a I) num? a como num\n", "no puede implementar"},
+		{"type match fallback", "interfaz I\nfn f(a I)\n\tcasos a\n\t\tentero => imprimir(1)\n", "rama '_'"},
+		{"duplicate pattern", "interfaz I\nfn f(a I)\n\tcasos a\n\t\tentero => imprimir(1)\n\t\tentero => imprimir(2)\n\t\t_ => imprimir(3)\n", "duplicado"},
+		{"impossible assertion", "interfaz I\n\tfn f()\nfn f(a I) entero? a como entero\n", "no puede implementar"},
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
@@ -126,19 +126,19 @@ func TestGenericAndInterfaceErrors(t *testing.T) {
 func TestGenericInferenceDefaultsAndWrappers(t *testing.T) {
 	source := `interfaz Todo
 interfaz Primero
-	fn elegir(a num, b num) num
+	fn elegir(a entero, b entero) entero
 interfaz Segundo
-	fn elegir(x num, y num) num
+	fn elegir(x entero, y entero) entero
 interfaz Ambos
 	Primero
 	Segundo
-	fn elegir(izquierda num, derecha num) num
+	fn elegir(izquierda entero, derecha entero) entero
 tipo Contador
-	valor num
-	fn siguiente() num
+	valor entero
+	fn siguiente() entero
 		@valor = @valor + 1
 		@valor
-	fn elegir(x num, y num = 8) num x * 10 + y
+	fn elegir(x entero, y entero = 8) entero x * 10 + y
 tipo Caja<T>
 	valor T
 	lista [T]
@@ -153,34 +153,34 @@ fn ultimos<T>(primero T, resto ...T) [T] resto
 fn defecto<T>(a T, b T = a) T b
 fn copia<T>(c Caja<T>) T c.valor
 fn error<T>(v T) T! .Ok(v)
-fn envuelto(v num) Todo? v
-fn resultado(v num) Todo! v
+fn envuelto(v entero) Todo? v
+fn resultado(v entero) Todo! v
 fn obtener<T>(v Todo) T? v como T
-fn contar<T>(v Todo) num
+fn contar<T>(v Todo) entero
 	casos v
 		T => 1
-		num => 2
+		entero => 2
 		_ => 3
 fn inicio()
 	var c = Contador {}
 	var i Ambos = c
 	imprimir(i.elegir(derecha = c.siguiente(), izquierda = c.siguiente()))
 	imprimir(c.elegir(3))
-	var caja = Caja<num> {valor: 7}
+	var caja = Caja<entero> {valor: 7}
 	imprimir(caja.elegir())
 	imprimir(caja.elegir(9))
 	imprimir(copia(caja))
-	var anidada = Caja<Caja<num>> {valor: caja}
+	var anidada = Caja<Caja<entero>> {valor: caja}
 	imprimir(anidada.valor.valor)
-	var contextual Caja<num> = {valor: 4}
+	var contextual Caja<entero> = {valor: 4}
 	imprimir(contextual.valor)
-	var objeto Todo? = Caja<num> {valor: 1}
+	var objeto Todo? = Caja<entero> {valor: 1}
 	si objeto |v|
-		var caja_extraida = v como Caja<num>
+		var caja_extraida = v como Caja<entero>
 		si caja_extraida |p| imprimir(p.valor)
 	var lista Todo? = [2]
 	si lista |v|
-		var lista_extraida = v como [num]
+		var lista_extraida = v como [entero]
 		si lista_extraida |p| imprimir(p[0])
 	imprimir(defecto(b = 6, a = 2))
 	imprimir(defecto(5))
@@ -189,12 +189,12 @@ fn inicio()
 	imprimir(ultimos(resto = [6, 7], primero = 0)[1])
 	var presente = envuelto(8)
 	si presente |v|
-		var numero = v como num
+		var numero = v como entero
 		imprimir(numero o 0)
 	var r = resultado(9)
 	casos r |v|
 		.Ok =>
-			var numero = v como num
+			var numero = v como entero
 			imprimir(numero o 0)
 		.Error => imprimir(v)
 	var rr = error(10)
@@ -203,15 +203,15 @@ fn inicio()
 	casos e |v|
 		.Dato => imprimir(v)
 		.Nada => imprimir("nada")
-	var numero = obtener<num>(11)
+	var numero = obtener<entero>(11)
 	imprimir(numero o 0)
-	imprimir(contar<num>(12))
+	imprimir(contar<entero>(12))
 	imprimir(contar<cadena>(12))
 	var envoltorio Todo = presente
 	var extraido = envoltorio como Todo?
 	si extraido |interno|
 		si interno |v|
-			var n = v como num
+			var n = v como entero
 			imprimir(n o 0)
 `
 	runHacha(t, source, "21\n38\n7\n9\n7\n7\n4\n1\n2\n6\n5\n3\n4\n7\n8\n9\n10\nhola\n11\n1\n2\n8\n")
@@ -220,17 +220,17 @@ fn inicio()
 func TestInterfaceInspectionEvaluationAndControlFlow(t *testing.T) {
 	source := `interfaz Todo
 tipo Contador
-	n num
+	n entero
 	fn siguiente() Todo
 		@n = @n + 1
 		@n
 fn describir(c Contador) cadena
 	casos c.siguiente() |v|
-		num =>
+		entero =>
 			imprimir(v)
 			"numero"
 		_ => "otro"
-fn recuperar(c Contador) num
+fn recuperar(c Contador) entero
 	var n = c.siguiente() como cadena o retornar 99
 	0
 fn inicio()
@@ -243,7 +243,7 @@ fn inicio()
 	repetir (0..5) |n|
 		var v Todo = n
 		casos v |p|
-			num =>
+			entero =>
 				si p == 0 continuar
 				si p == 3 romper
 				total = total + p
@@ -255,11 +255,11 @@ fn inicio()
 
 func TestTypeParameterInspectionFromMethodInterface(t *testing.T) {
 	source := `interfaz I
-	fn numero() num
+	fn numero() entero
 tipo A
-	fn numero() num 1
+	fn numero() entero 1
 fn extraer<T>(v I) T? v como T
-fn comprobar<T>(v I) num
+fn comprobar<T>(v I) entero
 	casos v
 		T => 1
 		_ => 0
@@ -267,10 +267,10 @@ fn inicio()
 	var a I = A {}
 	var encontrado = extraer<A>(a)
 	si encontrado |v| imprimir(v.numero())
-	var ausente = extraer<num>(a)
+	var ausente = extraer<entero>(a)
 	imprimir(ausente o 2)
 	imprimir(comprobar<A>(a))
-	imprimir(comprobar<num>(a))
+	imprimir(comprobar<entero>(a))
 `
 	runHacha(t, source, "1\n2\n1\n0\n")
 }

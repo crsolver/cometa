@@ -1,0 +1,62 @@
+usar std/mate
+usar std/pincel/juego
+usar std/pincel/graficos
+usar std/pincel/color
+usar std/pincel/recursos
+
+var fuente = recursos.fuente("assets/dungeonmode/font/dungeon-mode.ttf")
+var glifos = recursos.imagen("assets/dungeonmode/bitmap/dungeon-437.png")
+
+const ascii_imprimible cadena = " !#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[]^_`abcdefghijklmnopqrstuvwxyz{|}~"
+const ancho_glifo entero = 8
+const alto_glifo entero = 8
+const columnas entero = 16
+
+
+fn iniciar() retornar
+fn region_glifo(codigo entero) mate.Rect
+	var columna = codigo % columnas
+	var fila = codigo / columnas
+	mate.Rect {
+		pos: {x: columna * ancho_glifo, y: fila * alto_glifo},
+		tamano: {x: ancho_glifo, y: alto_glifo}
+	}
+
+
+fn dibujar_glifo(codigo entero, x decimal, y decimal, escala decimal = 1, tinte color.Color = .Blanco)
+	graficos.region(
+		glifos, 
+		region_glifo(codigo), 
+		x, 
+		y, 
+		escala = {x: escala, y: escala},
+		tinte = tinte
+	)
+
+
+fn codigo_de_caracter(caracter cadena) entero
+	var indice = ascii_imprimible.buscar_indice(caracter) o 0
+	var codigo = indice + 32
+	si (codigo >= 34) codigo = codigo + 1  // hueco: falta "
+	si (codigo >= 92) codigo = codigo + 1  // hueco: falta \
+	codigo
+
+
+fn texto_bitmap(texto cadena, x decimal, y decimal, escala decimal = 1)
+	repetir (0..texto.longitud()) |i|
+		var caracter = texto.obtener(i) o " "
+		var codigo = codigo_de_caracter(caracter)
+		dibujar_glifo(codigo, x + i * ancho_glifo * escala, y, escala)
+
+tipo Partida
+	fn actualizar(dt decimal) retornar
+
+	fn pintar()
+		texto_bitmap("el calabozo", x=10, y=10)
+		//dibujar_glifo(2, x=10, y=10)
+		//dibujar_glifo(3, x=20, y=10)
+
+fn inicio()
+	iniciar()
+	juego.ejecutar(Partida {}, 180, 180, titulo = "Hacha: recoge el objetivo", escala = 4) capturar |error|
+		imprimir(error)

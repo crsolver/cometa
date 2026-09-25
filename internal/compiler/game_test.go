@@ -2,10 +2,7 @@ package compiler
 
 import (
 	"bytes"
-	"hacha/internal/gameapi"
-	"hacha/internal/lexer"
-	"hacha/internal/parser"
-	"hacha/internal/sema"
+	"hacha/internal/stdlib"
 	"image"
 	"image/png"
 	"os"
@@ -14,30 +11,35 @@ import (
 	"testing"
 )
 
-const minimalGame = "fn actualizar(dt num)\n\timprimir(dt)\nfn pintar()\n\tgraficos.rectangulo_v(Vec2 {}, Vec2 {x: 10, y: 10}, .Rojo)\n"
+const pincelImports = "usar std/mate\nusar std/azar\nusar std/pincel/juego\nusar std/pincel/graficos\nusar std/pincel/color\nusar std/pincel/entrada\nusar std/pincel/audio\nusar std/pincel/ventana\nusar std/pincel/tiempo\nusar std/pincel/recursos\n"
+
+const minimalGame = "fn actualizar(dt decimal)\n\timprimir(dt)\nfn pintar()\n\tgraficos.rectangulo_v(mate.Vec2 {}, mate.Vec2 {x: 10, y: 10}, .Rojo)\n"
 
 func TestGameGeneration(t *testing.T) {
 	source := `tipo Jugador
-	pos Vec2
-	vel Vec2
+	pos mate.Vec2
+	vel mate.Vec2
 var jugador = Jugador {}
-fn iniciar()
-	juego.configuracion(320, 240, titulo = "Prueba", escala = 2)
-fn actualizar(dt num)
+fn actualizar(dt decimal)
 	jugador.pos = jugador.pos + jugador.vel * dt
 	jugador.pos.x = 7
 fn pintar()
 	graficos.rectangulo_v(
 		jugador.pos,
-		Vec2 {x: 10, y: 10},
+		mate.Vec2 {x: 10, y: 10},
 		.Rojo
 	)
+tipo Partida
+	fn actualizar(dt decimal) actualizar(dt)
+	fn pintar() pintar()
+fn inicio()
+	juego.ejecutar(Partida {}, 320, 240, titulo = "Prueba", escala = 2) capturar |e| imprimir(e)
 `
-	got, err := Compile("game.hacha", []byte(source))
+	got, err := Compile("game.hacha", []byte(pincelImports+source))
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"func main()", "ebiten.RunGame", "func (*_hgGame) Update() error", "_hgscale(", "Pos _hgVec2", "_hgrectangulo("} {
+	for _, want := range []string{"func main()", "ebiten.RunGame", "func (g *_hgGame) Update() error", "_hgscale(", "Pos _hgVec2", "_hgrectangulo("} {
 		if !strings.Contains(string(got), want) {
 			t.Errorf("missing %q", want)
 		}
@@ -68,20 +70,15 @@ func TestGameGolden(t *testing.T) {
 
 func TestGameErrors(t *testing.T) {
 	for _, tt := range []struct{ name, source, want string }{
-		{"missing paint", "fn actualizar(dt num) imprimir(dt)\n", "requiere fn pintar"},
-		{"bad update", "fn actualizar(dt cadena) imprimir(dt)\nfn pintar() imprimir(0)\n", "firma inválida"},
-		{"old entry", minimalGame + "fn inicio() imprimir(0)\n", "no puede declarar inicio"},
-		{"draw helper", "fn dibujar() graficos.circulo_v(Vec2 {}, 2, .Azul)\nfn actualizar(dt num) dibujar()\nfn pintar() dibujar()\n", "solo se permite desde pintar"},
-		{"draw default", "fn dibujar() num\n\tgraficos.limpiar(.Negro)\n\t1\nfn f(x num = dibujar()) imprimir(x)\nfn actualizar(dt num) f()\nfn pintar() imprimir(0)\n", "solo se permite desde pintar"},
-		{"resource local", "fn actualizar(dt num)\n\tvar img = recursos.imagen(\"foo.png\")\nfn pintar() imprimir(0)\n", "inicializador global directo"},
+		{"resource local", "fn actualizar(dt decimal)\n\tvar img = recursos.imagen(\"foo.png\")\nfn pintar() imprimir(0)\n", "inicializador global directo"},
 		{"resource expression", "var p = \"foo.png\"\nvar img = recursos.imagen(p)\n" + minimalGame, "cadena literal"},
-		{"opaque literal", "var img = Imagen {}\n" + minimalGame, "opaco"},
-		{"missing resource field", "tipo T\n\timg Imagen\nvar t = T {}\n" + minimalGame, "requiere inicialización"},
-		{"bad vector operator", "fn actualizar(dt num)\n\tvar x = Vec2 {} * Vec2 {}\nfn pintar() imprimir(0)\n", "operador"},
-		{"bad color", "fn actualizar(dt num) imprimir(dt)\nfn pintar() graficos.limpiar(.Violeta)\n", "constante inválida"},
+		{"opaque literal", "var img = graficos.Imagen {}\n" + minimalGame, "opaco"},
+		{"missing resource field", "tipo T\n\timg graficos.Imagen\nvar t = T {}\n" + minimalGame, "requiere inicialización"},
+		{"bad vector operator", "fn actualizar(dt decimal)\n\tvar x = mate.Vec2 {} * mate.Vec2 {}\nfn pintar() imprimir(0)\n", "operador"},
+		{"bad color", "fn actualizar(dt decimal) imprimir(dt)\nfn pintar() graficos.limpiar(.ColorInexistente)\n", "constante inválida"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := Compile("game.hacha", []byte(tt.source))
+			_, err := Compile("game.hacha", []byte(pincelImports+tt.source))
 			if err == nil || !strings.Contains(err.Error(), tt.want) {
 				t.Fatalf("want %q; got %v", tt.want, err)
 			}
@@ -90,9 +87,10 @@ func TestGameErrors(t *testing.T) {
 }
 
 func TestAllGameSignatures(t *testing.T) {
+	const imports = "usar std/mate/curvas\nusar std/mate/ruido\nusar std/pincel/retro\n" + pincelImports
 	var all strings.Builder
 	// Signature defaults are parsed and checked by the same checker as user calls.
-	for _, f := range gameapi.Functions {
+	for _, f := range stdlib.Functions {
 		d := f.Declaration()
 		var args []string
 		for _, p := range d.Params {
@@ -100,7 +98,7 @@ func TestAllGameSignatures(t *testing.T) {
 				continue
 			}
 			switch p.Type.Name {
-			case "num":
+			case "decimal":
 				args = append(args, "1")
 			case "cadena":
 				args = append(args, `"x"`)
@@ -115,8 +113,8 @@ func TestAllGameSignatures(t *testing.T) {
 		}
 		var params []string
 		for _, p := range d.Params {
-			if p.Default == nil && p.Type.Name != "num" && p.Type.Name != "cadena" && p.Type.Name != "bool" {
-				params = append(params, "arg_"+p.Name+" "+p.Type.Name)
+			if p.Default == nil && p.Type.Name != "decimal" && p.Type.Name != "cadena" && p.Type.Name != "bool" {
+				params = append(params, "arg_"+p.Name+" "+publicLibraryType(p.Type.Name))
 				for i, a := range args {
 					if a == p.Name {
 						args[i] = "arg_" + a
@@ -127,20 +125,12 @@ func TestAllGameSignatures(t *testing.T) {
 		source := "fn helper(" + strings.Join(params, ",") + ")\n\t" + f.Namespace + "." + f.Name + "(" + strings.Join(args, ",") + ")\n" + minimalGame
 		all.WriteString(strings.Replace(strings.TrimSuffix(source, minimalGame), "fn helper(", "fn "+f.Namespace+"_"+f.Name+"(", 1))
 		t.Run(f.Namespace+"."+f.Name, func(t *testing.T) {
-			tokens, e := lexer.Lex("game.hacha", source)
-			if e != nil {
-				t.Fatal(e)
-			}
-			p, e := parser.Parse("game.hacha", tokens)
-			if e != nil {
-				t.Fatal(e)
-			}
-			if _, e = sema.Check("game.hacha", p); e != nil {
+			if _, _, e := Analyze("game.hacha", []byte(imports+source)); e != nil {
 				t.Fatal(e)
 			}
 		})
 	}
-	generated, err := Compile("game.hacha", []byte(all.String()+minimalGame))
+	generated, err := Compile("game.hacha", []byte(imports+all.String()+minimalGame))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -161,11 +151,11 @@ func TestEmbeddedImageAndModulePaths(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(sub, "sprite.png"), data.Bytes(), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(sub, "model.hacha"), []byte("var sprite = recursos.imagen(\"sprite.png\")\n"), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(sub, "model.hacha"), []byte("usar std/pincel/recursos\nvar sprite = recursos.imagen(\"sprite.png\")\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	entry := filepath.Join(dir, "game.hacha")
-	if err := os.WriteFile(entry, []byte("usar assets/model\n"+minimalGame), 0600); err != nil {
+	if err := os.WriteFile(entry, []byte(pincelImports+"usar assets/model\n"+minimalGame), 0600); err != nil {
 		t.Fatal(err)
 	}
 	got, err := CompileProject(entry, nil)
@@ -189,15 +179,15 @@ func TestEmbeddedImageAndModulePaths(t *testing.T) {
 
 func TestGameVectorValuesAndDefaultsRuntime(t *testing.T) {
 	source := `tipo Jugador
-	pos Vec2
+	pos mate.Vec2
 var jugador = Jugador {}
-var orden num = 0
+var orden entero = 0
 const pi = mate.pi
-fn siguiente() num
+fn siguiente() entero
 	orden = orden + 1
 	orden
 fn iniciar()
-	var a = Vec2 {x: 2, y: 3}
+	var a = mate.Vec2 {x: 2, y: 3}
 	var b = a
 	b.x = 9
 	imprimir(a.x)
@@ -206,21 +196,25 @@ fn iniciar()
 	imprimir(c.x)
 	jugador.pos.x = 12
 	imprimir(jugador.pos.x)
-	var normal = Vec2 {}.normalizado()
+	var normal = mate.Vec2 {}.normalizado()
 	imprimir(normal.x)
-	juego.configuracion(alto = siguiente(), ancho = siguiente())
-	imprimir(graficos.tamano().x)
-	imprimir(graficos.tamano().y)
-	var cam = Camara2D {}
+	var cam = graficos.Camara2D {}
 	imprimir(cam.zoom)
-fn actualizar(dt num) imprimir(dt)
+fn actualizar(dt decimal) imprimir(dt)
 fn pintar() imprimir(0)
 `
-	generated, err := Compile("game.hacha", []byte(source))
+	generated, err := Compile("game.hacha", []byte(pincelImports+source))
 	if err != nil {
 		t.Fatal(err)
 	}
 	// Exercise generated game code without starting a window or event loop.
-	runnable := strings.Replace(string(generated), "func main() {", "func _hgUnusedMain() {", 1) + "\nfunc main() { _hgstarting = true; Iniciar() }\n"
-	runGeneratedGo(t, []byte(runnable), "2\n9\n3\n12\n0\n2\n1\n1\n")
+	runnable := strings.Replace(string(generated), "func main() {", "func _hgUnusedMain() {", 1) + "\nfunc main() { Iniciar() }\n"
+	runGeneratedGo(t, []byte(runnable), "2\n9\n3\n12\n0\n1\n")
+}
+
+func publicLibraryType(name string) string {
+	if owner := stdlib.TypeModules[stdlib.PublicName(name)]; owner != "" {
+		return owner + "." + stdlib.PublicName(name)
+	}
+	return name
 }

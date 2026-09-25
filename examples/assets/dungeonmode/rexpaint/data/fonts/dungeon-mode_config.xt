@@ -1,0 +1,3 @@
+// Paste lines below at the end of your own _config.xt file:
+"dungeon-mode 8x8"	dungeon-437		16  16  dungeon-mode	16	16	_utf8	_mirror 1	//  400x300
+"dungeon-mode 8x8 x2"	["dungeon-mode 8x8"*2]

@@ -9,7 +9,7 @@ import (
 func TestGenericSyntaxAndComparisonDisambiguation(t *testing.T) {
 	source := `interfaz I<T>
 	fn obtener() T
-tipo Caja<T I<num>>
+tipo Caja<T I<entero>>
 	valor T
 enum E<T>
 	Dato T
@@ -17,13 +17,13 @@ fn f<T>(v T) T v
 fn inicio()
 	var a = 1 < 2
 	var b = 3 > 2
-	var c = f<Caja<Caja<num>>>(x)
-	var d = Caja<num> {valor: 1}
-	var e = E<num>.Dato(1)
-	var z = v como Caja<num> o d
+	var c = f<Caja<Caja<entero>>>(x)
+	var d = Caja<entero> {valor: 1}
+	var e = E<entero>.Dato(1)
+	var z = v como Caja<entero> o d
 	casos v |p|
-		Caja<num> => imprimir(p)
-		[num] => imprimir(p)
+		Caja<entero> => imprimir(p)
+		[entero] => imprimir(p)
 		_ => imprimir(0)
 `
 	tokens, err := lexer.Lex("generic.hacha", source)
@@ -46,7 +46,7 @@ fn inicio()
 		t.Fatalf("bad nested type arguments: %#v", call)
 	}
 	literal := body[3].(*ast.VarDeclStmt).Value.(*ast.StructLiteralExpr)
-	if literal.Type == nil || literal.Type.Args[0].Name != "num" {
+	if literal.Type == nil || literal.Type.Args[0].Name != "entero" {
 		t.Fatalf("bad literal type: %#v", literal)
 	}
 	match := body[6].(*ast.MatchStmt).Match

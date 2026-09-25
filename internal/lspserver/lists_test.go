@@ -13,7 +13,7 @@ func TestListMethodCompletionForVariablesFieldsAndIndexes(t *testing.T) {
 		name, source    string
 		line, character int
 	}{
-		{"field", "tipo Caja\n\tvalores [num]\nfn inicio()\n\tvar c = Caja {valores: [1]}\n\tc.valores.\n", 4, 11},
+		{"field", "tipo Caja\n\tvalores [entero]\nfn inicio()\n\tvar c = Caja {valores: [1]}\n\tc.valores.\n", 4, 11},
 		{"index", "fn inicio()\n\tvar matrices = [[1]]\n\tmatrices[0].\n", 2, 13},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -60,7 +60,7 @@ func TestListMethodHoverShowsConcreteSignatureAndMutation(t *testing.T) {
 		t.Fatal("hover is nil")
 	}
 	value := hover.Contents.Value()
-	if !strings.Contains(value, "fn agregar(valor num)") || !strings.Contains(value, "actualiza esta variable de lista") {
+	if !strings.Contains(value, "fn agregar(valor entero)") || !strings.Contains(value, "actualiza esta variable de lista") {
 		t.Fatalf("unexpected hover: %q", value)
 	}
 }

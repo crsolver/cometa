@@ -65,6 +65,8 @@ func (g *generator) emitMatch(m *ast.MatchExpr, indent int, returnValue bool) {
 func needsLoopLabel(body []ast.Stmt, inMatch bool) bool {
 	for _, stmt := range body {
 		switch s := stmt.(type) {
+		case *ast.ScopeStmt:
+			if needsLoopLabel(s.Body, inMatch) { return true }
 		case *ast.BreakStmt:
 			if inMatch {
 				return true

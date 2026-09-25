@@ -12,9 +12,21 @@ type Node interface {
 }
 
 type Program struct {
-	Imports []*ImportDecl
-	Decls   []Decl
+	NativeModules []string // Explicit bundled imports, collected across the project.
+	// InvalidNames preserves declarations whose syntax could not be recovered.
+	InvalidNames map[string]Pos
+	Imports      []*ImportDecl
+	Decls        []Decl
 }
+
+// BadStmt marks a damaged source region; it must never reach code generation.
+type BadStmt struct {
+	Pos  Pos
+	Name string
+}
+
+func (*BadStmt) stmtNode()       {}
+func (s *BadStmt) Position() Pos { return s.Pos }
 
 type ImportDecl struct {
 	Pos      Pos
@@ -53,6 +65,7 @@ func (*MatchExpr) exprNode()       {}
 func (e *MatchExpr) Position() Pos { return e.Pos }
 
 type MatchArm struct {
+	Invalid       bool
 	TypePattern   *TypeRef
 	QualifierType *TypeRef
 	Pos           Pos
@@ -218,6 +231,14 @@ func (*RepeatStmt) stmtNode()       {}
 func (s *RepeatStmt) Position() Pos { return s.Pos }
 
 type ContinueStmt struct{ Pos Pos }
+
+type ScopeStmt struct {
+	Pos Pos
+	Value Expr
+	Body []Stmt
+}
+func (*ScopeStmt) stmtNode() {}
+func (s *ScopeStmt) Position() Pos { return s.Pos }
 
 func (*ContinueStmt) stmtNode()       {}
 func (s *ContinueStmt) Position() Pos { return s.Pos }

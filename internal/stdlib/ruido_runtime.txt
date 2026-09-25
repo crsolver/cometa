@@ -1,0 +1,50 @@
+// Stateless value noise. Integer mixing deliberately wraps modulo 2^64.
+func _hgRuidoMezclar(v uint64) uint64 {
+	v = (v ^ (v >> 30)) * 0xbf58476d1ce4e5b9
+	v = (v ^ (v >> 27)) * 0x94d049bb133111eb
+	return v ^ (v >> 31)
+}
+
+func _hgRuidoEsquina(x, y, semilla int64) float64 {
+	h := _hgRuidoMezclar(uint64(semilla) + 0x9e3779b97f4a7c15)
+	h = _hgRuidoMezclar(h ^ _hgRuidoMezclar(uint64(x) + 0x632be59bd9b4e019))
+	h = _hgRuidoMezclar(h ^ _hgRuidoMezclar(uint64(y) + 0x8cb92baa3f3d8dd7))
+	return float64(h >> 11) / 9007199254740991.0
+}
+
+func _hgRuidoValidar(x, y float64) {
+	const limite = 4503599627370496.0
+	if !(x > -limite && x < limite && y > -limite && y < limite) {
+		panic("ruido: coordenadas finitas requeridas en (-2^52, 2^52), incluso en cada octava")
+	}
+}
+
+func _hgRuidoCurva(t float64) float64 { return t*t*t*(t*(t*6-15)+10) }
+func _hgRuidoLimitar(v float64) float64 { return math.Max(0, math.Min(1, v)) }
+
+func _hgruidoSuave(x, y float64, semilla int64) float64 {
+	_hgRuidoValidar(x, y)
+	fx, fy := math.Floor(x), math.Floor(y)
+	ix, iy := int64(fx), int64(fy)
+	u, v := _hgRuidoCurva(x-fx), _hgRuidoCurva(y-fy)
+	a, b := _hgRuidoEsquina(ix, iy, semilla), _hgRuidoEsquina(ix+1, iy, semilla)
+	c, d := _hgRuidoEsquina(ix, iy+1, semilla), _hgRuidoEsquina(ix+1, iy+1, semilla)
+	ab, cd := a+(b-a)*u, c+(d-c)*u
+	return _hgRuidoLimitar(ab+(cd-ab)*v)
+}
+
+func _hgruidoFractal(x, y float64, semilla, octavas int64, persistencia, lacunaridad float64) float64 {
+	if octavas < 1 || octavas > 16 { panic("ruido: octavas debe estar entre 1 y 16") }
+	if !(persistencia >= 0 && persistencia <= 1) { panic("ruido: persistencia debe estar en [0, 1]") }
+	if !(lacunaridad >= 1) || math.IsInf(lacunaridad, 0) { panic("ruido: lacunaridad debe ser finita y mayor o igual a 1") }
+	suma, peso, amplitud := 0.0, 0.0, 1.0
+	for i := int64(0); i < octavas; i++ {
+		// Octave zero shares the base seed; subsequent octaves use distinct mixed seeds.
+		s := semilla
+		if i > 0 { s = int64(_hgRuidoMezclar(uint64(semilla) + uint64(i)*0x9e3779b97f4a7c15)) }
+		suma += _hgruidoSuave(x, y, s) * amplitud
+		peso += amplitud
+		if i+1 < octavas { x *= lacunaridad; y *= lacunaridad; amplitud *= persistencia }
+	}
+	return _hgRuidoLimitar(suma / peso)
+}

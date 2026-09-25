@@ -26,24 +26,33 @@ func (p *parser) parseEnumDecl() (*ast.EnumDecl, error) {
 		if p.match(token.Newline) {
 			continue
 		}
-		variant, err := p.expect(token.Ident, "se esperaba el nombre de una variante")
-		if err != nil {
-			return nil, err
-		}
-		v := &ast.VariantDecl{Pos: variant.Pos, Name: variant.Lexeme}
-		if !p.at(token.Newline) {
-			payload, err := p.parseTypeRef()
+		start := p.index
+		err := func() error {
+			variant, err := p.expect(token.Ident, "se esperaba el nombre de una variante")
 			if err != nil {
-				return nil, err
+				return err
 			}
-			v.Payload = &payload
+			v := &ast.VariantDecl{Pos: variant.Pos, Name: variant.Lexeme}
+			if !p.at(token.Newline) {
+				payload, err := p.parseTypeRef()
+				if err != nil {
+					return err
+				}
+				v.Payload = &payload
+			}
+			if _, err = p.expect(token.Newline, "se esperaba el final de la variante"); err != nil {
+				return err
+			}
+			decl.Variants = append(decl.Variants, v)
+			return nil
+		}()
+		if err != nil {
+			p.report(start, err)
+			p.invalidNames[decl.Name] = decl.Pos
+			p.synchronize(start, false)
 		}
-		if _, err = p.expect(token.Newline, "se esperaba el final de la variante"); err != nil {
-			return nil, err
-		}
-		decl.Variants = append(decl.Variants, v)
 	}
-	if len(decl.Variants) == 0 {
+	if len(decl.Variants) == 0 && p.invalidNames[decl.Name].Line == 0 {
 		return nil, p.error(p.current(), "un enum requiere variantes")
 	}
 	_, err = p.expect(token.Dedent, "se esperaba el final del enum")
@@ -77,47 +86,56 @@ func (p *parser) parseMatch() (*ast.MatchExpr, error) {
 		if p.match(token.Newline) {
 			continue
 		}
-		arm := &ast.MatchArm{Pos: p.current().Pos}
-		if p.match(token.Dot) {
-			pattern, err := p.expect(token.Ident, "se esperaba una variante")
-			if err != nil {
-				return nil, err
-			}
-			if pattern.Lexeme == "_" {
-				return nil, p.error(pattern, "el comodín debe escribirse '_'")
-			}
-			arm.Pattern, arm.NamePos = pattern.Lexeme, pattern.Pos
-		} else if p.at(token.Ident) && p.current().Lexeme == "_" {
-			pattern := p.advance()
-			arm.Pattern, arm.NamePos = "_", pattern.Pos
-		} else {
-			ref, err := p.parseTypeRef()
-			if err != nil {
-				return nil, err
-			}
+		start := p.index
+		err := func() error {
+			arm := &ast.MatchArm{Pos: p.current().Pos}
 			if p.match(token.Dot) {
-				arm.Qualifier, arm.QualifierPos, arm.QualifierType = ref.Name, ref.Pos, &ref
-				pattern, err := p.expect(token.Ident, "se esperaba una variante después de '.'")
+				pattern, err := p.expect(token.Ident, "se esperaba una variante")
 				if err != nil {
-					return nil, err
+					return err
 				}
 				if pattern.Lexeme == "_" {
-					return nil, p.error(pattern, "el comodín debe escribirse '_'")
+					return p.error(pattern, "el comodín debe escribirse '_'")
 				}
 				arm.Pattern, arm.NamePos = pattern.Lexeme, pattern.Pos
+			} else if p.at(token.Ident) && p.current().Lexeme == "_" {
+				pattern := p.advance()
+				arm.Pattern, arm.NamePos = "_", pattern.Pos
 			} else {
-				arm.TypePattern, arm.NamePos = &ref, ref.Pos
+				ref, err := p.parseTypeRef()
+				if err != nil {
+					return err
+				}
+				if p.match(token.Dot) {
+					arm.Qualifier, arm.QualifierPos, arm.QualifierType = ref.Name, ref.Pos, &ref
+					pattern, err := p.expect(token.Ident, "se esperaba una variante después de '.'")
+					if err != nil {
+						return err
+					}
+					if pattern.Lexeme == "_" {
+						return p.error(pattern, "el comodín debe escribirse '_'")
+					}
+					arm.Pattern, arm.NamePos = pattern.Lexeme, pattern.Pos
+				} else {
+					arm.TypePattern, arm.NamePos = &ref, ref.Pos
+				}
 			}
-		}
-		if _, err = p.expect(token.Arrow, "se esperaba '=>' después del patrón"); err != nil {
-			return nil, err
-		}
-		body, err := p.parseSuite()
+			if _, err = p.expect(token.Arrow, "se esperaba '=>' después del patrón"); err != nil {
+				return err
+			}
+			body, err := p.parseSuite()
+			if err != nil {
+				return err
+			}
+			arm.Body = body
+			m.Arms = append(m.Arms, arm)
+			return nil
+		}()
 		if err != nil {
-			return nil, err
+			p.report(start, err)
+			m.Arms = append(m.Arms, &ast.MatchArm{Pos: p.tokens[start].Pos, Invalid: true})
+			p.synchronize(start, false)
 		}
-		arm.Body = body
-		m.Arms = append(m.Arms, arm)
 	}
 	if len(m.Arms) == 0 {
 		return nil, p.error(p.current(), "casos requiere al menos una rama")

@@ -4,7 +4,7 @@ import "fmt"
 
 type Usuario struct {
 	Nombre   string
-	Edad     float64
+	Edad     int64
 	Activo   bool
 	Referido struct {
 		tag      int
@@ -13,7 +13,7 @@ type Usuario struct {
 	Amigos []*Usuario
 }
 
-func (_self *Usuario) Sumar(a float64, b float64) float64 {
+func (_self *Usuario) Sumar(a int64, b int64) int64 {
 	return (a + b)
 }
 
@@ -33,7 +33,7 @@ func (_self *Usuario) Activar(activar bool) {
 	}()
 }
 
-func (_self *Usuario) Devolver(numero float64) float64 {
+func (_self *Usuario) Devolver(numero int64) int64 {
 	if _self.Edad < 10 {
 		return numero
 	} else if _self.Edad != 4 {
@@ -59,7 +59,7 @@ func main() {
 	usuario1 := &Usuario{}
 	usuario2 := &Usuario{}
 	lista := []*Usuario{usuario1, usuario2}
-	_ = lista[int(4)]
+	_ = lista[4]
 	Procesar_lista(lista)
-	Procesar_usuario(lista[int(0)])
+	Procesar_usuario(lista[0])
 }

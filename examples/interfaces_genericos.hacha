@@ -6,7 +6,7 @@ interfaz Describible
 interfaz Cualquiera
 
 tipo Dato
-	id num
+	id entero
 
 tipo Usuario
 	nombre cadena
@@ -46,7 +46,7 @@ fn inicio()
 	repetir (valores) |valor|
 		casos valor |dato|
 			Describible => imprimir(dato.describir())
-			num => imprimir(dato)
+			entero => imprimir(dato)
 			_ => imprimir("otro valor")
 
 	var valor Cualquiera = usuario

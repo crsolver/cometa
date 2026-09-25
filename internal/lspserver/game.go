@@ -3,41 +3,18 @@ package lspserver
 import (
 	"github.com/owenrumney/go-lsp/lsp"
 	"hacha/internal/ast"
-	"hacha/internal/gameapi"
 	"hacha/internal/sema"
+	"hacha/internal/stdlib"
 	"sort"
 	"strings"
 )
 
 func gameNamespaceCompletion(prefix string) *lsp.CompletionList {
-	if !completionCodePosition(prefix) {
-		return nil
-	}
-	dot := strings.LastIndex(prefix, ".")
-	if dot < 0 {
-		return nil
-	}
-	start := memberReceiverStart(prefix, dot)
-	name := prefix[start:dot]
-	if !gameapi.IsNamespace(name) {
-		return nil
-	}
-	list := &lsp.CompletionList{}
-	kind := lsp.CompletionItemKindFunction
-	for _, f := range gameapi.Functions {
-		if f.Namespace == name {
-			list.Items = append(list.Items, lsp.CompletionItem{Label: f.Name, Kind: &kind, Detail: "fn " + f.Namespace + "." + f.Name + "(" + f.Signature})
-		}
-	}
-	if name == "mate" {
-		k := lsp.CompletionItemKindConstant
-		list.Items = append(list.Items, lsp.CompletionItem{Label: "pi", Kind: &k, Detail: "const pi num"})
-	}
-	return list
+	return nil // Native namespaces are offered through imported modules only.
 }
 
 func gameConstantCompletion(t sema.Type) *lsp.CompletionList {
-	constants := gameapi.Constants[t.Name]
+	constants := stdlib.Constants[t.Name]
 	if constants == nil {
 		return nil
 	}
@@ -69,29 +46,23 @@ func gameTopCompletion(prefix string) *lsp.CompletionList {
 			seen[name] = true
 		}
 	}
-	for name := range gameapi.Fields {
-		add(name, "tipo incorporado "+name, lsp.CompletionItemKindStruct)
+
+	for _, name := range []string{"entero", "decimal"} {
+		add(name, "tipo numérico incorporado "+name, lsp.CompletionItemKindKeyword)
 	}
-	for _, f := range gameapi.Functions {
-		add(f.Namespace, "API de juego "+f.Namespace, lsp.CompletionItemKindModule)
-	}
-	for _, sig := range []string{"actualizar(dt num)", "pintar()", "iniciar()"} {
-		name := strings.Split(sig, "(")[0]
-		add(name, "fn "+sig, lsp.CompletionItemKindFunction)
-	}
+
 	sort.Slice(list.Items, func(i, j int) bool { return list.Items[i].Label < list.Items[j].Label })
 	return list
 }
 
 func gameHover(program *ast.Program, model *sema.Model, pos ast.Pos) (hoverInfo, bool) {
 	for call, f := range model.Game.Calls {
-		m := call.Callee.(*ast.MemberExpr)
-		id := m.Object.(*ast.IdentExpr)
-		if m.NamePos == pos {
-			return hoverInfo{detail: "fn " + f.Namespace + "." + f.Name + "(" + f.Signature, documentation: "API incorporada de Hacha / Ebitengine."}, true
-		}
-		if id.Pos == pos {
-			return hoverInfo{detail: "API de juego " + f.Namespace}, true
+		if calleePosition(call.Callee) == pos {
+			signature := f.Signature
+			if strings.HasSuffix(f.GoName, "Entero") && f.Namespace == "mate" {
+				signature = strings.ReplaceAll(signature, "decimal", "entero")
+			}
+			return hoverInfo{detail: "fn " + f.Namespace + "." + f.Name + "(" + signature, documentation: "Biblioteca estándar de Hacha."}, true
 		}
 	}
 	for expr := range model.Game.Constants {
@@ -102,16 +73,16 @@ func gameHover(program *ast.Program, model *sema.Model, pos ast.Pos) (hoverInfo,
 			}
 		case *ast.MemberExpr:
 			if e.NamePos == pos {
-				return hoverInfo{detail: "const mate.pi num"}, true
+				return hoverInfo{detail: "const mate.pi decimal"}, true
 			}
 		}
 	}
 	var name string
 	sema.WalkSyntax(program, func(n any) {
-		if t, ok := n.(*ast.TypeRef); ok && t.Pos == pos && gameapi.IsType(t.Name) {
+		if t, ok := n.(*ast.TypeRef); ok && t.Pos == pos && stdlib.IsType(t.Name) {
 			name = t.Name
 		}
-		if lit, ok := n.(*ast.StructLiteralExpr); ok && lit.Pos == pos && gameapi.IsType(lit.TypeName) {
+		if lit, ok := n.(*ast.StructLiteralExpr); ok && lit.Pos == pos && stdlib.IsType(lit.TypeName) {
 			name = lit.TypeName
 		}
 	})

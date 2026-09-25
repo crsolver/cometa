@@ -10,8 +10,8 @@ func TestGameDrawingVariantsRuntime(t *testing.T) {
 	if testing.Short() {
 		t.Skip("desktop rendering")
 	}
-	game := "var orden num = 0\nfn siguiente() num\n\torden = orden + 1\n\torden\nfn actualizar(dt num) imprimir(dt)\nfn pintar()\n\tgraficos.rectangulo(color = .Rojo, alto = siguiente(), ancho = siguiente(), y = siguiente(), x = siguiente(), rotacion = 0)\n"
-	generated, err := Compile("game.hacha", []byte(game))
+	game := "var orden decimal = 0\nfn siguiente() decimal\n\torden = orden + 1\n\torden\nfn actualizar(dt decimal) imprimir(dt)\nfn pintar()\n\tgraficos.rectangulo(color = .Rojo, alto = siguiente(), ancho = siguiente(), y = siguiente(), x = siguiente(), rotacion = 0)\n"
+	generated, err := Compile("game.hacha", []byte(pincelImports+game))
 	if err != nil {
 		t.Fatal(err)
 	}

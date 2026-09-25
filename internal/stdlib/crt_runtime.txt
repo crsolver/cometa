@@ -1,0 +1,39 @@
+// CRT is a presentation-only wrapper; the game's logical screen is unchanged.
+type _hgCRTGame struct { ebiten.Game; shader *ebiten.Shader }
+
+func (g *_hgCRTGame) DrawFinalScreen(screen ebiten.FinalScreen, offscreen *ebiten.Image, geoM ebiten.GeoM) {
+ op:=&ebiten.DrawRectShaderOptions{}
+ op.Images[0]=offscreen
+ op.GeoM=geoM
+ op.Uniforms=map[string]any{"Scale":float32(math.Abs(geoM.Element(0,0)))}
+ size:=offscreen.Bounds().Size()
+ screen.DrawRectShader(size.X,size.Y,g.shader,op)
+}
+
+const _hgCRTSource = `//kage:unit pixels
+package main
+
+var Scale float
+
+func Fragment(dst vec4, src vec2, color vec4) vec4 {
+ origin := imageSrc0Origin()
+ size := imageSrc0Size()
+ local := src - origin
+ // Sampling at texel centers preserves the pixelated source at every scale.
+ c := imageSrc0At(origin + floor(local) + vec2(0.5))
+ detail := clamp((Scale - 1.0) / 2.0, 0.0, 1.0)
+ scan := 1.0 - 0.12 * detail * (0.5 + 0.5 * cos(local.y * 6.2831853))
+ mask := vec3(1.0)
+ column := mod(floor(dst.x), 3.0)
+ if column < 1.0 {
+  mask = vec3(1.0, 1.0-0.04*detail, 1.0-0.04*detail)
+ } else if column < 2.0 {
+  mask = vec3(1.0-0.04*detail, 1.0, 1.0-0.04*detail)
+ } else {
+  mask = vec3(1.0-0.04*detail, 1.0-0.04*detail, 1.0)
+ }
+ p := local / size * 2.0 - 1.0
+ vignette := 1.0 - 0.05 * clamp(dot(p,p), 0.0, 2.0)
+ return vec4(c.rgb * mask * scan * vignette, c.a)
+}
+`

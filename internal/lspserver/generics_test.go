@@ -18,11 +18,11 @@ enum E<T>
 	Vacio
 `
 	for _, tt := range []struct{ name, body, want string }{
-		{"interface", "fn f(v Proveedor<num>)\n\tv.§\n", "fn obtener() num"},
+		{"interface", "fn f(v Proveedor<entero>)\n\tv.§\n", "fn obtener() entero"},
 		{"constraint", "fn f<T Proveedor<cadena>>(v T)\n\tv.§\n", "fn obtener() cadena"},
-		{"instance", "fn f(v Caja<num>)\n\tv.§\n", "fn obtener() num"},
+		{"instance", "fn f(v Caja<entero>)\n\tv.§\n", "fn obtener() entero"},
 		{"field", "fn f(v Caja<cadena>)\n\tv.§\n", "cadena"},
-		{"enum", "fn inicio()\n\tvar v = E<num>.§\n", "E<num>.Dato(num)"},
+		{"enum", "fn inicio()\n\tvar v = E<entero>.§\n", "E<entero>.Dato(entero)"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			source := decl + tt.body
@@ -58,7 +58,7 @@ tipo Caja<T>
 	fn obtener() T @valor
 fn identidad<T>(v T) T v
 fn inicio()
-	var c = Caja<num> {valor: 1}
+	var c = Caja<entero> {valor: 1}
 	imprimir(c.obtener())
 	imprimir(identidad(2))
 `
@@ -72,9 +72,9 @@ fn inicio()
 		t.Fatalf("diagnostics: %+v", diagnostics)
 	}
 	for _, tt := range []struct{ needle, want string }{
-		{"c.obtener", "var c Caja<num>"},
-		{"obtener())", "fn obtener() num"},
-		{"identidad(2)", "fn identidad<num>(v num) num"},
+		{"c.obtener", "var c Caja<entero>"},
+		{"obtener())", "fn obtener() entero"},
+		{"identidad(2)", "fn identidad<entero>(v entero) entero"},
 	} {
 		at := strings.Index(source, tt.needle)
 		before := source[:at]

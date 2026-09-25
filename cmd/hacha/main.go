@@ -10,6 +10,7 @@ import (
 
 	"hacha/internal/compiler"
 	"hacha/internal/lspserver"
+	"hacha/internal/stdlib"
 )
 
 func main() {
@@ -20,6 +21,14 @@ func main() {
 }
 
 func run(args []string) error {
+	if len(args) == 2 && args[0] == "biblioteca" {
+		source, ok := stdlib.Source(args[1])
+		if !ok {
+			return fmt.Errorf("módulo estándar desconocido %q", args[1])
+		}
+		fmt.Print(source)
+		return nil
+	}
 	if isLSPCommand(args) {
 		return lspserver.Run(context.Background())
 	}

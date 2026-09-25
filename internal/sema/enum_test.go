@@ -24,7 +24,7 @@ func TestEnumSemanticErrors(t *testing.T) {
 		{"binding escapes", "casos Evento.Cargar |e|\n\t\t.Texto => imprimir(e)\n\t\t_ => imprimir(1)\n\timprimir(e)", "el nombre \"e\" no existe"},
 		{"binding collision", "var e = 1\n\tcasos Evento.Cargar |e|\n\t\t_ => imprimir(1)", "ya fue declarada"},
 		{"primitive match", "casos 1\n\t\t_ => imprimir(1)", "requiere un enum"},
-		{"mismatched result", "var x = casos Evento.Cargar\n\t\t.Cargar => 1\n\t\t_ => falso", "las ramas producen num y bool"},
+		{"mismatched result", "var x = casos Evento.Cargar\n\t\t.Cargar => 1\n\t\t_ => falso", "las ramas producen entero y bool"},
 		{"void result", "var x = casos Evento.Cargar\n\t\t_ => imprimir(1)", "debe producir un valor"},
 		{"incomplete conditional result", "var x = casos Evento.Cargar\n\t\t_ =>\n\t\t\tsi verdadero 1", "debe producir un valor"},
 		{"break through value match", "repetir\n\t\tvar x = casos Evento.Cargar\n\t\t\t_ =>\n\t\t\t\tromper\n\t\t\t\t1", "'romper' solo puede"},
@@ -44,7 +44,7 @@ func TestEnumSemanticErrors(t *testing.T) {
 	}
 	for _, source := range []string{
 		"enum E\n\tA\n\tA\n", "enum E\n\t_\n", "enum E\n\tA\nenum E\n\tB\n",
-		"tipo E\n\tx num\nenum E\n\tA\n", "enum E\n\tA\ntipo E\n\tx num\n", "enum E\n\tA\nfn E() imprimir(1)\n",
+		"tipo E\n\tx entero\nenum E\n\tA\n", "enum E\n\tA\ntipo E\n\tx entero\n", "enum E\n\tA\nfn E() imprimir(1)\n",
 		"enum E\n\tA Desconocido\n",
 	} {
 		if err := checkSource(source); err == nil {
@@ -54,7 +54,7 @@ func TestEnumSemanticErrors(t *testing.T) {
 }
 
 func TestEnumPayloadTypeReferences(t *testing.T) {
-	source := "enum E\n\tVacio\n\tNumero num\n\tTexto cadena\n\tActivo bool\n\tLista [E]\n\tOtro F\n\tObjeto T\nenum F\n\tE E\ntipo T\n\te E\nfn f(e E) E\n\tcasos e |p|\n\t\t.Lista =>\n\t\t\tvar x [E] = p\n\t\t\tE.Lista(x)\n\t\t_ => E.Vacio\nfn inicio()\n\tvar e E = E.Numero(1)\n\tvar lista [E] = [e, E.Texto(\"a\"), E.Activo(verdadero), E.Lista([]), E.Objeto({e: e})]\n\timprimir(lista)\n"
+	source := "enum E\n\tVacio\n\tNumero entero\n\tTexto cadena\n\tActivo bool\n\tLista [E]\n\tOtro F\n\tObjeto T\nenum F\n\tE E\ntipo T\n\te E\nfn f(e E) E\n\tcasos e |p|\n\t\t.Lista =>\n\t\t\tvar x [E] = p\n\t\t\tE.Lista(x)\n\t\t_ => E.Vacio\nfn inicio()\n\tvar e E = E.Numero(1)\n\tvar lista [E] = [e, E.Texto(\"a\"), E.Activo(verdadero), E.Lista([]), E.Objeto({e: e})]\n\timprimir(lista)\n"
 	if err := checkSource(source); err != nil {
 		t.Fatal(err)
 	}

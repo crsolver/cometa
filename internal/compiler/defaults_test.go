@@ -16,23 +16,23 @@ func TestDefaultsRuntime(t *testing.T) {
 	imprimir(sumar(1, 2, 3, 4))
 	imprimir(recursiva(3))
 	imprimir(anidada())
-fn sumar(a num = 5, b num = a + 1, valores ...num) num
+fn sumar(a entero = 5, b entero = a + 1, valores ...entero) entero
 	var total = a + b
 	repetir (valores) |v| total = total + v
 	total
-fn recursiva(n num, paso num = 1) num
+fn recursiva(n entero, paso entero = 1) entero
 	si (n == 0) 0 sino paso + recursiva(n - 1)
-fn anidada(a num = sumar(), b num = si (a > 0) a sino 0,) num b
+fn anidada(a entero = sumar(), b entero = si (a > 0) a sino 0,) entero b
 `, "11\n1\n14\n5\n18\n10\n10\n3\n11\n")
 }
 
 func TestDefaultEvaluationOrderAndScope(t *testing.T) {
 	runHacha(t, `tipo Caja
-	valor num
-	fn siguiente() num
+	valor entero
+	fn siguiente() entero
 		@valor = @valor + 1
 		@valor
-	fn poner(a num = @siguiente(), b num = a + @siguiente(), c num = 0)
+	fn poner(a entero = @siguiente(), b entero = a + @siguiente(), c entero = 0)
 		imprimir(a)
 		imprimir(b)
 		imprimir(c)
@@ -40,7 +40,7 @@ func TestDefaultEvaluationOrderAndScope(t *testing.T) {
 fn receptor(c Caja) Caja
 	imprimir("receptor")
 	c
-fn argumento(n num) num
+fn argumento(n entero) entero
 	imprimir(n)
 	n
 fn inicio()
@@ -55,14 +55,14 @@ fn inicio()
 
 func TestDefaultContextAndFreshReferences(t *testing.T) {
 	runHacha(t, `tipo Caja
-	valor num
+	valor entero
 enum E
 	A
-	B num
+	B entero
 fn crear(c Caja = {valor: 1}, alias Caja = c) Caja
 	alias.valor = alias.valor + 1
 	c
-fn lista(xs [num] = [1]) num
+fn lista(xs [entero] = [1]) entero
 	xs[0] = xs[0] + 1
 	xs[0]
 fn elegir(e E = .B(4), xs [Caja] = [], texto cadena = "hola", activo bool = verdadero)
@@ -82,18 +82,18 @@ fn inicio()
 
 func TestInvalidDefaults(t *testing.T) {
 	cases := []struct{ source, message string }{
-		{"fn f(a num = verdadero) num a\n", "debe ser num"},
-		{"fn f(a ...num = []) num 0\n", "variádico"},
-		{"fn f(a num = 1, b num) num b\n", "obligatorio"},
-		{"fn f(a num = a) num a\n", "no existe"},
-		{"fn f(a num = b, b num = 1) num a\n", "no existe"},
-		{"fn f(a num = local) num\n\tvar local = 1\n\ta\n", "no existe"},
-		{"fn f(a num = @valor) num a\n", "método"},
-		{"fn f(a num, b num = 1) num a\nfn inicio() f(b = 2)\n", "falta"},
-		{"fn f(a num = 1) num a\nfn inicio() f(verdadero)\n", "debe ser num"},
-		{"fn f(a num = 1) num a\nfn inicio() f(1, a = 2)\n", "duplicado"},
-		{"fn inicio(a num = 1) imprimir(a)\n", "inicio"},
-		{"fn f(a num = ) num a\n", "expresión"},
+		{"fn f(a entero = verdadero) entero a\n", "debe ser entero"},
+		{"fn f(a ...entero = []) entero 0\n", "variádico"},
+		{"fn f(a entero = 1, b entero) entero b\n", "obligatorio"},
+		{"fn f(a entero = a) entero a\n", "no existe"},
+		{"fn f(a entero = b, b entero = 1) entero a\n", "no existe"},
+		{"fn f(a entero = local) entero\n\tvar local = 1\n\ta\n", "no existe"},
+		{"fn f(a entero = @valor) entero a\n", "método"},
+		{"fn f(a entero, b entero = 1) entero a\nfn inicio() f(b = 2)\n", "falta"},
+		{"fn f(a entero = 1) entero a\nfn inicio() f(verdadero)\n", "debe ser entero"},
+		{"fn f(a entero = 1) entero a\nfn inicio() f(1, a = 2)\n", "duplicado"},
+		{"fn inicio(a entero = 1) imprimir(a)\n", "inicio"},
+		{"fn f(a entero = ) entero a\n", "expresión"},
 	}
 	for _, tt := range cases {
 		t.Run(tt.source, func(t *testing.T) {
