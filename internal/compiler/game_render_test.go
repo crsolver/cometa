@@ -36,7 +36,7 @@ func (*renderCheck) Update()error {
  p,s,o:=_hgVec2{28,26},_hgVec2{12,8},_hgVec2{6,4}
  rect:=_hgRect{p,s};c:=_hgColor{255,0,0,255}
  raw:=ebiten.NewImage(8,8);raw.Fill(color.White)
- img:=&_hgImagen{raw}
+ img:=&_hgImagen{image:raw}
  fontSource,err:=text.NewGoTextFaceSource(bytes.NewReader(goregular.TTF));if err!=nil{panic(err)}
  font:=&_hgFuente{fontSource}
  for _,angle:=range []float64{0,math.Pi/2}{

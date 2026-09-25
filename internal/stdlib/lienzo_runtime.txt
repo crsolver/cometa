@@ -1,0 +1,144 @@
+// std/pincel/lienzo: pixel-exact CPU canvases. Primitives replace pixels
+// (including transparency); only pegar composites a source over a destination.
+func _hglienzoTamano(w,h int64) {if w<=0||h<=0||w>16384||h>16384 {panic("el tamaño de lienzo debe estar entre 1 y 16384 píxeles")}}
+func _hglienzoNuevo(w,h int64,c _hgColor) *_hgImagen {
+ _hglienzoTamano(w,h)
+ img:=&_hgImagen{pixels:image.NewNRGBA(image.Rect(0,0,int(w),int(h)))}
+ if c.A!=0 {_hglienzoLimpiar(img,c)}
+ return img
+}
+func _hglienzoColores(colores map[string]_hgColor) map[rune]_hgColor {
+ out:=map[rune]_hgColor{'.':{},' ':{}}
+ for key,c:=range colores {
+  runes:=[]rune(key)
+  if len(runes)!=1 {panic(fmt.Sprintf("lienzo: la clave de color %q debe ser un solo carácter",key))}
+  out[runes[0]]=c
+ }
+ return out
+}
+func _hglienzoTexto(filas []string,colores map[rune]_hgColor,cuadro int) *_hgImagen {
+ donde:="";if cuadro>=0 {donde=fmt.Sprintf(" del cuadro %d",cuadro+1)}
+ if len(filas)==0 {panic("lienzo.desde_texto requiere al menos una fila"+donde)}
+ w:=len([]rune(filas[0]))
+ if w==0 {panic("lienzo.desde_texto requiere filas no vacías"+donde)}
+ _hglienzoTamano(int64(w),int64(len(filas)))
+ img:=_hglienzoNuevo(int64(w),int64(len(filas)),_hgColor{})
+ for y,fila:=range filas {
+  runes:=[]rune(fila)
+  if len(runes)!=w {panic(fmt.Sprintf("lienzo.desde_texto: la fila %d%s mide %d caracteres; se esperaban %d",y+1,donde,len(runes),w))}
+  for x,r:=range runes {
+   c,ok:=colores[r]
+   if !ok {panic(fmt.Sprintf("lienzo.desde_texto: el carácter %q de la fila %d%s no tiene color",r,y+1,donde))}
+   img.pixels.SetNRGBA(x,y,c)
+  }
+ }
+ return img
+}
+func _hglienzoDesdeTexto(filas []string,colores map[string]_hgColor) *_hgImagen {return _hglienzoTexto(filas,_hglienzoColores(colores),-1)}
+func _hglienzoHojaDesdeTexto(cuadros [][]string,colores map[string]_hgColor) []*_hgImagen {
+ if len(cuadros)==0 {panic("lienzo.hoja_desde_texto requiere al menos un cuadro")}
+ paleta:=_hglienzoColores(colores);out:=make([]*_hgImagen,len(cuadros))
+ for i,filas:=range cuadros {
+  out[i]=_hglienzoTexto(filas,paleta,i)
+  if out[i].pixels.Rect!=out[0].pixels.Rect {panic(fmt.Sprintf("lienzo.hoja_desde_texto: el cuadro %d no mide lo mismo que el primero",i+1))}
+ }
+ return out
+}
+func _hglienzoAncho(img *_hgImagen) int64 {return int64(img.bounds().Dx())}
+func _hglienzoAlto(img *_hgImagen) int64 {return int64(img.bounds().Dy())}
+func _hglienzoCopiar(img *_hgImagen) *_hgImagen {
+ pixels:=image.NewNRGBA(img.pixels.Rect);copy(pixels.Pix,img.pixels.Pix)
+ return &_hgImagen{pixels:pixels}
+}
+func _hglienzoLimpiar(img *_hgImagen,c _hgColor) {
+ p:=img.pixels.Pix
+ for i:=0;i<len(p);i+=4 {p[i],p[i+1],p[i+2],p[i+3]=c.R,c.G,c.B,c.A}
+ img.dirty=true
+}
+func _hglienzoDentro(img *_hgImagen,x,y int64) bool {b:=img.pixels.Rect;return x>=0&&y>=0&&x<int64(b.Dx())&&y<int64(b.Dy())}
+func _hglienzoPixel(img *_hgImagen,x,y int64,c _hgColor) {if _hglienzoDentro(img,x,y){img.pixels.SetNRGBA(int(x),int(y),c);img.dirty=true}}
+func _hglienzoLeerPixel(img *_hgImagen,x,y int64) struct { tag int; payload1 _hgColor } {
+ if !_hglienzoDentro(img,x,y) {return struct { tag int; payload1 _hgColor }{}}
+ return struct { tag int; payload1 _hgColor }{tag:1,payload1:img.pixels.NRGBAAt(int(x),int(y))}
+}
+func _hglienzoRect(img *_hgImagen,x,y,w,h int64,c _hgColor,relleno bool) {
+ if w<=0||h<=0 {return}
+ for py:=y;py<y+h;py++ {
+  for px:=x;px<x+w;px++ {
+   if relleno||py==y||py==y+h-1||px==x||px==x+w-1 {_hglienzoPixel(img,px,py,c)}
+  }
+ }
+}
+func _hglienzoLinea(img *_hgImagen,x1,y1,x2,y2 int64,c _hgColor) {
+ dx:=_hgabsEntero(x2-x1);dy:=-_hgabsEntero(y2-y1)
+ sx,sy:=int64(1),int64(1);if x1>x2{sx=-1};if y1>y2{sy=-1}
+ e:=dx+dy
+ for {
+  _hglienzoPixel(img,x1,y1,c)
+  if x1==x2&&y1==y2 {return}
+  e2:=2*e
+  if e2>=dy {e+=dy;x1+=sx}
+  if e2<=dx {e+=dx;y1+=sy}
+ }
+}
+// The disc is every pixel with dx²+dy² <= r²+r; the outline is its 4-connected edge.
+func _hglienzoCirculo(img *_hgImagen,cx,cy,r int64,c _hgColor,relleno bool) {
+ if r<0 {panic("el radio debe ser positivo o cero")}
+ inside:=func(dx,dy int64) bool {return dx*dx+dy*dy<=r*r+r}
+ for dy:=-r;dy<=r;dy++ {
+  for dx:=-r;dx<=r;dx++ {
+   if !inside(dx,dy) {continue}
+   if relleno||!inside(dx+1,dy)||!inside(dx-1,dy)||!inside(dx,dy+1)||!inside(dx,dy-1) {_hglienzoPixel(img,cx+dx,cy+dy,c)}
+  }
+ }
+}
+func _hglienzoRellenar(img *_hgImagen,x,y int64,c _hgColor) {
+ if !_hglienzoDentro(img,x,y) {return}
+ objetivo:=img.pixels.NRGBAAt(int(x),int(y))
+ if objetivo==c {return}
+ pila:=[][2]int64{{x,y}}
+ for len(pila)>0 {
+  p:=pila[len(pila)-1];pila=pila[:len(pila)-1]
+  if !_hglienzoDentro(img,p[0],p[1])||img.pixels.NRGBAAt(int(p[0]),int(p[1]))!=objetivo {continue}
+  img.pixels.SetNRGBA(int(p[0]),int(p[1]),c)
+  pila=append(pila,[2]int64{p[0]+1,p[1]},[2]int64{p[0]-1,p[1]},[2]int64{p[0],p[1]+1},[2]int64{p[0],p[1]-1})
+ }
+ img.dirty=true
+}
+// Straight-alpha source-over; opaque pixels copy exactly.
+func _hglienzoMezclar(d,s _hgColor) _hgColor {
+ if s.A==255||d.A==0 {return s}
+ if s.A==0 {return d}
+ sa,da:=float64(s.A)/255,float64(d.A)/255
+ a:=sa+da*(1-sa)
+ mix:=func(sc,dc uint8) uint8 {return uint8(math.Round((float64(sc)*sa+float64(dc)*da*(1-sa))/a))}
+ return _hgColor{mix(s.R,d.R),mix(s.G,d.G),mix(s.B,d.B),uint8(math.Round(a*255))}
+}
+func _hglienzoPegar(destino,fuente *_hgImagen,x,y int64,espejoH,espejoV bool) {
+ w,h:=int64(fuente.pixels.Rect.Dx()),int64(fuente.pixels.Rect.Dy())
+ src:=fuente.pixels;if destino==fuente {src=_hglienzoCopiar(fuente).pixels}
+ for sy:=int64(0);sy<h;sy++ {
+  for sx:=int64(0);sx<w;sx++ {
+   dx,dy:=x+sx,y+sy
+   if espejoH {dx=x+w-1-sx}
+   if espejoV {dy=y+h-1-sy}
+   if !_hglienzoDentro(destino,dx,dy) {continue}
+   s:=src.NRGBAAt(int(sx),int(sy))
+   if s.A==0 {continue}
+   destino.pixels.SetNRGBA(int(dx),int(dy),_hglienzoMezclar(destino.pixels.NRGBAAt(int(dx),int(dy)),s))
+  }
+ }
+ destino.dirty=true
+}
+func _hgescribirPNG(src image.Image,ruta string,escala int64) error {
+ if escala<=0||escala>64 {return fmt.Errorf("la escala debe estar entre 1 y 64")}
+ b:=src.Bounds();out:=image.NewNRGBA(image.Rect(0,0,b.Dx()*int(escala),b.Dy()*int(escala)))
+ for y:=0;y<out.Rect.Dy();y++ {for x:=0;x<out.Rect.Dx();x++ {out.Set(x,y,src.At(b.Min.X+x/int(escala),b.Min.Y+y/int(escala)))}}
+ f,err:=os.Create(ruta);if err!=nil {return err}
+ if err=png.Encode(f,out);err!=nil {f.Close();return err}
+ return f.Close()
+}
+func _hglienzoGuardar(img *_hgImagen,ruta string,escala int64) struct { tag int; payload2 string } {
+ if err:=_hgescribirPNG(img.pixels,ruta,escala);err!=nil {return struct { tag int; payload2 string }{tag:2,payload2:"no se pudo guardar "+ruta+": "+err.Error()}}
+ return struct { tag int; payload2 string }{tag:1}
+}

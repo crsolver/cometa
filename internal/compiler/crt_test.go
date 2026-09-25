@@ -42,8 +42,8 @@ func TestCRTPresentationRuntime(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	source := strings.Replace(string(generated), "import (", "import (\n\"os\"\n\"image/png\"", 1)
-	source += `
+	// juego's capture runtime already imports os and image/png by name.
+	source := string(generated) + `
 type crtCheck struct{}
 func (*crtCheck) Layout(w,h int)(int,int){return 64,48}
 func (*crtCheck) Draw(screen *ebiten.Image){}

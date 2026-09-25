@@ -136,7 +136,8 @@ func TestPlatformerRenderingRuntime(t *testing.T) {
 	}
 	source := strings.Replace(string(generated), "func main() {", "func unusedMain() {", 1)
 	source = strings.Replace(source, `_ "image/png"`, `"image/png"`, 1)
-	source = strings.Replace(source, "import (", "import (\n\"os\"\n\"path/filepath\"", 1)
+	// juego's capture runtime already imports os.
+	source = strings.Replace(source, "import (", "import (\n\"path/filepath\"", 1)
 	source += `
 type platformerRender struct{}
 func (*platformerRender) Layout(w,h int)(int,int){return 320,180}

@@ -1,0 +1,145 @@
+usar std/pincel/juego
+usar std/pincel/graficos
+usar std/pincel/color
+usar std/pincel/lienzo
+
+// Todo el arte se dibuja con código: sprites desde texto y un fondo
+// generado píxel a píxel. `cometa captura pixelart.cometa --escala 4`
+// guarda una imagen del primer cuadro para revisarla.
+
+const ancho = 160
+const alto = 96
+const suelo = 72
+
+var colores = [
+	"o": color.rgba(24, 20, 37),
+	"h": color.rgba(115, 62, 57),
+	"s": color.rgba(234, 170, 130),
+	"b": color.rgba(71, 114, 191),
+	"B": color.rgba(40, 60, 120),
+	"c": color.rgba(255, 185, 21),
+	"C": color.rgba(190, 110, 30),
+	"w": color.rgba(255, 249, 228),
+	"g": color.rgba(87, 176, 103),
+	"G": color.rgba(40, 110, 72),
+	"t": color.rgba(130, 91, 49),
+	"T": color.rgba(84, 56, 40),
+]
+
+var heroe = lienzo.hoja_desde_texto([
+	[
+		"..oooo...",
+		".ohhhhoo.",
+		"ohhhsssso",
+		"ohhssosso",
+		".ohsssso.",
+		"..ooooo..",
+		".obbbbbo.",
+		"obbbbbsso",
+		"osBbbbso.",
+		".oBBBBo..",
+		".oBo.oBo.",
+		".oo...oo.",
+	],
+	[
+		"..oooo...",
+		".ohhhhoo.",
+		"ohhhsssso",
+		"ohhssosso",
+		".ohsssso.",
+		"..ooooo..",
+		".obbbbbo.",
+		"obbbbbsso",
+		"osBbbbso.",
+		".oBBBBo..",
+		"..oBBo...",
+		"..ooo....",
+	],
+], colores)
+
+var moneda = lienzo.hoja_desde_texto([
+	[
+		".oooo.",
+		"occcco",
+		"ocwcCo",
+		"occcCo",
+		"occCCo",
+		".oooo.",
+	],
+	[
+		"..oo..",
+		".occo.",
+		".owCo.",
+		".occo.",
+		".oCCo.",
+		"..oo..",
+	],
+], colores)
+
+// Umbrales de tramado ordenado Bayer 4×4.
+var bayer = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5]
+
+fn tramar(img graficos.Imagen, y0 entero, y1 entero, arriba color.Color, abajo color.Color)
+	repetir (y0..y1) |y|
+		var nivel = (y - y0) * 17 / (y1 - y0)
+		repetir (0..ancho) |x|
+			var c = si (bayer[(y % 4) * 4 + x % 4] < nivel) abajo sino arriba
+			lienzo.pixel(img, x, y, c)
+
+fn arbol(img graficos.Imagen, x entero, y entero)
+	lienzo.rect(img, x - 2, y - 14, 5, 14, colores["T"] o .Negro)
+	lienzo.rect(img, x - 1, y - 14, 2, 14, colores["t"] o .Negro)
+	lienzo.circulo(img, x, y - 20, 9, colores["o"] o .Negro)
+	lienzo.circulo(img, x, y - 20, 8, colores["G"] o .Negro)
+	lienzo.circulo(img, x - 2, y - 22, 5, colores["g"] o .Negro)
+
+fn nube(img graficos.Imagen, x entero, y entero)
+	lienzo.circulo(img, x, y, 4, .Blanco)
+	lienzo.circulo(img, x + 6, y - 2, 5, .Blanco)
+	lienzo.circulo(img, x + 12, y, 4, .Blanco)
+	lienzo.rect(img, x, y, 13, 5, .Blanco)
+	lienzo.linea(img, x - 3, y + 4, x + 15, y + 4, .Celeste)
+
+fn crear_fondo() graficos.Imagen
+	var img = lienzo.nuevo(ancho, alto)
+	tramar(img, 0, 40, color.rgba(67, 62, 166), color.rgba(71, 114, 191))
+	tramar(img, 40, suelo, color.rgba(71, 114, 191), color.rgba(153, 215, 229))
+	lienzo.circulo(img, 128, 18, 8, .Crema)
+	nube(img, 20, 20)
+	nube(img, 90, 30)
+	repetir (0..ancho) |x|
+		var colina = 8 + (x * 7 % 23) / 6
+		lienzo.linea(img, x, suelo - colina, x, suelo, .VerdeBosque)
+	arbol(img, 40, suelo)
+	arbol(img, 118, suelo)
+	lienzo.rect(img, 0, suelo, ancho, alto - suelo, colores["T"] o .Negro)
+	lienzo.rect(img, 0, suelo, ancho, 3, colores["g"] o .Negro)
+	lienzo.linea(img, 0, suelo + 3, ancho, suelo + 3, colores["G"] o .Negro)
+	repetir (0..ancho / 8) |i|
+		lienzo.pixel(img, i * 8 + 3, suelo + 9, colores["t"] o .Negro)
+		lienzo.pixel(img, i * 8 + 7, suelo + 15, colores["o"] o .Negro)
+	img
+
+tipo Escena
+	fondo graficos.Imagen
+	x decimal
+	tiempo decimal
+
+	pub fn actualizar(dt decimal)
+		@tiempo = @tiempo + dt
+		@x = @x + 24 * dt
+		si @x > ancho
+			@x = -10
+
+	pub fn pintar()
+		graficos.imagen(@fondo, 0, 0)
+		var paso = entero(@tiempo * 6) % 2
+		graficos.imagen(heroe[paso], @x, suelo - 12)
+		repetir (0..3) |i|
+			var giro = (entero(@tiempo * 4) + i) % 2
+			graficos.imagen(moneda[giro], 60 + i * 14, suelo - 20)
+
+fn inicio()
+	var escena = Escena {fondo: crear_fondo(), x: 20}
+	juego.ejecutar(escena, ancho, alto, titulo = "Pixel art con lienzo", escala = 6, pixelado = verdadero) capturar |error|
+		imprimir(error)

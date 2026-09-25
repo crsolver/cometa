@@ -17,8 +17,8 @@ func TestUIRendering(t *testing.T) {
  data,err:=os.ReadFile("../../examples/ui.cometa");if err!=nil {t.Fatal(err)}
  source:=strings.Replace(string(data),"fn inicio()","fn lanzar()",1)
  generated,err:=Compile("ui.cometa",[]byte(source));if err!=nil {t.Fatal(err)}
- code:=strings.Replace(string(generated),"import (","import (\n\"os\"\n\"golang.org/x/image/font/gofont/goregular\"",1)
- code=strings.Replace(code,`_ "image/png"`,`"image/png"`,1)
+ // The capture runtime already imports os and image/png by name.
+ code:=strings.Replace(string(generated),"import (","import (\n\"golang.org/x/image/font/gofont/goregular\"",1)
  code+=`
 type uiCheck struct{}
 func (*uiCheck) Layout(w,h int)(int,int){return 320,180}

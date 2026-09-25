@@ -2,6 +2,7 @@ package compiler
 
 import (
 	"bytes"
+	"cometa/internal/ast"
 	"cometa/internal/stdlib"
 	"image"
 	"image/png"
@@ -87,7 +88,7 @@ func TestGameErrors(t *testing.T) {
 }
 
 func TestAllGameSignatures(t *testing.T) {
-	const imports = "usar std/mate/curvas\nusar std/mate/ruido\nusar std/pincel/retro\nusar std/pincel/ui\n" + pincelImports
+	const imports = "usar std/mate/curvas\nusar std/mate/ruido\nusar std/pincel/retro\nusar std/pincel/ui\nusar std/pincel/lienzo\n" + pincelImports
 	var all strings.Builder
 	// Signature defaults are parsed and checked by the same checker as user calls.
 	for _, f := range stdlib.Functions {
@@ -114,7 +115,7 @@ func TestAllGameSignatures(t *testing.T) {
 		var params []string
 		for _, p := range d.Params {
 			if p.Default == nil && p.Type.Name != "decimal" && p.Type.Name != "cadena" && p.Type.Name != "bool" {
-				params = append(params, "arg_"+p.Name+" "+publicLibraryType(p.Type.Name))
+				params = append(params, "arg_"+p.Name+" "+publicTypeSource(p.Type))
 				for i, a := range args {
 					if a == p.Name {
 						args[i] = "arg_" + a
@@ -122,7 +123,14 @@ func TestAllGameSignatures(t *testing.T) {
 				}
 			}
 		}
-		source := "fn helper(" + strings.Join(params, ",") + ")\n\t" + f.Namespace + "." + f.Name + "(" + strings.Join(args, ",") + ")\n" + minimalGame
+		call := f.Namespace + "." + f.Name + "(" + strings.Join(args, ",") + ")"
+		// Wrapper results cannot be discarded.
+		if d.ReturnType != nil && d.ReturnType.Wrapper == "?" {
+			call = "var opcional = " + call
+		} else if d.ReturnType != nil && d.ReturnType.Wrapper == "!" {
+			call += " capturar |e| imprimir(e)"
+		}
+		source := "fn helper(" + strings.Join(params, ",") + ")\n\t" + call + "\n" + minimalGame
 		all.WriteString(strings.Replace(strings.TrimSuffix(source, minimalGame), "fn helper(", "fn "+f.Namespace+"_"+f.Name+"(", 1))
 		t.Run(f.Namespace+"."+f.Name, func(t *testing.T) {
 			if _, _, e := Analyze("game.cometa", []byte(imports+source)); e != nil {
@@ -210,6 +218,16 @@ fn pintar() imprimir(0)
 	// Exercise generated game code without starting a window or event loop.
 	runnable := strings.Replace(string(generated), "func main() {", "func _hgUnusedMain() {", 1) + "\nfunc main() { Iniciar() }\n"
 	runGeneratedGo(t, []byte(runnable), "2\n9\n3\n12\n0\n1\n")
+}
+
+func publicTypeSource(t ast.TypeRef) string {
+	if t.Key != nil {
+		return "[" + publicTypeSource(*t.Key) + ": " + publicTypeSource(*t.Element) + "]"
+	}
+	if t.Element != nil {
+		return "[" + publicTypeSource(*t.Element) + "]"
+	}
+	return publicLibraryType(t.Name)
 }
 
 func publicLibraryType(name string) string {

@@ -16,6 +16,7 @@ Pincel es la familia de bibliotecas de juego incluida con Cometa. Se importa cad
 | `std/pincel/tiempo` | FPS y TPS |
 | `std/pincel/recursos` | Carga y empaquetado de recursos |
 | `std/pincel/retro` | Texto bitmap e iconos incorporados de 8×8 |
+| `std/pincel/lienzo` | [Pixel art con código](lienzo.md): sprites desde texto, lienzos editables y PNG |
 
 El último segmento es el namespace; `usar std/pincel/graficos como g` permite `g.limpiar(.Negro)`. Cada archivo declara sus imports. No se importan automáticamente tipos ni otros módulos.
 
@@ -121,6 +122,25 @@ La resolución lógica es **320×180**, a escala entera 4 y sin filtro. Cada sec
 El generador combina ruido con galerías y rampas de conexión; la plataforma del refugio no puede destruirse. Los slimes saltan y los murciélagos se acercan volando, sin atravesar terreno. Las balas se detienen en el primer bloque o enemigo. Los cambios de terreno y el estado de los enemigos se conservan al cambiar de sección; los enemigos lejanos quedan pausados. No hay guardado, construcción, inventario, crafting ni condición de victoria.
 
 La paleta y los efectos se dibujan con Pincel y `retro`, que incorpora los mismos atlas CC0 de `examples/assets/dungeonmode/bitmap` con fondo transparente. No se necesitan recursos externos. La simulación vive en [plataformas/mundo.cometa](../examples/plataformas/mundo.cometa), sin dependencia gráfica. Para reproducir un terreno, reemplaza el argumento aleatorio de `partida.generar(...)` en `inicio` por la semilla que aparece al pie de la pantalla.
+
+### Huerto
+
+[Huerto](../examples/huerto.cometa) es una granja pequeña en vista cenital, al estilo de Stardew Valley. Todo el arte se genera con [`lienzo`](lienzo.md), sin archivos. Ejecuta desde la raíz del repositorio:
+
+```powershell
+.\vscode-extension\bin\cometa.exe ejecutar .\examples\huerto.cometa
+```
+
+- **WASD o flechas:** caminar en cuatro direcciones.
+- **Espacio o clic izquierdo:** usar la herramienta sobre la celda marcada. Mantenerlo repite la acción. Con el ratón se apunta a cualquier celda cercana.
+- **Q/E o rueda:** cambiar de herramienta. También se puede hacer clic en la barra.
+- **H:** mostrar u ocultar la ayuda.
+
+La azada labra la tierra del huerto y rompe piedras. La regadera moja la tierra labrada; se rellena en el estanque. Las semillas de nabo, zanahoria y calabaza tardan 3, 4 y 6 días en madurar. Cualquier herramienta cosecha un cultivo maduro. Un cultivo solo crece durante la noche si su celda estaba mojada. A partir del tercer día puede llover, y la lluvia riega todo lo labrado.
+
+La caja junto a la casa vende la cosecha. El puesto vende la semilla seleccionada en la barra, o nabos si la herramienta activa no es una semilla. La puerta de la casa termina el día. A las 02:00 el granjero cae rendido y el día termina solo. El reloj avanza una hora cada 7,5 segundos, con atardecer, noche, ventanas iluminadas y luciérnagas.
+
+El suelo del mapa se hornea una vez en un lienzo de 640×448 con césped tramado por ruido y Bayer, caminos, tierra y un estanque elíptico. Cada acción repinta solo las celdas que cambian, y el lienzo se vuelve a subir a la GPU en el siguiente dibujo. Árboles, vallas, casa y cultivos se ordenan por fila para que el granjero pase por delante y por detrás. La simulación vive en [huerto/granja.cometa](../examples/huerto/granja.cometa), sin dependencia gráfica, y tiene pruebas automáticas de juego.
 
 ## Valores, coordenadas y recursos
 

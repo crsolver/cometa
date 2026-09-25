@@ -1,0 +1,299 @@
+usar std/mate
+usar std/mate/ruido
+
+// Simulación de la granja, independiente de Pincel: celdas de 16×16 y
+// posiciones en píxeles del mundo. El jugador se mide por sus pies.
+pub const columnas = 40
+pub const filas = 28
+pub const lado = 16
+
+// Tipos de celda.
+pub const cesped = 0
+pub const tierra = 1
+pub const labrada = 2
+pub const agua = 3
+pub const valla = 4
+pub const casa = 5
+pub const roca = 6
+pub const arbol = 7
+pub const camino = 8
+pub const puerta = 9
+pub const caja = 10
+pub const puesto = 11
+pub const bosque = 12
+
+// Herramientas: las semillas ocupan tres casillas, una por cultivo.
+pub const azada = 0
+pub const regadera = 1
+pub const semillas_nabo = 2
+pub const hoz = 5
+pub const herramientas = 6
+
+// Resultado de usar una herramienta o interactuar.
+pub const nada = 0
+pub const labrado = 1
+pub const regado = 2
+pub const plantado = 3
+pub const cosechado = 4
+pub const roca_rota = 5
+pub const recargado = 6
+pub const sin_agua = 7
+pub const sin_semillas = 8
+pub const vendido = 9
+pub const comprado = 10
+pub const sin_dinero = 11
+pub const nada_que_vender = 12
+pub const dormir = 13
+
+pub const agua_maxima = 20
+pub const segundos_por_hora = 7.5
+pub const hora_limite = 26.0
+
+// Estanque ovalado, en celdas; el dibujo usa la misma elipse.
+pub const estanque_x = 30.0
+pub const estanque_y = 7.5
+pub const estanque_rx = 3.8
+pub const estanque_ry = 2.7
+
+// Cultivos: nabo, zanahoria y calabaza.
+var nombres = ["NABO", "ZANAHORIA", "CALABAZA"]
+var duraciones = [3, 4, 6]
+var precios = [10, 20, 40]
+var ventas = [25, 50, 120]
+
+pub fn nombre(clase entero) cadena
+	nombres[clase]
+
+pub fn duracion(clase entero) entero
+	duraciones[clase]
+
+pub fn precio(clase entero) entero
+	precios[clase]
+
+pub fn venta(clase entero) entero
+	ventas[clase]
+
+pub tipo Cultivo
+	pub clase entero
+	pub dias entero
+
+	// 0 semilla, 1 brote, 2 creciendo, 3 listo.
+	pub fn etapa() entero
+		si @dias >= duracion(@clase) 3 sino mate.minimo(2, @dias * 3 / duracion(@clase))
+
+	pub fn listo() bool
+		@etapa() == 3
+
+pub tipo Granja
+	pub celdas [entero]
+	pub mojada [bool]
+	pub cultivos [entero: Cultivo]
+	// Celdas cuyo aspecto cambió; el dibujo las repinta y vacía la lista.
+	pub pendientes [entero]
+	pub jugador mate.Vec2
+	// 0 abajo, 1 arriba, 2 izquierda, 3 derecha.
+	pub mirando entero
+	pub andando bool
+	pub semillas [entero]
+	pub cosecha [entero]
+	pub dinero entero
+	pub agua entero
+	pub dia entero
+	pub hora decimal
+	pub lluvia bool
+	pub semilla entero
+	pub ultima_venta entero
+
+	pub fn celda(x entero, y entero) entero
+		si x < 0 || x >= columnas || y < 0 || y >= filas retornar bosque
+		@celdas[y * columnas + x]
+
+	fn poner(x entero, y entero, tipo_celda entero)
+		@celdas[y * columnas + x] = tipo_celda
+
+	pub fn solido(x entero, y entero) bool
+		var c = @celda(x, y)
+		c != cesped && c != tierra && c != labrada && c != camino
+
+	// Caja de los pies: 10×5 píxeles centrada en la posición.
+	pub fn choca(pos mate.Vec2) bool
+		repetir (mate.piso((pos.y - 5) / lado)..(mate.piso((pos.y - 0.001) / lado) + 1)) |y|
+			repetir (mate.piso((pos.x - 5) / lado)..(mate.piso((pos.x + 4.999) / lado) + 1)) |x|
+				si @solido(x, y) retornar verdadero
+		falso
+
+	pub fn generar(semilla entero)
+		@semilla = semilla
+		@celdas = []
+		@mojada = []
+		@cultivos = [:]
+		@pendientes = []
+		repetir (0..(columnas * filas)) |i|
+			@celdas.agregar(cesped)
+			@mojada.agregar(falso)
+		// Bosque en el borde del mapa.
+		repetir (0..filas) |y|
+			repetir (0..columnas) |x|
+				si x < 2 || x >= columnas - 2 || y < 2 || y >= filas - 2 @poner(x, y, bosque)
+		// Casa de 5×4 con la puerta en el centro de la fachada.
+		repetir (3..7) |y|
+			repetir (6..11) |x| @poner(x, y, casa)
+		@poner(8, 6, puerta)
+		// Camino desde la puerta hasta la entrada del huerto.
+		repetir (7..13) |y| @poner(8, y, camino)
+		repetir (8..19) |x| @poner(x, 12, camino)
+		repetir (12..14) |y|
+			@poner(17, y, camino)
+			@poner(18, y, camino)
+		// Estanque ovalado.
+		repetir (3..12) |y|
+			repetir (24..36) |x|
+				var dx = (x + 0.5 - estanque_x) / estanque_rx
+				var dy = (y + 0.5 - estanque_y) / estanque_ry
+				si dx * dx + dy * dy < 1 @poner(x, y, agua)
+		// Huerto vallado con piedras que se rompen con la azada.
+		repetir (14..26) |y|
+			repetir (14..34) |x|
+				si x == 14 || x == 33 || y == 14 || y == 25
+					@poner(x, y, valla)
+				sino
+					var piedra = ruido.suave(x * 0.9, y * 0.9, semilla) > 0.7
+					@poner(x, y, si piedra roca sino tierra)
+		@poner(17, 14, camino)
+		@poner(18, 14, camino)
+		@poner(10, 8, caja)
+		@poner(12, 11, puesto)
+		// Árboles dispersos, solo sobre césped rodeado de césped o bosque.
+		repetir (2..(filas - 2)) |y|
+			repetir (2..(columnas - 2)) |x|
+				si ruido.suave(x * 0.45, y * 0.45, semilla + 11) > 0.62 && (x * 7 + y * 3) % 3 == 0 && @despejado(x, y)
+					@poner(x, y, arbol)
+		@jugador = {8 * lado + 8, 8 * lado + 12}
+		@mirando = 0
+		@andando = falso
+		@semillas = [6, 0, 0]
+		@cosecha = [0, 0, 0]
+		@dinero = 20
+		@agua = agua_maxima
+		@dia = 1
+		@hora = 6
+		@lluvia = falso
+		@ultima_venta = 0
+
+	fn despejado(x entero, y entero) bool
+		repetir ((y - 1)..(y + 2)) |yy|
+			repetir ((x - 1)..(x + 2)) |xx|
+				var c = @celda(xx, yy)
+				si c != cesped && c != bosque && c != arbol retornar falso
+		// La entrada de la casa y el recorrido inicial quedan libres.
+		mate.absoluto(x - 8) > 2 || y > 10
+
+	pub fn mover(eje mate.Vec2, dt decimal)
+		@andando = eje.longitud() > 0
+		si @andando == falso retornar
+		si mate.absoluto(eje.x) > mate.absoluto(eje.y)
+			@mirando = si eje.x < 0 2 sino 3
+		sino
+			@mirando = si eje.y < 0 1 sino 0
+		var paso = eje.normalizado() * (72 * dt)
+		var px = @jugador + mate.Vec2 {paso.x, 0}
+		si @choca(px) == falso @jugador = px
+		var py = @jugador + mate.Vec2 {0, paso.y}
+		si @choca(py) == falso @jugador = py
+
+	// Celda frente al jugador, o -1 fuera del mapa.
+	pub fn frente() entero
+		var punto = @jugador + mate.Vec2 {0, -3}
+		si @mirando == 0 punto = @jugador + mate.Vec2 {0, 8}
+		si @mirando == 1 punto = @jugador + mate.Vec2 {0, -14}
+		si @mirando == 2 punto = @jugador + mate.Vec2 {-12, -3}
+		si @mirando == 3 punto = @jugador + mate.Vec2 {12, -3}
+		var x = mate.piso(punto.x / lado)
+		var y = mate.piso(punto.y / lado)
+		si x < 0 || x >= columnas || y < 0 || y >= filas retornar -1
+		y * columnas + x
+
+	fn marcar(indice entero)
+		@pendientes.agregar(indice)
+
+	pub fn aplicar(herramienta entero, indice entero) entero
+		si indice < 0 retornar nada
+		var c = @celdas[indice]
+		si c == puerta retornar dormir
+		si c == caja retornar @vender()
+		si c == puesto
+			var clase = si herramienta >= semillas_nabo && herramienta < hoz herramienta - semillas_nabo sino 0
+			retornar @comprar(clase)
+		// Cualquier herramienta recoge un cultivo listo.
+		si @cultivos[indice] |cultivo|
+			si cultivo.listo()
+				@cosecha[cultivo.clase] = @cosecha[cultivo.clase] + 1
+				@cultivos.eliminar(indice)
+				@marcar(indice)
+				retornar cosechado
+		si herramienta == azada
+			si c == roca
+				@celdas[indice] = tierra
+				@marcar(indice)
+				retornar roca_rota
+			si c == tierra
+				@celdas[indice] = labrada
+				@marcar(indice)
+				retornar labrado
+			retornar nada
+		si herramienta == regadera
+			si c == agua
+				si @agua == agua_maxima retornar nada
+				@agua = agua_maxima
+				retornar recargado
+			si c != labrada || @mojada[indice] retornar nada
+			si @agua <= 0 retornar sin_agua
+			@agua = @agua - 1
+			@mojada[indice] = verdadero
+			@marcar(indice)
+			retornar regado
+		si herramienta >= semillas_nabo && herramienta < hoz
+			var clase = herramienta - semillas_nabo
+			si c != labrada || @cultivos.contiene(indice) retornar nada
+			si @semillas[clase] <= 0 retornar sin_semillas
+			@semillas[clase] = @semillas[clase] - 1
+			@cultivos[indice] = Cultivo {clase: clase}
+			retornar plantado
+		nada
+
+	pub fn vender() entero
+		var total = 0
+		repetir (0..3) |clase|
+			total = total + @cosecha[clase] * venta(clase)
+			@cosecha[clase] = 0
+		si total == 0 retornar nada_que_vender
+		@dinero = @dinero + total
+		@ultima_venta = total
+		vendido
+
+	pub fn comprar(clase entero) entero
+		si @dinero < precio(clase) retornar sin_dinero
+		@dinero = @dinero - precio(clase)
+		@semillas[clase] = @semillas[clase] + 1
+		comprado
+
+	// Avanza el reloj; devuelve verdadero cuando el jugador cae rendido.
+	pub fn avanzar(dt decimal) bool
+		@hora = @hora + dt / segundos_por_hora
+		@hora >= hora_limite
+
+	pub fn dormir()
+		repetir (@cultivos) |cultivo, indice|
+			si @mojada[indice] cultivo.dias = cultivo.dias + 1
+		@dia = @dia + 1
+		@hora = 6
+		@agua = agua_maxima
+		// Lluvia determinista a partir del tercer día: riega todo lo labrado.
+		@lluvia = @dia >= 3 && (@dia * 7919 + @semilla * 104729) % 100 < 30
+		repetir (@celdas) |c, indice|
+			var mojar = @lluvia && c == labrada
+			si @mojada[indice] != mojar
+				@mojada[indice] = mojar
+				@marcar(indice)
+			// Los cultivos cambian de etapa: repintar su celda también.
+			si @cultivos.contiene(indice) @marcar(indice)

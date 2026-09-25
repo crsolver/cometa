@@ -19,6 +19,7 @@ func TestPincelImportedDefinitions(t *testing.T) {
 		{"usar std/pincel/retro como r\nfn pintar() r.§icono(.Llave, 0, 0)\n", "std/pincel/retro", "fn icono("},
 		{"usar std/pincel/retro como r\nfn f(valor r.§Icono) imprimir(valor)\n", "std/pincel/retro", "tipo Icono"},
 		{"usar std/pincel/graficos como g\nfn pintar() g.§limpiar(.Negro)\n", "std/pincel/graficos", "fn limpiar("},
+		{"usar std/pincel/lienzo como l\nvar s = l.§desde_texto([\"a\"], [\"a\": .Rojo])\n", "std/pincel/lienzo", "fn desde_texto("},
 		{"usar std/mate como m\nfn inicio() imprimir(m.Vec2 {3,4}.§longitud())\n", "std/mate", "fn longitud("},
 		{"usar std/pincel/color como c\nfn f(valor c.§Color) imprimir(valor)\n", "std/pincel/color", "tipo Color"},
 	} {

@@ -17,7 +17,7 @@ func _hgUIMeasure(value string,t _hgTema) float64 {
  return float64(len([]rune(value)))*8*float64(t.scale)
 }
 func _hguiImagen(img *_hgImagen,w,h *_hgMedida,tint _hgColor) {
- _hgUIRequire(img!=nil,"imagen ausente");c,i:=_hgUILeaf(4,"","",w,h,true);b:=img.image.Bounds();c.nodes[i].img=img;c.nodes[i].tint=tint;c.nodes[i].extent=_hgVec2{float64(b.Dx()),float64(b.Dy())}
+ _hgUIRequire(img!=nil,"imagen ausente");c,i:=_hgUILeaf(4,"","",w,h,true);b:=img.bounds();c.nodes[i].img=img;c.nodes[i].tint=tint;c.nodes[i].extent=_hgVec2{float64(b.Dx()),float64(b.Dy())}
 }
 func _hgUIClip(screen *ebiten.Image,r _hgRect) *ebiten.Image {
  b:=image.Rect(int(math.Ceil(r.Pos.X)),int(math.Ceil(r.Pos.Y)),int(math.Floor(r.Pos.X+r.Tamano.X)),int(math.Floor(r.Pos.Y+r.Tamano.Y))).Intersect(screen.Bounds())

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"cometa/internal/compiler"
@@ -32,10 +33,11 @@ func run(args []string) error {
 	if isLSPCommand(args) {
 		return lspserver.Run(context.Background())
 	}
-	if len(args) == 0 || (args[0] != "compilar" && args[0] != "ejecutar" && args[0] != "construir") {
-		return fmt.Errorf("uso: cometa <compilar|ejecutar|construir> <archivo.cometa> [-o salida] | lsp")
+	if len(args) == 0 || (args[0] != "compilar" && args[0] != "ejecutar" && args[0] != "construir" && args[0] != "captura") {
+		return fmt.Errorf("uso: cometa <compilar|ejecutar|construir> <archivo.cometa> [-o salida] | captura <archivo.cometa> [-o captura.png] [--cuadros N] [--escala N] | lsp")
 	}
 	var input, output string
+	frames, scale := 1, 1
 	for index := 1; index < len(args); index++ {
 		switch args[index] {
 		case "-o":
@@ -44,6 +46,21 @@ func run(args []string) error {
 				return fmt.Errorf("uso: cometa compilar <archivo.cometa> [-o <archivo.go>]")
 			}
 			output = args[index]
+		case "--cuadros", "--escala":
+			flag := args[index]
+			index++
+			value := 0
+			if args[0] == "captura" && index < len(args) {
+				value, _ = strconv.Atoi(args[index])
+			}
+			if value <= 0 || (flag == "--escala" && value > 64) {
+				return fmt.Errorf("uso: cometa captura <archivo.cometa> [-o captura.png] [--cuadros N] [--escala 1-64]")
+			}
+			if flag == "--cuadros" {
+				frames = value
+			} else {
+				scale = value
+			}
 		default:
 			if strings.HasPrefix(args[index], "-") || input != "" {
 				return fmt.Errorf("argumento inesperado %q", args[index])
@@ -62,6 +79,9 @@ func run(args []string) error {
 	}
 	if output == "" {
 		output = strings.TrimSuffix(input, filepath.Ext(input)) + ".go"
+		if args[0] == "captura" {
+			output = strings.TrimSuffix(input, filepath.Ext(input)) + ".png"
+		}
 		if args[0] == "construir" {
 			output = strings.TrimSuffix(input, filepath.Ext(input))
 			if runtime.GOOS == "windows" {
@@ -72,6 +92,9 @@ func run(args []string) error {
 	generated, err := compiler.CompileProject(input, nil)
 	if err != nil {
 		return err
+	}
+	if args[0] == "captura" {
+		return captureProgram(generated, output, frames, scale)
 	}
 	if args[0] != "compilar" {
 		return buildProgram(generated, output, args[0] == "ejecutar")

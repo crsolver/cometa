@@ -6,7 +6,8 @@ type _hgConfigJuego struct { Ancho, Alto int64; Titulo string; Escala float64; R
 type _hgColor = color.NRGBA
 type _hgTecla ebiten.Key
 type _hgBotonRaton ebiten.MouseButton
-type _hgImagen struct { image *ebiten.Image }
+// Images keep straight-alpha CPU pixels; the GPU copy is created or refreshed on draw.
+type _hgImagen struct { image *ebiten.Image; pixels *image.NRGBA; dirty bool }
 type _hgFuente struct { source *text.GoTextFaceSource }
 type _hgSonido struct { pcm []byte }
 type _hgReproduccion struct { player *audio.Player; sound *_hgSonido; loop, paused bool; volume float64 }
@@ -23,12 +24,13 @@ var _hgupdating bool
 var _hgtick uint64
 
 func (g *_hgGame) Update() error {
+ if _hgcapturaHecha {return ebiten.Termination}
  _hgtick++; _hgupdating=true; defer func(){_hgupdating=false}()
  g.instancia.Actualizar(1/float64(_hgconfig.Tps))
  for r := range _hgplayers { if !r.paused && !r.player.IsPlaying() { r.player.Close(); r.player=nil; delete(_hgplayers,r) } }
  return nil
 }
-func (g *_hgGame) Draw(screen *ebiten.Image) { _hgscreen=screen; _hgrestablecerCamara(); defer func(){_hgscreen=nil}(); g.instancia.Pintar() }
+func (g *_hgGame) Draw(screen *ebiten.Image) { _hgscreen=screen; _hgrestablecerCamara(); defer func(){_hgscreen=nil}(); g.instancia.Pintar(); _hgcapturar(screen) }
 func (*_hgGame) Layout(w,h int)(int,int) {return int(_hgconfig.Ancho),int(_hgconfig.Alto)}
 func _hgvalidarConfig(c _hgConfigJuego) error {
  for _, n:=range []float64{float64(c.Ancho),float64(c.Alto),c.Escala,float64(c.Tps),float64(c.Ancho)*c.Escala,float64(c.Alto)*c.Escala} { if math.IsNaN(n)||math.IsInf(n,0)||n<=0||n>32768 {return fmt.Errorf("configuración de juego inválida: dimensiones, escala y tps deben ser positivos y finitos (máximo 32768)")} }
@@ -75,8 +77,8 @@ func _hgrectangulo(p,s _hgVec2,c _hgColor,o _hgVec2,r float64){
 func _hgcirculo(p _hgVec2,r float64,c _hgColor){_hgdraw();p=_hgpoint(p);vector.FillCircle(_hgscreen,float32(p.X),float32(p.Y),float32(r*_hgcamara.Zoom),c,true)}
 func _hglinea(a,b _hgVec2,c _hgColor,w float64){_hgdraw();a=_hgpoint(a);b=_hgpoint(b);vector.StrokeLine(_hgscreen,float32(a.X),float32(a.Y),float32(b.X),float32(b.Y),float32(w*_hgcamara.Zoom),c,true)}
 func _hgimageDraw(img *ebiten.Image,p,o,s _hgVec2,r float64,c _hgColor){_hgdraw();op:=&ebiten.DrawImageOptions{};op.GeoM=_hgtransform(p,o,s,r,false);op.ColorScale.ScaleWithColor(c);_hgscreen.DrawImage(img,op)}
-func _hgimagen(img *_hgImagen,p,o,s _hgVec2,r float64,c _hgColor){_hgimageDraw(img.image,p,o,s,r,c)}
-func _hgregion(img *_hgImagen,region _hgRect,p,o,s _hgVec2,r float64,c _hgColor){_hgdraw();area:=image.Rect(int(region.Pos.X),int(region.Pos.Y),int(region.Pos.X+region.Tamano.X),int(region.Pos.Y+region.Tamano.Y));if area.Empty(){return};_hgimageDraw(img.image.SubImage(area).(*ebiten.Image),p,o,s,r,c)}
+func _hgimagen(img *_hgImagen,p,o,s _hgVec2,r float64,c _hgColor){_hgimageDraw(img.gpu(),p,o,s,r,c)}
+func _hgregion(img *_hgImagen,region _hgRect,p,o,s _hgVec2,r float64,c _hgColor){_hgdraw();area:=image.Rect(int(region.Pos.X),int(region.Pos.Y),int(region.Pos.X+region.Tamano.X),int(region.Pos.Y+region.Tamano.Y));if area.Empty(){return};_hgimageDraw(img.gpu().SubImage(area).(*ebiten.Image),p,o,s,r,c)}
 func _hgtexto(value string,font *_hgFuente,p _hgVec2,size float64,c _hgColor,o _hgVec2,r float64){_hgdraw();op:=&text.DrawOptions{};op.GeoM=_hgtransform(p,o,_hgVec2{1,1},r,true);op.ColorScale.ScaleWithColor(c);op.LineSpacing=size*1.2;text.Draw(_hgscreen,value,&text.GoTextFace{Source:font.source,Size:size},op)}
 func _hgtextoDepuracion(value string,p _hgVec2){_hgdraw();ebitenutil.DebugPrintAt(_hgscreen,value,int(p.X),int(p.Y))}
 func _hgtamano() _hgVec2{return _hgVec2{float64(_hgconfig.Ancho),float64(_hgconfig.Alto)}}
@@ -108,7 +110,7 @@ func _hgventanaTamano() _hgVec2{x,y:=ebiten.WindowSize();return _hgVec2{float64(
 func _hgfps() float64{return ebiten.ActualFPS()}
 func _hgtps() float64{return ebiten.ActualTPS()}
 func _hgbytes(encoded,path string) []byte{b,err:=base64.StdEncoding.DecodeString(encoded);if err!=nil{log.Fatalf("recurso %s: %v",path,err)};return b}
-func _hgcargarImagen(encoded,path string) *_hgImagen{img,_,err:=image.Decode(bytes.NewReader(_hgbytes(encoded,path)));if err!=nil{log.Fatalf("imagen %s: %v",path,err)};return &_hgImagen{ebiten.NewImageFromImage(img)}}
+func _hgcargarImagen(encoded,path string) *_hgImagen{img,_,err:=image.Decode(bytes.NewReader(_hgbytes(encoded,path)));if err!=nil{log.Fatalf("imagen %s: %v",path,err)};return &_hgImagen{pixels:_hgnrgba(img)}}
 func _hgcargarFuente(encoded,path string) *_hgFuente{f,err:=text.NewGoTextFaceSource(bytes.NewReader(_hgbytes(encoded,path)));if err!=nil{log.Fatalf("fuente %s: %v",path,err)};return &_hgFuente{f}}
 func _hgcargarSonido(encoded,path string) *_hgSonido{
  b:=bytes.NewReader(_hgbytes(encoded,path));var stream io.Reader;var err error
@@ -140,12 +142,12 @@ func _hgimageRect(img *ebiten.Image,d _hgRect,o _hgVec2,r float64,c _hgColor){
  op.GeoM=_hgtransform(d.Pos,o,_hgVec2{d.Tamano.X/float64(bounds.Dx()),d.Tamano.Y/float64(bounds.Dy())},r,true)
  op.ColorScale.ScaleWithColor(c);_hgscreen.DrawImage(img,op)
 }
-func _hgimagenRect(img *_hgImagen,d _hgRect,o _hgVec2,r float64,c _hgColor){_hgimageRect(img.image,d,o,r,c)}
+func _hgimagenRect(img *_hgImagen,d _hgRect,o _hgVec2,r float64,c _hgColor){_hgimageRect(img.gpu(),d,o,r,c)}
 func _hgregionRect(img *_hgImagen,source,d _hgRect,o _hgVec2,r float64,c _hgColor){
  _hgdraw()
  area:=image.Rect(int(source.Pos.X),int(source.Pos.Y),int(source.Pos.X+source.Tamano.X),int(source.Pos.Y+source.Tamano.Y))
  if area.Empty(){return}
- _hgimageRect(img.image.SubImage(area).(*ebiten.Image),d,o,r,c)
+ _hgimageRect(img.gpu().SubImage(area).(*ebiten.Image),d,o,r,c)
 }
 
 // Transform local geometry before applying the active camera. Image origins use
@@ -179,6 +181,37 @@ func _hgejecutar(instancia _hgJuego,w,h int64,title string,scale float64,resize,
  if resize {ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)}
  ebiten.SetTPS(int(tps))
  ebiten.SetScreenFilterEnabled(!(pixelado||retro))
+ if _hgcapturaRuta!="" {ebiten.SetWindowVisible(false);ebiten.SetRunnableOnUnfocused(true)}
  if err:=ebiten.RunGame(game);err!=nil{return fail(err)}
  return struct{tag int;payload2 string}{1,""}
+}
+
+func (i *_hgImagen) gpu() *ebiten.Image {
+ if i.image==nil {i.image=ebiten.NewImageFromImage(i.pixels);i.dirty=false}
+ if i.dirty {i.image.WritePixels(_hgpremultiplicar(i.pixels.Pix));i.dirty=false}
+ return i.image
+}
+func (i *_hgImagen) bounds() image.Rectangle {if i.pixels!=nil{return i.pixels.Rect};return i.image.Bounds()}
+func _hgpremultiplicar(pix []byte) []byte {
+ out:=make([]byte,len(pix))
+ for i:=0;i<len(pix);i+=4 {a:=uint32(pix[i+3]);out[i]=uint8(uint32(pix[i])*a/255);out[i+1]=uint8(uint32(pix[i+1])*a/255);out[i+2]=uint8(uint32(pix[i+2])*a/255);out[i+3]=pix[i+3]}
+ return out
+}
+func _hgnrgba(src image.Image) *image.NRGBA {
+ b:=src.Bounds();out:=image.NewNRGBA(image.Rect(0,0,b.Dx(),b.Dy()))
+ for y:=0;y<b.Dy();y++ {for x:=0;x<b.Dx();x++ {out.Set(x,y,src.At(b.Min.X+x,b.Min.Y+y))}}
+ return out
+}
+
+// Set by `cometa captura`; saves the logical screen after the requested ticks.
+var _hgcapturaRuta string
+var _hgcapturaCuadros uint64 = 1
+var _hgcapturaEscala int64 = 1
+var _hgcapturaHecha bool
+func _hgcapturar(screen *ebiten.Image) {
+ if _hgcapturaRuta=="" || _hgcapturaHecha || _hgtick<_hgcapturaCuadros {return}
+ b:=screen.Bounds();pix:=make([]byte,4*b.Dx()*b.Dy());screen.ReadPixels(pix)
+ shot:=&image.RGBA{Pix:pix,Stride:4*b.Dx(),Rect:image.Rect(0,0,b.Dx(),b.Dy())}
+ if err:=_hgescribirPNG(shot,_hgcapturaRuta,_hgcapturaEscala);err!=nil{log.Fatalf("captura: %v",err)}
+ _hgcapturaHecha=true
 }

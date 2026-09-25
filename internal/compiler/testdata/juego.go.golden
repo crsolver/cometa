@@ -10,8 +10,10 @@ import (
 	"image"
 	"image/color"
 	_ "image/jpeg"
-	_ "image/png"
+	"image/png"
+	"log"
 	"math"
+	"os"
 )
 
 type _hgVec2 struct{ X, Y float64 }
@@ -28,7 +30,11 @@ type _hgConfigJuego struct {
 	Tps                                int64
 }
 type _hgColor = color.NRGBA
-type _hgImagen struct{ image *ebiten.Image }
+type _hgImagen struct {
+	image  *ebiten.Image
+	pixels *image.NRGBA
+	dirty  bool
+}
 type _hgFuente struct{ source *text.GoTextFaceSource }
 type _hgSonido struct{ pcm []byte }
 type _hgReproduccion struct {
@@ -55,6 +61,9 @@ var _hgupdating bool
 var _hgtick uint64
 
 func (g *_hgGame) Update() error {
+	if _hgcapturaHecha {
+		return ebiten.Termination
+	}
 	_hgtick++
 	_hgupdating = true
 	defer func() { _hgupdating = false }()
@@ -73,6 +82,7 @@ func (g *_hgGame) Draw(screen *ebiten.Image) {
 	_hgrestablecerCamara()
 	defer func() { _hgscreen = nil }()
 	g.instancia.Pintar()
+	_hgcapturar(screen)
 }
 func (*_hgGame) Layout(w, h int) (int, int) { return int(_hgconfig.Ancho), int(_hgconfig.Alto) }
 func _hgvalidarConfig(c _hgConfigJuego) error {
@@ -188,7 +198,7 @@ func _hgimageDraw(img *ebiten.Image, p, o, s _hgVec2, r float64, c _hgColor) {
 	_hgscreen.DrawImage(img, op)
 }
 func _hgimagen(img *_hgImagen, p, o, s _hgVec2, r float64, c _hgColor) {
-	_hgimageDraw(img.image, p, o, s, r, c)
+	_hgimageDraw(img.gpu(), p, o, s, r, c)
 }
 func _hgregion(img *_hgImagen, region _hgRect, p, o, s _hgVec2, r float64, c _hgColor) {
 	_hgdraw()
@@ -196,7 +206,7 @@ func _hgregion(img *_hgImagen, region _hgRect, p, o, s _hgVec2, r float64, c _hg
 	if area.Empty() {
 		return
 	}
-	_hgimageDraw(img.image.SubImage(area).(*ebiten.Image), p, o, s, r, c)
+	_hgimageDraw(img.gpu().SubImage(area).(*ebiten.Image), p, o, s, r, c)
 }
 func _hgtexto(value string, font *_hgFuente, p _hgVec2, size float64, c _hgColor, o _hgVec2, r float64) {
 	_hgdraw()
@@ -270,7 +280,7 @@ func _hgimageRect(img *ebiten.Image, d _hgRect, o _hgVec2, r float64, c _hgColor
 	_hgscreen.DrawImage(img, op)
 }
 func _hgimagenRect(img *_hgImagen, d _hgRect, o _hgVec2, r float64, c _hgColor) {
-	_hgimageRect(img.image, d, o, r, c)
+	_hgimageRect(img.gpu(), d, o, r, c)
 }
 func _hgregionRect(img *_hgImagen, source, d _hgRect, o _hgVec2, r float64, c _hgColor) {
 	_hgdraw()
@@ -278,7 +288,7 @@ func _hgregionRect(img *_hgImagen, source, d _hgRect, o _hgVec2, r float64, c _h
 	if area.Empty() {
 		return
 	}
-	_hgimageRect(img.image.SubImage(area).(*ebiten.Image), d, o, r, c)
+	_hgimageRect(img.gpu().SubImage(area).(*ebiten.Image), d, o, r, c)
 }
 func _hgtransform(p, o, s _hgVec2, r float64, destinationOrigin bool) ebiten.GeoM {
 	var m ebiten.GeoM
@@ -333,6 +343,10 @@ func _hgejecutar(instancia _hgJuego, w, h int64, title string, scale float64, re
 	}
 	ebiten.SetTPS(int(tps))
 	ebiten.SetScreenFilterEnabled(!(pixelado || retro))
+	if _hgcapturaRuta != "" {
+		ebiten.SetWindowVisible(false)
+		ebiten.SetRunnableOnUnfocused(true)
+	}
 	if err := ebiten.RunGame(game); err != nil {
 		return fail(err)
 	}
@@ -340,6 +354,74 @@ func _hgejecutar(instancia _hgJuego, w, h int64, title string, scale float64, re
 		tag      int
 		payload2 string
 	}{1, ""}
+}
+func (i *_hgImagen) gpu() *ebiten.Image {
+	if i.image == nil {
+		i.image = ebiten.NewImageFromImage(i.pixels)
+		i.dirty = false
+	}
+	if i.dirty {
+		i.image.WritePixels(_hgpremultiplicar(i.pixels.Pix))
+		i.dirty = false
+	}
+	return i.image
+}
+func (i *_hgImagen) bounds() image.Rectangle {
+	if i.pixels != nil {
+		return i.pixels.Rect
+	}
+	return i.image.Bounds()
+}
+func _hgpremultiplicar(pix []byte) []byte {
+	out := make([]byte, len(pix))
+	for i := 0; i < len(pix); i += 4 {
+		a := uint32(pix[i+3])
+		out[i] = uint8(uint32(pix[i]) * a / 255)
+		out[i+1] = uint8(uint32(pix[i+1]) * a / 255)
+		out[i+2] = uint8(uint32(pix[i+2]) * a / 255)
+		out[i+3] = pix[i+3]
+	}
+	return out
+}
+
+var _hgcapturaRuta string
+var _hgcapturaCuadros uint64 = 1
+var _hgcapturaEscala int64 = 1
+var _hgcapturaHecha bool
+
+func _hgcapturar(screen *ebiten.Image) {
+	if _hgcapturaRuta == "" || _hgcapturaHecha || _hgtick < _hgcapturaCuadros {
+		return
+	}
+	b := screen.Bounds()
+	pix := make([]byte, 4*b.Dx()*b.Dy())
+	screen.ReadPixels(pix)
+	shot := &image.RGBA{Pix: pix, Stride: 4 * b.Dx(), Rect: image.Rect(0, 0, b.Dx(), b.Dy())}
+	if err := _hgescribirPNG(shot, _hgcapturaRuta, _hgcapturaEscala); err != nil {
+		log.Fatalf("captura: %v", err)
+	}
+	_hgcapturaHecha = true
+}
+func _hgescribirPNG(src image.Image, ruta string, escala int64) error {
+	if escala <= 0 || escala > 64 {
+		return fmt.Errorf("la escala debe estar entre 1 y 64")
+	}
+	b := src.Bounds()
+	out := image.NewNRGBA(image.Rect(0, 0, b.Dx()*int(escala), b.Dy()*int(escala)))
+	for y := 0; y < out.Rect.Dy(); y++ {
+		for x := 0; x < out.Rect.Dx(); x++ {
+			out.Set(x, y, src.At(b.Min.X+x/int(escala), b.Min.Y+y/int(escala)))
+		}
+	}
+	f, err := os.Create(ruta)
+	if err != nil {
+		return err
+	}
+	if err = png.Encode(f, out); err != nil {
+		f.Close()
+		return err
+	}
+	return f.Close()
 }
 
 type _hgCRTGame struct {

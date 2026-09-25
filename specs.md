@@ -32,6 +32,8 @@ Las firmas, coordenadas y recursos se detallan en [Pincel](docs/juegos.md).
 
 `std/pincel/retro` añade dibujo incorporado de texto y glifos bitmap de 8×8: `texto`, `icono` y `glifo`, con coordenadas y escala enteras, color contextual y tipos opacos de valor `Icono` y `Atlas`. `texto` mapea Unicode al atlas Dungeon-437; `icono` usa nombres contextuales del atlas Dungeon-mode; `glifo` permite índices 0–255 y selección `.Dungeon`/`.ASCII`. Los atlas se incorporan al Go generado únicamente al importar este módulo. No son recursos declarados por el usuario. Los dibujos obedecen la cámara y la restricción de fase `pintar` de Pincel.
 
+`std/pincel/lienzo` crea `graficos.Imagen` editables en memoria de CPU: `nuevo`, `desde_texto`/`hoja_desde_texto` (una fila de texto por fila de píxeles con un mapa `[cadena: Color]` de claves de un carácter; `.` y el espacio son transparentes salvo redefinición), `ancho`, `alto`, `copiar`, `limpiar`, `pixel`, `leer_pixel` (`Color?`), `rect`, `linea`, `circulo`, `rellenar`, `pegar` y `guardar(imagen, ruta, escala = 1) !`. Las coordenadas son enteras y sin suavizado; las primitivas reemplazan píxeles y recortan fuera de los bordes; `pegar` mezcla con alfa y admite espejo horizontal y vertical. Las funciones no dependen de la fase `pintar` y pueden usarse en globales o en `inicio`; la imagen se sube a la GPU al dibujarse y otra vez tras editarse. Los datos inválidos detienen el programa con la fila o cuadro afectado. Consulta [Lienzo](docs/lienzo.md).
+
 Los parámetros opcionales finales de `juego.ejecutar` son `pixelado bool = falso` y `retro bool = falso`, en ese orden. `pixelado` controla la presentación por vecino más cercano; no cambia la resolución lógica ni impone escalas enteras. `retro = verdadero` activa vecino más cercano aunque `pixelado = falso` y aplica un shader CRT a toda la imagen, incluido el texto: líneas de barrido suaves, una máscara RGB tenue y viñeta ligera, sin curvatura ni parpadeo. Los patrones finos se atenúan a escalas pequeñas. Conserva la relación de aspecto, las bandas de presentación y las coordenadas del ratón y la cámara. No requiere importar `std/pincel/retro`. Los errores de inicialización del shader se devuelven mediante el resultado de `ejecutar`. El texto TTF existente conserva su API.
 
 ## Compilar
@@ -39,9 +41,12 @@ Los parámetros opcionales finales de `juego.ejecutar` son `pixelado bool = fals
 ```console
 cometa compilar programa.cometa
 cometa compilar programa.cometa -o salida.go
+cometa captura juego.cometa -o captura.png --escala 4 --cuadros 30
 ```
 
 Sin `-o`, la salida usa el mismo nombre base con la extensión `.go`. El compilador formatea y verifica los tipos del código Go antes de escribirlo. Los errores incluyen archivo, línea y columna.
+
+`captura` construye y ejecuta un juego de Pincel con la ventana oculta, guarda la pantalla lógica como PNG después de `--cuadros` actualizaciones (1 por defecto), ampliada por vecino más cercano con `--escala` (1–64), y termina. Sin `-o` escribe `<archivo>.png`. Los programas sin `juego.ejecutar` se rechazan.
 
 El mismo ejecutable inicia el servidor LSP mediante `cometa lsp`. El servidor se comunica por entrada/salida estándar, publica los errores del compilador al abrir, cambiar o guardar un documento, ofrece el esquema jerárquico del archivo, completa campos y métodos después de `.` o de `@` dentro de métodos, y muestra los tipos inferidos de variables y las firmas de funciones al pasar el cursor. Las líneas `//` consecutivas inmediatamente anteriores a una función se muestran como su documentación.
 
