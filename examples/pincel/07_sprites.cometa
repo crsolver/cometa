@@ -1,0 +1,62 @@
+// Pincel: crear sprites con texto usando lienzo.
+// Cada carácter es un píxel; el mapa dice qué color tiene cada carácter.
+// "." es transparente.
+usar std/pincel
+usar std/pincel/graficos
+usar std/pincel/color
+usar std/pincel/lienzo
+
+var paleta = [
+	"n": color.rgba(30, 20, 30),
+	"p": color.rgba(240, 190, 150),
+	"r": .Rojo,
+	"a": .Azul,
+]
+
+// Dos cuadros de animación del mismo tamaño.
+var cuadros = lienzo.hoja_desde_texto([
+	[
+		"..rrrr..",
+		".rrrrrr.",
+		"..pnpn..",
+		"..pppp..",
+		".aaaaaa.",
+		"p.aaaa.p",
+		"..a..a..",
+		".nn..nn.",
+	],
+	[
+		"..rrrr..",
+		".rrrrrr.",
+		"..pnpn..",
+		"..pppp..",
+		"paaaaaap",
+		"..aaaa..",
+		"..a..a..",
+		"..nn.nn.",
+	],
+], paleta)
+
+tipo Escena
+	tiempo decimal
+	x decimal
+
+	pub fn actualizar(dt decimal)
+		@tiempo = @tiempo + dt
+		@x = @x + 30 * dt
+		si @x > 160
+			@x = -32
+
+	pub fn pintar()
+		graficos.limpiar(.Celeste)
+		graficos.rectangulo(0, 72, 160, 18, .Verde)
+
+		// Cambia de cuadro cada 0.25 segundos.
+		var cuadro = entero(@tiempo * 4) % 2
+
+		// escala agranda el sprite 4 veces.
+		graficos.imagen(cuadros[cuadro], @x, 40, escala = {x: 4, y: 4})
+
+fn inicio()
+	pincel.ejecutar(Escena {}, 160, 90, titulo = "Sprites", escala = 5, pixelado = verdadero) capturar |error|
+		imprimir(error)

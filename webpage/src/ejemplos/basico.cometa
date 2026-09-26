@@ -1,0 +1,17 @@
+// Las funciones devuelven su última expresión.
+fn area(ancho decimal, alto decimal) decimal ancho * alto
+
+fn saludar(nombre cadena = "mundo") cadena
+	"¡Hola, ${nombre}!"
+
+fn inicio()
+	var frutas = ["mango", "papaya", "guayaba"]
+
+	repetir (frutas) |fruta|
+		imprimir("Me gusta la ${fruta.mayusculas()}")
+
+	var nota = 87
+	var mensaje = si nota >= 90 "¡Excelente!" sino "¡Muy bien!"
+	imprimir(mensaje)
+	imprimir(saludar())
+	imprimir(area(3, 4.5))

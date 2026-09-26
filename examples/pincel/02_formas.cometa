@@ -1,0 +1,37 @@
+// Pincel: dibujar formas y colores.
+// Las coordenadas empiezan en la esquina superior izquierda: x crece a la derecha, y hacia abajo.
+usar std/pincel
+usar std/pincel/graficos
+usar std/pincel/color
+
+// color.rgba crea un color con rojo, verde, azul (0 a 255).
+var cielo = color.rgba(120, 180, 230)
+var cesped = color.rgba(70, 150, 70)
+
+tipo Paisaje
+	pub fn actualizar(dt decimal) retornar
+
+	pub fn pintar()
+		graficos.limpiar(cielo)
+
+		// Sol: circulo(x del centro, y del centro, radio, color)
+		graficos.circulo(260, 40, 20, .Amarillo)
+
+		// Suelo: rectangulo(x, y, ancho, alto, color)
+		graficos.rectangulo(0, 130, 320, 50, cesped)
+
+		// Casa
+		graficos.rectangulo(60, 90, 60, 40, .Crema)
+		graficos.linea(55, 90, 90, 60, .Rojo, grosor = 3)
+		graficos.linea(90, 60, 125, 90, .Rojo, grosor = 3)
+		graficos.rectangulo(82, 108, 16, 22, .Marron)
+
+		// Árboles con un bucle.
+		repetir (0..3) |i|
+			var x = 170 + i * 40
+			graficos.rectangulo(x - 3, 110, 6, 20, .Marron)
+			graficos.circulo(x, 100, 14, .VerdeBosque)
+
+fn inicio()
+	pincel.ejecutar(Paisaje {}, 320, 180, titulo = "Formas", escala = 3) capturar |error|
+		imprimir(error)

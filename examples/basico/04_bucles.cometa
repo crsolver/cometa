@@ -1,0 +1,34 @@
+// Repetir acciones con repetir.
+
+fn inicio()
+	// Un rango cuenta desde el primer número hasta antes del segundo.
+	imprimir("Cuenta del 1 al 5:")
+	repetir (1..6) |numero|
+		imprimir(numero)
+
+	// Si el cuerpo es corto, puede ir en la misma línea.
+	imprimir("Cuenta atrás:")
+	repetir (3..0) |numero| imprimir(numero)
+	imprimir("¡Despegue!")
+
+	// repetir también recorre listas.
+	var frutas = ["manzana", "pera", "uva"]
+	repetir (frutas) |fruta, indice|
+		imprimir("${indice}: ${fruta}")
+
+	// continuar salta a la siguiente vuelta; romper termina el bucle.
+	imprimir("Números pares hasta encontrar uno mayor que 8:")
+	repetir (1..100) |numero|
+		si numero % 2 != 0
+			continuar
+		si numero > 8
+			romper
+		imprimir(numero)
+
+	// Sin rango ni lista, repetir es infinito: sal con romper.
+	var intentos = 0
+	repetir
+		intentos = intentos + 1
+		si intentos == 3
+			romper
+	imprimir("Intentos: ${intentos}")

@@ -12,7 +12,7 @@ import (
 	"testing"
 )
 
-const pincelImports = "usar std/mate\nusar std/azar\nusar std/pincel/juego\nusar std/pincel/graficos\nusar std/pincel/color\nusar std/pincel/entrada\nusar std/pincel/audio\nusar std/pincel/ventana\nusar std/pincel/tiempo\nusar std/pincel/recursos\n"
+const pincelImports = "usar std/mate\nusar std/azar\nusar std/pincel\nusar std/pincel/graficos\nusar std/pincel/color\nusar std/pincel/entrada\nusar std/pincel/audio\nusar std/pincel/ventana\nusar std/pincel/tiempo\nusar std/pincel/recursos\n"
 
 const minimalGame = "fn actualizar(dt decimal)\n\timprimir(dt)\nfn pintar()\n\tgraficos.rectangulo_v(mate.Vec2 {}, mate.Vec2 {x: 10, y: 10}, .Rojo)\n"
 
@@ -34,7 +34,7 @@ tipo Partida
 	pub fn actualizar(dt decimal) actualizar(dt)
 	pub fn pintar() pintar()
 fn inicio()
-	juego.ejecutar(Partida {}, 320, 240, titulo = "Prueba", escala = 2) capturar |e| imprimir(e)
+	pincel.ejecutar(Partida {}, 320, 240, titulo = "Prueba", escala = 2) capturar |e| imprimir(e)
 `
 	got, err := Compile("game.cometa", []byte(pincelImports+source))
 	if err != nil {
@@ -109,7 +109,7 @@ func TestAllGameSignatures(t *testing.T) {
 				args = append(args, p.Name)
 			}
 		}
-		if f.Resource || f.Namespace == "juego" {
+		if f.Resource || f.Namespace == "pincel" {
 			continue
 		}
 		var params []string

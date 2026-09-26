@@ -14,7 +14,7 @@ import (
 )
 
 func main() {
-	must(os.MkdirAll("examples/assets", 0755))
+	must(os.MkdirAll("examples/pincel/assets", 0755))
 	img := image.NewNRGBA(image.Rect(0, 0, 16, 16))
 	for y := 0; y < 16; y++ {
 		for x := 0; x < 16; x++ {
@@ -30,7 +30,7 @@ func main() {
 	}
 	var p bytes.Buffer
 	must(png.Encode(&p, img))
-	must(os.WriteFile("examples/assets/jugador.png", p.Bytes(), 0644))
+	must(os.WriteFile("examples/pincel/assets/jugador.png", p.Bytes(), 0644))
 	const samples = 4800
 	var wave bytes.Buffer
 	wave.WriteString("RIFF")
@@ -46,7 +46,7 @@ func main() {
 		v := math.Sin(2*math.Pi*(660*t+2200*t*t)) * (1 - float64(i)/samples)
 		must(binary.Write(&wave, binary.LittleEndian, int16(v*12000)))
 	}
-	must(os.WriteFile("examples/assets/recoger.wav", wave.Bytes(), 0644))
+	must(os.WriteFile("examples/pincel/assets/recoger.wav", wave.Bytes(), 0644))
 }
 func must(err error) {
 	if err != nil {

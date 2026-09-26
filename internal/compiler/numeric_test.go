@@ -156,16 +156,16 @@ func main() {
 }
 
 func TestNumericExamples(t *testing.T) {
-	paths, err := filepath.Glob("../../examples/*.cometa")
+	// Entry programs live one level down (basico/, pincel/); deeper files are imported modules.
+	paths, err := filepath.Glob("../../examples/*/*.cometa")
 	if err != nil {
 		t.Fatal(err)
 	}
+	if len(paths) == 0 {
+		t.Fatal("no examples found")
+	}
 	for _, path := range paths {
-		// g.cometa is a pre-existing scratch file with an unresolved import.
-		if filepath.Base(path) == "g.cometa" {
-			continue
-		}
-		t.Run(filepath.Base(path), func(t *testing.T) {
+		t.Run(filepath.Base(filepath.Dir(path))+"/"+filepath.Base(path), func(t *testing.T) {
 			abs, err := filepath.Abs(path)
 			if err != nil {
 				t.Fatal(err)

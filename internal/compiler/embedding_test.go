@@ -7,7 +7,7 @@ import (
 )
 
 func TestEmbeddingExample(t *testing.T) {
-	source, err := os.ReadFile("../../examples/embebidos.cometa")
+	source, err := os.ReadFile("testdata/programas/embebidos.cometa")
 	if err != nil {
 		t.Fatal(err)
 	}

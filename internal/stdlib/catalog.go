@@ -49,7 +49,7 @@ var Functions = []Function{
 	{"curvas", "rebote_entrada", "progreso decimal) decimal", "curva_rebote_entrada", false, false},
 	{"curvas", "rebote_salida", "progreso decimal) decimal", "curva_rebote_salida", false, false},
 	{"curvas", "rebote_entrada_salida", "progreso decimal) decimal", "curva_rebote_entrada_salida", false, false},
-	{"juego", "ejecutar", `instancia Juego, ancho entero = 320, alto entero = 180, titulo cadena = "Cometa", escala decimal = 1, redimensionable bool = falso, pantalla_completa bool = falso, tps entero = 60, pixelado bool = falso, retro bool = falso) !`, "ejecutar", false, false},
+	{"pincel", "ejecutar", `instancia Juego, ancho entero = 320, alto entero = 180, titulo cadena = "Cometa", escala decimal = 1, redimensionable bool = falso, pantalla_completa bool = falso, tps entero = 60, pixelado bool = falso, retro bool = falso) !`, "ejecutar", false, false},
 	{"retro", "texto", "texto cadena, x entero, y entero, escala entero = 1, color Color = .Blanco)", "retroTexto", true, false},
 	{"retro", "icono", "icono Icono, x entero, y entero, escala entero = 1, color Color = .Blanco)", "retroIcono", true, false},
 	{"retro", "glifo", "indice entero, x entero, y entero, escala entero = 1, color Color = .Blanco, atlas Atlas = .Dungeon)", "retroGlifo", true, false},

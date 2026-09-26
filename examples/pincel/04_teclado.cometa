@@ -1,0 +1,45 @@
+// Pincel: mover un personaje con el teclado (flechas o WASD).
+usar std/mate
+usar std/pincel
+usar std/pincel/graficos
+usar std/pincel/entrada
+
+const velocidad decimal = 100
+
+tipo Jugador
+	pos mate.Vec2
+	saltos entero
+
+	pub fn actualizar(dt decimal)
+		var direccion = mate.Vec2 {}
+
+		// tecla_mantenida es verdadero mientras la tecla está pulsada.
+		si entrada.tecla_mantenida(.Derecha) || entrada.tecla_mantenida(.D)
+			direccion.x = 1
+		si entrada.tecla_mantenida(.Izquierda) || entrada.tecla_mantenida(.A)
+			direccion.x = -1
+		si entrada.tecla_mantenida(.Abajo) || entrada.tecla_mantenida(.S)
+			direccion.y = 1
+		si entrada.tecla_mantenida(.Arriba) || entrada.tecla_mantenida(.W)
+			direccion.y = -1
+
+		// normalizado() evita ir más rápido en diagonal.
+		@pos = @pos + direccion.normalizado() * velocidad * dt
+
+		// Mantenerse dentro de la pantalla.
+		@pos.x = mate.limitar(@pos.x, 0, 304)
+		@pos.y = mate.limitar(@pos.y, 0, 164)
+
+		// tecla_presionada solo es verdadero en el cuadro en que se pulsa.
+		si entrada.tecla_presionada(.Espacio)
+			@saltos = @saltos + 1
+
+	pub fn pintar()
+		graficos.limpiar(.VerdePino)
+		graficos.rectangulo_v(@pos, {16, 16}, .Celeste)
+		graficos.texto_depuracion("Flechas/WASD: mover   Espacio: contar", 4, 4)
+		graficos.texto_depuracion("Espacio pulsado ${@saltos} veces", 4, 164)
+
+fn inicio()
+	pincel.ejecutar(Jugador {pos: {x: 152, y: 82}}, 320, 180, titulo = "Teclado", escala = 3) capturar |error|
+		imprimir(error)

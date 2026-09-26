@@ -1,0 +1,82 @@
+// Pincel: un juego completo y pequeño.
+// Mueve al jugador con flechas o WASD y recoge los objetivos antes de que acabe el tiempo.
+// R reinicia la partida.
+usar std/mate
+usar std/azar
+usar std/pincel
+usar std/pincel/graficos
+usar std/pincel/entrada
+usar std/pincel/audio
+usar std/pincel/recursos
+usar std/pincel/retro
+
+const ancho entero = 240
+const alto entero = 160
+const tiempo_total decimal = 30
+
+// Las imágenes y sonidos se cargan desde rutas relativas a este archivo
+// y se incluyen dentro del programa al compilar.
+var sprite = recursos.imagen("assets/jugador.png")
+var sonido = recursos.sonido("assets/recoger.wav")
+
+tipo Partida
+	jugador mate.Vec2
+	objetivo mate.Vec2
+	puntos entero
+	restante decimal
+
+	fn reiniciar()
+		@jugador = {x: 112, y: 72}
+		@puntos = 0
+		@restante = tiempo_total
+		@mover_objetivo()
+
+	fn mover_objetivo()
+		@objetivo = {x: azar.entero(8, ancho - 16), y: azar.entero(24, alto - 16)}
+
+	pub fn actualizar(dt decimal)
+		si entrada.tecla_presionada(.R)
+			@reiniciar()
+		si @restante <= 0
+			retornar
+		@restante = @restante - dt
+
+		var direccion = mate.Vec2 {}
+		si entrada.tecla_mantenida(.Derecha) || entrada.tecla_mantenida(.D)
+			direccion.x = 1
+		si entrada.tecla_mantenida(.Izquierda) || entrada.tecla_mantenida(.A)
+			direccion.x = -1
+		si entrada.tecla_mantenida(.Abajo) || entrada.tecla_mantenida(.S)
+			direccion.y = 1
+		si entrada.tecla_mantenida(.Arriba) || entrada.tecla_mantenida(.W)
+			direccion.y = -1
+		@jugador = @jugador + direccion.normalizado() * 90 * dt
+		@jugador.x = mate.limitar(@jugador.x, 0, ancho - 16)
+		@jugador.y = mate.limitar(@jugador.y, 16, alto - 16)
+
+		// Rect representa un rectángulo; interseca detecta si se tocan.
+		var caja_jugador = mate.Rect {pos: @jugador, tamano: {16, 16}}
+		var caja_objetivo = mate.Rect {pos: @objetivo, tamano: {8, 8}}
+		si caja_jugador.interseca(caja_objetivo)
+			@puntos = @puntos + 1
+			audio.reproducir(sonido, volumen = 0.3)
+			@mover_objetivo()
+
+	pub fn pintar()
+		graficos.limpiar(.VerdePino)
+		graficos.rectangulo(0, 0, ancho, 14, .Negro)
+		retro.texto("Puntos: ${@puntos}", 4, 3, color = .Amarillo)
+		retro.texto("Tiempo: ${mate.techo(@restante)}", 150, 3)
+
+		graficos.rectangulo_v(@objetivo, {8, 8}, .Amarillo)
+		graficos.imagen_v(sprite, @jugador)
+
+		si @restante <= 0
+			retro.texto("¡Fin del tiempo!", 56, 64, color = .Rosa)
+			retro.texto("R: jugar otra vez", 52, 80)
+
+fn inicio()
+	var partida = Partida {}
+	partida.reiniciar()
+	pincel.ejecutar(partida, ancho, alto, titulo = "Atrapa", escala = 4, pixelado = verdadero) capturar |error|
+		imprimir(error)

@@ -38,7 +38,7 @@ func TestLienzoAPI(t *testing.T) {
 			t.Fatal("accepted invalid lienzo call", source)
 		}
 	}
-	if _, err := CompileProject(filepath.Join("..", "..", "examples", "pixelart.cometa"), nil); err != nil {
+	if _, err := CompileProject(filepath.Join("testdata", "programas", "pixelart.cometa"), nil); err != nil {
 		t.Fatal(err)
 	}
 }

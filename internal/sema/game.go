@@ -45,7 +45,7 @@ func (c *checker) installGameAPI() error {
 		if name == "actualizar" {
 			signature = "dt decimal)"
 		}
-		d := (stdlib.Function{Namespace: "juego", Name: name, Signature: signature}).Declaration()
+		d := (stdlib.Function{Namespace: "pincel", Name: name, Signature: signature}).Declaration()
 		d.Name = name
 		info, err := c.signature(d)
 		if err != nil {

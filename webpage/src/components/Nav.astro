@@ -1,0 +1,72 @@
+---
+import Logo from './Logo.astro';
+
+const enlaces = [
+	{ href: '#caracteristicas', texto: 'Características' },
+	{ href: '#ejemplos', texto: 'Ejemplos' },
+	{ href: '#a-mano', texto: '¿Por qué a mano?' },
+	{ href: '#juegos', texto: 'Juegos' },
+	{ href: '#empezar', texto: 'Empezar' },
+];
+---
+
+<header class="nav">
+	<div class="contenedor nav-interior">
+		<a href="#" class="nav-logo" aria-label="Cometa, inicio"><Logo size={36} /></a>
+		<nav aria-label="Principal">
+			<ul>
+				{enlaces.map((e) => <li><a href={e.href}>{e.texto}</a></li>)}
+			</ul>
+		</nav>
+		<a class="boton boton-secundario nav-gh" href="https://github.com/crsolver/hacha2">GitHub</a>
+	</div>
+</header>
+
+<style>
+	.nav {
+		position: sticky;
+		top: 0;
+		z-index: 50;
+		backdrop-filter: blur(14px);
+		background: rgb(36 38 70 / 0.8);
+		border-bottom: 1px solid rgb(61 64 112 / 0.6);
+	}
+	.nav-interior {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 1rem;
+		height: 4.2rem;
+	}
+	.nav-logo {
+		text-decoration: none;
+	}
+	ul {
+		display: flex;
+		gap: 0.3rem;
+		list-style: none;
+		margin: 0;
+		padding: 0;
+	}
+	ul a {
+		color: var(--tinta-suave);
+		text-decoration: none;
+		font-weight: 500;
+		padding: 0.45rem 0.8rem;
+		border-radius: 999px;
+		transition: color 0.2s, background 0.2s;
+	}
+	ul a:hover {
+		color: var(--tinta);
+		background: rgb(255 255 255 / 0.06);
+	}
+	.nav-gh {
+		padding: 0.5rem 1rem;
+		font-size: 0.9rem;
+	}
+	@media (max-width: 960px) {
+		nav {
+			display: none;
+		}
+	}
+</style>

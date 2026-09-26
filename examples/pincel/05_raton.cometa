@@ -1,0 +1,32 @@
+// Pincel: usar el ratón. Haz clic para dejar puntos; clic derecho borra todo.
+usar std/mate
+usar std/pincel
+usar std/pincel/graficos
+usar std/pincel/entrada
+
+tipo Pizarra
+	puntos [mate.Vec2]
+
+	pub fn actualizar(dt decimal)
+		si entrada.raton_presionado(.Izquierdo)
+			@puntos.agregar(entrada.posicion_raton())
+		si entrada.raton_presionado(.Derecho)
+			@puntos = []
+
+	pub fn pintar()
+		graficos.limpiar(.Carbon)
+
+		// Une los puntos con líneas, en el orden en que se crearon.
+		repetir (@puntos) |punto, i|
+			si i > 0
+				graficos.linea_v(@puntos[i - 1], punto, .Crema)
+		repetir (@puntos) |punto|
+			graficos.circulo_v(punto, 3, .Amarillo)
+
+		// Un círculo sigue al cursor.
+		graficos.circulo_v(entrada.posicion_raton(), 5, .Rosa)
+		graficos.texto_depuracion("Clic: punto   Clic derecho: borrar   Puntos: ${@puntos.longitud()}", 4, 4)
+
+fn inicio()
+	pincel.ejecutar(Pizarra {}, 320, 180, titulo = "Ratón", escala = 3) capturar |error|
+		imprimir(error)

@@ -3,7 +3,7 @@
 `usar std/pincel/lienzo` crea y edita imágenes (`graficos.Imagen`) píxel a píxel, sin archivos PNG. Las imágenes resultantes se dibujan con `graficos.imagen`, `graficos.region`, etc., como cualquier imagen cargada.
 
 - Las coordenadas y tamaños son `entero`; no hay suavizado.
-- Los píxeles viven en memoria de CPU y se suben a la GPU al dibujarlos, así que los lienzos pueden crearse en variables globales o en `inicio()`, antes de `juego.ejecutar`. Editar un lienzo que ya se dibujó vuelve a subirlo en el siguiente dibujo.
+- Los píxeles viven en memoria de CPU y se suben a la GPU al dibujarlos, así que los lienzos pueden crearse en variables globales o en `inicio()`, antes de `pincel.ejecutar`. Editar un lienzo que ya se dibujó vuelve a subirlo en el siguiente dibujo.
 - Las primitivas **reemplazan** píxeles, incluida la transparencia (sirven también como borrador). Solo `pegar` mezcla la fuente sobre el destino.
 - Escribir fuera de los bordes se recorta sin error.
 
@@ -60,6 +60,6 @@ cometa ejecutar sprites.cometa                     # un programa que llama a lie
 cometa captura juego.cometa -o juego.png --escala 4 --cuadros 30
 ```
 
-`cometa captura` ejecuta el juego con la ventana oculta, guarda la pantalla lógica tras `--cuadros` actualizaciones (1 por defecto) y cierra el juego. `--escala` amplía el PNG sin suavizado. Sin `-o`, escribe `<archivo>.png` junto a la fuente. Requiere que el programa llame a `juego.ejecutar`; la captura ocurre antes del efecto `retro`.
+`cometa captura` ejecuta el juego con la ventana oculta, guarda la pantalla lógica tras `--cuadros` actualizaciones (1 por defecto) y cierra el juego. `--escala` amplía el PNG sin suavizado. Sin `-o`, escribe `<archivo>.png` junto a la fuente. Requiere que el programa llame a `pincel.ejecutar`; la captura ocurre antes del efecto `retro`.
 
-Consulta [el ejemplo completo](../examples/pixelart.cometa): cielo con tramado Bayer, nubes, árboles, un héroe animado y monedas, todo generado con código. [Huerto](../examples/huerto.cometa) es un juego completo con el mismo enfoque: hornea el suelo en un lienzo, repinta celdas al labrar o regar, y construye árboles, casa y vallas con primitivas.
+Consulta [el ejemplo de sprites](../examples/pincel/07_sprites.cometa): un personaje de dos cuadros dibujado con texto y animado al caminar.

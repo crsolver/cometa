@@ -10,13 +10,13 @@ import (
 )
 
 func TestHuertoExampleCompiles(t *testing.T) {
-	if _, err := CompileProject(filepath.Join("..", "..", "examples", "huerto.cometa"), nil); err != nil {
+	if _, err := CompileProject(filepath.Join("testdata", "programas", "huerto.cometa"), nil); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestHuertoSimulation(t *testing.T) {
-	path := filepath.Join("..", "..", "examples", "huerto", "granja.cometa")
+	path := filepath.Join("testdata", "programas", "huerto", "granja.cometa")
 	source, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
@@ -146,7 +146,7 @@ func TestHuertoRenderingRuntime(t *testing.T) {
 	if testing.Short() {
 		t.Skip("desktop rendering")
 	}
-	generated, err := CompileProject(filepath.Join("..", "..", "examples", "huerto.cometa"), nil)
+	generated, err := CompileProject(filepath.Join("testdata", "programas", "huerto.cometa"), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -8,13 +8,13 @@ import (
 )
 
 func TestPlatformerExampleCompiles(t *testing.T) {
-	if _, err := CompileProject(filepath.Join("..", "..", "examples", "plataformas.cometa"), nil); err != nil {
+	if _, err := CompileProject(filepath.Join("testdata", "programas", "plataformas.cometa"), nil); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestPlatformerSimulation(t *testing.T) {
-	path := filepath.Join("..", "..", "examples", "plataformas", "mundo.cometa")
+	path := filepath.Join("testdata", "programas", "plataformas", "mundo.cometa")
 	source, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
@@ -130,7 +130,7 @@ func TestPlatformerRenderingRuntime(t *testing.T) {
 	if testing.Short() {
 		t.Skip("desktop rendering")
 	}
-	generated, err := CompileProject(filepath.Join("..", "..", "examples", "plataformas.cometa"), nil)
+	generated, err := CompileProject(filepath.Join("testdata", "programas", "plataformas.cometa"), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -4,7 +4,7 @@ Cometa is a statically typed, general-purpose language with Spanish syntax, comp
 
 ```cometa
 usar std/mate
-usar std/pincel/juego
+usar std/pincel
 usar std/pincel/graficos
 
 tipo Partida
@@ -15,7 +15,7 @@ tipo Partida
 		graficos.rectangulo_v(@pos, {10, 10}, .Rojo)
 
 fn inicio()
-	juego.ejecutar(Partida {}, titulo = "Mi juego") capturar |error|
+	pincel.ejecutar(Partida {}, titulo = "Mi juego") capturar |error|
 		imprimir(error)
 ```
 
@@ -24,31 +24,25 @@ cd vscode-extension
 npm install
 npm run build
 cd ..
-vscode-extension/bin/cometa ejecutar examples/juego.cometa
-vscode-extension/bin/cometa construir examples/juego.cometa -o juego.exe
+vscode-extension/bin/cometa ejecutar examples/pincel/09_atrapa.cometa
+vscode-extension/bin/cometa construir examples/pincel/09_atrapa.cometa -o atrapa.exe
 ```
 
 On Windows use `vscode-extension\bin\cometa.exe`. Go 1.25+ is required; `COMETA_GO` can select the executable. The first Pincel build downloads pinned Ebitengine v2.10.1 dependencies; math-only programs do not depend on Ebitengine. Linux/macOS require Ebitengine's native development dependencies. Builds use an isolated temporary module and embed all assets. They do not modify your project's Go module. `ejecutar` builds and runs; `construir` builds without opening a window; `captura` runs a game hidden and saves its screen as PNG.
 
-The [playable example](examples/juego.cometa) includes keyboard movement, a sprite, collision, text and sound. Use WASD or arrow keys to collect the yellow target. See [the game API guide](docs/juegos.md) for signatures and lifecycle rules.
+New to Cometa? [The examples](examples/README.md) are short, commented programs in learning order: console basics first, then Pincel games. The [playable example](examples/pincel/09_atrapa.cometa) includes keyboard movement, a sprite, collision, text, sound and a timer. Use WASD or arrow keys to collect the yellow targets. See [the game API guide](docs/juegos.md) for signatures and lifecycle rules.
 
-For easing, import `std/mate/curvas` and use `mate.interpolar(a, b, curvas.cubica_entrada_salida(elapsed / duration))` with a positive duration. The module provides 31 pure scalar curves, clamps progress to `[0, 1]`, and preserves elastic/back overshoot. Import `std/mate` separately for interpolation. Neither module requires Ebitengine. See [the curve API](docs/curvas.md) and [runnable example](examples/curvas.cometa).
+For easing, import `std/mate/curvas` and use `mate.interpolar(a, b, curvas.cubica_entrada_salida(elapsed / duration))` with a positive duration. The module provides 31 pure scalar curves, clamps progress to `[0, 1]`, and preserves elastic/back overshoot. Import `std/mate` separately for interpolation. Neither module requires Ebitengine. See [the curve API](docs/curvas.md) and [animated example](examples/pincel/08_curvas.cometa).
 
-For procedural levels, `usar std/mate/ruido` provides seeded 2D smooth and fractal noise in `[0, 1]`, without graphics dependencies or shared random state. See [the noise API](docs/ruido.md) and [console terrain/cave example](examples/ruido.cometa).
+For procedural levels, `usar std/mate/ruido` provides seeded 2D smooth and fractal noise in `[0, 1]`, without graphics dependencies or shared random state. See [the noise API](docs/ruido.md).
 
-Import individual Pincel modules with `usar std/pincel/juego`, `std/pincel/graficos`, `std/pincel/color`, `std/pincel/entrada`, `std/pincel/audio`, `std/pincel/ventana`, `std/pincel/tiempo`, `std/pincel/recursos`, `std/pincel/retro`, and `std/pincel/lienzo`. Math and random remain independent: `usar std/mate` and `usar std/azar`. Aliases use `como`; each source file imports its own dependencies.
+Import individual Pincel modules with `usar std/pincel`, `std/pincel/graficos`, `std/pincel/color`, `std/pincel/entrada`, `std/pincel/audio`, `std/pincel/ventana`, `std/pincel/tiempo`, `std/pincel/recursos`, `std/pincel/retro`, and `std/pincel/lienzo`. Math and random remain independent: `usar std/mate` and `usar std/azar`. Aliases use `como`; each source file imports its own dependencies.
 
-Prototype without asset files using `retro.texto("¡Hola!", 8, 8)` and `retro.icono(.Corazon, 8, 24, color = .Rojo)`. The bundled CC0 DUNGEON.mode atlases provide 8×8 bitmap text, Spanish characters, and fantasy icons. Use `pixelado = verdadero` in `juego.ejecutar` with an integer window scale for crisp presentation. For a subtle CRT look, use `retro = verdadero`: it enables nearest-neighbor scaling plus soft scanlines, a faint RGB mask, and a gentle vignette across the whole image. This flag works with any Pincel game and needs no extra import. See [the retro guide](docs/juegos.md#juegos-retro-sin-recursos), [playable dungeon](examples/dungeon2.cometa), and [atlas gallery](examples/retro.cometa).
+Prototype without asset files using `retro.texto("¡Hola!", 8, 8)` and `retro.icono(.Corazon, 8, 24, color = .Rojo)`. The bundled CC0 DUNGEON.mode atlases provide 8×8 bitmap text, Spanish characters, and fantasy icons. Use `pixelado = verdadero` in `pincel.ejecutar` with an integer window scale for crisp presentation. For a subtle CRT look, use `retro = verdadero`: it enables nearest-neighbor scaling plus soft scanlines, a faint RGB mask, and a gentle vignette across the whole image. This flag works with any Pincel game and needs no extra import. See [the retro guide](docs/juegos.md#juegos-retro-sin-recursos) and [retro text and icons example](examples/pincel/06_retro.cometa).
 
-Draw your own pixel art in code with `usar std/pincel/lienzo`: `lienzo.desde_texto(["..oo..", ".oxxo."], ["o": .Negro, "x": .Rojo])` turns text grids into sprites, and canvases support integer `pixel`, `rect`, `linea`, `circulo`, `rellenar`, mirrored `pegar`, and `guardar` to PNG. `cometa captura juego.cometa -o juego.png --escala 4` runs a game with a hidden window and saves a screenshot for review. See [the canvas guide](docs/lienzo.md) and [code-drawn scene](examples/pixelart.cometa).
+Draw your own pixel art in code with `usar std/pincel/lienzo`: `lienzo.desde_texto(["..oo..", ".oxxo."], ["o": .Negro, "x": .Rojo])` turns text grids into sprites, and canvases support integer `pixel`, `rect`, `linea`, `circulo`, `rellenar`, mirrored `pegar`, and `guardar` to PNG. `cometa captura juego.cometa -o juego.png --escala 4` runs a game with a hidden window and saves a screenshot for review. See [the canvas guide](docs/lienzo.md) and [animated sprite example](examples/pincel/07_sprites.cometa).
 
-[La última luz](examples/escape_retro.cometa) is a three-floor, turn-based retro adventure with Spanish story dialogues and a fixed 24-color palette. Find each floor's key, fight skeletons, and restore the tower's light. Arrow keys move or attack, Space waits, Enter advances dialogue, and R restarts. Run it with `cometa ejecutar examples/escape_retro.cometa`.
-
-[Bajo la tierra](examples/plataformas.cometa) is a 320×180 procedural platformer sandbox with 8×8 DUNGEON.mode blocks, surface terrain and connected caves across 6×3 fixed camera sections. It includes variable-height jumps, coyote time, jump buffering, mining, mouse-aimed shooting, slimes and cave bats. A/D or arrows move, Space jumps, left mouse shoots, and right mouse mines within reach. R returns to the refuge, N generates a new world, and H shows help. Run `vscode-extension/bin/cometa ejecutar examples/plataformas.cometa`; see [controls and world details](docs/juegos.md#bajo-la-tierra). Its [simulation module](examples/plataformas/mundo.cometa) runs without graphics and has automated gameplay checks.
-
-[Huerto](examples/huerto.cometa) is a small top-down farming game in the style of Stardew Valley, with every sprite drawn in code through `lienzo`. Till the fenced field, plant turnips, carrots and pumpkins, water them daily (or let the rain do it), harvest and sell at the bin, then buy more seeds at the stand. The day/night clock ends at the house door. WASD or arrows walk, Space or left click use the selected tool, Q/E or the wheel switch tools, and H shows help. The ground is baked once into a canvas and repainted cell by cell as you work. Its [farm simulation](examples/huerto/granja.cometa) has automated gameplay checks. See [details](docs/juegos.md#huerto).
-
-Games start from `inicio()` by calling `juego.ejecutar(instance, ...)`. The instance implements `juego.Juego` through `pub fn actualizar(dt decimal)` and `pub fn pintar()` methods. Configuration is passed to that call, which returns `!` and blocks until the window closes. Defaults remain 320×180, scale 1, title "Cometa", and 60 TPS. Initialize state before calling it. Top-level `actualizar`, `pintar`, and `iniciar` have no special meaning; `juego.configuracion` has been removed.
+Games start from `inicio()` by calling `pincel.ejecutar(instance, ...)`. The instance implements `pincel.Juego` through `pub fn actualizar(dt decimal)` and `pub fn pintar()` methods. Configuration is passed to that call, which returns `!` and blocks until the window closes. Defaults remain 320×180, scale 1, title "Cometa", and 60 TPS. Initialize state before calling it. Top-level `actualizar`, `pintar`, and `iniciar` have no special meaning; `pincel.configuracion` has been removed.
 
 Library types require qualification: `mate.Vec2`, `mate.Rect`, and `color.Color`, for example. Contextual literals such as `{x: 10}` and constants such as `.Rojo` still work when their type is known. Library value semantics and vector operators are preserved; user structures retain reference semantics. Library names are no longer globally reserved. Drawing outside the active `pintar` phase fails at runtime.
 
@@ -73,7 +67,7 @@ imprimir(nombre.mayusculas())
 imprimir(nombre.subcadena(0, 2) o "")
 ```
 
-Interpolation accepts strings, numbers, and booleans. Methods cover length, search, prefixes and suffixes, casing, trimming, replacement, splitting, safe character access, and safe substring access. Positions count Unicode code points. See [the string example](examples/cadenas.cometa) and the method table in [specs.md](specs.md).
+Interpolation accepts strings, numbers, and booleans. Methods cover length, search, prefixes and suffixes, casing, trimming, replacement, splitting, safe character access, and safe substring access. Positions count Unicode code points. See the method table in [specs.md](specs.md).
 
 ## Hashmaps
 
@@ -87,7 +81,7 @@ repetir (puntos) |valor, clave|
 	imprimir("${clave}: ${valor}")
 ```
 
-Nonempty literals infer their types: `["Ana": 10, "Luis": 20]`. Maps share storage through assignments and parameters; `copiar()` makes an independent shallow copy. Iteration is unordered, with value then key. Methods include `longitud`, `esta_vacia`, `contiene`, `obtener`, `eliminar`, `claves`, `valores`, `copiar`, and `vaciar`. See [the map example](examples/mapas.cometa) and [the specification](specs.md#mapas).
+Nonempty literals infer their types: `["Ana": 10, "Luis": 20]`. Maps share storage through assignments and parameters; `copiar()` makes an independent shallow copy. Iteration is unordered, with value then key. Methods include `longitud`, `esta_vacia`, `contiene`, `obtener`, `eliminar`, `claves`, `valores`, `copiar`, and `vaciar`. See [the map example](examples/basico/07_mapas.cometa) and [the specification](specs.md#mapas).
 
 ## Modules and imports
 
@@ -132,11 +126,11 @@ fn incrementar()
 ```
 
 ```console
-cometa compilar examples/modulos/inicio.cometa -o modulos.go
+cometa compilar examples/basico/12_modulos.cometa -o modulos.go
 go run modulos.go
 ```
 
-The [multi-file example](examples/modulos/inicio.cometa) combines imports, interfaces, generics, default arguments and enums. The editor analyzes unsaved dependencies, refreshes dependent diagnostics, completes qualified names and imported members, shows hover documentation, and supports go-to-definition on imports and symbols.
+The [multi-file example](examples/basico/12_modulos.cometa) imports public functions and constants from a module in a subdirectory. The editor analyzes unsaved dependencies, refreshes dependent diagnostics, completes qualified names and imported members, shows hover documentation, and supports go-to-definition on imports and symbols.
 
 `usar` is now reserved; rename any older function or member with that name.
 
@@ -179,7 +173,7 @@ fn inicio()
 
 Embedded fields and methods are promoted recursively, including through `@` inside methods and for structural interface conformance. Direct members shadow promoted members; the unique member at the shallowest depth wins. Multiple matches at that depth make the selector ambiguous, even if they reach the same declaration. Use an explicit path such as `empleado.Persona.nombre` to select the embedded value.
 
-Literal keys must name direct fields: initialize `Persona`, not its promoted `nombre`. Omitted embeddings receive fresh recursive defaults; required nested fields and required cycles follow the ordinary struct rules. Explicitly supplied objects retain their references. `Caja<entero>` can be embedded with the implicit field name `Caja`; two instantiations of `Caja` cannot be embedded together. Only declared structs can be embedded, not interfaces, enums, primitives, lists, wrappers, or bare type parameters. See [the embedding example](examples/embebidos.cometa).
+Literal keys must name direct fields: initialize `Persona`, not its promoted `nombre`. Omitted embeddings receive fresh recursive defaults; required nested fields and required cycles follow the ordinary struct rules. Explicitly supplied objects retain their references. `Caja<entero>` can be embedded with the implicit field name `Caja`; two instantiations of `Caja` cannot be embedded together. Only declared structs can be embedded, not interfaces, enums, primitives, lists, wrappers, or bare type parameters.
 
 Functions, structs, enums and interfaces support `<T>` parameters with optional interface constraints (`<T Describible>`). Function calls infer types from explicit arguments or accept all type arguments explicitly, such as `identidad<entero>(1)`. Type uses require arguments, such as `Caja<Usuario> {valor: usuario}`. Methods inherit the struct's parameters. A field typed directly as `T` always requires initialization; `[T]` and `T?` have their usual defaults. Generic arithmetic, equality, type unions and independently generic methods are not supported.
 
@@ -192,7 +186,7 @@ fn mostrar(valor Describible)
 		_ => imprimir(valor.describir())
 ```
 
-See [the runnable example](examples/interfaces_genericos.cometa) and [the language specification](specs.md). Completion and hover show interface methods, constraint methods and instantiated generic signatures.
+See [the interfaces example](examples/basico/11_interfaces.cometa) and [the language specification](specs.md). Completion and hover show interface methods, constraint methods and instantiated generic signatures.
 
 ## Variadic parameters and named arguments
 
@@ -213,7 +207,7 @@ fn inicio()
 
 The final parameter may use `...T`; its body sees a `[T]` list. Calls accept zero or more elements, or one final `lista...` sharing the list's storage, as in Go. Individual variadic elements cannot be mixed with expansion.
 
-Named arguments use `name = value` in any order. Positional arguments must come first; fixed parameters without defaults are required exactly once. A named variadic argument supplies the entire list (`valores = lista`, also `valores = lista...` when last). Expressions evaluate once in source order, with the receiver evaluated first. Functions and methods support both features; `imprimir` accepts `valor = ...`, while enum payload constructors remain positional. See `examples/argumentos.cometa` for a runnable example.
+Named arguments use `name = value` in any order. Positional arguments must come first; fixed parameters without defaults are required exactly once. A named variadic argument supplies the entire list (`valores = lista`, also `valores = lista...` when last). Expressions evaluate once in source order, with the receiver evaluated first. Functions and methods support both features; `imprimir` accepts `valor = ...`, while enum payload constructors remain positional. See `examples/basico/05_funciones.cometa` for a runnable example.
 
 ## Default parameter values
 
@@ -229,7 +223,7 @@ fn inicio()
 
 Functions and methods accept `name Type = expression`. Required parameters must precede defaulted parameters; a final variadic parameter is allowed but cannot declare a default. Positional arguments fill parameters from left to right; named arguments can skip defaults. Explicit zero, false, and empty values override defaults.
 
-Omitted defaults evaluate once per call, in declaration order, after the receiver and all explicit arguments. Defaults are checked against the parameter type, even for unused functions, and can use earlier parameters, ordinary function calls, and `@` members in methods. They cannot reference themselves, later parameters, body locals, or caller locals. Lists and structs created by defaults are fresh on each evaluation; references to earlier parameters retain their usual sharing. See `examples/defaults.cometa`.
+Omitted defaults evaluate once per call, in declaration order, after the receiver and all explicit arguments. Defaults are checked against the parameter type, even for unused functions, and can use earlier parameters, ordinary function calls, and `@` members in methods. They cannot reference themselves, later parameters, body locals, or caller locals. Lists and structs created by defaults are fresh on each evaluation; references to earlier parameters retain their usual sharing. See `examples/basico/05_funciones.cometa`.
 
 ## Optionals and errors
 
@@ -253,13 +247,13 @@ fn inicio()
 
 Use exhaustive `casos`, optional `si valor |payload|` bindings, lazy `o` fallbacks, or `capturar |error|` recovery. `intentar` propagates one layer of absence or a compatible error; `retornar` exits explicitly. Access to the contained value always requires extraction. Discarded wrapper expressions and unread local result variables (`T!E`) are errors. Optional locals (`T?`) may be declared, copied, and left unused.
 
-Scalars, lists and optionals retain valid defaults. Omitted struct fields allocate fresh, recursively defaulted objects; result and enum fields require explicit initialization, including when nested. Required struct cycles are rejected: migrate a recursive `referido Usuario` to `referido Usuario?`. See [the executable example](examples/errores.cometa) and [the complete rules](specs.md).
+Scalars, lists and optionals retain valid defaults. Omitted struct fields allocate fresh, recursively defaulted objects; result and enum fields require explicit initialization, including when nested. Required struct cycles are rejected: migrate a recursive `referido Usuario` to `referido Usuario?`. See [the executable example](examples/basico/10_opcionales_errores.cometa) and [the complete rules](specs.md).
 
 ## Try it
 
 ```console
-go run ./cmd/cometa compilar examples/usuario.cometa -o usuario.go
-go run usuario.go
+go run ./cmd/cometa compilar examples/basico/09_enums.cometa -o enums.go
+go run enums.go
 ```
 
 ## Language server
@@ -284,7 +278,7 @@ Open this repository in VS Code, press `F5`, and choose **Run Cometa Extension**
 
 The compiler and editor report multiple recoverable frontend errors together, including type errors in valid parts of a file with syntax errors. Diagnostics are ordered by file and position, deduplicated, and limited to 100 errors plus a truncation notice. Recovery suppresses errors that depend on damaged declarations or expressions; some checks require those errors to be corrected first. Compilation, building and execution stop before producing output whenever frontend errors remain.
 
-Open `usuario.cometa`, introduce errors on several independent lines, and check the **Problems** panel. Correcting one error removes its diagnostic while leaving the others visible. Replacing a leading tab with spaces also produces an indentation diagnostic. The **Outline** view should show the declarations whose syntax can still be recovered.
+Open `basico/08_tipos.cometa`, introduce errors on several independent lines, and check the **Problems** panel. Correcting one error removes its diagnostic while leaving the others visible. Replacing a leading tab with spaces also produces an indentation diagnostic. The **Outline** view should show the declarations whose syntax can still be recovered.
 
 If the server executable lives elsewhere, set `cometa.server.path` in VS Code settings to its absolute path. Open **Output → Cometa Language Server** to inspect client or server startup failures.
 
@@ -294,7 +288,7 @@ Cometa also supports list loops with `repetir (lista) |elemento, indice|`, loop 
 
 List literals can span multiple lines, with tab-indented elements and the closing `]` aligned with the opening line. Elements are comma-separated; a trailing comma is optional in both multiline and single-line lists.
 
-Lists have built-in methods such as `valores.longitud()`, `valores.buscar_indice(40)`, `valores.obtener(2)`, and mutating calls such as `valores.agregar(40)`, `valores.insertar(0, 10)`, and `valores.invertir()`. Search and safe access return optionals; insertion and deletion return `bool` for invalid-index handling. See `examples/listas.cometa` and the full method table in [specs.md](specs.md).
+Lists have built-in methods such as `valores.longitud()`, `valores.buscar_indice(40)`, `valores.obtener(2)`, and mutating calls such as `valores.agregar(40)`, `valores.insertar(0, 10)`, and `valores.invertir()`. Search and safe access return optionals; insertion and deletion return `bool` for invalid-index handling. See `examples/basico/06_listas.cometa` and the full method table in [specs.md](specs.md).
 
 Numeric ranges are available only in loops: `repetir (0..5) |i| imprimir(i)` prints `0` through `4`, and `repetir (5..0) |i| imprimir(i)` prints `5` through `1`. Bounds are `entero` expressions evaluated once, with an exclusive end and an automatic step of `1` or `-1`. Equal bounds produce no iterations. An optional second binding receives the index starting at zero.
 

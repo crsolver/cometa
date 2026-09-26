@@ -1,0 +1,43 @@
+// Pincel: texto e iconos retro, sin archivos de imagen.
+// std/pincel/retro trae una fuente de 8x8 píxeles con acentos y eñes, e iconos.
+usar std/pincel
+usar std/pincel/graficos
+usar std/pincel/entrada
+usar std/pincel/retro
+
+const vidas_maximas entero = 5
+
+tipo Marcador
+	vidas entero
+
+	pub fn actualizar(dt decimal)
+		si entrada.tecla_presionada(.Izquierda) && @vidas > 0
+			@vidas = @vidas - 1
+		si entrada.tecla_presionada(.Derecha) && @vidas < vidas_maximas
+			@vidas = @vidas + 1
+
+	pub fn pintar()
+		graficos.limpiar(.Negro)
+		// texto(texto, x, y, escala, color); las posiciones son enteras.
+		retro.texto("AVENTURA", 8, 8, escala = 2, color = .Amarillo)
+		retro.texto("¡Hola, aventurera!", 8, 32)
+
+		// Dibuja corazones llenos y vacíos según las vidas.
+		repetir (0..vidas_maximas) |i|
+			var x = 8 + i * 10
+			si i < @vidas
+				retro.icono(.Corazon, x, 52, color = .Rojo)
+			sino
+				retro.icono(.CorazonVacio, x, 52, color = .Gris)
+
+		retro.icono(.Espada, 8, 72, color = .Celeste)
+		retro.icono(.Escudo, 20, 72, color = .Celeste)
+		retro.icono(.Llave, 32, 72, color = .Amarillo)
+		retro.icono(.Calavera, 44, 72)
+
+		retro.texto("<- / -> cambian las vidas", 8, 100, color = .Gris)
+
+fn inicio()
+	// pixelado = verdadero mantiene los píxeles nítidos al agrandar la ventana.
+	pincel.ejecutar(Marcador {vidas: 3}, 220, 120, titulo = "Retro", escala = 4, pixelado = verdadero) capturar |error|
+		imprimir(error)

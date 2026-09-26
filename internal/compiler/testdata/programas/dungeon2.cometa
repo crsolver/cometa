@@ -1,0 +1,63 @@
+usar std/pincel
+usar std/pincel/graficos
+usar std/pincel/entrada
+usar std/pincel/retro
+
+const alto_glifo entero = 8
+const ancho_glifo entero = 8
+
+var mapa [cadena] = ["##############","#............#","#.##.####.##.#","#............#","#.####..####.#","#............#","#.##.####.##.#","#............#","##############"]
+
+var jugador_fila entero = 1
+var jugador_columna entero = 1
+var meta_fila entero = 7
+var meta_columna entero = 12
+var gano bool = falso
+
+
+fn iniciar() retornar
+fn es_muro(fila entero, columna entero) bool
+	var linea = mapa.obtener(fila) o "##############"
+	var caracter = linea.obtener(columna) o "#"
+	caracter == "#"
+
+
+tipo Partida
+	pub fn actualizar(dt decimal)
+		si gano retornar
+	
+		var fila_objetivo = jugador_fila
+		var columna_objetivo = jugador_columna
+	
+		si entrada.tecla_presionada(.Arriba) fila_objetivo = jugador_fila - 1
+		osi entrada.tecla_presionada(.Abajo) fila_objetivo = jugador_fila + 1
+		osi entrada.tecla_presionada(.Izquierda) columna_objetivo = jugador_columna - 1
+		osi entrada.tecla_presionada(.Derecha) columna_objetivo = jugador_columna + 1
+	
+		si es_muro(fila_objetivo, columna_objetivo)
+			retornar
+	
+		jugador_fila = fila_objetivo
+		jugador_columna = columna_objetivo
+	
+		si (jugador_fila == meta_fila)
+			si (jugador_columna == meta_columna)
+				gano = verdadero
+
+	pub fn pintar()
+		graficos.limpiar(.Negro)
+		retro.texto("el calabozo", 10, 10)
+	
+		repetir (mapa) |fila_texto, indice_fila|
+			retro.texto(fila_texto, 10, 25 + indice_fila * alto_glifo)
+	
+		retro.icono(.Llave, 10 + meta_columna * ancho_glifo, 25 + meta_fila * alto_glifo, color = .Amarillo)
+		retro.texto("@", 10 + jugador_columna * ancho_glifo, 25 + jugador_fila * alto_glifo, color = .Celeste)
+	
+		si gano
+			retro.texto("lo lograste!", 10, 130)
+
+fn inicio()
+	iniciar()
+	pincel.ejecutar(Partida {}, 180, 180, titulo = "Cometa: recoge el objetivo", escala = 4, pixelado = verdadero) capturar |error|
+		imprimir(error)

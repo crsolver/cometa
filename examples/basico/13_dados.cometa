@@ -1,0 +1,25 @@
+// Un pequeño programa completo: lanzar dados y contar los resultados.
+// std/azar genera números aleatorios.
+usar std/azar
+
+// Como en los rangos, el segundo número no se incluye: da de 1 a 6.
+fn lanzar_dado() entero azar.entero(1, 7)
+
+fn barra(cantidad entero) cadena
+	var texto = ""
+	repetir (0..cantidad) |i|
+		texto = texto + "#"
+	texto
+
+fn inicio()
+	var lanzamientos = 60
+	var conteo [entero: entero] = [:]
+
+	repetir (0..lanzamientos) |i|
+		var cara = lanzar_dado()
+		conteo[cara] = (conteo[cara] o 0) + 1
+
+	imprimir("Resultados de ${lanzamientos} lanzamientos:")
+	repetir (1..7) |cara|
+		var veces = conteo[cara] o 0
+		imprimir("${cara}: ${barra(veces)} (${veces})")

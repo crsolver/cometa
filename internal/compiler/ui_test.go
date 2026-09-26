@@ -7,14 +7,14 @@ import (
 )
 
 func TestUIExample(t *testing.T) {
- source,err:=os.ReadFile("../../examples/ui.cometa");if err!=nil {t.Fatal(err)}
+ source,err:=os.ReadFile("testdata/programas/ui.cometa");if err!=nil {t.Fatal(err)}
  generated,err:=Compile("ui.cometa",source);if err!=nil {t.Fatal(err)}
  for _,want:=range []string{"_hguiPintar","_hgContexto",".Entrar()",".Salir()","iVBOR"} {if !strings.Contains(string(generated),want){t.Fatal("missing",want)}}
 }
 
 func TestUIRendering(t *testing.T) {
  if testing.Short() {t.Skip("desktop rendering")}
- data,err:=os.ReadFile("../../examples/ui.cometa");if err!=nil {t.Fatal(err)}
+ data,err:=os.ReadFile("testdata/programas/ui.cometa");if err!=nil {t.Fatal(err)}
  source:=strings.Replace(string(data),"fn inicio()","fn lanzar()",1)
  generated,err:=Compile("ui.cometa",[]byte(source));if err!=nil {t.Fatal(err)}
  // The capture runtime already imports os and image/png by name.

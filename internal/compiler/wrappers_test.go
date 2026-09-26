@@ -7,7 +7,7 @@ import (
 )
 
 func TestWrapperExample(t *testing.T) {
-	source, err := os.ReadFile("../../examples/errores.cometa")
+	source, err := os.ReadFile("testdata/programas/errores.cometa")
 	if err != nil {
 		t.Fatal(err)
 	}

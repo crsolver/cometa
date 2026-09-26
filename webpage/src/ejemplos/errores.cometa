@@ -1,0 +1,24 @@
+tipo Usuario
+	nombre cadena
+	mascota cadena?
+
+enum ErrorCarga
+	NoExiste
+	Detalle cadena
+
+fn cargar(id entero) Usuario!ErrorCarga
+	si id == 0 retornar .Error(.NoExiste)
+	Usuario {nombre: "Luis", mascota: "Michi"}
+
+fn presentar(id entero) cadena!ErrorCarga
+	// intentar propaga el error hacia quien llama.
+	var usuario = intentar cargar(id)
+	var mascota = usuario.mascota o "ninguna"
+	"${usuario.nombre} (mascota: ${mascota})"
+
+fn inicio()
+	var texto = presentar(0) capturar |error|
+		casos error |detalle|
+			.NoExiste => "no encontrado"
+			.Detalle => detalle
+	imprimir(texto)

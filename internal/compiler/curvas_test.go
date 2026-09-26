@@ -101,7 +101,7 @@ func TestCurvesImportsAndCalls(t *testing.T) {
 }
 
 func TestCurvesExample(t *testing.T) {
-	source, err := os.ReadFile("../../examples/curvas.cometa")
+	source, err := os.ReadFile("testdata/programas/curvas.cometa")
 	if err != nil {
 		t.Fatal(err)
 	}

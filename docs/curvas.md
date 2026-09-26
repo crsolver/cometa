@@ -35,14 +35,8 @@ Usa una duración positiva. El programa acumula tiempo, por ejemplo sumando `dt`
 
 La biblioteca no mantiene relojes, objetos tween, callbacks ni colas. No incluye funciones inversas ni un selector de curvas. Las funciones se pueden consultar desde el editor mediante completar, hover y definición en `cometa-std:///std/mate/curvas.cometa`.
 
-El [ejemplo completo](../examples/curvas.cometa) imprime una animación de 20 a 140 sin abrir una ventana:
+Para ver tres curvas en movimiento, ejecuta el [ejemplo con Pincel](../examples/pincel/08_curvas.cometa). Las tres pelotas comparten reloj y extremos; la animación se repite sola. No necesita archivos de recursos externos.
 
 ```console
-cometa ejecutar examples/curvas.cometa
-```
-
-Para ver las curvas en movimiento, ejecuta la [comparación con Pincel](../examples/curvas_pincel.cometa). Seis filas comparten el reloj y los extremos; los puntos grises indican el movimiento lineal. La animación va y vuelve automáticamente. Espacio pausa y R reinicia. No necesita archivos de recursos externos.
-
-```console
-cometa ejecutar examples/curvas_pincel.cometa
+cometa ejecutar examples/pincel/08_curvas.cometa
 ```

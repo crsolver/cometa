@@ -1,0 +1,29 @@
+// Listas: varios valores del mismo tipo, en orden.
+
+fn inicio()
+	var notas = [7, 9, 6]
+
+	notas.agregar(10)       // añade al final
+	notas[0] = 8            // cambia el primer elemento (los índices empiezan en 0)
+	imprimir(notas)
+	imprimir("Cantidad de notas: ${notas.longitud()}")
+
+	// Calcular el promedio.
+	var suma = 0
+	repetir (notas) |nota|
+		suma = suma + nota
+	var promedio = suma / notas.longitud()
+	imprimir("Promedio: ${promedio}")
+
+	// ¿Está un valor en la lista?
+	imprimir("¿Hay un 9? ${notas.contiene(9)}")
+
+	// obtener no falla fuera de rango: devuelve un opcional.
+	// o indica qué usar si no hay valor.
+	imprimir(notas.obtener(10) o 0)
+
+	// Una lista vacía necesita su tipo.
+	var nombres [cadena] = []
+	nombres.agregar("Ana")
+	nombres.agregar("Luis")
+	imprimir(nombres)

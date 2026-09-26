@@ -1,8 +1,0 @@
-fn inicio()
-	var nombre = "Ana"
-	var saludo = "Hola " + nombre
-	imprimir("${saludo}, tienes ${20 + 1} años")
-	imprimir(nombre.mayusculas())
-	imprimir("mañana".buscar_indice("ñ") o -1)
-	imprimir("uno,dos,tres".dividir(","))
-	imprimir("🙂 hola".subcadena(0, 1) o "")

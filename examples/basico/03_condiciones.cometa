@@ -1,0 +1,24 @@
+// Tomar decisiones con si, osi y sino.
+
+fn inicio()
+	var temperatura = 28
+
+	si temperatura > 30
+		imprimir("¡Hace mucho calor!")
+	osi temperatura > 20
+		imprimir("Hace buen tiempo")
+	sino
+		imprimir("Hace frío")
+
+	// Comparaciones: ==  !=  <  <=  >  >=
+	// Combinaciones: && (y), || (o), ! (no)
+	var es_fin_de_semana = verdadero
+	var llueve = falso
+
+	si es_fin_de_semana && !llueve
+		imprimir("Vamos al parque")
+
+	// si también puede producir un valor. En ese caso necesita sino.
+	var edad = 15
+	var etapa = si edad >= 18 "adulto" sino "joven"
+	imprimir("Etapa: ${etapa}")

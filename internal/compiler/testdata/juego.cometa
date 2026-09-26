@@ -1,5 +1,5 @@
 usar std/mate
-usar std/pincel/juego
+usar std/pincel
 usar std/pincel/graficos
 
 tipo Jugador
@@ -16,5 +16,5 @@ tipo Partida
 		graficos.rectangulo_v(jugador.pos, mate.Vec2 {x: 10, y: 10}, .Rojo)
 
 fn inicio()
-	juego.ejecutar(Partida {}) capturar |error|
+	pincel.ejecutar(Partida {}) capturar |error|
 		imprimir(error)

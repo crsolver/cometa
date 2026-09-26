@@ -1,0 +1,40 @@
+// Enums: un valor que puede ser una de varias opciones.
+
+enum Semaforo
+	Verde
+	Amarillo
+	Rojo
+
+// Una variante puede llevar un dato.
+enum Figura
+	Circulo decimal
+	Cuadrado decimal
+	Punto
+
+// casos elige qué hacer según la variante y debe cubrirlas todas.
+fn accion(luz Semaforo) cadena
+	casos luz
+		.Verde => "avanzar"
+		.Amarillo => "precaución"
+		.Rojo => "detenerse"
+
+// |dato| da acceso al valor que lleva la variante.
+fn area(figura Figura) decimal
+	casos figura |dato|
+		.Circulo => 3.14159 * dato * dato
+		.Cuadrado => dato * dato
+		.Punto => 0
+
+fn inicio()
+	var luz = Semaforo.Rojo
+	imprimir(accion(luz))
+	imprimir(accion(.Verde))
+
+	var figuras = [Figura.Circulo(1), Figura.Cuadrado(3), Figura.Punto]
+	repetir (figuras) |figura|
+		imprimir(area(figura))
+
+	// _ cubre el resto de las variantes.
+	casos luz
+		.Rojo => imprimir("¡Alto!")
+		_ => imprimir("Puedes seguir")

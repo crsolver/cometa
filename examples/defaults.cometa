@@ -1,8 +1,0 @@
-// Los valores predeterminados pueden usar parámetros anteriores.
-fn saludar(nombre cadena = "mundo", saludo cadena = "hola " + nombre) cadena
-	saludo
-
-fn inicio()
-	imprimir(saludar())
-	imprimir(saludar("Ana"))
-	imprimir(saludar(saludo = "buenos días"))

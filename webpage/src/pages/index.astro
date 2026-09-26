@@ -1,0 +1,29 @@
+---
+import Base from '../layouts/Base.astro';
+import Nav from '../components/Nav.astro';
+import Hero from '../components/Hero.astro';
+import Features from '../components/Features.astro';
+import ExampleTabs from '../components/ExampleTabs.astro';
+import Audiences from '../components/Audiences.astro';
+import HandCoding from '../components/HandCoding.astro';
+import Games from '../components/Games.astro';
+import GetStarted from '../components/GetStarted.astro';
+import Footer from '../components/Footer.astro';
+---
+
+<Base
+	titulo="Cometa · Programa en tu idioma"
+	descripcion="Cometa es un lenguaje de programación tipado con sintaxis en español. Fácil para aprender, potente para crear juegos y herramientas. Compila a Go."
+>
+	<Nav />
+	<main>
+		<Hero />
+		<Features />
+		<ExampleTabs />
+		<Audiences />
+		<HandCoding />
+		<Games />
+		<GetStarted />
+	</main>
+	<Footer />
+</Base>

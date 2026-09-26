@@ -14,7 +14,7 @@ import (
 
 func TestPincelImportedDefinitions(t *testing.T) {
 	for _, tc := range []struct{ source, path, needle string }{
-		{"usar std/pincel/juego\nfn f(g juego.Juego)\n\tjuego.§ejecutar(g, retro = verdadero) capturar |e| imprimir(e)\n", "std/pincel/juego", "retro bool = falso"},
+		{"usar std/pincel\nfn f(g pincel.Juego)\n\tpincel.§ejecutar(g, retro = verdadero) capturar |e| imprimir(e)\n", "std/pincel", "retro bool = falso"},
 		{"usar std/pincel/retro como r\nfn pintar() r.§texto(\"hola\", 0, 0)\n", "std/pincel/retro", "fn texto("},
 		{"usar std/pincel/retro como r\nfn pintar() r.§icono(.Llave, 0, 0)\n", "std/pincel/retro", "fn icono("},
 		{"usar std/pincel/retro como r\nfn f(valor r.§Icono) imprimir(valor)\n", "std/pincel/retro", "tipo Icono"},
@@ -60,14 +60,14 @@ func TestNoImplicitGameCompletion(t *testing.T) {
 	}
 }
 
-const pincelImports = "usar std/mate\nusar std/azar\nusar std/pincel/juego\nusar std/pincel/graficos\nusar std/pincel/color\nusar std/pincel/entrada\nusar std/pincel/audio\nusar std/pincel/ventana\nusar std/pincel/tiempo\nusar std/pincel/recursos\n"
+const pincelImports = "usar std/mate\nusar std/azar\nusar std/pincel\nusar std/pincel/graficos\nusar std/pincel/color\nusar std/pincel/entrada\nusar std/pincel/audio\nusar std/pincel/ventana\nusar std/pincel/tiempo\nusar std/pincel/recursos\n"
 
 func TestGameAssetsWithEncodedFileURI(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "game with spaces")
 	if err := os.MkdirAll(filepath.Join(dir, "assets"), 0755); err != nil {
 		t.Fatal(err)
 	}
-	image, err := os.ReadFile(filepath.Join("..", "..", "examples", "assets", "jugador.png"))
+	image, err := os.ReadFile(filepath.Join("..", "..", "examples", "pincel", "assets", "jugador.png"))
 	if err != nil {
 		t.Fatal(err)
 	}

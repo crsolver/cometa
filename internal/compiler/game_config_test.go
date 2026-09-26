@@ -7,7 +7,7 @@ import (
 
 func TestGameObjectFromImportedModule(t *testing.T) {
 	entry, loader := memoryProject(t, map[string]string{
-		"main.cometa":    "usar std/pincel/juego\nusar partida\nfn inicio()\n\tjuego.ejecutar(partida.Partida {}, titulo = \"Modular\") capturar |e| imprimir(e)\n",
+		"main.cometa":    "usar std/pincel\nusar partida\nfn inicio()\n\tpincel.ejecutar(partida.Partida {}, titulo = \"Modular\") capturar |e| imprimir(e)\n",
 		"partida.cometa": "usar std/pincel/graficos\npub tipo Partida\n\tpub fn actualizar(dt decimal) imprimir(dt)\n\tpub fn pintar() graficos.limpiar(.Negro)\npub fn iniciar() imprimir(0)\n",
 	})
 	if _, err := CompileProject(entry, loader); err != nil {
@@ -49,11 +49,11 @@ func main(){
 
 func TestGameInterfaceAndStartupErrors(t *testing.T) {
 	for _, source := range []string{
-		"tipo T\n\tpub fn actualizar(dt decimal) imprimir(dt)\nfn inicio()\n\tjuego.ejecutar(T {}) capturar |e| imprimir(e)\n",
-		"tipo T\n\tpub fn actualizar(dt cadena) imprimir(dt)\n\tpub fn pintar() imprimir(0)\nfn inicio()\n\tjuego.ejecutar(T {}) capturar |e| imprimir(e)\n",
-		"tipo T\n\tpub fn actualizar(dt decimal) imprimir(dt)\n\tpub fn pintar() imprimir(0)\nfn inicio() juego.ejecutar(T {})\n",
+		"tipo T\n\tpub fn actualizar(dt decimal) imprimir(dt)\nfn inicio()\n\tpincel.ejecutar(T {}) capturar |e| imprimir(e)\n",
+		"tipo T\n\tpub fn actualizar(dt cadena) imprimir(dt)\n\tpub fn pintar() imprimir(0)\nfn inicio()\n\tpincel.ejecutar(T {}) capturar |e| imprimir(e)\n",
+		"tipo T\n\tpub fn actualizar(dt decimal) imprimir(dt)\n\tpub fn pintar() imprimir(0)\nfn inicio() pincel.ejecutar(T {})\n",
 	} {
-		if _, err := Compile("game.cometa", []byte("usar std/pincel/juego\n"+source)); err == nil {
+		if _, err := Compile("game.cometa", []byte("usar std/pincel\n"+source)); err == nil {
 			t.Fatal("accepted invalid game")
 		}
 	}

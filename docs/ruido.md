@@ -32,4 +32,4 @@ fn inicio()
 
 Las coordenadas deben ser finitas y estar estrictamente dentro de `(-2^52, 2^52)` en todas las octavas. NaN, infinitos, expansión fuera del rango y opciones inválidas provocan un panic descriptivo en español. Cerca del límite numérico se pierde resolución fraccionaria; usa escalas razonables para mapas jugables.
 
-Ejecuta `vscode-extension/bin/cometa ejecutar examples/ruido.cometa` (en Windows, `vscode-extension\bin\cometa.exe`) para ver terreno y cuevas en consola. Los umbrales pueden producir zonas desconectadas: comprueba conectividad y añade pasillos si el juego lo requiere. El módulo no genera mapas completos ni ofrece ruido 3D, celular o mosaicos periódicos.
+Los umbrales pueden producir zonas desconectadas: comprueba conectividad y añade pasillos si el juego lo requiere. El módulo no genera mapas completos ni ofrece ruido 3D, celular o mosaicos periódicos.

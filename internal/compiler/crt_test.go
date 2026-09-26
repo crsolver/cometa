@@ -14,13 +14,13 @@ func TestRetroStartupArguments(t *testing.T) {
 		`g, 320, 180, "Retro", 4, falso, falso, 60, verdadero`,
 		`g, 320, 180, "Retro", 4, falso, falso, 60, falso, verdadero`,
 	} {
-		source := "usar std/pincel/juego\nfn iniciar(g juego.Juego)\n\tjuego.ejecutar(" + args + ") capturar |e| imprimir(e)\n"
+		source := "usar std/pincel\nfn iniciar(g pincel.Juego)\n\tpincel.ejecutar(" + args + ") capturar |e| imprimir(e)\n"
 		if _, err := Compile("crt.cometa", []byte(source)); err != nil {
 			t.Fatalf("%s: %v", args, err)
 		}
 	}
 	for _, value := range []string{"1", `"verdadero"`} {
-		source := "usar std/pincel/juego\nfn iniciar(g juego.Juego)\n\tjuego.ejecutar(g, retro = " + value + ") capturar |e| imprimir(e)\n"
+		source := "usar std/pincel\nfn iniciar(g pincel.Juego)\n\tpincel.ejecutar(g, retro = " + value + ") capturar |e| imprimir(e)\n"
 		if _, err := Compile("crt.cometa", []byte(source)); err == nil {
 			t.Fatalf("accepted retro = %s", value)
 		}
@@ -38,7 +38,7 @@ func TestCRTPresentationRuntime(t *testing.T) {
 	if testing.Short() {
 		t.Skip("desktop rendering")
 	}
-	generated, err := Compile("crt.cometa", []byte("usar std/pincel/juego\nusar std/pincel/retro\n"))
+	generated, err := Compile("crt.cometa", []byte("usar std/pincel\nusar std/pincel/retro\n"))
 	if err != nil {
 		t.Fatal(err)
 	}

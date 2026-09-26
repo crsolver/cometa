@@ -1,0 +1,14 @@
+tipo Explorador
+	nombre cadena
+	nivel entero
+
+	pub fn saludar() cadena
+		"¡Hola, ${@nombre}! Estás en el nivel ${@nivel}."
+
+fn inicio()
+	var ana = Explorador {nombre: "Ana", nivel: 3}
+	imprimir(ana.saludar())
+
+	repetir (3..0) |i|
+		imprimir("Despegue en ${i}...")
+	imprimir("¡Vuela, cometa!")

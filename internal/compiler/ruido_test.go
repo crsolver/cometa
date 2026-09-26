@@ -96,7 +96,7 @@ fn inicio()
 }
 
 func TestNoiseExample(t *testing.T) {
-	source, err := os.ReadFile("../../examples/ruido.cometa")
+	source, err := os.ReadFile("testdata/programas/ruido.cometa")
 	if err != nil {
 		t.Fatal(err)
 	}

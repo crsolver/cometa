@@ -8,7 +8,7 @@ import (
 )
 
 func TestInterfacesGenericsExample(t *testing.T) {
-	source, err := os.ReadFile(filepath.Join("..", "..", "examples", "interfaces_genericos.cometa"))
+	source, err := os.ReadFile(filepath.Join("testdata", "programas", "interfaces_genericos.cometa"))
 	if err != nil {
 		t.Fatal(err)
 	}

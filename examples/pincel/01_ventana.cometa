@@ -1,0 +1,19 @@
+// Pincel: tu primera ventana.
+// Un juego es un tipo con dos métodos públicos:
+//   actualizar(dt) cambia el estado; dt son los segundos desde el último cuadro.
+//   pintar() dibuja la pantalla, unas 60 veces por segundo.
+usar std/pincel
+usar std/pincel/graficos
+
+tipo Ventana
+	pub fn actualizar(dt decimal) retornar
+
+	pub fn pintar()
+		graficos.limpiar(.AzulNoche)
+		graficos.texto_depuracion("¡Hola desde Pincel!", 110, 80)
+
+fn inicio()
+	// pincel.ejecutar abre la ventana y espera hasta que se cierre.
+	// 320x180 es el tamaño lógico; escala 3 agranda la ventana.
+	pincel.ejecutar(Ventana {}, 320, 180, titulo = "Mi primera ventana", escala = 3) capturar |error|
+		imprimir(error)

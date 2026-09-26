@@ -1,0 +1,14 @@
+fn inicio()
+	var puntos [cadena: entero] = [:]
+	puntos["Ana"] = 10
+	puntos["Luis"] = 20
+
+	// Leer devuelve un opcional: decide qué hacer si falta.
+	imprimir(puntos["Ana"] o 0)
+	imprimir(puntos["Sofía"] o 0)
+
+	repetir (puntos) |valor, clave|
+		imprimir("${clave}: ${valor} puntos")
+
+	var capitales = ["México": "CDMX", "Perú": "Lima"]
+	imprimir(capitales.contiene("Perú"))

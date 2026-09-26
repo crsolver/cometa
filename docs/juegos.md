@@ -7,7 +7,7 @@ Pincel es la familia de bibliotecas de juego incluida con Cometa. Se importa cad
 | `std/mate` | Matemáticas, `mate.Vec2`, `mate.Rect` y colisiones; no requiere Ebitengine |
 | `std/mate/curvas` | 31 [curvas de animación](curvas.md) escalares; no requiere Ebitengine |
 | `std/azar` | Números aleatorios; no requiere Ebitengine |
-| `std/pincel/juego` | Interfaz `Juego` y `ejecutar` |
+| `std/pincel` | Interfaz `Juego` y `ejecutar` |
 | `std/pincel/graficos` | Dibujo, cámara, `graficos.Imagen` y `graficos.Fuente` |
 | `std/pincel/color` | `color.Color` y `rgba` |
 | `std/pincel/entrada` | Teclado y ratón |
@@ -26,7 +26,7 @@ Para empezar sin archivos de recursos, consulta [Juegos retro](#juegos-retro-sin
 
 ```cometa
 usar std/mate
-usar std/pincel/juego
+usar std/pincel
 usar std/pincel/graficos
 
 tipo Partida
@@ -37,11 +37,11 @@ tipo Partida
 		graficos.rectangulo_v(@pos, {10, 10}, .Rojo)
 
 fn inicio()
-	juego.ejecutar(Partida {}, titulo = "Mi juego") capturar |error|
+	pincel.ejecutar(Partida {}, titulo = "Mi juego") capturar |error|
 		imprimir(error)
 ```
 
-`juego.Juego` es una interfaz estructural con `actualizar(dt decimal)` y `pintar()`, sin resultados. El objeto puede declararse en otro módulo. Inicializa el estado antes de llamar a `ejecutar`. Las funciones globales `actualizar`, `pintar` e `iniciar` son ordinarias; no existe `juego.configuracion`.
+`pincel.Juego` es una interfaz estructural con `actualizar(dt decimal)` y `pintar()`, sin resultados. El objeto puede declararse en otro módulo. Inicializa el estado antes de llamar a `ejecutar`. Las funciones globales `actualizar`, `pintar` e `iniciar` son ordinarias; no existe `pincel.configuracion`.
 
 `ejecutar` bloquea hasta cerrar la ventana y devuelve `!`. La configuración inválida, los errores del backend y una segunda ejecución en el mismo proceso producen `.Error(cadena)`; el cierre normal produce `.Ok`. Debe manejarse el resultado con las construcciones habituales de Cometa.
 
@@ -54,7 +54,7 @@ Dibujar, cambiar o restablecer la cámara fuera de la fase activa de `pintar` pr
 `std/pincel/retro` incluye los atlas originales DUNGEON.mode de [datagoblin](https://datagoblin.itch.io/dungeonmode), distribuidos bajo CC0. No requiere PNG, TTF ni llamadas a `recursos` en el proyecto del usuario.
 
 ```cometa
-usar std/pincel/juego
+usar std/pincel
 usar std/pincel/graficos
 usar std/pincel/retro
 
@@ -67,7 +67,7 @@ tipo Partida
 		retro.icono(.Llave, 24, 24, color = .Amarillo)
 
 fn inicio()
-	juego.ejecutar(Partida {}, 180, 180, escala = 4, pixelado = verdadero) capturar |error|
+	pincel.ejecutar(Partida {}, 180, 180, escala = 4, pixelado = verdadero) capturar |error|
 		imprimir(error)
 ```
 
@@ -85,62 +85,11 @@ Las posiciones son píxeles de la esquina superior izquierda; cada celda ocupa `
 
 Iconos disponibles: `.Corazon`, `.CorazonVacio`, `.Espada`, `.Escudo`, `.Llave`, `.Calavera`, `.Arriba`, `.Abajo`, `.Izquierda`, `.Derecha`. `glifo` acepta índices de 0 a 255, calculados como `fila * 16 + columna`, y `.Dungeon` o `.ASCII` como atlas. Índices o escalas inválidos producen un error en ejecución.
 
-`juego.ejecutar` acepta los parámetros finales `pixelado bool = falso` y `retro bool = falso`. Con `pixelado = verdadero` desactiva el filtro de presentación de Ebitengine; combínalo con una ventana fija a escala entera, como 4. El muestreo de los glifos siempre usa vecino más cercano. Traslaciones y zoom enteros de cámara sin rotación mantienen píxeles uniformes; transformaciones fraccionarias, rotaciones o escalas de ventana fraccionarias no lo garantizan. No se implementa letterboxing entero al redimensionar.
+`pincel.ejecutar` acepta los parámetros finales `pixelado bool = falso` y `retro bool = falso`. Con `pixelado = verdadero` desactiva el filtro de presentación de Ebitengine; combínalo con una ventana fija a escala entera, como 4. El muestreo de los glifos siempre usa vecino más cercano. Traslaciones y zoom enteros de cámara sin rotación mantienen píxeles uniformes; transformaciones fraccionarias, rotaciones o escalas de ventana fraccionarias no lo garantizan. No se implementa letterboxing entero al redimensionar.
 
-Para una pantalla CRT sutil, usa `juego.ejecutar(Partida {}, escala = 4, retro = verdadero) !`. Este modo activa vecino más cercano incluso con `pixelado = falso` y aplica líneas de barrido suaves, una máscara RGB tenue y una viñeta ligera a toda la imagen, incluido el texto. Los patrones finos se atenúan a escalas pequeñas. No curva la imagen ni añade parpadeo; mantiene la resolución lógica, la cámara, las coordenadas del ratón, la relación de aspecto y las bandas al redimensionar o usar pantalla completa. Funciona con cualquier juego Pincel sin importar `std/pincel/retro`. Con `retro = falso`, `pixelado` conserva su comportamiento habitual. Los errores al inicializar el shader producen `.Error(cadena)`.
+Para una pantalla CRT sutil, usa `pincel.ejecutar(Partida {}, escala = 4, retro = verdadero) !`. Este modo activa vecino más cercano incluso con `pixelado = falso` y aplica líneas de barrido suaves, una máscara RGB tenue y una viñeta ligera a toda la imagen, incluido el texto. Los patrones finos se atenúan a escalas pequeñas. No curva la imagen ni añade parpadeo; mantiene la resolución lógica, la cámara, las coordenadas del ratón, la relación de aspecto y las bandas al redimensionar o usar pantalla completa. Funciona con cualquier juego Pincel sin importar `std/pincel/retro`. Con `retro = falso`, `pixelado` conserva su comportamiento habitual. Los errores al inicializar el shader producen `.Error(cadena)`.
 
-Ejemplos: [calabozo jugable](../examples/dungeon2.cometa) y [galería de ambos atlas](../examples/retro.cometa). La galería muestra las celdas en orden de índice y los iconos nombrados.
-
-### La última luz
-
-[Esta aventura completa](../examples/escape_retro.cometa) tiene tres pisos, diálogos de historia y una paleta fija de 24 colores. No necesita recursos externos. Ejecuta `cometa ejecutar examples/escape_retro.cometa`.
-
-- **Flechas:** mover un paso o atacar al esqueleto de la casilla vecina. Atacar lo derrota sin mover al jugador.
-- **Espacio:** esperar un turno. Los esqueletos supervivientes actúan después de cada movimiento, ataque o espera; chocar con un muro o una salida cerrada no gasta turno.
-- **Enter:** avanzar el diálogo. Mientras lees, la partida está pausada.
-- **R:** reiniciar los tres pisos, incluso durante un diálogo o al terminar.
-
-Recoge la llave dorada y entra en la salida `>` de cada piso. Los corazones verdes recuperan una vida hasta un máximo de cinco; la salud se conserva entre pisos. Los enemigos adyacentes golpean y los demás se acercan una casilla, sin atravesar muros, salidas u otros enemigos. El tercer piso termina la historia. La paleta está al principio del ejemplo y el estado del juego vive en `Partida`.
-
-### Bajo la tierra
-
-[Este plataformas](../examples/plataformas.cometa) es un sandbox pequeño con superficie, cuevas conectadas, minería y combate. Ejecuta desde la raíz del repositorio:
-
-```powershell
-.\vscode-extension\bin\cometa.exe ejecutar .\examples\plataformas.cometa
-```
-
-- **A/D o flechas:** moverse con aceleración, frenado y control aéreo.
-- **Espacio:** saltar. Mantenerlo produce un salto más alto; soltarlo lo acorta. Incluye 100 ms de tolerancia al abandonar una plataforma y 120 ms de memoria de salto antes de aterrizar.
-- **Ratón:** apuntar libremente. Mantener el botón izquierdo dispara; el derecho pica el primer bloque visible del rayo dentro de 48 píxeles. La piedra y la roca profunda tardan más que la tierra. El mineral turquesa aumenta el contador.
-- **R:** volver al refugio con cinco corazones, conservando el terreno excavado y el mineral. Morir hace lo mismo automáticamente.
-- **N:** crear un mundo con otra semilla; descarta la partida actual.
-- **H:** mostrar de nuevo la ayuda.
-
-La resolución lógica es **320×180**, a escala entera 4 y sin filtro. Cada sección muestra **40×22½ bloques de 8×8**: la cuadrícula sigue continua y los bordes verticales recortan medias celdas. La cámara permanece fija y cambia instantáneamente cuando el centro del jugador cruza un borde. El mundo tiene seis secciones horizontales y tres verticales, con límites sólidos. Los 240×68 bloques cubren 1920×544 píxeles; los cuatro píxeles inferiores quedan fuera de la última pantalla.
-
-El generador combina ruido con galerías y rampas de conexión; la plataforma del refugio no puede destruirse. Los slimes saltan y los murciélagos se acercan volando, sin atravesar terreno. Las balas se detienen en el primer bloque o enemigo. Los cambios de terreno y el estado de los enemigos se conservan al cambiar de sección; los enemigos lejanos quedan pausados. No hay guardado, construcción, inventario, crafting ni condición de victoria.
-
-La paleta y los efectos se dibujan con Pincel y `retro`, que incorpora los mismos atlas CC0 de `examples/assets/dungeonmode/bitmap` con fondo transparente. No se necesitan recursos externos. La simulación vive en [plataformas/mundo.cometa](../examples/plataformas/mundo.cometa), sin dependencia gráfica. Para reproducir un terreno, reemplaza el argumento aleatorio de `partida.generar(...)` en `inicio` por la semilla que aparece al pie de la pantalla.
-
-### Huerto
-
-[Huerto](../examples/huerto.cometa) es una granja pequeña en vista cenital, al estilo de Stardew Valley. Todo el arte se genera con [`lienzo`](lienzo.md), sin archivos. Ejecuta desde la raíz del repositorio:
-
-```powershell
-.\vscode-extension\bin\cometa.exe ejecutar .\examples\huerto.cometa
-```
-
-- **WASD o flechas:** caminar en cuatro direcciones.
-- **Espacio o clic izquierdo:** usar la herramienta sobre la celda marcada. Mantenerlo repite la acción. Con el ratón se apunta a cualquier celda cercana.
-- **Q/E o rueda:** cambiar de herramienta. También se puede hacer clic en la barra.
-- **H:** mostrar u ocultar la ayuda.
-
-La azada labra la tierra del huerto y rompe piedras. La regadera moja la tierra labrada; se rellena en el estanque. Las semillas de nabo, zanahoria y calabaza tardan 3, 4 y 6 días en madurar. Cualquier herramienta cosecha un cultivo maduro. Un cultivo solo crece durante la noche si su celda estaba mojada. A partir del tercer día puede llover, y la lluvia riega todo lo labrado.
-
-La caja junto a la casa vende la cosecha. El puesto vende la semilla seleccionada en la barra, o nabos si la herramienta activa no es una semilla. La puerta de la casa termina el día. A las 02:00 el granjero cae rendido y el día termina solo. El reloj avanza una hora cada 7,5 segundos, con atardecer, noche, ventanas iluminadas y luciérnagas.
-
-El suelo del mapa se hornea una vez en un lienzo de 640×448 con césped tramado por ruido y Bayer, caminos, tierra y un estanque elíptico. Cada acción repinta solo las celdas que cambian, y el lienzo se vuelve a subir a la GPU en el siguiente dibujo. Árboles, vallas, casa y cultivos se ordenan por fila para que el granjero pase por delante y por detrás. La simulación vive en [huerto/granja.cometa](../examples/huerto/granja.cometa), sin dependencia gráfica, y tiene pruebas automáticas de juego.
+Ejemplo: [texto e iconos retro](../examples/pincel/06_retro.cometa). Hay más ejemplos para principiantes en [examples](../examples/README.md).
 
 ## Valores, coordenadas y recursos
 
@@ -222,7 +171,7 @@ son opcionales. Las expresiones de argumentos se evalúan una vez, en orden fuen
 también al usar argumentos nombrados.
 
 ```cometa
-juego.ejecutar(instancia juego.Juego, ancho entero = 320, alto entero = 180, titulo cadena = "Cometa", escala decimal = 1, redimensionable bool = falso, pantalla_completa bool = falso, tps entero = 60, pixelado bool = falso, retro bool = falso) !
+pincel.ejecutar(instancia pincel.Juego, ancho entero = 320, alto entero = 180, titulo cadena = "Cometa", escala decimal = 1, redimensionable bool = falso, pantalla_completa bool = falso, tps entero = 60, pixelado bool = falso, retro bool = falso) !
 mate.Vec2.longitud() decimal
 mate.Vec2.normalizado() mate.Vec2
 mate.Vec2.distancia_a(otro mate.Vec2) decimal

@@ -1,0 +1,37 @@
+// Funciones: agrupar código con un nombre para reutilizarlo.
+
+// Una función sin resultado.
+fn saludar(nombre cadena)
+	imprimir("Hola, ${nombre}")
+
+// El tipo después de los paréntesis es el resultado.
+// La última expresión se devuelve automáticamente.
+fn sumar(a entero, b entero) entero
+	a + b
+
+// Una función corta cabe en una sola línea.
+fn doble(numero entero) entero numero * 2
+
+// Un parámetro puede tener un valor predeterminado.
+fn potencia(base entero, exponente entero = 2) entero
+	var resultado = 1
+	repetir (0..exponente) |i|
+		resultado = resultado * base
+	resultado
+
+// retornar sale de la función antes de llegar al final.
+fn describir(numero entero) cadena
+	si numero < 0
+		retornar "negativo"
+	si numero == 0
+		retornar "cero"
+	"positivo"
+
+fn inicio()
+	saludar("Luis")
+	imprimir(sumar(2, 3))
+	imprimir(doble(21))
+	imprimir(potencia(5))                        // 25
+	imprimir(potencia(2, 10))                    // 1024
+	imprimir(potencia(exponente = 3, base = 2))  // argumentos con nombre: 8
+	imprimir(describir(-4))

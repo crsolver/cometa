@@ -163,7 +163,7 @@ fn inicio()
 }
 
 func TestEnumExample(t *testing.T) {
-	source, err := os.ReadFile("../../examples/usuario.cometa")
+	source, err := os.ReadFile("testdata/programas/usuario.cometa")
 	if err != nil {
 		t.Fatal(err)
 	}

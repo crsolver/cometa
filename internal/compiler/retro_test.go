@@ -29,7 +29,7 @@ func TestRetroAPI(t *testing.T) {
 		}
 	}
 	for _, file := range []string{"dungeon2.cometa", "retro.cometa", "escape_retro.cometa"} {
-		path := filepath.Join("..", "..", "examples", file)
+		path := filepath.Join("testdata", "programas", file)
 		data, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatal(err)

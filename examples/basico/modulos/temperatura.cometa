@@ -1,0 +1,15 @@
+// Un módulo con funciones de temperatura.
+// pub hace visible una declaración para otros archivos.
+
+pub const ebullicion decimal = 100
+
+pub fn a_fahrenheit(celsius decimal) decimal
+	celsius * 9 / 5 + 32
+
+pub fn describir(celsius decimal) cadena
+	si celsius < 10 "frío"
+	osi celsius < 25 "templado"
+	sino "caluroso"
+
+// Sin pub, esta función solo se usa dentro de este archivo.
+fn no_exportada() entero 42

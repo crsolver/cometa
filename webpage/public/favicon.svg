@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+	<defs>
+		<linearGradient id="orbita" x1="0" y1="1" x2="0" y2="0">
+			<stop offset="0" stop-color="#404576" stop-opacity="0.15"/>
+			<stop offset=".5" stop-color="#4F6B9A"/>
+			<stop offset="1" stop-color="#5EB1C7"/>
+		</linearGradient>
+		<radialGradient id="halo">
+			<stop offset="0" stop-color="#5EB1C7" stop-opacity=".55"/>
+			<stop offset="1" stop-color="#5EB1C7" stop-opacity="0"/>
+		</radialGradient>
+	</defs>
+	<rect width="64" height="64" rx="14" fill="#242646"/>
+	<path d="M47.3 44.9 A20 20 0 1 1 47.3 19.1" fill="none" stroke="url(#orbita)" stroke-width="5" stroke-linecap="round"/>
+	<path d="M19.1 16.7 A20 20 0 0 1 47.3 19.1" fill="none" stroke="#5EB1C7" stroke-width="8" stroke-linecap="round"/>
+	<path d="M29.9 12.1 A20 20 0 0 1 47.3 19.1" fill="none" stroke="#A6DDEA" stroke-width="4" stroke-linecap="round"/>
+	<circle cx="47.3" cy="19.1" r="13" fill="url(#halo)"/>
+	<circle cx="47.3" cy="19.1" r="6.5" fill="#EAF8FC"/>
+	<path d="M32 24.5 l2.2 5.3 5.3 2.2 -5.3 2.2 -2.2 5.3 -2.2 -5.3 -5.3 -2.2 5.3 -2.2z" fill="#F2D08A"/>
+</svg>

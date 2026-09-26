@@ -85,7 +85,7 @@ func buildProgram(source []byte, output string, execute bool) error {
 // Capture runs the game with a hidden window and saves its logical screen.
 func captureProgram(source []byte, output string, frames, scale int) error {
 	if !strings.Contains(string(source), "func _hgcapturar(") {
-		return fmt.Errorf("captura requiere un juego iniciado con juego.ejecutar")
+		return fmt.Errorf("captura requiere un juego iniciado con pincel.ejecutar")
 	}
 	output, err := filepath.Abs(output)
 	if err != nil {

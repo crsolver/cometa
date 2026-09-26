@@ -18,7 +18,7 @@ func TestStandardMathWithoutGame(t *testing.T) {
 }
 
 func TestPincelExplicitStartup(t *testing.T) {
-	source := "usar std/pincel/juego\nusar std/pincel/graficos\ntipo Demo\n\tpub fn actualizar(dt decimal) imprimir(dt)\n\tpub fn pintar() graficos.limpiar(.Negro)\nfn inicio()\n\tjuego.ejecutar(Demo {}) capturar |error|\n\t\timprimir(error)\n"
+	source := "usar std/pincel\nusar std/pincel/graficos\ntipo Demo\n\tpub fn actualizar(dt decimal) imprimir(dt)\n\tpub fn pintar() graficos.limpiar(.Negro)\nfn inicio()\n\tpincel.ejecutar(Demo {}) capturar |error|\n\t\timprimir(error)\n"
 	generated, err := Compile("game.cometa", []byte(source))
 	if err != nil {
 		t.Fatal(err)
@@ -36,7 +36,7 @@ func TestStandardLibraryVisibility(t *testing.T) {
 		"fn inicio()\n\tvar v = Vec2 {}\n",
 		"usar std/mate\nfn inicio()\n\tvar v = Vec2 {}\n",
 		"usar std/pincel/graficos\nfn inicio() imprimir(mate.pi)\n",
-		"usar std/pincel\nfn inicio() imprimir(0)\n",
+		"usar std/pincel/juego\nfn inicio() imprimir(0)\n",
 		"usar std/no_existe\nfn inicio() imprimir(0)\n",
 		"usar std/mate\nusar std/mate como m\nfn inicio() imprimir(0)\n",
 	} {

@@ -1,0 +1,29 @@
+// Mapas: relacionan una clave con un valor, como un diccionario.
+
+fn inicio()
+	var edades = [
+		"Ana": 12,
+		"Luis": 14,
+	]
+
+	// Agregar o cambiar un valor.
+	edades["Marta"] = 11
+	edades["Ana"] = 13
+
+	// Leer puede fallar si la clave no existe: usa o para dar un valor por defecto.
+	imprimir(edades["Ana"] o 0)
+	imprimir(edades["Pedro"] o 0)
+
+	imprimir("¿Está Luis? ${edades.contiene("Luis")}")
+	imprimir("Personas: ${edades.longitud()}")
+
+	// El recorrido da primero el valor y luego la clave.
+	// El orden no está garantizado.
+	repetir (edades) |edad, nombre|
+		imprimir("${nombre} tiene ${edad} años")
+
+	// Contar palabras.
+	var conteo [cadena: entero] = [:]
+	repetir ("el gato y el perro y el pez".dividir(" ")) |palabra|
+		conteo[palabra] = (conteo[palabra] o 0) + 1
+	imprimir("'el' aparece ${conteo["el"] o 0} veces")

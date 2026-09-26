@@ -1,0 +1,16 @@
+enum Forma
+	Circulo decimal
+	Cuadrado decimal
+	Punto
+
+fn area(forma Forma) decimal
+	// casos es exhaustivo: el compilador revisa cada variante.
+	casos forma |medida|
+		.Circulo => 3.1416 * medida * medida
+		.Cuadrado => medida * medida
+		.Punto => 0
+
+fn inicio()
+	var formas [Forma] = [.Circulo(2), .Cuadrado(3), .Punto]
+	repetir (formas) |forma|
+		imprimir("Área: ${area(forma)}")

@@ -1,0 +1,35 @@
+// Variables, tipos básicos y operaciones.
+
+// Una constante no puede cambiar.
+const dias_por_semana entero = 7
+
+fn inicio()
+	// Cometa deduce el tipo a partir del valor.
+	var nombre = "Ana"       // cadena
+	var edad = 12            // entero
+	var altura = 1.52        // decimal
+	var le_gusta_leer = verdadero  // bool
+
+	// También puedes escribir el tipo.
+	var puntos entero = 0
+
+	// Una variable se puede reasignar.
+	puntos = puntos + 10
+	puntos = puntos * 2
+
+	// ${...} inserta un valor dentro de una cadena.
+	imprimir("${nombre} tiene ${edad} años y mide ${altura} m")
+	imprimir("¿Le gusta leer? ${le_gusta_leer}")
+	imprimir("Puntos: ${puntos}")
+	imprimir("Una semana tiene ${dias_por_semana} días")
+
+	// Las cadenas también se pueden unir con +.
+	imprimir("Hola, " + nombre + "!")
+
+	// Operaciones con números.
+	imprimir(7 + 3)    // 10
+	imprimir(7 - 3)    // 4
+	imprimir(7 * 3)    // 21
+	imprimir(7 / 2)    // 3: la división entre enteros descarta los decimales
+	imprimir(7 % 2)    // 1: el resto de la división
+	imprimir(7.0 / 2)  // 3.5: con un decimal el resultado es decimal

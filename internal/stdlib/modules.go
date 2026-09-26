@@ -17,7 +17,7 @@ var TypeModules = map[string]string{
 	"Icono": "retro", "Atlas": "retro",
 	"Vec2": "mate", "Rect": "mate", "Color": "color", "Camara2D": "graficos",
 	"Imagen": "graficos", "Fuente": "graficos", "Tecla": "entrada", "BotonRaton": "entrada",
-	"Sonido": "audio", "Reproduccion": "audio", "Juego": "juego",
+	"Sonido": "audio", "Reproduccion": "audio", "Juego": "pincel",
 }
 
 var typeName = regexp.MustCompile(`\b(Vec2|Rect|Color|Camara2D|Imagen|Fuente|Tecla|BotonRaton|Sonido|Reproduccion|Juego|Icono|Atlas)\b`)
@@ -108,6 +108,9 @@ func relocate(node any, namespace, declaration string) {
 func ModulePath(namespace string) string {
 	if namespace == "curvas" || namespace == "ruido" {
 		return "std/mate/" + namespace
+	}
+	if namespace == "pincel" {
+		return "std/pincel"
 	}
 	if namespace == "mate" || namespace == "azar" {
 		return "std/" + namespace

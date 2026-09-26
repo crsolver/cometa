@@ -1,0 +1,7 @@
+// Tu primer programa en Cometa.
+// Todo programa empieza en la función inicio().
+// Los bloques se marcan con tabuladores, sin llaves ni "fin".
+
+fn inicio()
+	imprimir("¡Hola, mundo!")
+	imprimir("Bienvenido a Cometa")

@@ -1,0 +1,11 @@
+// Módulos: repartir el programa en varios archivos.
+// usar importa modulos/temperatura.cometa, relativo a este archivo.
+usar modulos/temperatura
+
+fn inicio()
+	var grados = 25.0
+	imprimir("${grados} °C son ${temperatura.a_fahrenheit(grados)} °F")
+	imprimir(temperatura.describir(grados))
+
+	// Solo lo marcado con pub en el módulo es visible aquí.
+	imprimir("El agua hierve a ${temperatura.ebullicion} °C")

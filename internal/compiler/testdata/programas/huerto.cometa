@@ -1,0 +1,1294 @@
+usar huerto/granja
+usar std/mate
+usar std/mate/curvas
+usar std/mate/ruido
+usar std/azar
+usar std/pincel
+usar std/pincel/graficos como g
+usar std/pincel/color
+usar std/pincel/entrada
+usar std/pincel/lienzo
+usar std/pincel/retro
+
+// HUERTO — 320×180, celdas de 16×16. Todo el arte se genera con lienzo:
+// sprites desde texto, árboles y casa con primitivas, y un suelo horneado
+// que se repinta celda a celda al labrar, regar o romper piedras.
+// WASD/flechas: caminar. Espacio o clic: usar. Q/E o rueda: herramienta.
+// La puerta de la casa duerme, la caja vende la cosecha y el puesto
+// vende semillas. H: ayuda.
+
+const ancho = 320
+const alto = 180
+const lado = 16
+const mapa_ancho = 640
+const mapa_alto = 448
+const alcance = 26.0
+
+var colores [cadena: color.Color] = [
+	"o": color.rgba(26, 28, 44),
+	"p": color.rgba(93, 39, 93),
+	"r": color.rgba(177, 62, 83),
+	"n": color.rgba(239, 125, 87),
+	"N": color.rgba(190, 84, 52),
+	"y": color.rgba(255, 205, 117),
+	"l": color.rgba(167, 240, 112),
+	"g": color.rgba(56, 183, 100),
+	"G": color.rgba(37, 113, 121),
+	"u": color.rgba(41, 54, 111),
+	"b": color.rgba(59, 93, 201),
+	"c": color.rgba(65, 166, 246),
+	"w": color.rgba(244, 244, 244),
+	"s": color.rgba(148, 176, 194),
+	"S": color.rgba(86, 108, 134),
+	"d": color.rgba(51, 60, 87),
+	"t": color.rgba(143, 86, 59),
+	"T": color.rgba(92, 58, 42),
+	"m": color.rgba(194, 138, 88),
+	"k": color.rgba(232, 183, 150),
+]
+
+fn tono(clave cadena) color.Color
+	colores[clave] o .Negro
+
+// El tinte predeterminado es un blanco cálido; este conserva los colores.
+var puro = color.rgba(255, 255, 255)
+var tinta = color.rgba(26, 28, 44)
+var crema = color.rgba(255, 236, 190)
+var madera = color.rgba(194, 138, 88)
+var cesped_claro = color.rgba(98, 164, 76)
+var cesped_oscuro = color.rgba(80, 146, 68)
+var brizna = color.rgba(134, 192, 94)
+var bosque_claro = color.rgba(60, 116, 66)
+var bosque_oscuro = color.rgba(46, 96, 60)
+var sombra_suelo = color.rgba(56, 108, 64)
+var arena = color.rgba(206, 172, 118)
+var arena_oscura = color.rgba(184, 150, 102)
+var arena_clara = color.rgba(224, 194, 140)
+var tierra_base = color.rgba(150, 98, 62)
+var tierra_oscura = color.rgba(126, 80, 52)
+var tierra_clara = color.rgba(170, 118, 80)
+var agua_base = color.rgba(64, 124, 184)
+var agua_honda = color.rgba(50, 102, 166)
+var espuma = color.rgba(150, 202, 232)
+
+// Umbrales de tramado ordenado Bayer 4×4.
+var bayer = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5]
+
+// ---------- Sprites ----------
+
+fn espejo(img g.Imagen) g.Imagen
+	var copia = lienzo.nuevo(lienzo.ancho(img), lienzo.alto(img))
+	lienzo.pegar(copia, img, 0, 0, espejo_h = verdadero)
+	copia
+
+// Tercer cuadro de caminata: el paso con la otra pierna.
+fn con_paso_espejo(cuadros [g.Imagen]) [g.Imagen]
+	cuadros.agregar(espejo(cuadros[1]))
+	cuadros
+
+fn espejar(cuadros [g.Imagen]) [g.Imagen]
+	var resultado [g.Imagen] = []
+	repetir (cuadros) |img| resultado.agregar(espejo(img))
+	resultado
+
+var jugador_abajo = con_paso_espejo(lienzo.hoja_desde_texto([
+	[
+		"...oooooo...",
+		"..oyyyyyyo..",
+		"..onnnnnno..",
+		".oyyyyyyyyo.",
+		"oyyyyyyyyyyo",
+		".oTkkkkkkTo.",
+		".oTkokkokTo.",
+		"..okkkkkko..",
+		".oorbbbbroo.",
+		"okrrbbbbrrko",
+		"okorbwbbroko",
+		".o.obbbbo.o.",
+		"...obbbbo...",
+		"...obuubo...",
+		"...oTooTo...",
+		"...oo..oo...",
+	],
+	[
+		"............",
+		"...oooooo...",
+		"..oyyyyyyo..",
+		"..onnnnnno..",
+		".oyyyyyyyyo.",
+		"oyyyyyyyyyyo",
+		".oTkkkkkkTo.",
+		".oTkokkokTo.",
+		".ookkkkkkoo.",
+		"okrrbbbbrrko",
+		"okorbwbbroko",
+		".o.obbbbo.o.",
+		"...obbbbo...",
+		"...obuubo...",
+		"...oTo.oo...",
+		"...oo.......",
+	],
+], colores))
+
+var jugador_arriba = con_paso_espejo(lienzo.hoja_desde_texto([
+	[
+		"...oooooo...",
+		"..oyyyyyyo..",
+		"..onnnnnno..",
+		".oyyyyyyyyo.",
+		"oyyyyyyyyyyo",
+		".oTTTTTTTTo.",
+		".oTTTTTTTTo.",
+		"..okTTTTko..",
+		".oorbbbbroo.",
+		"okrrbbbbrrko",
+		"okorbbbbroko",
+		".o.obbbbo.o.",
+		"...obbbbo...",
+		"...obuubo...",
+		"...oTooTo...",
+		"...oo..oo...",
+	],
+	[
+		"............",
+		"...oooooo...",
+		"..oyyyyyyo..",
+		"..onnnnnno..",
+		".oyyyyyyyyo.",
+		"oyyyyyyyyyyo",
+		".oTTTTTTTTo.",
+		".oTTTTTTTTo.",
+		".ookTTTTkoo.",
+		"okrrbbbbrrko",
+		"okorbbbbroko",
+		".o.obbbbo.o.",
+		"...obbbbo...",
+		"...obuubo...",
+		"...oTo.oo...",
+		"...oo.......",
+	],
+], colores))
+
+var jugador_derecha = lienzo.hoja_desde_texto([
+	[
+		"...oooooo...",
+		"..oyyyyyyo..",
+		"..onnnnnno..",
+		".oyyyyyyyyyo",
+		"oyyyyyyyyyyo",
+		".oTTTkkkkko.",
+		".oTTkkkkoko.",
+		"..oTkkkkkko.",
+		"...orbbbroo.",
+		"...orbbbrko.",
+		"...obbwbbo..",
+		"...obbbbbo..",
+		"...obbbbo...",
+		"...obuubo...",
+		"....oTTo....",
+		"....oooo....",
+	],
+	[
+		"............",
+		"...oooooo...",
+		"..oyyyyyyo..",
+		"..onnnnnno..",
+		".oyyyyyyyyyo",
+		"oyyyyyyyyyyo",
+		".oTTTkkkkko.",
+		".oTTkkkkoko.",
+		"..oTkkkkkko.",
+		"...orbbbrko.",
+		"...obbwbbo..",
+		"...obbbbbo..",
+		"...obbbbo...",
+		"..obuuuubo..",
+		"..oTo..oTo..",
+		"..oo....oo..",
+	],
+], colores)
+
+var jugador_izquierda = espejar(jugador_derecha)
+var pasos_frente = [0, 1, 0, 2]
+
+var semilla_img = lienzo.desde_texto([
+	"................",
+	"................",
+	"................",
+	"................",
+	"................",
+	"................",
+	"................",
+	"................",
+	"................",
+	"................",
+	"................",
+	"................",
+	".....o....o.....",
+	"....omo..omo....",
+	".....o....o.....",
+	"................",
+], colores)
+
+var brote_img = lienzo.desde_texto([
+	"................",
+	"................",
+	"................",
+	"................",
+	"................",
+	"................",
+	"................",
+	"................",
+	"................",
+	"....ooo..ooo....",
+	"...ollgoogllo...",
+	"....ooggggoo....",
+	"......oggo......",
+	".......oo.......",
+	"................",
+	"................",
+], colores)
+
+// Etapa 2 por cultivo: nabo, zanahoria y calabaza.
+var crecidas = lienzo.hoja_desde_texto([
+	[
+		"................",
+		"................",
+		"................",
+		"................",
+		"................",
+		"................",
+		"................",
+		"......o..o......",
+		".....olooglo....",
+		"....olgoogglo...",
+		"....oggogggo....",
+		".....ogggggo....",
+		"......oggo......",
+		".......oo.......",
+		"................",
+		"................",
+	],
+	[
+		"................",
+		"................",
+		"................",
+		"................",
+		"................",
+		"................",
+		".......o........",
+		"....o.olo.o.....",
+		"...olo.olo.olo..",
+		"....oloogoolo...",
+		".....ogggggo....",
+		"......ogggo.....",
+		".......ogo......",
+		".......oo.......",
+		"................",
+		"................",
+	],
+	[
+		"................",
+		"................",
+		"................",
+		"................",
+		"................",
+		"................",
+		"................",
+		"................",
+		"...o.......oo...",
+		"..olo..oo.olgo..",
+		"..oggoogloogo...",
+		"...ogglgggo.....",
+		"....oGGGGo......",
+		"...oGlGGlGo.....",
+		"....oooooo......",
+		"................",
+	],
+], colores)
+
+// Etapa 3: listo para cosechar.
+var maduras = lienzo.hoja_desde_texto([
+	[
+		"................",
+		"................",
+		"................",
+		"................",
+		".....oo...oo....",
+		"....olgo.oglo...",
+		"....oggooggo....",
+		".....oggggo.....",
+		"......oggo......",
+		".....owwwwo.....",
+		"....owwwwwwo....",
+		"....owwwwwpo....",
+		"....opwwwppo....",
+		".....opppoo.....",
+		"......oooo......",
+		"................",
+	],
+	[
+		"................",
+		"................",
+		"................",
+		"......o..o......",
+		"...o.olo.olo.o..",
+		"..olo.olololo...",
+		"...oloolgloolo..",
+		"....ogglggggo...",
+		".....oggggggo...",
+		"......oggggo....",
+		".....onnnnno....",
+		".....oynnnnno...",
+		".....onnnnno....",
+		"......ooooo.....",
+		"................",
+		"................",
+	],
+	[
+		"................",
+		"................",
+		"................",
+		"........oo......",
+		".......oTo......",
+		"..oo...oTo..oo..",
+		".olgo.ooTooolgo.",
+		"..oooonnnnoooo..",
+		".onnynnnnnnynno.",
+		"onnynnynnynnynno",
+		"onnynnynnynnynno",
+		"onnynnynnynnynno",
+		"oNnnNnnnnnnNnnNo",
+		".oNNnnNNNNnnNNo.",
+		"..oooooooooooo..",
+		"................",
+	],
+], colores)
+
+var roca_img = lienzo.desde_texto([
+	"................",
+	"................",
+	"................",
+	"................",
+	"................",
+	"................",
+	"......oooo......",
+	"....oossssoo....",
+	"...osswssssSo...",
+	"...oswsssSSSo...",
+	"..osssssSSSSSo..",
+	"..osssSSSSSSdo..",
+	"..oSSSSSSSSddo..",
+	"...oddddddddo...",
+	"....oooooooo....",
+	"................",
+], colores)
+
+var caja_img = lienzo.desde_texto([
+	"................",
+	"................",
+	"..oooooooooooo..",
+	".ommmmmmmmmmmmo.",
+	".otttttttttttto.",
+	".oTTTTTTTTTTTTo.",
+	".ommmmmmmmmmmmo.",
+	".omtmmmmmmmmtmo.",
+	".omtmmmyymmmtmo.",
+	".omtmmmyymmmtmo.",
+	".omtmmmmmmmmtmo.",
+	".otttttttttttto.",
+	".oTTTTTTTTTTTTo.",
+	"..oooooooooooo..",
+	"..oo........oo..",
+	"................",
+], colores)
+
+var puesto_img = lienzo.desde_texto([
+	"................",
+	".oooooooooooooo.",
+	"orrwwrrwwrrwwrro",
+	"orrwwrrwwrrwwrro",
+	".oooooooooooooo.",
+	"..oo........oo..",
+	"..oT........To..",
+	"..oT........To..",
+	"..oT........To..",
+	"..oT.oyo.onoTo..",
+	"..oToyyoonnoTo..",
+	"oooooooooooooooo",
+	"ommmmmmmmmmmmmmo",
+	"otttttttttttttto",
+	".oTo........oTo.",
+	".ooo........ooo.",
+], colores)
+
+fn bolsa(k cadena) [cadena]
+	[
+		"............",
+		"....oooo....",
+		"....oTTo....",
+		".....oo.....",
+		"...ommmmo...",
+		"..ommmmmmo..",
+		".ommm${k}${k}mmmo.",
+		".omm${k}${k}${k}${k}mmo.",
+		".ommm${k}${k}mmmo.",
+		".otmmmmmmto.",
+		"..oooooooo..",
+		"............",
+	]
+
+// Iconos de la barra, en el orden de las herramientas de granja.
+var iconos = lienzo.hoja_desde_texto([
+	[
+		"............",
+		".oooo.......",
+		".osssoo.....",
+		".oSSSmo.....",
+		"..ooomto....",
+		".....omto...",
+		"......omto..",
+		".......omto.",
+		"........omto",
+		".........oo.",
+		"............",
+		"............",
+	],
+	[
+		"............",
+		"...oooo.....",
+		"..o....o....",
+		".oooooooo..o",
+		".obcbbbbo.oc",
+		".obcbbbbbco.",
+		".obcbbbbo...",
+		".obbbbbbo...",
+		".ouuuuuuo...",
+		"..oooooo....",
+		"............",
+		"............",
+	],
+	bolsa("p"),
+	bolsa("n"),
+	bolsa("y"),
+	[
+		"............",
+		"....ooo.....",
+		"...osssoo...",
+		"..oso..Sso..",
+		"..oo....Sso.",
+		"........oSo.",
+		".......oSo..",
+		"......ooo...",
+		".....omo....",
+		"....omo.....",
+		"...omo......",
+		"...oo.......",
+	],
+], colores)
+
+var productos = lienzo.hoja_desde_texto([
+	[
+		"..g.g...",
+		"...g....",
+		"..owwo..",
+		".owwwwo.",
+		".owwppo.",
+		".opppo..",
+		"..ooo...",
+		"........",
+	],
+	[
+		"....g.g.",
+		".....gg.",
+		"...oono.",
+		"..onnno.",
+		"..onno..",
+		".onno...",
+		".ono....",
+		"..o.....",
+	],
+	[
+		"...Tt...",
+		"...oTo..",
+		".onnnno.",
+		"onynnyno",
+		"onynnyno",
+		"onynnyno",
+		".onnnno.",
+		"..oooo..",
+	],
+], colores)
+
+fn crear_arbol(frutos bool) g.Imagen
+	var img = lienzo.nuevo(32, 40)
+	var ob = tono("o")
+	lienzo.rect(img, 10, 36, 12, 4, ob)
+	lienzo.rect(img, 12, 22, 8, 17, ob)
+	lienzo.rect(img, 13, 22, 6, 16, tono("t"))
+	lienzo.rect(img, 13, 22, 2, 16, tono("m"))
+	lienzo.rect(img, 11, 37, 10, 2, tono("t"))
+	// Copa de cuatro bultos: primero todos los contornos, luego rellenos.
+	var bultos = [16, 12, 11, 8, 19, 7, 24, 19, 7, 16, 22, 8]
+	repetir (0..4) |i| lienzo.circulo(img, bultos[i * 3], bultos[i * 3 + 1], bultos[i * 3 + 2] + 1, ob)
+	repetir (0..4) |i| lienzo.circulo(img, bultos[i * 3], bultos[i * 3 + 1], bultos[i * 3 + 2], tono("G"))
+	lienzo.circulo(img, 14, 11, 8, tono("g"))
+	lienzo.circulo(img, 8, 18, 4, tono("g"))
+	lienzo.circulo(img, 22, 16, 4, tono("g"))
+	// Brillo tramado en la parte iluminada.
+	repetir (0..20) |y|
+		repetir (0..24) |x|
+			var dx = x - 11
+			var dy = y - 8
+			si dx * dx + dy * dy < 26 && bayer[(y % 4) * 4 + x % 4] < 7
+				lienzo.pixel(img, x, y, tono("l"))
+	si frutos
+		var pos = [9, 14, 20, 9, 23, 21, 13, 23, 17, 16]
+		repetir (0..5) |i|
+			lienzo.circulo(img, pos[i * 2], pos[i * 2 + 1], 1, tono("r"))
+			lienzo.pixel(img, pos[i * 2] - 1, pos[i * 2 + 1] - 1, tono("w"))
+	img
+
+fn crear_pino() g.Imagen
+	var img = lienzo.nuevo(32, 40)
+	var ob = tono("o")
+	lienzo.rect(img, 13, 30, 6, 10, ob)
+	lienzo.rect(img, 14, 30, 4, 9, tono("T"))
+	repetir (0..3) |capa|
+		var arriba = 2 + capa * 9
+		repetir (0..14) |fila|
+			var mitad = 2 + fila * (5 + capa * 2) / 13
+			var y = arriba + fila
+			lienzo.linea(img, 15 - mitad, y, 16 + mitad, y, ob)
+			si fila > 0 && fila < 13
+				lienzo.linea(img, 16 - mitad, y, 15 + mitad, y, tono("G"))
+				lienzo.linea(img, 16 - mitad, y, 15 - mitad / 3, y, tono("g"))
+				si (fila + capa) % 3 == 0 lienzo.pixel(img, 17 + mitad / 2, y, tono("d"))
+	img
+
+fn crear_valla(conexiones entero) g.Imagen
+	var img = lienzo.nuevo(16, 16)
+	var ob = tono("o")
+	si conexiones % 2 == 1
+		lienzo.rect(img, 0, 5, 8, 4, ob)
+		lienzo.rect(img, 0, 6, 8, 2, tono("m"))
+		lienzo.rect(img, 0, 10, 8, 3, ob)
+		lienzo.rect(img, 0, 11, 8, 1, tono("t"))
+	si (conexiones / 2) % 2 == 1
+		lienzo.rect(img, 8, 5, 8, 4, ob)
+		lienzo.rect(img, 8, 6, 8, 2, tono("m"))
+		lienzo.rect(img, 8, 10, 8, 3, ob)
+		lienzo.rect(img, 8, 11, 8, 1, tono("t"))
+	si (conexiones / 4) % 2 == 1
+		lienzo.rect(img, 6, 0, 4, 6, ob)
+		lienzo.rect(img, 7, 0, 2, 6, tono("m"))
+	lienzo.rect(img, 5, 2, 6, 13, ob)
+	lienzo.rect(img, 6, 3, 4, 11, tono("m"))
+	lienzo.rect(img, 8, 4, 2, 10, tono("t"))
+	lienzo.rect(img, 6, 3, 4, 1, tono("k"))
+	img
+
+fn crear_vallas() [g.Imagen]
+	var lista [g.Imagen] = []
+	repetir (0..8) |i| lista.agregar(crear_valla(i))
+	lista
+
+fn ventana(img g.Imagen, x entero, y entero)
+	var ob = tono("o")
+	lienzo.rect(img, x, y, 16, 13, ob)
+	lienzo.rect(img, x + 1, y + 1, 14, 11, tono("u"))
+	lienzo.rect(img, x + 2, y + 2, 5, 4, tono("c"))
+	lienzo.linea(img, x + 2, y + 7, x + 4, y + 7, tono("b"))
+	lienzo.linea(img, x + 8, y + 1, x + 8, y + 11, ob)
+	lienzo.linea(img, x + 1, y + 6, x + 14, y + 6, ob)
+	// Jardinera con flores.
+	lienzo.rect(img, x - 1, y + 13, 18, 3, ob)
+	lienzo.rect(img, x, y + 13, 16, 2, tono("T"))
+	var flores = ["r", "y", "w", "r", "y"]
+	repetir (0..5) |i|
+		lienzo.pixel(img, x + 2 + i * 3, y + 12, tono(flores[i]))
+		lienzo.pixel(img, x + 3 + i * 3, y + 12, tono("g"))
+
+fn crear_casa() g.Imagen
+	var img = lienzo.nuevo(80, 80)
+	var ob = tono("o")
+	// Paredes de tablas.
+	lienzo.rect(img, 3, 34, 74, 46, ob)
+	lienzo.rect(img, 4, 35, 72, 44, tono("m"))
+	repetir (0..11) |i| lienzo.linea(img, 4, 38 + i * 4, 75, 38 + i * 4, tono("t"))
+	repetir (0..11) |i| lienzo.pixel(img, 10 + (i * 23) % 60, 36 + i * 4, tono("T"))
+	lienzo.rect(img, 4, 76, 72, 3, tono("T"))
+	// Chimenea detrás del tejado.
+	lienzo.rect(img, 56, 0, 10, 14, ob)
+	lienzo.rect(img, 57, 1, 8, 12, tono("S"))
+	lienzo.rect(img, 57, 1, 8, 2, tono("s"))
+	// Tejado de tejas con cumbrera iluminada.
+	lienzo.rect(img, 0, 8, 80, 30, ob)
+	lienzo.rect(img, 1, 9, 78, 28, tono("r"))
+	repetir (0..5) |fila|
+		var y = 13 + fila * 5
+		lienzo.linea(img, 1, y, 78, y, tono("p"))
+		repetir (0..10) |i|
+			var x = 4 + i * 8 + (fila % 2) * 4
+			lienzo.linea(img, x, y + 1, x, y + 4, tono("p"))
+	lienzo.rect(img, 1, 9, 78, 3, tono("n"))
+	lienzo.linea(img, 1, 9, 78, 9, tono("y"))
+	lienzo.rect(img, 1, 35, 78, 2, tono("p"))
+	// Puerta y escalón.
+	lienzo.rect(img, 33, 55, 14, 25, ob)
+	lienzo.rect(img, 34, 56, 12, 23, tono("T"))
+	lienzo.rect(img, 36, 58, 8, 8, tono("t"))
+	lienzo.rect(img, 36, 68, 8, 8, tono("t"))
+	lienzo.pixel(img, 43, 67, tono("y"))
+	lienzo.rect(img, 30, 78, 20, 2, tono("S"))
+	ventana(img, 10, 45)
+	ventana(img, 54, 45)
+	img
+
+var arbol_img = crear_arbol(falso)
+var frutal_img = crear_arbol(verdadero)
+var pino_img = crear_pino()
+var vallas = crear_vallas()
+var casa_img = crear_casa()
+
+// ---------- Suelo horneado ----------
+
+var finca = granja.Granja {}
+var suelo = lienzo.nuevo(mapa_ancho, mapa_alto)
+
+fn azar_px(x entero, y entero) entero
+	var h = (x * 374761 + y * 668265 + 1013) % 1000003
+	h = (h * h + x * 97) % 1000003
+	h % 1000
+
+fn cesped_px(x entero, y entero, oscuro bool) color.Color
+	var n = ruido.suave(x * 0.05, y * 0.05, 5)
+	var nivel = entero(mate.limitar((n - 0.5) * 3 + 0.5, 0, 1) * 16)
+	var claro = si bayer[(y % 4) * 4 + x % 4] < nivel verdadero sino falso
+	si oscuro retornar si claro bosque_claro sino bosque_oscuro
+	var h = azar_px(x, y)
+	si h < 4 retornar si h < 2 tono("w") sino tono("y")
+	si h < 30 || azar_px(x, y + 1) < 30 retornar brizna
+	si claro cesped_claro sino cesped_oscuro
+
+fn en_elipse(px entero, py entero, cx decimal, cy decimal, rx decimal, ry decimal) bool
+	var dx = (px - cx) / rx
+	var dy = (py - cy) / ry
+	dx * dx + dy * dy < 1
+
+fn agua_px(x entero, y entero) color.Color
+	var dx = (x / 16.0 - granja.estanque_x) / granja.estanque_rx
+	var dy = (y / 16.0 - granja.estanque_y) / granja.estanque_ry
+	var e = dx * dx + dy * dy
+	si e >= 1 retornar cesped_px(x, y, falso)
+	si e >= 0.72 retornar si azar_px(x, y) < 150 arena_oscura sino arena
+	si e >= 0.64 retornar espuma
+	// Nenúfares.
+	si en_elipse(x, y, 459, 102, 4, 3) retornar si x == 459 && y < 102 agua_base sino tono("g")
+	si en_elipse(x, y, 508, 136, 3, 2) retornar tono("g")
+	var nivel = entero(mate.limitar((0.62 - e) * 30, 0, 16))
+	si bayer[(y % 4) * 4 + x % 4] < nivel agua_honda sino agua_base
+
+fn color_suelo(c entero, cx entero, cy entero, px entero, py entero, mojada bool) color.Color
+	var x = cx * lado + px
+	var y = cy * lado + py
+	// La orilla sigue la elipse del estanque, no la cuadrícula.
+	si c == granja.agua || (c == granja.cesped && mate.absoluto(cx - granja.estanque_x) < 6 && mate.absoluto(cy - granja.estanque_y) < 5)
+		retornar agua_px(x, y)
+	si c == granja.tierra || c == granja.roca
+		si c == granja.roca && en_elipse(px, py, 8, 13, 6.5, 2.5) retornar tierra_oscura
+		var h = azar_px(x, y)
+		retornar si h < 70 tierra_oscura sino si h < 120 tierra_clara sino tierra_base
+	si c == granja.labrada
+		var borde = px == 0 || px == 15 || py == 0 || py == 15
+		var surco = py % 5 == 2
+		var brillo = py % 5 == 3
+		si mojada
+			retornar si borde || surco color.rgba(64, 42, 36) sino si brillo color.rgba(106, 72, 56) sino color.rgba(86, 58, 46)
+		retornar si borde || surco color.rgba(98, 60, 40) sino si brillo color.rgba(158, 106, 68) sino color.rgba(128, 82, 52)
+	si c == granja.camino || c == granja.puerta
+		// Bordes irregulares hacia el césped.
+		var izq = px == 0 && finca.celda(cx - 1, cy) == granja.cesped
+		var der = px == 15 && finca.celda(cx + 1, cy) == granja.cesped
+		var arr = py == 0 && finca.celda(cx, cy - 1) == granja.cesped
+		var aba = py == 15 && finca.celda(cx, cy + 1) == granja.cesped
+		si (izq || der || arr || aba) && azar_px(x, y) % 2 == 0 retornar cesped_px(x, y, falso)
+		var h = azar_px(x, y)
+		retornar si h < 90 arena_oscura sino si h < 120 arena_clara sino arena
+	var oscuro = c == granja.bosque
+	si (c == granja.arbol || c == granja.bosque) && en_elipse(px, py, 8, 13, 9, 3.5)
+		retornar si oscuro color.rgba(36, 78, 54) sino sombra_suelo
+	si (c == granja.caja || c == granja.puesto) && en_elipse(px, py, 8, 14, 8, 2.5) retornar sombra_suelo
+	cesped_px(x, y, oscuro)
+
+fn pintar_celda(indice entero)
+	var cx = indice % granja.columnas
+	var cy = indice / granja.columnas
+	var c = finca.celdas[indice]
+	var mojada = finca.mojada[indice]
+	repetir (0..lado) |py|
+		repetir (0..lado) |px|
+			lienzo.pixel(suelo, cx * lado + px, cy * lado + py, color_suelo(c, cx, cy, px, py, mojada))
+
+fn hornear()
+	repetir (0..finca.celdas.longitud()) |i| pintar_celda(i)
+	finca.pendientes = []
+
+fn repintar()
+	repetir (finca.pendientes) |i| pintar_celda(i)
+	finca.pendientes = []
+
+// ---------- Estado de la partida ----------
+
+tipo Particula
+	pos mate.Vec2
+	vel mate.Vec2
+	vida decimal
+	tono color.Color
+	gravedad decimal
+
+tipo Flotante
+	pos mate.Vec2
+	texto cadena
+	tono color.Color
+	vida decimal
+
+var reloj = 0.0
+var herramienta = granja.azada
+var objetivo = -1
+var espera = 0.0
+var golpe = 0.0
+var golpe_herramienta = 0
+var temblor = 0.0
+var raton_activo = 0.0
+var raton_previo = mate.Vec2 {0, 0}
+var ayuda = 12.0
+var aviso = ""
+var aviso_tiempo = 0.0
+var fundido = 0
+var fundido_tiempo = 0.0
+var desmayo = falso
+var particulas [Particula] = []
+var flotantes [Flotante] = []
+
+fn camara() mate.Vec2
+	var x = mate.limitar(finca.jugador.x - ancho / 2, 0, mapa_ancho - ancho)
+	var y = mate.limitar(finca.jugador.y - 8 - alto / 2, 0, mapa_alto - alto)
+	{mate.piso(x), mate.piso(y)}
+
+fn centro_celda(indice entero) mate.Vec2
+	{(indice % granja.columnas) * lado + 8, (indice / granja.columnas) * lado + 8}
+
+fn emitir(pos mate.Vec2, tono color.Color, cantidad entero, fuerza decimal, gravedad decimal)
+	repetir (0..cantidad) |n|
+		si particulas.longitud() >= 200 retornar
+		var angulo = azar.real(0, mate.pi * 2)
+		var rapidez = azar.real(fuerza * 0.4, fuerza)
+		particulas.agregar(Particula {pos: pos, vel: {mate.coseno(angulo) * rapidez, mate.seno(angulo) * rapidez - fuerza * 0.5}, vida: azar.real(0.35, 0.7), tono: tono, gravedad: gravedad})
+
+fn flotar(pos mate.Vec2, texto cadena, tono color.Color)
+	flotantes.agregar(Flotante {pos: pos, texto: texto, tono: tono, vida: 1.2})
+
+fn avisar(texto cadena)
+	aviso = texto
+	aviso_tiempo = 2.6
+
+fn nombre_herramienta(h entero) cadena
+	si h == granja.azada retornar "Azada"
+	si h == granja.regadera retornar "Regadera ${finca.agua}/${granja.agua_maxima}"
+	si h == granja.hoz retornar "Hoz"
+	var clase = h - granja.semillas_nabo
+	"Semillas de ${granja.nombre(clase).minusculas()} x${finca.semillas[clase]}"
+
+fn accion(indice entero)
+	golpe = 0.2
+	golpe_herramienta = herramienta
+	ayuda = mate.minimo(ayuda, 0.6)
+	si indice < 0 retornar
+	var r = finca.aplicar(herramienta, indice)
+	var centro = centro_celda(indice)
+	si r == granja.labrado
+		emitir(centro, tierra_oscura, 8, 40, 160)
+	osi r == granja.roca_rota
+		emitir(centro, tono("s"), 12, 60, 200)
+		emitir(centro, tono("S"), 6, 40, 200)
+		temblor = 0.15
+	osi r == granja.regado
+		emitir(centro + mate.Vec2 {0, -4}, tono("c"), 10, 30, 140)
+	osi r == granja.recargado
+		emitir(finca.jugador + mate.Vec2 {0, -8}, espuma, 14, 45, 120)
+		flotar(finca.jugador + mate.Vec2 {-20, -24}, "Agua llena", tono("c"))
+	osi r == granja.plantado
+		emitir(centro, tono("m"), 5, 20, 100)
+	osi r == granja.cosechado
+		emitir(centro, tono("y"), 10, 50, 60)
+		emitir(centro, tono("l"), 6, 40, 120)
+		flotar(centro + mate.Vec2 {-16, -18}, "+1", crema)
+	osi r == granja.vendido
+		emitir(centro, tono("y"), 18, 60, 90)
+		flotar(centro + mate.Vec2 {-16, -20}, "+$${finca.ultima_venta}", tono("y"))
+		avisar("Vendido por $${finca.ultima_venta}")
+	osi r == granja.nada_que_vender
+		avisar("No tienes cosecha para vender")
+	osi r == granja.comprado
+		var clase = si herramienta >= granja.semillas_nabo && herramienta < granja.hoz herramienta - granja.semillas_nabo sino 0
+		flotar(centro + mate.Vec2 {-20, -20}, "-$${granja.precio(clase)}", tono("n"))
+		avisar("+1 semilla de ${granja.nombre(clase).minusculas()}")
+	osi r == granja.sin_dinero
+		avisar("No te alcanza el dinero")
+	osi r == granja.sin_agua
+		avisar("Regadera vacía: rellénala en el estanque")
+	osi r == granja.sin_semillas
+		avisar("Sin semillas: cómpralas en el puesto")
+	osi r == granja.dormir
+		dormir(falso)
+
+fn dormir(rendido bool)
+	fundido = 1
+	fundido_tiempo = 0
+	desmayo = rendido
+
+fn despertar()
+	finca.dormir()
+	finca.jugador = {8 * lado + 8, 7 * lado + 12}
+	finca.mirando = 0
+	particulas = []
+	flotantes = []
+	repintar()
+
+fn texto_hint() cadena
+	si objetivo < 0 retornar ""
+	var c = finca.celdas[objetivo]
+	si c == granja.puerta retornar "Dormir"
+	si c == granja.caja retornar "Vender cosecha"
+	si c == granja.puesto
+		var clase = si herramienta >= granja.semillas_nabo && herramienta < granja.hoz herramienta - granja.semillas_nabo sino 0
+		retornar "Comprar ${granja.nombre(clase).minusculas()} $${granja.precio(clase)}"
+	si c == granja.agua && herramienta == granja.regadera retornar "Rellenar"
+	si finca.cultivos[objetivo] |cultivo|
+		si cultivo.listo() retornar "Cosechar ${granja.nombre(cultivo.clase).minusculas()}"
+	""
+
+fn raton_mundo() mate.Vec2
+	entrada.posicion_raton() + camara()
+
+fn en_barra(p mate.Vec2) entero
+	var x0 = ancho / 2 - granja.herramientas * 10
+	si p.y < alto - 23 || p.y >= alto - 3 || p.x < x0 retornar -1
+	var i = mate.piso((p.x - x0) / 20)
+	si i >= granja.herramientas retornar -1
+	i
+
+fn elegir_objetivo()
+	objetivo = finca.frente()
+	si raton_activo <= 0 retornar
+	var m = raton_mundo()
+	var cx = mate.piso(m.x / lado)
+	var cy = mate.piso(m.y / lado)
+	si cx < 0 || cy < 0 || cx >= granja.columnas || cy >= granja.filas retornar
+	var delta = mate.Vec2 {cx * lado + 8, cy * lado + 8} - (finca.jugador + mate.Vec2 {0, -6})
+	si delta.longitud() > alcance retornar
+	objetivo = cy * granja.columnas + cx
+	si delta.longitud() > 4
+		si mate.absoluto(delta.x) > mate.absoluto(delta.y)
+			finca.mirando = si delta.x < 0 2 sino 3
+		sino
+			finca.mirando = si delta.y < 0 1 sino 0
+
+fn actualizar_efectos(dt decimal)
+	var i = 0
+	repetir
+		si i >= particulas.longitud() romper
+		var p = particulas[i]
+		p.vida = p.vida - dt
+		p.vel.y = p.vel.y + p.gravedad * dt
+		p.pos = p.pos + p.vel * dt
+		si p.vida <= 0 particulas.eliminar(i)
+		sino i = i + 1
+	i = 0
+	repetir
+		si i >= flotantes.longitud() romper
+		var f = flotantes[i]
+		f.vida = f.vida - dt
+		f.pos.y = f.pos.y - 14 * dt
+		si f.vida <= 0 flotantes.eliminar(i)
+		sino i = i + 1
+
+// ---------- Dibujo del mundo ----------
+
+fn dibujar_agua(cam mate.Vec2)
+	var fase = entero(reloj * 1.5)
+	var x0 = mate.piso(cam.x) / lado
+	var y0 = mate.piso(cam.y) / lado
+	repetir (y0..(y0 + 13)) |cy|
+		repetir (x0..(x0 + 21)) |cx|
+			si finca.celda(cx, cy) != granja.agua continuar
+			si (cx * 5 + cy * 3 + fase) % 4 != 0 continuar
+			var x = cx * lado + 3 + (cy * 7 + fase) % 8
+			var y = cy * lado + 4 + (cx * 5) % 9
+			var dx = (x / 16.0 - granja.estanque_x) / granja.estanque_rx
+			var dy = (y / 16.0 - granja.estanque_y) / granja.estanque_ry
+			si dx * dx + dy * dy < 0.6
+				g.rectangulo(x, y, 4, 1, color.rgba(170, 218, 244, 200))
+				g.rectangulo(x + 1, y + 1, 2, 1, color.rgba(170, 218, 244, 90))
+
+fn dibujar_cursor()
+	si objetivo < 0 || fundido > 0 retornar
+	var x = (objetivo % granja.columnas) * lado
+	var y = (objetivo / granja.columnas) * lado
+	var d = entero(reloj * 3) % 2
+	var t = color.rgba(255, 244, 214, 230)
+	var sombra = color.rgba(26, 28, 44, 120)
+	repetir (0..2) |capa|
+		var tc = si capa == 0 sombra sino t
+		var d0 = 1 - capa
+		g.rectangulo(x - d + d0, y - d + d0, 4, 1, tc)
+		g.rectangulo(x - d + d0, y - d + d0, 1, 4, tc)
+		g.rectangulo(x + 12 + d + d0, y - d + d0, 4, 1, tc)
+		g.rectangulo(x + 15 + d + d0, y - d + d0, 1, 4, tc)
+		g.rectangulo(x - d + d0, y + 15 + d + d0, 4, 1, tc)
+		g.rectangulo(x - d + d0, y + 12 + d + d0, 1, 4, tc)
+		g.rectangulo(x + 12 + d + d0, y + 15 + d + d0, 4, 1, tc)
+		g.rectangulo(x + 15 + d + d0, y + 12 + d + d0, 1, 4, tc)
+
+fn dibujar_herramienta(p mate.Vec2)
+	var t = 1 - golpe / 0.2
+	var giro = -1.3 + curvas.cubica_salida(t) * 1.9
+	var escala = mate.Vec2 {1, 1}
+	var mano = p + mate.Vec2 {3, -8}
+	si finca.mirando == 2
+		escala = {-1, 1}
+		giro = -giro
+		mano = p + mate.Vec2 {-3, -8}
+	si finca.mirando == 1 mano = p + mate.Vec2 {2, -12}
+	si finca.mirando == 0 mano = p + mate.Vec2 {2, -5}
+	g.imagen(iconos[golpe_herramienta], mate.piso(mano.x), mate.piso(mano.y), origen = {2, 10}, escala = escala, rotacion = giro, tinte = puro)
+
+fn dibujar_jugador()
+	var p = finca.jugador
+	var x = mate.piso(p.x)
+	var y = mate.piso(p.y)
+	g.rectangulo(x - 5, y - 1, 10, 2, color.rgba(20, 40, 30, 90))
+	g.rectangulo(x - 4, y, 8, 1, color.rgba(20, 40, 30, 60))
+	var paso = si finca.andando entero(reloj * 8) % 4 sino 0
+	var hoja = jugador_abajo
+	var cuadro = pasos_frente[paso]
+	si finca.mirando == 1 hoja = jugador_arriba
+	si finca.mirando >= 2
+		hoja = si finca.mirando == 2 jugador_izquierda sino jugador_derecha
+		cuadro = paso % 2
+	si golpe > 0 && finca.mirando == 1 dibujar_herramienta(p)
+	g.imagen(hoja[cuadro], x - 6, y - 16, tinte = puro)
+	si golpe > 0 && finca.mirando != 1 dibujar_herramienta(p)
+
+fn dibujar_objeto(cx entero, cy entero)
+	var c = finca.celda(cx, cy)
+	var x = cx * lado
+	var y = cy * lado
+	var h = (cx * 7 + cy * 13) % 5
+	si c == granja.arbol
+		g.imagen(si (cx + cy) % 3 == 0 frutal_img sino arbol_img, x - 8, y - 24, tinte = puro)
+	osi c == granja.bosque
+		g.imagen(si (cx * 3 + cy) % 4 == 0 arbol_img sino pino_img, x - 8 + h - 2, y - 24 - (h % 3), tinte = puro)
+	osi c == granja.roca
+		g.imagen(roca_img, x, y, tinte = puro)
+	osi c == granja.valla
+		var conexiones = 0
+		si finca.celda(cx - 1, cy) == granja.valla conexiones = conexiones + 1
+		si finca.celda(cx + 1, cy) == granja.valla conexiones = conexiones + 2
+		si finca.celda(cx, cy - 1) == granja.valla conexiones = conexiones + 4
+		g.imagen(vallas[conexiones], x, y, tinte = puro)
+	osi c == granja.caja
+		g.imagen(caja_img, x, y, tinte = puro)
+	osi c == granja.puesto
+		g.imagen(puesto_img, x, y, tinte = puro)
+	osi c == granja.casa && cx == 6 && cy == 6
+		g.imagen(casa_img, x, y + lado - 80, tinte = puro)
+		// Humo de la chimenea.
+		repetir (0..4) |i|
+			var fase = reloj * 0.35 + i * 0.25
+			var t = fase - mate.piso(fase)
+			var radio = 2 + t * 4
+			g.circulo(x + 61 + mate.seno(t * 6 + i) * 3, y + lado - 82 - t * 26, radio, color.rgba(220, 224, 230, entero(150 * (1 - t))))
+	var indice = cy * granja.columnas + cx
+	si cx < 0 || cy < 0 || cx >= granja.columnas || cy >= granja.filas retornar
+	si finca.cultivos[indice] |cultivo|
+		var etapa = cultivo.etapa()
+		var img = si etapa == 0 semilla_img sino si etapa == 1 brote_img sino si etapa == 2 crecidas[cultivo.clase] sino maduras[cultivo.clase]
+		g.imagen(img, x, y, tinte = puro)
+		si etapa == 3 && (entero(reloj * 4) + cx * 3 + cy) % 9 == 0
+			g.rectangulo(x + 3 + (cx * 5) % 10, y + 4, 1, 1, tono("w"))
+
+fn dibujar_objetos(cam mate.Vec2)
+	var fila_jugador = mate.piso(finca.jugador.y / lado)
+	var x0 = mate.piso(cam.x) / lado
+	var y0 = mate.piso(cam.y) / lado
+	var c0 = mate.maximo(0, x0 - 2)
+	var c1 = mate.minimo(granja.columnas, x0 + 23)
+	repetir (mate.maximo(0, y0 - 1)..mate.minimo(granja.filas, y0 + 15)) |cy|
+		si cy == fila_jugador dibujar_jugador()
+		repetir (c0..c1) |cx| dibujar_objeto(cx, cy)
+
+fn dibujar_mariposas()
+	si finca.hora > 19 || finca.lluvia retornar
+	var bases = [120, 220, 250, 160, 400, 330, 560, 200, 300, 60, 180, 380]
+	repetir (0..6) |i|
+		var t = reloj * 0.6 + i * 1.7
+		var x = bases[i * 2] + mate.seno(t) * 34 + mate.seno(t * 2.3) * 8
+		var y = bases[i * 2 + 1] + mate.seno(t * 1.3 + i) * 14 - 10
+		var ala = si entero(reloj * 10 + i) % 2 == 0 2 sino 1
+		var tc = si i % 3 == 0 tono("w") sino si i % 3 == 1 tono("y") sino tono("n")
+		g.rectangulo(mate.piso(x) - ala, mate.piso(y), ala, 2, tc)
+		g.rectangulo(mate.piso(x) + 1, mate.piso(y), ala, 2, tc)
+		g.rectangulo(mate.piso(x), mate.piso(y), 1, 2, tinta)
+
+fn dibujar_efectos()
+	repetir (particulas) |p|
+		var t = si p.vida > 0.25 2 sino 1
+		g.rectangulo(mate.piso(p.pos.x), mate.piso(p.pos.y), t, t, p.tono)
+	repetir (flotantes) |f|
+		var x = mate.piso(f.pos.x)
+		var y = mate.piso(f.pos.y)
+		retro.texto(f.texto, x + 1, y + 1, color = tinta)
+		retro.texto(f.texto, x, y, color = f.tono)
+
+// ---------- Cielo, luces y clima ----------
+
+fn oscuridad() decimal
+	var h = finca.hora
+	si h < 7 retornar (7 - h) * 0.35
+	si h < 17 retornar 0
+	si h < 20 retornar (h - 17) / 3 * 0.45
+	mate.minimo(0.72, 0.45 + (h - 20) / 4 * 0.27)
+
+fn dibujar_cielo()
+	var h = finca.hora
+	// Atardecer cálido y noche azul.
+	si h >= 16 && h < 20
+		var calido = mate.minimo(1, (h - 16) / 2) * (1 - mate.limitar(h - 19, 0, 1))
+		g.rectangulo(0, 0, ancho, alto, color.rgba(255, 140, 70, entero(calido * 60)))
+	var a = oscuridad()
+	si a > 0 g.rectangulo(0, 0, ancho, alto, color.rgba(18, 22, 60, entero(a * 255)))
+	si finca.lluvia
+		g.rectangulo(0, 0, ancho, alto, color.rgba(40, 56, 80, 60))
+		repetir (0..70) |i|
+			var x = (i * 53 + mate.piso(reloj * 60)) % (ancho + 40) - 20
+			var y = (i * 97 + mate.piso(reloj * 240)) % (alto + 20) - 10
+			g.linea(x, y, x - 3, y + 7, color.rgba(170, 196, 230, 150))
+
+fn dibujar_luces(cam mate.Vec2)
+	var a = oscuridad()
+	si a < 0.15 retornar
+	g.usar_camara({pos: cam, origen: {0, 0}, zoom: 1, rotacion: 0})
+	var brillo = entero(mate.minimo(1, (a - 0.15) * 2.5) * 190)
+	var ventanas = [6 * lado + 11, 6 * lado + 55]
+	repetir (ventanas) |x|
+		g.rectangulo(x, 2 * lado + 46, 14, 11, color.rgba(255, 196, 96, brillo))
+		g.rectangulo(x - 3, 2 * lado + 61, 20, 8, color.rgba(255, 196, 96, brillo / 5))
+	// Luciérnagas junto al estanque y el bosque.
+	repetir (0..14) |i|
+		var t = reloj * 0.5 + i * 2.1
+		var x = 380 + (i * 67) % 240 + mate.seno(t) * 12
+		var y = 40 + (i * 41) % 170 + mate.seno(t * 1.7) * 8
+		var luz = mate.seno(reloj * 3 + i * 1.3)
+		si luz > 0.2
+			g.rectangulo(mate.piso(x), mate.piso(y), 1, 1, color.rgba(230, 255, 140, entero(luz * brillo)))
+			g.rectangulo(mate.piso(x) - 1, mate.piso(y) - 1, 3, 3, color.rgba(230, 255, 140, entero(luz * brillo * 0.25)))
+	g.restablecer_camara()
+
+// ---------- Interfaz ----------
+
+fn marco(x entero, y entero, w entero, h entero)
+	g.rectangulo(x, y, w, h, color.rgba(26, 28, 44, 225))
+	g.rectangulo(x + 1, y, w - 2, 1, madera)
+	g.rectangulo(x + 1, y + h - 1, w - 2, 1, color.rgba(143, 86, 59))
+	g.rectangulo(x, y + 1, 1, h - 2, madera)
+	g.rectangulo(x + w - 1, y + 1, 1, h - 2, color.rgba(143, 86, 59))
+
+fn texto_sombra(texto cadena, x entero, y entero, tc color.Color, escala entero = 1)
+	retro.texto(texto, x + escala, y + escala, escala = escala, color = tinta)
+	retro.texto(texto, x, y, escala = escala, color = tc)
+
+fn centrado(texto cadena, y entero, tc color.Color, escala entero = 1)
+	texto_sombra(texto, (ancho - texto.longitud() * 8 * escala) / 2, y, tc, escala = escala)
+
+fn dos_cifras(n entero) cadena
+	si n < 10 "0${n}" sino "${n}"
+
+fn dibujar_hud()
+	// Día, hora y clima.
+	marco(4, 4, 74, 24)
+	var hora = entero(finca.hora)
+	var minutos = entero((finca.hora - hora) * 6) * 10
+	texto_sombra("Día ${finca.dia}", 9, 7, crema)
+	texto_sombra("${dos_cifras(hora % 24)}:${dos_cifras(minutos)}", 9, 17, tono("s"))
+	si finca.lluvia
+		g.circulo(66, 13, 4, tono("s"))
+		g.circulo(70, 14, 3, tono("s"))
+		g.rectangulo(62, 14, 12, 3, tono("s"))
+		repetir (0..3) |i| g.rectangulo(63 + i * 4, 19 + (entero(reloj * 6) + i) % 3, 1, 2, tono("c"))
+	osi finca.hora < 19
+		g.circulo(68, 16, 5, tono("y"))
+		g.circulo(68, 16, 3, crema)
+	sino
+		g.circulo(68, 16, 5, crema)
+		g.circulo(71, 14, 4, color.rgba(26, 28, 44))
+	// Dinero y cosecha.
+	var filas_cosecha = 0
+	repetir (finca.cosecha) |n| si n > 0 filas_cosecha = filas_cosecha + 1
+	var x = ancho - 64
+	marco(x, 4, 60, 14 + filas_cosecha * 10)
+	g.circulo(x + 8, 11, 4, tinta)
+	g.circulo(x + 8, 11, 3, tono("y"))
+	g.rectangulo(x + 8, 9, 1, 4, tono("N"))
+	texto_sombra("${finca.dinero}", x + 16, 7, tono("y"))
+	var fila = 0
+	repetir (finca.cosecha) |n, clase|
+		si n > 0
+			g.imagen(productos[clase], x + 5, 18 + fila * 10, tinte = puro)
+			texto_sombra("${n}", x + 16, 18 + fila * 10, crema)
+			fila = fila + 1
+	// Barra de herramientas.
+	var x0 = ancho / 2 - granja.herramientas * 10
+	var y0 = alto - 22
+	marco(x0 - 3, y0 - 3, granja.herramientas * 20 + 4, 24)
+	repetir (0..granja.herramientas) |i|
+		var sx = x0 + i * 20
+		var elegida = i == herramienta
+		var sy = si elegida y0 - 2 sino y0
+		g.rectangulo(sx, sy, 18, 18, si elegida color.rgba(92, 58, 42) sino color.rgba(51, 60, 87))
+		si elegida
+			g.rectangulo(sx - 1, sy - 1, 20, 1, tono("y"))
+			g.rectangulo(sx - 1, sy + 18, 20, 1, tono("y"))
+			g.rectangulo(sx - 1, sy, 1, 18, tono("y"))
+			g.rectangulo(sx + 18, sy, 1, 18, tono("y"))
+		g.imagen(iconos[i], sx + 3, sy + 3, tinte = puro)
+		si i >= granja.semillas_nabo && i < granja.hoz
+			var n = finca.semillas[i - granja.semillas_nabo]
+			var tc = si n > 0 crema sino tono("S")
+			texto_sombra("${n}", sx + 19 - "${n}".longitud() * 8, sy + 11, tc)
+		si i == granja.regadera
+			g.rectangulo(sx + 2, sy + 15, 14, 2, tinta)
+			g.rectangulo(sx + 2, sy + 15, finca.agua * 14 / granja.agua_maxima, 2, tono("c"))
+	// Sobre la barra: la acción disponible o el nombre de la herramienta.
+	var hint = texto_hint()
+	si hint != "" && fundido == 0
+		centrado("Espacio: ${hint}", y0 - 13, tono("y"))
+	sino
+		centrado(nombre_herramienta(herramienta), y0 - 13, crema)
+	si aviso_tiempo > 0
+		var w = aviso.longitud() * 8 + 10
+		var y = 34 - mate.piso(curvas.cubica_entrada(mate.limitar(aviso_tiempo - 2.3, 0, 0.3) / 0.3) * 20)
+		marco((ancho - w) / 2, y, w, 14)
+		centrado(aviso, y + 3, crema)
+	si finca.hora >= 23 && fundido == 0 && entero(reloj * 2) % 2 == 0
+		centrado("¡Es tarde! Vuelve a casa a dormir", 34, tono("n"))
+	si ayuda > 0
+		dibujar_ayuda()
+
+fn dibujar_ayuda()
+	var a = mate.minimo(1, ayuda / 0.6)
+	var y = 28 - mate.piso((1 - curvas.cubica_salida(a)) * 12)
+	marco(38, y, 244, 104)
+	centrado("HUERTO", y + 6, tono("y"), escala = 2)
+	var lineas = [
+		"WASD / flechas   caminar",
+		"Espacio / clic   usar",
+		"Q E / rueda      herramienta",
+		"Puerta           dormir",
+		"Caja             vender",
+		"Puesto           semillas",
+		"Riega cada día para que crezca",
+	]
+	repetir (lineas) |linea, i|
+		texto_sombra(linea, 46, y + 26 + i * 10, si i == 6 tono("l") sino crema)
+
+fn dibujar_fundido()
+	si fundido == 0 retornar
+	var a = 1.0
+	si fundido == 1 a = curvas.cuadratica_entrada(fundido_tiempo / 0.8)
+	si fundido == 3 a = 1 - curvas.cuadratica_salida(fundido_tiempo / 0.8)
+	g.rectangulo(0, 0, ancho, alto, color.rgba(12, 12, 24, entero(a * 255)))
+	si fundido >= 2 && a > 0.5
+		centrado("Día ${finca.dia}", 70, crema, escala = 2)
+		centrado(si finca.lluvia "Hoy llueve: los cultivos se riegan solos" sino "Un día soleado", 94, tono("s"))
+		si desmayo centrado("Caíste rendido de cansancio...", 108, tono("n"))
+
+// ---------- Juego ----------
+
+tipo Partida
+	pub fn actualizar(dt decimal)
+		reloj = reloj + dt
+		aviso_tiempo = mate.maximo(0, aviso_tiempo - dt)
+		temblor = mate.maximo(0, temblor - dt)
+		golpe = mate.maximo(0, golpe - dt)
+		actualizar_efectos(dt)
+		si fundido > 0
+			fundido_tiempo = fundido_tiempo + dt
+			si fundido == 1 && fundido_tiempo >= 0.8
+				despertar()
+				fundido = 2
+				fundido_tiempo = 0
+			osi fundido == 2 && fundido_tiempo >= 1.6
+				fundido = 3
+				fundido_tiempo = 0
+			osi fundido == 3 && fundido_tiempo >= 0.8
+				fundido = 0
+			retornar
+		si entrada.tecla_presionada(.H) ayuda = si ayuda > 0 0.6 sino 1000
+		si ayuda > 0 && ayuda < 1000 ayuda = mate.maximo(0, ayuda - dt)
+		// Movimiento.
+		var eje = mate.Vec2 {0, 0}
+		si entrada.tecla_mantenida(.A) || entrada.tecla_mantenida(.Izquierda) eje.x = eje.x - 1
+		si entrada.tecla_mantenida(.D) || entrada.tecla_mantenida(.Derecha) eje.x = eje.x + 1
+		si entrada.tecla_mantenida(.W) || entrada.tecla_mantenida(.Arriba) eje.y = eje.y - 1
+		si entrada.tecla_mantenida(.S) || entrada.tecla_mantenida(.Abajo) eje.y = eje.y + 1
+		finca.mover(eje, dt)
+		si finca.andando
+			ayuda = mate.minimo(ayuda, 0.6)
+			raton_activo = 0
+		// Herramienta.
+		var rueda = entrada.rueda().y
+		si entrada.tecla_presionada(.Q) || rueda > 0 herramienta = (herramienta + granja.herramientas - 1) % granja.herramientas
+		si entrada.tecla_presionada(.E) || rueda < 0 herramienta = (herramienta + 1) % granja.herramientas
+		// Ratón: moverlo o hacer clic lo activa como puntero.
+		var raton = entrada.posicion_raton()
+		si (raton - raton_previo).longitud() > 0.5 raton_activo = 3
+		raton_previo = raton
+		raton_activo = mate.maximo(0, raton_activo - dt)
+		var casilla = en_barra(raton)
+		si entrada.raton_presionado(.Izquierdo) && casilla >= 0 herramienta = casilla
+		elegir_objetivo()
+		espera = mate.maximo(0, espera - dt)
+		var clic = entrada.raton_mantenido(.Izquierdo) && casilla < 0
+		si entrada.tecla_presionada(.Espacio) || (entrada.raton_presionado(.Izquierdo) && casilla < 0)
+			espera = 0
+		si (entrada.tecla_mantenida(.Espacio) || clic) && espera <= 0
+			accion(objetivo)
+			espera = 0.3
+		si fundido == 0 && finca.avanzar(dt) dormir(verdadero)
+		repintar()
+
+	pub fn pintar()
+		g.limpiar(bosque_oscuro)
+		var cam = camara()
+		si temblor > 0 cam = cam + mate.Vec2 {azar.entero(-1, 2), azar.entero(-1, 2)}
+		g.usar_camara({pos: cam, origen: {0, 0}, zoom: 1, rotacion: 0})
+		g.imagen(suelo, 0, 0, tinte = puro)
+		dibujar_agua(cam)
+		dibujar_cursor()
+		dibujar_objetos(cam)
+		dibujar_mariposas()
+		dibujar_efectos()
+		g.restablecer_camara()
+		dibujar_cielo()
+		dibujar_luces(cam)
+		dibujar_hud()
+		dibujar_fundido()
+
+fn inicio()
+	finca.generar(azar.entero(1, 1000000))
+	hornear()
+	pincel.ejecutar(Partida {}, ancho, alto, titulo = "Huerto | Cometa", escala = 4, pixelado = verdadero) capturar |error|
+		imprimir(error)
+

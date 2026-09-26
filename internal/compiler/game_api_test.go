@@ -6,7 +6,7 @@ import (
 )
 
 func TestRemovedGameConfiguration(t *testing.T) {
-	_, err := Compile("game.cometa", []byte("usar std/pincel/juego\nfn inicio() juego.configuracion()\n"))
+	_, err := Compile("game.cometa", []byte("usar std/pincel\nfn inicio() pincel.configuracion()\n"))
 	if err == nil || !strings.Contains(err.Error(), "configuracion") {
 		t.Fatalf("removed API: %v", err)
 	}

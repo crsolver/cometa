@@ -1,0 +1,33 @@
+// Interfaces: tipos distintos que saben hacer lo mismo.
+
+// Cualquier tipo con un método area() decimal y nombre() cadena es una Forma.
+interfaz Forma
+	fn area() decimal
+	fn nombre() cadena
+
+tipo Rectangulo
+	ancho decimal
+	alto decimal
+	pub fn area() decimal @ancho * @alto
+	pub fn nombre() cadena "rectángulo"
+
+tipo Circulo
+	radio decimal
+	pub fn area() decimal 3.14159 * @radio * @radio
+	pub fn nombre() cadena "círculo"
+
+fn describir(forma Forma)
+	imprimir("Un ${forma.nombre()} de área ${forma.area()}")
+
+fn inicio()
+	var formas [Forma] = [
+		Rectangulo {ancho: 3, alto: 4},
+		Circulo {radio: 2},
+		Rectangulo {ancho: 1, alto: 1},
+	]
+
+	var total = 0.0
+	repetir (formas) |forma|
+		describir(forma)
+		total = total + forma.area()
+	imprimir("Área total: ${total}")

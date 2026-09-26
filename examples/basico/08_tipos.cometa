@@ -1,0 +1,34 @@
+// Tipos propios: agrupar datos y el comportamiento que los acompaña.
+
+tipo Mascota
+	nombre cadena
+	especie cadena
+	energia entero
+
+	// Dentro de un método, @ accede a los campos del propio objeto.
+	fn jugar()
+		@energia = @energia - 2
+		imprimir("${@nombre} juega un rato")
+
+	fn dormir()
+		@energia = 10
+		imprimir("${@nombre} duerme")
+
+	fn estado() cadena
+		"${@nombre} (${@especie}) tiene energía ${@energia}"
+
+fn inicio()
+	var perro = Mascota {nombre: "Toby", especie: "perro", energia: 5}
+	imprimir(perro.estado())
+
+	perro.jugar()
+	perro.jugar()
+	imprimir(perro.estado())
+
+	perro.dormir()
+	imprimir(perro.estado())
+
+	// Los objetos se comparten: otra variable apunta a la misma mascota.
+	var mismo = perro
+	mismo.nombre = "Toby Jr."
+	imprimir(perro.nombre)

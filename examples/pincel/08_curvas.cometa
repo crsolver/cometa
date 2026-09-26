@@ -1,0 +1,37 @@
+// Pincel: animaciones suaves con curvas.
+// Una curva transforma el progreso (de 0 a 1) para acelerar, frenar o rebotar.
+usar std/mate
+usar std/mate/curvas
+usar std/pincel
+usar std/pincel/graficos
+
+const duracion decimal = 1.5
+
+tipo Animacion
+	tiempo decimal
+
+	pub fn actualizar(dt decimal)
+		@tiempo = @tiempo + dt
+		// Reinicia después de una pausa de medio segundo.
+		si @tiempo > duracion + 0.5
+			@tiempo = 0
+
+	pub fn pintar()
+		graficos.limpiar(.AzulNoche)
+		var progreso = @tiempo / duracion
+
+		// interpolar(inicio, fin, t) calcula un punto entre dos valores.
+		var lineal = mate.interpolar(30, 290, curvas.lineal(progreso))
+		var suave = mate.interpolar(30, 290, curvas.cubica_entrada_salida(progreso))
+		var rebote = mate.interpolar(30, 290, curvas.rebote_salida(progreso))
+
+		graficos.texto_depuracion("lineal", 4, 36)
+		graficos.circulo(lineal, 60, 8, .Blanco)
+		graficos.texto_depuracion("cubica_entrada_salida", 4, 76)
+		graficos.circulo(suave, 100, 8, .Celeste)
+		graficos.texto_depuracion("rebote_salida", 4, 116)
+		graficos.circulo(rebote, 140, 8, .Amarillo)
+
+fn inicio()
+	pincel.ejecutar(Animacion {}, 320, 180, titulo = "Curvas", escala = 3) capturar |error|
+		imprimir(error)
