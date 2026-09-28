@@ -52,15 +52,18 @@ func TestModuleCompletion(t *testing.T) {
 		{"qualified type", "pub fn f(valor m.§)\n\timprimir(valor)\n", "Usuario", "pub tipo Usuario"},
 		{"generic enum", "fn inicio()\n\tvar e = m.Evento<entero>.§\n", "Dato", "modelos.Evento<entero>.Dato(entero)"},
 		{"imported variable", "pub fn f(valor m.Usuario)\n\tvalor.§\n", "nombre", "cadena"},
-		{"generic variable", "pub fn f(valor m.Caja<entero>)\n\tvalor.§\n", "obtener", "pub fn obtener() entero"},
-		{"interface", "pub fn f(valor m.Proveedor<cadena>)\n\tvalor.§\n", "obtener", "fn obtener() cadena"},
-		{"constraint", "pub fn f<T m.Proveedor<entero>>(valor T)\n\tvalor.§\n", "obtener", "fn obtener() entero"},
+		{"generic variable", "pub fn f(valor m.Caja<entero>)\n\tvalor.§\n", "obtener()", "pub fn obtener() entero"},
+		{"interface", "pub fn f(valor m.Proveedor<cadena>)\n\tvalor.§\n", "obtener()", "fn obtener() cadena"},
+		{"constraint", "pub fn f<T m.Proveedor<entero>>(valor T)\n\tvalor.§\n", "obtener()", "fn obtener() entero"},
 		{"contextual", "pub fn f() m.Evento<entero>\n\t.§\n", "Dato", "modelos.Evento<entero>.Dato(entero)"},
 		{"shadow", "pub fn f(m m.Usuario)\n\tm.§\n", "nombre", "cadena"},
 		{"alias", "fn inicio()\n\tm§\n", "m", "módulo m"},
 		{"root type argument", "pub tipo Propio\n\tpub x entero\nfn inicio()\n\tvar e = m.Evento<Propio>.§\n", "Dato", "modelos.Evento<Propio>.Dato(Propio)"},
 		{"global constant", "fn inicio()\n\timprimir(m.§)\n", "limite", "pub const limite entero"},
 		{"global variable", "fn inicio()\n\timprimir(m.§)\n", "contador", "pub var contador entero"},
+		{"list variable", "fn inicio()\n\tvar valores = [1]\n\tvalores.§\n", "agregar(...)", "fn agregar(valor entero)"},
+		{"map variable", "fn inicio()\n\tvar valores = [\"a\": 1]\n\tvalores.§\n", "obtener(...)", "fn obtener(clave cadena) entero?"},
+		{"string variable", "fn inicio()\n\tvar valor = \"a\"\n\tvalor.§\n", "longitud()", "fn longitud() entero"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			uri, _ := moduleURIs(t)
@@ -75,11 +78,42 @@ func TestModuleCompletion(t *testing.T) {
 				t.Fatal(err)
 			}
 			for _, item := range list.Items {
-				if item.Label == tc.label && item.Detail == tc.detail {
+				if item.Label == tc.label && completionText(item) == tc.detail {
 					return
 				}
 			}
 			t.Fatalf("missing %s / %s: %+v", tc.label, tc.detail, list)
+		})
+	}
+}
+
+func TestUsarPathCompletion(t *testing.T) {
+	for _, tc := range []struct{ name, source, want string }{
+		{"empty", "usar §\n", "std/mate"},
+		{"partial", "usar std/pin§\n", "std/pincel"},
+		{"submodule", "usar std/pincel/gra§\n", "std/pincel/graficos"},
+		{"curvas", "usar std/mate/cu§\n", "std/mate/curvas"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			source, pos := markerPosition(tc.source)
+			uri := fileURI(filepath.Join(t.TempDir(), "main.cometa"))
+			h := NewHandler()
+			if _, err := h.documents.Open(&lsp.DidOpenTextDocumentParams{TextDocument: lsp.TextDocumentItem{URI: uri, Text: source}}); err != nil {
+				t.Fatal(err)
+			}
+			list, err := h.Completion(context.Background(), &lsp.CompletionParams{TextDocumentPositionParams: lsp.TextDocumentPositionParams{TextDocument: lsp.TextDocumentIdentifier{URI: uri}, Position: pos}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, item := range list.Items {
+				if item.Label == tc.want {
+					if item.TextEdit == nil || item.TextEdit.TextEdit.NewText != tc.want {
+						t.Fatalf("missing text edit for %s: %+v", tc.want, item)
+					}
+					return
+				}
+			}
+			t.Fatalf("missing %s: %+v", tc.want, list.Items)
 		})
 	}
 }
@@ -106,7 +140,7 @@ func TestModuleHoverAndDefinition(t *testing.T) {
 		_, _ = h.documents.Open(&lsp.DidOpenTextDocumentParams{TextDocument: lsp.TextDocumentItem{URI: uri, Text: source}})
 		params := lsp.TextDocumentPositionParams{TextDocument: lsp.TextDocumentIdentifier{URI: uri}, Position: pos}
 		hover, err := h.Hover(context.Background(), &lsp.HoverParams{TextDocumentPositionParams: params})
-		if err != nil || hover == nil || !strings.Contains(hover.Contents.Value(), tc.want) {
+		if err != nil || hover == nil || !strings.Contains(flattenWrapped(hover.Contents.Value()), tc.want) {
 			t.Fatalf("hover %s: %+v %v", tc.want, hover, err)
 		}
 		locations, err := h.Definition(context.Background(), &lsp.DefinitionParams{TextDocumentPositionParams: params})

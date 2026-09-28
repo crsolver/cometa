@@ -30,7 +30,8 @@ func TestCurvesTooling(t *testing.T) {
 		}
 		found := false
 		for _, item := range list.Items {
-			if item.Label == "cubica_entrada" && strings.Contains(item.Detail, "progreso decimal) decimal") {
+			text := completionText(item)
+			if item.Label == "cubica_entrada(...)" && strings.Contains(text, "progreso decimal") && strings.Contains(text, ") decimal") {
 				found = true
 			}
 		}
@@ -38,7 +39,11 @@ func TestCurvesTooling(t *testing.T) {
 			t.Fatal("missing curve completion signature")
 		}
 		hover, err := h.Hover(context.Background(), &lsp.HoverParams{TextDocumentPositionParams: params})
-		if err != nil || hover == nil || !strings.Contains(hover.Contents.Value(), "cubica_entrada(progreso decimal) decimal") {
+		if err != nil || hover == nil {
+			t.Fatalf("hover: %+v %v", hover, err)
+		}
+		hoverText := hover.Contents.Value()
+		if !strings.Contains(hoverText, "cubica_entrada(") || !strings.Contains(hoverText, "progreso decimal") || !strings.Contains(hoverText, ") decimal") {
 			t.Fatalf("hover: %+v %v", hover, err)
 		}
 		locations, err := h.Definition(context.Background(), &lsp.DefinitionParams{TextDocumentPositionParams: params})

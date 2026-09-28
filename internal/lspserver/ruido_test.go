@@ -32,7 +32,8 @@ func TestNoiseTooling(t *testing.T) {
 			}
 			found := false
 			for _, item := range list.Items {
-				if item.Label == name && strings.Contains(item.Detail, "x decimal, y decimal, semilla entero = …") {
+				text := completionText(item)
+				if item.Label == name+"(...)" && strings.Contains(text, "x decimal") && strings.Contains(text, "y decimal") && strings.Contains(text, "semilla entero = 0") {
 					found = true
 				}
 			}
@@ -40,7 +41,11 @@ func TestNoiseTooling(t *testing.T) {
 				t.Fatalf("missing noise completion signature: %+v", list.Items)
 			}
 			hover, err := h.Hover(context.Background(), &lsp.HoverParams{TextDocumentPositionParams: params})
-			if err != nil || hover == nil || !strings.Contains(hover.Contents.Value(), name+"(x decimal, y decimal, semilla entero = …") {
+			if err != nil || hover == nil {
+				t.Fatalf("hover: %+v %v", hover, err)
+			}
+			hoverText := hover.Contents.Value()
+			if !strings.Contains(hoverText, name+"(") || !strings.Contains(hoverText, "x decimal") || !strings.Contains(hoverText, "semilla entero = 0") {
 				t.Fatalf("hover: %+v %v", hover, err)
 			}
 			locations, err := h.Definition(context.Background(), &lsp.DefinitionParams{TextDocumentPositionParams: params})

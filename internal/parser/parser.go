@@ -817,6 +817,9 @@ func (p *parser) parsePrefix() (ast.Expr, error) {
 		return &ast.IdentExpr{Pos: current.Pos, Name: current.Lexeme}, nil
 	case token.At:
 		p.advance()
+		if !p.at(token.Ident) {
+			return &ast.ReceiverExpr{Pos: current.Pos, NamePos: current.Pos}, nil
+		}
 		name, err := p.expect(token.Ident, "se esperaba un miembro después de '@'")
 		if err != nil {
 			return nil, err

@@ -118,6 +118,21 @@ func ModulePath(namespace string) string {
 	return "std/pincel/" + namespace
 }
 
+// ModulePaths lists every importable "std/..." path, for editor completion.
+func ModulePaths() []string {
+	seen := map[string]bool{}
+	var paths []string
+	for _, f := range Functions {
+		path := ModulePath(f.Namespace)
+		if !seen[path] {
+			seen[path] = true
+			paths = append(paths, path)
+		}
+	}
+	sort.Strings(paths)
+	return paths
+}
+
 func Namespace(path string) (string, bool) {
 	for _, f := range Functions {
 		if ModulePath(f.Namespace) == path {
@@ -186,14 +201,17 @@ func Source(path string) (string, bool) {
 	}
 	var b strings.Builder
 	b.WriteString("// Biblioteca estándar de Cometa: " + path + "\n")
+	if intro := NamespaceDocs[ns]; intro != "" {
+		for _, line := range strings.Split(intro, "\n") {
+			b.WriteString("// " + line + "\n")
+		}
+	}
 	if ns == "ruido" {
-		b.WriteString("// Ruido 2D puro y reproducible por semilla; resultado en [0, 1].\n")
 		b.WriteString("// Coordenadas finitas en (-2^52, 2^52), incluso en cada octava.\n")
 		b.WriteString("// Octavas: 1..16; persistencia: [0, 1]; lacunaridad finita >= 1.\n")
 	}
 	if ns == "curvas" {
 		b.WriteString("// Progreso limitado a [0, 1]; extremos exactos. El resultado puede sobrepasar [0, 1].\n")
-		b.WriteString("// Funciones puras; el programa controla el tiempo y la interpolación.\n")
 	}
 	var names []string
 	for name, owner := range TypeModules {
@@ -204,9 +222,11 @@ func Source(path string) (string, bool) {
 	sort.Strings(names)
 	for _, name := range names {
 		if name == "Juego" {
+			writeDoc(&b, "", TypeDocs["Juego"])
 			b.WriteString("pub interfaz Juego\n\tfn actualizar(dt decimal)\n\tfn pintar()\n")
 			continue
 		}
+		writeDoc(&b, "", TypeDocs[name])
 		b.WriteString("pub tipo " + name + "\n")
 		if ns == "retro" {
 			var constants []string
@@ -223,6 +243,7 @@ func Source(path string) (string, bool) {
 		}
 		for _, f := range Methods {
 			if f.Namespace == Symbol(name) {
+				writeDoc(&b, "\t", MethodDocs[name+"."+f.Name])
 				b.WriteString("\tpub fn " + f.Name + "(" + f.Signature + "\n\t\timprimir(0)\n")
 			}
 		}
@@ -232,8 +253,21 @@ func Source(path string) (string, bool) {
 	}
 	for _, f := range Functions {
 		if f.Namespace == ns {
+			writeDoc(&b, "", FunctionDocs[ns+"."+f.Name])
 			b.WriteString("pub fn " + f.Name + "(" + f.Signature + "\n\timprimir(0)\n")
 		}
 	}
 	return b.String(), true
+}
+
+// writeDoc emits doc as one or more "// " comment lines at the given
+// indentation, immediately before the declaration that follows — matching
+// what documentationBefore expects in the LSP hover/completion machinery.
+func writeDoc(b *strings.Builder, indent, doc string) {
+	if doc == "" {
+		return
+	}
+	for _, line := range strings.Split(doc, "\n") {
+		b.WriteString(indent + "// " + line + "\n")
+	}
 }

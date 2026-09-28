@@ -119,6 +119,7 @@ func TestGameCompletion(t *testing.T) {
 		{"graficos.§", "rectangulo_v", "pos mate.Vec2"},
 		{"retro.§", "texto", "x entero"},
 		{"retro.icono(.§, 0, 0)", "Corazon", "Icono.Corazon"},
+		{"retro.icono(.CorazonVacio, 0, 0, color = .§)", "Rojo", "Color.Rojo"},
 		{"retro.glifo(0, 0, 0, atlas = .§)", "ASCII", "Atlas.ASCII"},
 		{"entrada.§", "tecla_presionada", "Tecla"},
 		{"graficos.limpiar(.§)", "Rojo", "Color.Rojo"},
@@ -148,7 +149,7 @@ func TestGameCompletion(t *testing.T) {
 				t.Fatal(err)
 			}
 			for _, item := range list.Items {
-				if item.Label == tt.label && strings.Contains(item.Detail, tt.detail) {
+				if (item.Label == tt.label || strings.HasPrefix(item.Label, tt.label+"(")) && strings.Contains(completionText(item), tt.detail) {
 					return
 				}
 			}
@@ -169,7 +170,7 @@ func TestVectorReceiverFieldCompletion(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, item := range list.Items {
-		if item.Label == "normalizado" && item.Detail == "pub fn normalizado() mate.Vec2" {
+		if item.Label == "normalizado()" && completionText(item) == "pub fn normalizado() mate.Vec2" {
 			return
 		}
 	}

@@ -28,8 +28,8 @@ func TestMapCompletion(t *testing.T) {
 			t.Fatalf("completion: %+v", list.Items)
 		}
 		for _, item := range list.Items {
-			if item.Label == "obtener" && !strings.Contains(item.Detail, "entero?") {
-				t.Fatalf("signature: %s", item.Detail)
+			if item.Label == "obtener(...)" && !strings.Contains(completionText(item), "entero?") {
+				t.Fatalf("signature: %s", completionText(item))
 			}
 		}
 	}

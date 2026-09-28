@@ -45,13 +45,13 @@ func TestEmbeddingCompletion(t *testing.T) {
 			}
 			found := map[string]string{}
 			for _, item := range list.Items {
-				found[item.Label] = item.Detail
+				found[item.Label] = completionText(item)
 			}
 			if tc.promoted {
-				if found["valor"] != "entero" || found["obtener"] != "fn obtener() entero" {
+				if found["valor"] != "entero" || found["obtener()"] != "fn obtener() entero" {
 					t.Fatalf("items: %+v", found)
 				}
-			} else if found["valor"] != "" || found["obtener"] != "" || found["Caja"] != "Caja<entero>" || found["Otra"] != "Otra" {
+			} else if found["valor"] != "" || found["obtener()"] != "" || found["Caja"] != "Caja<entero>" || found["Otra"] != "Otra" {
 				t.Fatalf("items: %+v", found)
 			}
 		})

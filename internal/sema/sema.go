@@ -949,6 +949,9 @@ func (c *checker) assignmentTarget(expr ast.Expr) (Type, error) {
 		c.model.ExprTypes[target] = valueType
 		return valueType, nil
 	case *ast.ReceiverExpr:
+		if target.Name == "" {
+			return Type{}, c.fail(target.Pos, "no se puede asignar a '@'")
+		}
 		if c.receiver == nil {
 			return Type{}, c.fail(target.Pos, "'@%s' solo puede usarse dentro de un método", target.Name)
 		}
@@ -1110,7 +1113,15 @@ func (c *checker) checkExpression(expr ast.Expr, expected *Type) (Type, error) {
 		}
 	case *ast.ReceiverExpr:
 		if c.receiver == nil {
-			err = c.fail(expression.Pos, "'@%s' solo puede usarse dentro de un método", expression.Name)
+			if expression.Name == "" {
+				err = c.fail(expression.Pos, "'@' solo puede usarse dentro de un método")
+			} else {
+				err = c.fail(expression.Pos, "'@%s' solo puede usarse dentro de un método", expression.Name)
+			}
+			break
+		}
+		if expression.Name == "" {
+			result = c.receiverType()
 			break
 		}
 		member, memberErr := c.member(c.receiverType(), expression.Name, expression.Pos)
@@ -1605,6 +1616,9 @@ func (c *checker) checkCall(call *ast.CallExpr) (Type, error) {
 			return Type{}, c.fail(callee.Pos, "la función %q no existe", callee.Name)
 		}
 	case *ast.ReceiverExpr:
+		if callee.Name == "" {
+			return Type{}, c.fail(callee.Pos, "'@' no se puede llamar; use un método explícito")
+		}
 		if c.receiver == nil {
 			return Type{}, c.fail(callee.Pos, "'@%s' solo puede usarse dentro de un método", callee.Name)
 		}

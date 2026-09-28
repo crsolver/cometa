@@ -32,10 +32,10 @@ func TestVisibilityCompletionAndNavigation(t *testing.T) {
 		name, source    string
 		present, absent []string
 	}{
-		{"namespace", "usar modelos como m\nfn inicio()\n\tm.§\n", []string{"crear", "Caja"}, []string{"secreto"}},
-		{"members", "usar modelos como m\nfn f(c m.Caja)\n\tc.§\n", []string{"visible", "leer"}, []string{"privado", "oculto"}},
+		{"namespace", "usar modelos como m\nfn inicio()\n\tm.§\n", []string{"crear()", "Caja"}, []string{"secreto"}},
+		{"members", "usar modelos como m\nfn f(c m.Caja)\n\tc.§\n", []string{"visible", "leer()"}, []string{"privado", "oculto"}},
 		{"promotion", "usar modelos como m\nfn f(c m.Cerrada)\n\tc.§\n", nil, []string{"Caja", "visible", "leer", "privado", "oculto"}},
-		{"own file", "usar std/mate\n" + privateLibrary + "fn f(c Caja)\n\tc.§\n", []string{"privado", "oculto", "visible", "leer"}, nil},
+		{"own file", "usar std/mate\n" + privateLibrary + "fn f(c Caja)\n\tc.§\n", []string{"privado", "oculto()", "visible", "leer()"}, nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			source, pos := markerPosition(tc.source)

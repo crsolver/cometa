@@ -23,7 +23,8 @@ import (
 
 func hasImports(text string) bool {
 	for _, line := range strings.Split(text, "\n") {
-		if strings.HasPrefix(strings.TrimSpace(line), "usar ") {
+		trimmed := strings.TrimLeft(line, "\t ")
+		if trimmed == "usar" || strings.HasPrefix(trimmed, "usar ") || strings.HasPrefix(trimmed, "usar\t") {
 			return true
 		}
 	}
@@ -318,7 +319,7 @@ func (h *Handler) moduleHover(params *lsp.HoverParams, text string) *lsp.Hover {
 	if detail == "" {
 		return nil
 	}
-	value := "```cometa\n" + p.Display(detail) + "\n```"
+	value := "```cometa\n" + wrapSignature(p.Display(detail)) + "\n```"
 	if docs != "" {
 		value += "\n\n" + docs
 	}
@@ -444,6 +445,39 @@ func declarationLocation(pos ast.Pos, text string) lsp.Location {
 
 var moduleSelector = regexp.MustCompile(`([\p{L}_][\p{L}\p{N}_]*(?:\.[\p{L}_][\p{L}\p{N}_]*)*(?:<[^\n]+>)?)\.[\p{L}\p{N}_]*$`)
 
+var usarPathPattern = regexp.MustCompile(`^usar[ \t]+([\w./-]*)$`)
+
+// usarPathCompletion suggests "std/..." paths while typing a usar statement,
+// so the standard library's modules are discoverable without leaving the editor.
+func usarPathCompletion(lines []string, line int, prefix string) (*lsp.CompletionList, bool) {
+	match := usarPathPattern.FindStringSubmatch(prefix)
+	if match == nil {
+		return nil, false
+	}
+	if line < 0 || line >= len(lines) || strings.TrimSpace(lines[line][len(prefix):]) != "" {
+		return nil, false
+	}
+	partial := match[1]
+	pathStart := len(prefix) - len(partial)
+	list := &lsp.CompletionList{}
+	kind := lsp.CompletionItemKindModule
+	for _, path := range stdlib.ModulePaths() {
+		if !strings.HasPrefix(path, partial) {
+			continue
+		}
+		item := lsp.CompletionItem{Label: path, Kind: &kind, Detail: "biblioteca estándar", InsertText: path}
+		item.TextEdit = lsp.NewCompletionTextEdit(lsp.TextEdit{
+			Range: lsp.Range{
+				Start: lsp.Position{Line: line, Character: utf16Length(prefix[:pathStart])},
+				End:   lsp.Position{Line: line, Character: utf16Length(prefix)},
+			},
+			NewText: path,
+		})
+		list.Items = append(list.Items, item)
+	}
+	return list, true
+}
+
 func (h *Handler) moduleCompletion(params *lsp.CompletionParams, text string) *lsp.CompletionList {
 	empty := &lsp.CompletionList{}
 	lines := strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n")
@@ -454,6 +488,9 @@ func (h *Handler) moduleCompletion(params *lsp.CompletionParams, text string) *l
 	prefix := utf16Prefix(lines[line], params.Position.Character)
 	if !completionCodePosition(prefix) {
 		return empty
+	}
+	if list, handled := usarPathCompletion(lines, line, prefix); handled {
+		return list
 	}
 	match := moduleSelector.FindStringSubmatch(prefix)
 	receiver := ""
@@ -496,8 +533,10 @@ func (h *Handler) moduleCompletion(params *lsp.CompletionParams, text string) *l
 			}
 		}
 		if selected != nil {
-			if resolved.Kind == sema.Named || resolved.Kind == sema.Interface || resolved.Kind == sema.TypeParameter {
-				return displayItems(p, resolvedMemberItems(p.Model, resolved, ast.Pos{Filename: p.Root.Path}))
+			if resolved.Kind == sema.Named || resolved.Kind == sema.Interface || resolved.Kind == sema.TypeParameter ||
+				resolved.Kind == sema.Slice || resolved.Kind == sema.Map || resolved.Kind == sema.String {
+				items := resolvedMemberItems(p.Model, resolved, ast.Pos{Filename: p.Root.Path})
+				return displayItems(p, withMethodDocs(p, p.Model.Methods(resolved), items))
 			}
 			if resolved.Kind == sema.Enum {
 				if _, ok := selected.(*ast.InstantiateExpr); ok {
@@ -533,9 +572,13 @@ func (h *Handler) moduleCompletion(params *lsp.CompletionParams, text string) *l
 		for _, name := range names {
 			d := target.Declarations[name]
 			kind := lsp.CompletionItemKindClass
-			switch d.Node.(type) {
+			label := name
+			var docs string
+			switch node := d.Node.(type) {
 			case *ast.FuncDecl:
 				kind = lsp.CompletionItemKindFunction
+				label = completionLabel(name, len(node.Params))
+				docs = documentationBefore(strings.Split(string(target.Source), "\n"), node.NamePos.Line)
 			case *ast.EnumDecl:
 				kind = lsp.CompletionItemKindEnum
 			case *ast.InterfaceDecl:
@@ -558,7 +601,13 @@ func (h *Handler) moduleCompletion(params *lsp.CompletionParams, text string) *l
 					}
 				}
 			}
-			empty.Items = append(empty.Items, lsp.CompletionItem{Label: name, Kind: &kind, Detail: headerProject.Display(detail)})
+			displayed := headerProject.Display(detail)
+			item := lsp.CompletionItem{Label: label, Kind: &kind, Detail: displayed, InsertText: name}
+			if kind == lsp.CompletionItemKindFunction {
+				item.Detail = ""
+				item.Documentation = completionDocumentation(displayed, docs)
+			}
+			empty.Items = append(empty.Items, item)
 		}
 		return empty
 	}
@@ -576,9 +625,36 @@ func (h *Handler) moduleCompletion(params *lsp.CompletionParams, text string) *l
 	return empty
 }
 
+// withMethodDocs fills in a method completion item's Documentation with the
+// doc comment written above the method's declaration (native or
+// user-defined), which resolvedMemberItems can't reach on its own since it
+// only has the Model, not each declaration's source file.
+func withMethodDocs(p *compiler.Project, methods map[string]sema.FuncInfo, list *lsp.CompletionList) *lsp.CompletionList {
+	for i := range list.Items {
+		item := &list.Items[i]
+		m, ok := methods[item.InsertText]
+		if !ok || m.Decl == nil {
+			continue
+		}
+		module := p.Modules[m.Decl.Pos.Filename]
+		if module == nil {
+			continue
+		}
+		docs := documentationBefore(strings.Split(string(module.Source), "\n"), m.Decl.NamePos.Line)
+		if docs == "" {
+			continue
+		}
+		item.Documentation = completionDocumentation(signatureDetail(m), docs)
+	}
+	return list
+}
+
 func displayItems(p *compiler.Project, list *lsp.CompletionList) *lsp.CompletionList {
 	for i := range list.Items {
 		list.Items[i].Detail = p.Display(list.Items[i].Detail)
+		if doc := list.Items[i].Documentation; doc != nil {
+			doc.Value = p.Display(doc.Value)
+		}
 	}
 	return list
 }
@@ -621,13 +697,15 @@ func (h *Handler) moduleContextualCompletion(params *lsp.CompletionParams, lines
 		p := h.completionProject(params.TextDocument.URI, lines, line, closeCompletionDelimiters(prefix[:dot+1]+"__cometa_probe__"))
 		if p != nil && p.Model != nil {
 			for expr, t := range p.Model.ExpectedTypes {
-				if expr.Position().Filename == p.Root.Path && expr.Position().Line == line+1 {
-					if list := gameConstantCompletion(t); list != nil {
-						return displayItems(p, list)
-					}
-					if info := p.Model.EnumFor(t); info != nil {
-						return displayItems(p, enumCompletionItems(info))
-					}
+				variant, ok := expr.(*ast.ContextualVariantExpr)
+				if !ok || variant.Name != "__cometa_probe__" || expr.Position().Filename != p.Root.Path || expr.Position().Line != line+1 {
+					continue
+				}
+				if list := gameConstantCompletion(t); list != nil {
+					return displayItems(p, list)
+				}
+				if info := p.Model.EnumFor(t); info != nil {
+					return displayItems(p, enumCompletionItems(info))
 				}
 			}
 		}

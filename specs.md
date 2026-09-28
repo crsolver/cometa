@@ -362,6 +362,8 @@ fn inicio()
 
 Una función anidada dentro de un `tipo` es un método. Dentro de ella, `@nombre` accede a un campo o método del receptor. Los nombres sin `@` solo pueden referirse a parámetros; no se realiza una búsqueda implícita de campos.
 
+`@` solo (sin nombre) es el propio receptor como valor: tiene el tipo del receptor y puede asignarse a una variable, pasarse como argumento o devolverse, para guardar o compartir una referencia a la instancia actual. No puede asignarse (`@ = ...`) ni llamarse directamente (`@()`).
+
 Una línea que contiene únicamente un tipo de estructura declara un campo embebido, como en Go:
 
 ```cometa

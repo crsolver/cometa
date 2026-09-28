@@ -273,7 +273,9 @@ func memberCompletionItems(typeDecl *ast.TypeDecl) *lsp.CompletionList {
 	}
 	methodKind := lsp.CompletionItemKindMethod
 	for _, method := range typeDecl.Methods {
-		items = append(items, lsp.CompletionItem{Label: method.Name, Kind: &methodKind, Detail: functionDetail(method)})
+		detail := functionDetail(method)
+		label := completionLabel(method.Name, len(method.Params))
+		items = append(items, lsp.CompletionItem{Label: label, Kind: &methodKind, Documentation: completionDocumentation(detail, ""), InsertText: method.Name})
 	}
 	return &lsp.CompletionList{Items: items}
 }
@@ -305,7 +307,7 @@ func (h *Handler) Hover(_ context.Context, params *lsp.HoverParams) (*lsp.Hover,
 	if !ok {
 		return nil, nil
 	}
-	value := "```cometa\n" + info.detail + "\n```"
+	value := "```cometa\n" + wrapSignature(info.detail) + "\n```"
 	if info.documentation != "" {
 		value += "\n\n" + info.documentation
 	}
@@ -1047,7 +1049,7 @@ func functionDetail(function *ast.FuncDecl) string {
 		}
 		detail := param.Name + " " + prefix + typeRefString(param.Type)
 		if param.Default != nil {
-			detail += " = …"
+			detail += " = " + defaultExprSource(param.Default)
 		}
 		params = append(params, detail)
 	}

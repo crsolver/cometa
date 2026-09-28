@@ -87,7 +87,7 @@ func TestHoverShowsInferredVariablesAndFunctionDocumentation(t *testing.T) {
 			name:   "function call with documentation",
 			line:   13,
 			char:   3,
-			value:  "```cometa\nfn procesar_lista(usuarios [Usuario])\n```\n\nProcesa una lista de usuarios.\nConserva el orden original.",
+			value:  "```cometa\nfn procesar_lista(\n\tusuarios [Usuario],\n)\n```\n\nProcesa una lista de usuarios.\nConserva el orden original.",
 			range_: lsp.Range{Start: lsp.Position{Line: 13, Character: 1}, End: lsp.Position{Line: 13, Character: 15}},
 		},
 	}
@@ -169,8 +169,14 @@ func TestCompletesFieldsAndMethodsForVariable(t *testing.T) {
 	if completion.Items[0].Label != "nombre" || completion.Items[0].Kind == nil || *completion.Items[0].Kind != lsp.CompletionItemKindField {
 		t.Fatalf("field completion = %+v", completion.Items[0])
 	}
-	if completion.Items[1].Label != "activar" || completion.Items[1].Kind == nil || *completion.Items[1].Kind != lsp.CompletionItemKindMethod {
+	if completion.Items[1].Label != "activar(...)" || completion.Items[1].Kind == nil || *completion.Items[1].Kind != lsp.CompletionItemKindMethod || completion.Items[1].InsertText != "activar" {
 		t.Fatalf("method completion = %+v", completion.Items[1])
+	}
+	if completion.Items[1].Detail != "" {
+		t.Fatalf("method detail should be empty, signature belongs in Documentation: %+v", completion.Items[1])
+	}
+	if doc := completion.Items[1].Documentation; doc == nil || doc.Kind != lsp.Markdown || !strings.Contains(doc.Value, "```cometa\nfn activar(valor bool)\n```") {
+		t.Fatalf("method documentation = %+v", doc)
 	}
 }
 
@@ -192,7 +198,7 @@ func TestCompletesReceiverFieldsAndMethodsAfterAt(t *testing.T) {
 	if completion.Items[0].Label != "nombre" || completion.Items[0].Kind == nil || *completion.Items[0].Kind != lsp.CompletionItemKindField {
 		t.Fatalf("field completion = %+v", completion.Items[0])
 	}
-	if completion.Items[1].Label != "activar" || completion.Items[1].Kind == nil || *completion.Items[1].Kind != lsp.CompletionItemKindMethod {
+	if completion.Items[1].Label != "activar(...)" || completion.Items[1].Kind == nil || *completion.Items[1].Kind != lsp.CompletionItemKindMethod || completion.Items[1].InsertText != "activar" {
 		t.Fatalf("method completion = %+v", completion.Items[1])
 	}
 }
@@ -209,7 +215,7 @@ func TestCompletesReceiverMembersInInlineMethod(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(completion.Items) != 2 || completion.Items[0].Label != "nombre" || completion.Items[1].Label != "activar" {
+	if len(completion.Items) != 2 || completion.Items[0].Label != "nombre" || completion.Items[1].Label != "activar()" {
 		t.Fatalf("completion items = %+v", completion.Items)
 	}
 }
@@ -296,6 +302,34 @@ func TestDiagnosticCoversRelevantToken(t *testing.T) {
 	if diagnostic.Range != want {
 		t.Fatalf("diagnostic range = %+v, want %+v", diagnostic.Range, want)
 	}
+}
+
+// completionText returns the signature text carried by a completion item:
+// Detail for non-function items, or the raw signature unwrapped from the
+// Documentation code block for function/method items (which leave Detail
+// empty to avoid showing the signature twice in clients that render Detail
+// as the doc panel's header).
+func completionText(item lsp.CompletionItem) string {
+	if item.Detail != "" {
+		return item.Detail
+	}
+	if item.Documentation == nil {
+		return ""
+	}
+	value := strings.TrimPrefix(item.Documentation.Value, "```cometa\n")
+	if end := strings.Index(value, "\n```"); end >= 0 {
+		return value[:end]
+	}
+	return value
+}
+
+// flattenWrapped undoes wrapSignature's line breaks so tests can match a
+// signature substring regardless of whether it wrapped onto multiple lines.
+func flattenWrapped(text string) string {
+	text = strings.ReplaceAll(text, "(\n\t", "(")
+	text = strings.ReplaceAll(text, ",\n\t", ", ")
+	text = strings.ReplaceAll(text, ",\n)", ")")
+	return text
 }
 
 func waitForDiagnostics(t *testing.T, harness *servertest.Harness, uri lsp.DocumentURI) []lsp.Diagnostic {

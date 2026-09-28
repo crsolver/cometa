@@ -424,6 +424,9 @@ func (g *generator) rawExpr(expr ast.Expr) string {
 		}
 		return localName(expression.Name)
 	case *ast.ReceiverExpr:
+		if expression.Name == "" {
+			return "_self"
+		}
 		return "_self." + g.fieldName(sema.Type{Kind: sema.Named, Name: g.receiver}, expression.Name)
 	case *ast.MemberExpr:
 		return g.expr(expression.Object) + "." + g.fieldName(g.model.ExprTypes[expression.Object], expression.Name)

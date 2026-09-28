@@ -7,6 +7,42 @@ import (
 	"testing"
 )
 
+func TestWrapSignatureBreaksLongParameterLists(t *testing.T) {
+	long := "pub fn fractal(x decimal, y decimal, semilla entero = 0, octavas entero = 4, persistencia decimal = 0.5, lacunaridad decimal = 2.0) decimal"
+	got := wrapSignature(long)
+	want := "pub fn fractal(\n" +
+		"\tx decimal,\n" +
+		"\ty decimal,\n" +
+		"\tsemilla entero = 0,\n" +
+		"\toctavas entero = 4,\n" +
+		"\tpersistencia decimal = 0.5,\n" +
+		"\tlacunaridad decimal = 2.0,\n" +
+		") decimal"
+	if got != want {
+		t.Fatalf("wrapSignature = %q, want %q", got, want)
+	}
+}
+
+func TestWrapSignatureLeavesShortSignaturesAlone(t *testing.T) {
+	short := "fn f(a entero) entero"
+	if got := wrapSignature(short); got != short {
+		t.Fatalf("wrapSignature = %q, want unchanged %q", got, short)
+	}
+}
+
+// A single long parameter still needs wrapping — splitting a comma-joined
+// list into one part is not a reason to skip it.
+func TestWrapSignatureBreaksSingleLongParameter(t *testing.T) {
+	long := "pub fn captura_raton(contexto ui.ContextoDeEntradaMuyLargoParaProbar) bool"
+	got := wrapSignature(long)
+	want := "pub fn captura_raton(\n" +
+		"\tcontexto ui.ContextoDeEntradaMuyLargoParaProbar,\n" +
+		") bool"
+	if got != want {
+		t.Fatalf("wrapSignature = %q, want %q", got, want)
+	}
+}
+
 func TestGenericInterfaceCompletion(t *testing.T) {
 	const decl = `interfaz Proveedor<T>
 	fn obtener() T
@@ -41,7 +77,7 @@ enum E<T>
 				t.Fatal(err)
 			}
 			for _, item := range list.Items {
-				if item.Detail == tt.want {
+				if completionText(item) == tt.want {
 					return
 				}
 			}
@@ -82,7 +118,7 @@ fn inicio()
 		if err != nil {
 			t.Fatal(err)
 		}
-		if hover == nil || !strings.Contains(hover.Contents.Value(), tt.want) {
+		if hover == nil || !strings.Contains(flattenWrapped(hover.Contents.Value()), tt.want) {
 			t.Fatalf("hover %s: %+v", tt.needle, hover)
 		}
 	}

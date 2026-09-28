@@ -321,6 +321,9 @@ func (g *generator) flowRaw(e ast.Expr, t sema.Type, indent int) string {
 		}
 		return localName(v.Name)
 	case *ast.ReceiverExpr:
+		if v.Name == "" {
+			return "_self"
+		}
 		return "_self." + g.fieldName(sema.Type{Kind: sema.Named, Name: g.receiver}, v.Name)
 	case *ast.LiteralExpr:
 		if v.Kind == "bool" {
