@@ -35,7 +35,7 @@ func (*uiCheck) Update() error {
  if first[3]==0 {panic("panel missing")};if first[(179*320+319)*4+3]!=0 {panic("UI escaped viewport")}
  if path:=os.Getenv("COMETA_UI_SCREENSHOT");path!="" {f,e:=os.Create(path);if e!=nil{panic(e)};if e=png.Encode(f,screen);e!=nil{panic(e)};f.Close()}
  fontSource,e:=text.NewGoTextFaceSource(bytes.NewReader(goregular.TTF));if e!=nil {panic(e)}
- _hgupdating=true;_hgtick++;root:=_hguiCuadro(c);root.Entrar();theme:=_hguiTema(_hguiFuente(&_hgFuente{source:fontSource},20));theme.Entrar();_hguiTexto("Texto TTF: áéñ",_hguiFijo(100),_hguiContenido(0,1e9));theme.Salir();root.Salir();_hgupdating=false
+ _hgupdating=true;_hgtick++;root:=_hguiCuadro(c);root.Entrar();theme:=_hguiTema(_hguiFuente(&_hgFuente{source:fontSource},20));theme.Entrar();_hguiTexto("Texto TTF: áéñ",_hguiFijo(100),_hguiContenido(0,1e9),_hgColor{});theme.Salir();root.Salir();_hgupdating=false
  if len(c.previous[1].lines)<2 {panic("TTF did not wrap")}
  screen.Clear();_hguiPintar(c);pixels:=make([]byte,len(first));screen.ReadPixels(pixels);found:=false;for i:=3;i<len(pixels);i+=4{if pixels[i]>0{found=true;break}};if !found {panic("TTF text absent")}
  fmt.Println("ok");return ebiten.Termination

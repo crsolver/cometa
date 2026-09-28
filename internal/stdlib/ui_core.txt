@@ -13,7 +13,7 @@ type _hgUINode struct {
  id string
  parent int
  children []int
- kind int // 0 column, 1 row, 2 panel, 3 text, 4 image, 5 button, 6 checkbox, 7 slider
+ kind int // 0 column, 1 row, 2 panel, 3 text, 4 image, 5 spacer, 6 progress bar, 7 separator, 8 button, 9 checkbox, 10 slider, 11 text field
  width,height _hgMedida
  pad _hgBordes
  gap float64
@@ -27,10 +27,14 @@ type _hgUINode struct {
  rect,clip _hgRect
  natural,extent _hgVec2
  lines []string
+ cursor int
+ caretX float64
 }
 type _hgUIInput struct {
  pointer,wheel _hgVec2
  press,release,down,tab,shift,activate,left,right bool
+ chars []rune
+ backspace,delete,home,end bool
 }
 type _hgContexto struct {
  nodes,previous []_hgUINode
@@ -38,6 +42,7 @@ type _hgContexto struct {
  themes []_hgTema
  ids map[string]int
  offsets map[string]_hgVec2
+ cursors map[string]int
  hover,active,focus,clicked string
  input _hgUIInput
  mouse,keyboard bool
@@ -58,7 +63,7 @@ func _hguiFijo(v float64) *_hgMedida { _hgUIRequire(_hgUIFinite(v)&&v>=0,"medida
 func _hguiContenido(lo,hi float64) *_hgMedida { _hgUIRequire(_hgUIFinite(lo)&&_hgUIFinite(hi)&&lo>=0&&hi>=lo,"límites inválidos");return &_hgMedida{min:lo,max:hi} }
 func _hguiExpandir(lo,hi float64) *_hgMedida { m:=_hguiContenido(lo,hi);m.mode=2;return m }
 func _hguiPorcentaje(v float64) *_hgMedida { _hgUIRequire(_hgUIFinite(v)&&v>=0&&v<=1,"porcentaje fuera de [0,1]");return &_hgMedida{mode:3,max:1e9,value:v} }
-func _hguiCrear() *_hgContexto {return &_hgContexto{ids:map[string]int{},offsets:map[string]_hgVec2{}}}
+func _hguiCrear() *_hgContexto {return &_hgContexto{ids:map[string]int{},offsets:map[string]_hgVec2{},cursors:map[string]int{}}}
 func _hgUIDefaultTheme() _hgTema {return _hgTema{Fondo:_hgColor{24,30,42,255},Normal:_hgColor{68,63,65,255},Sobre:_hgColor{71,114,191,255},Presionado:_hgColor{67,62,166,255},Foco:_hgColor{255,185,21,255},Deshabilitado:_hgColor{52,52,52,255},Texto:_hgColor{255,249,228,255},Espacio:4,scale:1,size:8}}
 func _hguiRetro(scale int64) *_hgTema {_hgUIRequire(scale>0,"escala debe ser positiva");t:=_hgUIDefaultTheme();t.scale=scale;t.size=8*float64(scale);return &t}
 func _hguiCuadro(c *_hgContexto) *_hgAmbitoUI {_hgUIRequire(c!=nil,"contexto ausente");return &_hgAmbitoUI{context:c}}
@@ -97,22 +102,47 @@ func (c *_hgContexto) add(n _hgUINode) int {
  if n.id!="" {c.ids[n.id]=i};return i
 }
 func _hgUILeaf(kind int,id,label string,w,h *_hgMedida,enabled bool) (*_hgContexto,int) {
- c:=_hgUIContext();_hgUIRequire(w!=nil&&h!=nil,"medida ausente");if kind>=5 {_hgUIRequire(id!="","control requiere id")}
+ c:=_hgUIContext();_hgUIRequire(w!=nil&&h!=nil,"medida ausente");if kind>=8 {_hgUIRequire(id!="","control requiere id")}
  n:=_hgUINode{kind:kind,id:id,label:label,width:*w,height:*h,enabled:enabled}
- if kind>=5 {n.pad=_hgBordes{4,4,4,4}}
+ if kind>=8 {n.pad=_hgBordes{4,4,4,4}}
  return c,c.add(n)
 }
-func _hguiTexto(s string,w,h *_hgMedida) {_hgUILeaf(3,"",s,w,h,true)}
-func _hguiBoton(id,label string,w,h *_hgMedida,enabled bool) bool {c,i:=_hgUILeaf(5,id,label,w,h,enabled);return enabled&&c.clicked==c.nodes[i].id}
+func _hguiTexto(s string,w,h *_hgMedida,color _hgColor) {c,i:=_hgUILeaf(3,"",s,w,h,true);c.nodes[i].tint=color}
+func _hguiEspacio(w,h *_hgMedida) {_hgUILeaf(5,"","",w,h,true)}
+func _hguiBarra(valor,minimo,maximo float64,w,h *_hgMedida) {
+ _hgUIRequire(_hgUIFinite(valor)&&_hgUIFinite(minimo)&&_hgUIFinite(maximo)&&maximo>=minimo,"límites de la barra inválidos")
+ c,i:=_hgUILeaf(6,"","",w,h,true)
+ v:=0.0; if maximo>minimo { v=_hgUIClamp((valor-minimo)/(maximo-minimo),0,1) }
+ c.nodes[i].value=v
+}
+func _hguiSeparador(w,h *_hgMedida) {_hgUILeaf(7,"","",w,h,true)}
+func _hguiBoton(id,label string,w,h *_hgMedida,enabled bool) bool {c,i:=_hgUILeaf(8,id,label,w,h,enabled);return enabled&&c.clicked==c.nodes[i].id}
 func _hguiCasilla(id string,value bool,label string,w,h *_hgMedida,enabled bool) bool {
- c,i:=_hgUILeaf(6,id,label,w,h,enabled);if enabled&&c.clicked==c.nodes[i].id {value=!value};c.nodes[i].checked=value;return value
+ c,i:=_hgUILeaf(9,id,label,w,h,enabled);if enabled&&c.clicked==c.nodes[i].id {value=!value};c.nodes[i].checked=value;return value
 }
 func _hguiDeslizador(id string,value,lo,hi float64,w,h *_hgMedida,enabled bool) float64 {
  _hgUIRequire(_hgUIFinite(value)&&_hgUIFinite(lo)&&_hgUIFinite(hi)&&hi>=lo,"límites del deslizador inválidos")
- c,i:=_hgUILeaf(7,id,"",w,h,enabled);key:=c.nodes[i].id;value=_hgUIClamp(value,lo,hi)
+ c,i:=_hgUILeaf(10,id,"",w,h,enabled);key:=c.nodes[i].id;value=_hgUIClamp(value,lo,hi)
  if enabled&&c.active==key&&(c.input.down||c.input.release) {for _,n:=range c.previous {if n.id==key&&n.rect.Tamano.X>0 {value=lo+(hi-lo)*_hgUIClamp((c.input.pointer.X-n.rect.Pos.X)/n.rect.Tamano.X,0,1);break}}}
  if enabled&&c.focus==key {if c.input.left {value-=(hi-lo)/100};if c.input.right {value+=(hi-lo)/100}}
  value=_hgUIClamp(value,lo,hi);if hi>lo {c.nodes[i].value=(value-lo)/(hi-lo)};return value
+}
+func _hguiCampoTexto(id string, valor string, w,h *_hgMedida, enabled bool) string {
+ c,i:=_hgUILeaf(11,id,valor,w,h,enabled)
+ key:=c.nodes[i].id
+ runes:=[]rune(valor)
+ pos:=int(_hgUIClamp(float64(c.cursors[key]),0,float64(len(runes))))
+ if enabled&&c.focus==key {
+  if len(c.input.chars)>0 {runes=append(runes[:pos],append(append([]rune{},c.input.chars...),runes[pos:]...)...);pos+=len(c.input.chars)}
+  if c.input.backspace&&pos>0 {runes=append(runes[:pos-1],runes[pos:]...);pos--}
+  if c.input.delete&&pos<len(runes) {runes=append(runes[:pos],runes[pos+1:]...)}
+  if c.input.left&&pos>0 {pos--}
+  if c.input.right&&pos<len(runes) {pos++}
+  if c.input.home {pos=0}
+  if c.input.end {pos=len(runes)}
+ }
+ c.cursors[key]=pos; c.nodes[i].cursor=pos
+ return string(runes)
 }
 func _hguiCapturaRaton(c *_hgContexto) bool {return c.mouse}
 func _hguiCapturaTeclado(c *_hgContexto) bool {return c.keyboard}
@@ -122,9 +152,9 @@ func (c *_hgContexto) begin(size _hgVec2,input _hgUIInput,measure func(string,_h
  c.input=input;c.measure=measure;c.hover="";c.clicked="";c.mouse=false
  focusable:=[]string{};scrollIndex:=-1
  for i,n:=range c.previous {
-  if n.kind>=5&&n.enabled {focusable=append(focusable,n.id)}
+  if n.kind>=8&&n.enabled {focusable=append(focusable,n.id)}
   if !_hgUIInside(n.rect,input.pointer)||!_hgUIInside(n.clip,input.pointer) {continue}
-  if n.kind==2||n.scroll||n.kind>=5 {c.mouse=true;c.hover="";scrollIndex=-1;if n.enabled&&n.kind>=5 {c.hover=n.id};for j:=i;j>0;j=c.previous[j].parent {if c.previous[j].scroll {scrollIndex=j;break}}}
+  if n.kind==2||n.scroll||n.kind>=8 {c.mouse=true;c.hover="";scrollIndex=-1;if n.enabled&&n.kind>=8 {c.hover=n.id};for j:=i;j>0;j=c.previous[j].parent {if c.previous[j].scroll {scrollIndex=j;break}}}
  }
  if input.tab&&len(focusable)>0 {at:=-1;for i,id:=range focusable {if id==c.focus {at=i;break}};if input.shift {if at<0 {at=0};at=(at-1+len(focusable))%len(focusable)} else {at=(at+1)%len(focusable)};c.focus=focusable[at]}
  if input.press {c.active=c.hover;c.focus=c.hover}
@@ -150,7 +180,7 @@ func (c *_hgContexto) wrap(s string,t _hgTema,width float64) []string {
 func (c *_hgContexto) natural(i int) {
  n:=&c.nodes[i];n.natural=_hgVec2{}
  if n.kind>=3 {
-  if n.kind==4 {n.natural=n.extent} else if n.kind==7 {n.natural=_hgVec2{120,16}} else {label:=n.label;if n.kind==6 {label="[ ] "+label};for _,s:=range strings.Split(label,"\n") {n.natural.X=math.Max(n.natural.X,c.textWidth(s,n.theme))};n.natural.Y=float64(len(strings.Split(label,"\n")))*_hgUILineHeight(n.theme)}
+  if n.kind==4 {n.natural=n.extent} else if n.kind==10 {n.natural=_hgVec2{120,16}} else if n.kind==5 {n.natural=_hgVec2{}} else if n.kind==6 {n.natural=_hgVec2{120,10}} else if n.kind==7 {n.natural=_hgVec2{1,1}} else if n.kind==11 {n.natural=_hgVec2{c.textWidth(n.label,n.theme),_hgUILineHeight(n.theme)}} else {label:=n.label;if n.kind==9 {label="[ ] "+label};for _,s:=range strings.Split(label,"\n") {n.natural.X=math.Max(n.natural.X,c.textWidth(s,n.theme))};n.natural.Y=float64(len(strings.Split(label,"\n")))*_hgUILineHeight(n.theme)}
  } else {for _,j:=range n.children {child:=&c.nodes[j];_hgUIRequire(!(n.width.mode==0&&child.width.mode==3)&&!(n.height.mode==0&&child.height.mode==3),"porcentaje bajo contenido en el mismo eje");c.natural(j);w:=_hgUISize(child.width,child.natural.X,0);h:=_hgUISize(child.height,child.natural.Y,0);if n.kind==1 {n.natural.X+=w;n.natural.Y=math.Max(n.natural.Y,h)} else {n.natural.X=math.Max(n.natural.X,w);n.natural.Y+=h}};if len(n.children)>1 {if n.kind==1 {n.natural.X+=float64(len(n.children)-1)*n.gap}else{n.natural.Y+=float64(len(n.children)-1)*n.gap}}}
  n.natural.X+=n.pad.Izquierda+n.pad.Derecha;n.natural.Y+=n.pad.Arriba+n.pad.Abajo
 }
@@ -167,7 +197,16 @@ func (c *_hgContexto) allocate(ids []int,available float64,x bool,gap float64,sc
 }
 func (c *_hgContexto) widths(i int,w float64) {
  n:=&c.nodes[i];n.rect.Tamano.X=w;inner:=math.Max(0,w-n.pad.Izquierda-n.pad.Derecha)
- if n.kind>=3 {if n.kind!=4&&n.kind!=7 {label:=n.label;if n.kind==6 {if n.checked {label="[x] "+label}else{label="[ ] "+label}};n.lines=c.wrap(label,n.theme,inner);n.natural.Y=float64(len(n.lines))*_hgUILineHeight(n.theme)+n.pad.Arriba+n.pad.Abajo};return}
+ if n.kind>=3 {
+  if n.kind==11 {
+   n.lines=[]string{n.label}
+   runes:=[]rune(n.label);cursor:=n.cursor;if cursor>len(runes) {cursor=len(runes)};if cursor<0 {cursor=0}
+   n.caretX=c.textWidth(string(runes[:cursor]),n.theme)
+  } else if n.kind!=4&&n.kind!=10&&n.kind!=5&&n.kind!=6&&n.kind!=7 {
+   label:=n.label;if n.kind==9 {if n.checked {label="[x] "+label}else{label="[ ] "+label}};n.lines=c.wrap(label,n.theme,inner);n.natural.Y=float64(len(n.lines))*_hgUILineHeight(n.theme)+n.pad.Arriba+n.pad.Abajo
+  }
+  return
+ }
  var sizes []float64;if n.kind==1 {sizes=c.allocate(n.children,inner,true,n.gap,n.scroll)}
  height:=0.0;for k,j:=range n.children {ch:=&c.nodes[j];cw:=_hgUISize(ch.width,ch.natural.X,inner);if n.kind==1 {cw=sizes[k]} else if !n.scroll&&ch.width.mode==0 {cw=math.Max(ch.width.min,math.Min(cw,inner))};c.widths(j,cw);h:=_hgUISize(ch.height,ch.natural.Y,0);if n.kind==1 {height=math.Max(height,h)}else{height+=h}}
  if n.kind!=1 {height+=math.Max(0,float64(len(n.children)-1))*n.gap};n.natural.Y=height+n.pad.Arriba+n.pad.Abajo
@@ -191,7 +230,8 @@ func (c *_hgContexto) position(i int,pos _hgVec2,clip _hgRect) {
 func (c *_hgContexto) finish() {
  size:=c.nodes[0].rect.Tamano;c.natural(0);c.widths(0,size.X);c.heights(0,size.Y);c.position(0,_hgVec2{},_hgRect{Tamano:size})
  for id:=range c.offsets {if _,ok:=c.ids[id];!ok {delete(c.offsets,id)}}
- valid:=func(id string)bool {i,ok:=c.ids[id];return ok&&c.nodes[i].enabled&&c.nodes[i].kind>=5}
+ for id:=range c.cursors {if _,ok:=c.ids[id];!ok {delete(c.cursors,id)}}
+ valid:=func(id string)bool {i,ok:=c.ids[id];return ok&&c.nodes[i].enabled&&c.nodes[i].kind>=8}
  if !valid(c.active)||c.input.release {c.active=""};if !valid(c.focus){c.focus=""};c.keyboard=c.focus!=""
  c.previous,c.nodes=c.nodes,c.previous
 }

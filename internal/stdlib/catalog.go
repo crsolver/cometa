@@ -53,6 +53,7 @@ var Functions = []Function{
 	{"retro", "texto", "texto cadena, x entero, y entero, escala entero = 1, color Color = .Blanco)", "retroTexto", true, false},
 	{"retro", "icono", "icono Icono, x entero, y entero, escala entero = 1, color Color = .Blanco)", "retroIcono", true, false},
 	{"retro", "glifo", "indice entero, x entero, y entero, escala entero = 1, color Color = .Blanco, atlas Atlas = .Dungeon)", "retroGlifo", true, false},
+	{"retro", "ejecutar", `instancia Juego, ancho entero = 320, alto entero = 200, titulo cadena = "Cometa", escala decimal = 4, redimensionable bool = falso, pantalla_completa bool = falso, tps entero = 60, pixelado bool = verdadero, retro bool = falso) !`, "retroEjecutar", false, false},
 	{"mate", "absoluto", "valor decimal) decimal", "abs", false, false},
 	{"mate", "minimo", "a decimal, b decimal) decimal", "min", false, false},
 	{"mate", "maximo", "a decimal, b decimal) decimal", "max", false, false},

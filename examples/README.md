@@ -43,6 +43,7 @@ Cada ejemplo abre una ventana. La primera compilación descarga las dependencias
 | [07_sprites](pincel/07_sprites.cometa) | Dibujar sprites animados con texto usando `lienzo` |
 | [08_curvas](pincel/08_curvas.cometa) | Animaciones suaves con curvas |
 | [09_atrapa](pincel/09_atrapa.cometa) | Un juego completo con imagen, sonido, puntos y tiempo |
+| [10_ui](pincel/10_ui.cometa) | Interfaces en modo inmediato: campo de texto, barra de progreso y grupos de opciones |
 
 Para guardar una captura de un juego sin abrir la ventana:
 
@@ -52,5 +53,5 @@ vscode-extension/bin/cometa captura examples/pincel/02_formas.cometa -o formas.p
 
 ## Más información
 
-- [Guía de Pincel](../docs/juegos.md) y [lienzo](../docs/lienzo.md)
+- [Guía de Pincel](../docs/juegos.md), [lienzo](../docs/lienzo.md) e [interfaces](../docs/ui.md)
 - [Especificación del lenguaje](../specs.md)

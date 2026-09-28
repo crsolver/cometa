@@ -1,6 +1,5 @@
 // Pincel: texto e iconos retro, sin archivos de imagen.
 // std/pincel/retro trae una fuente de 8x8 píxeles con acentos y eñes, e iconos.
-usar std/pincel
 usar std/pincel/graficos
 usar std/pincel/entrada
 usar std/pincel/retro
@@ -38,6 +37,6 @@ tipo Marcador
 		retro.texto("<- / -> cambian las vidas", 8, 100, color = .Gris)
 
 fn inicio()
-	// pixelado = verdadero mantiene los píxeles nítidos al agrandar la ventana.
-	pincel.ejecutar(Marcador {vidas: 3}, 220, 120, titulo = "Retro", escala = 4, pixelado = verdadero) capturar |error|
+	// retro.ejecutar usa defaults de consola de fantasía: 320x200, escala 4, pixelado.
+	retro.ejecutar(Marcador {vidas: 3}, titulo = "Retro", retro=verdadero) capturar |error|
 		imprimir(error)

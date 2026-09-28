@@ -1,0 +1,49 @@
+// Pincel: interfaces en modo inmediato con std/pincel/ui.
+// Introduce campo_texto (campo de una línea), separador, barra (progreso),
+// espacio (hueco flexible) y un grupo de opciones compuesto con boton.
+// Ver docs/ui.md para la lista completa de controles.
+usar std/pincel
+usar std/pincel/graficos
+usar std/pincel/ui
+
+var clases = ["Guerrero", "Mago", "Pícaro"]
+var vidas = [30, 15, 20]
+
+tipo Creador
+	contexto ui.Contexto
+	nombre cadena
+	clase entero
+	creado bool
+
+	pub fn actualizar(dt decimal)
+		con ui.cuadro(@contexto)
+			con ui.panel("panel", ancho = ui.fijo(320), alto = ui.fijo(200), relleno = {8, 8, 8, 8}, espacio = 6)
+				ui.texto("Crear personaje")
+				@nombre = ui.campo_texto("nombre", @nombre, ancho = ui.expandir())
+				ui.separador()
+
+				con ui.columna("clases", ancho = ui.expandir(), espacio = 2)
+					repetir (0..3) |i|
+						var etiqueta = si @clase == i "(x) " + clases[i] sino "( ) " + clases[i]
+						si ui.boton("clase_${i}", etiqueta, ancho = ui.expandir())
+							@clase = i
+
+				ui.texto("Vida", color=.Rojo)
+				ui.barra(vidas[@clase], 0, 30, ancho = ui.expandir())
+
+				con ui.fila("acciones", ancho = ui.expandir(), alto = ui.expandir())
+					ui.espacio()
+					si ui.boton("crear", "Crear", ancho = ui.fijo(80))
+						@creado = verdadero
+
+				si @creado
+					ui.texto("¡${@nombre} el ${clases[@clase]} está listo!")
+
+	pub fn pintar()
+		graficos.limpiar(.Negro)
+		ui.pintar(@contexto)
+
+fn inicio()
+	var creador = Creador {contexto: ui.crear(), nombre: ""}
+	pincel.ejecutar(creador, 320, 200, titulo = "Crear personaje", escala = 2, pixelado = verdadero) capturar |error|
+		imprimir(error)

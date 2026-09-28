@@ -37,9 +37,39 @@ func TestSizing(t *testing.T){
  row.Salir();end(c)
  near(t,c.previous[2].rect.Pos.X,10);near(t,c.previous[2].rect.Pos.Y,20)
  near(t,c.previous[3].rect.Tamano.X,50);near(t,c.previous[4].rect.Tamano.X,170)
- frame(c,_hgUIInput{});p:=_hguiColumna("p",fixed(100),fixed(100),0,_hgBordes{},0,0,false);p.Entrar();_hguiTexto("uno dos tres cuatro",grow(),fit());p.Salir();end(c)
+ frame(c,_hgUIInput{});p:=_hguiColumna("p",fixed(100),fixed(100),0,_hgBordes{},0,0,false);p.Entrar();_hguiTexto("uno dos tres cuatro",grow(),fit(),_hgColor{});p.Salir();end(c)
  if len(c.previous[2].lines)<2 {t.Fatal("text did not wrap")};near(t,c.previous[2].rect.Tamano.Y,float64(len(c.previous[2].lines))*8)
- frame(c,_hgUIInput{});p=_hguiColumna("p",fit(),fit(),0,_hgBordes{},0,0,false);p.Entrar();_hguiTexto("a",_hguiPorcentaje(.5),fit());p.Salir();panics(t,func(){end(c)});_hgUIActive=nil
+ frame(c,_hgUIInput{});p=_hguiColumna("p",fit(),fit(),0,_hgBordes{},0,0,false);p.Entrar();_hguiTexto("a",_hguiPorcentaje(.5),fit(),_hgColor{});p.Salir();panics(t,func(){end(c)});_hgUIActive=nil
+ frame(c,_hgUIInput{});row2:=_hguiFila("row2",fixed(300),fixed(20),0,_hgBordes{},0,0,false);row2.Entrar();_hguiBoton("a","a",fixed(40),fixed(20),true);_hguiEspacio(grow(),fixed(20));_hguiBoton("b","b",fixed(40),fixed(20),true);row2.Salir();end(c)
+ near(t,c.previous[3].rect.Tamano.X,220)
+}
+func TestBarra(t *testing.T){
+ c:=_hguiCrear();frame(c,_hgUIInput{});_hguiBarra(5,0,10,fixed(100),fixed(10));end(c)
+ near(t,c.previous[1].value,.5)
+ frame(c,_hgUIInput{});_hguiBarra(-5,0,10,fixed(100),fixed(10));end(c);near(t,c.previous[1].value,0)
+ frame(c,_hgUIInput{});_hguiBarra(50,0,10,fixed(100),fixed(10));end(c);near(t,c.previous[1].value,1)
+ panics(t,func(){frame(c,_hgUIInput{});_hguiBarra(5,10,0,fixed(100),fixed(10));end(c)});_hgUIActive=nil
+}
+func TestSeparador(t *testing.T){
+ c:=_hguiCrear();frame(c,_hgUIInput{});col:=_hguiColumna("col",fixed(100),fit(),0,_hgBordes{},0,0,false);col.Entrar();_hguiSeparador(grow(),fixed(1));col.Salir();end(c)
+ near(t,c.previous[1].rect.Tamano.X,100);near(t,c.previous[1].rect.Tamano.Y,1)
+}
+func TestTextInput(t *testing.T){
+ c:=_hguiCrear();v:=""
+ build:=func(in _hgUIInput){frame(c,in);v=_hguiCampoTexto("f",v,fixed(100),fixed(20),true);end(c)}
+ build(_hgUIInput{})
+ build(_hgUIInput{tab:true})
+ build(_hgUIInput{chars:[]rune("ab")});if v!="ab" {t.Fatalf("typing failed: %q",v)}
+ build(_hgUIInput{chars:[]rune("c")});if v!="abc" {t.Fatalf("append failed: %q",v)}
+ build(_hgUIInput{left:true});build(_hgUIInput{chars:[]rune("X")});if v!="abXc" {t.Fatalf("insert at cursor failed: %q",v)}
+ build(_hgUIInput{backspace:true});if v!="abc" {t.Fatalf("backspace failed: %q",v)}
+ build(_hgUIInput{home:true});build(_hgUIInput{delete:true});if v!="bc" {t.Fatalf("delete failed: %q",v)}
+ build(_hgUIInput{end:true});build(_hgUIInput{backspace:true});if v!="b" {t.Fatalf("backspace at end failed: %q",v)}
+ build(_hgUIInput{left:true});build(_hgUIInput{left:true});build(_hgUIInput{left:true});build(_hgUIInput{backspace:true});if v!="b" {t.Fatalf("backspace at start should be no-op: %q",v)}
+ c2:=_hguiCrear();v2:="z"
+ frame(c2,_hgUIInput{});v2=_hguiCampoTexto("g",v2,fixed(100),fixed(20),true);end(c2)
+ frame(c2,_hgUIInput{chars:[]rune("Y")});v2=_hguiCampoTexto("g",v2,fixed(100),fixed(20),true);end(c2)
+ if v2!="z" {t.Fatalf("unfocused field should ignore input: %q",v2)}
 }
 func TestInteraction(t *testing.T){
  c:=_hguiCrear();build:=func(in _hgUIInput,order bool)(bool,bool){frame(c,in);var a,b bool;if order {b=_hguiBoton("b","B",fixed(80),fixed(20),true)};a=_hguiBoton("a","A",fixed(80),fixed(20),true);if !order {b=_hguiBoton("b","B",fixed(80),fixed(20),true)};end(c);return a,b}
@@ -65,7 +95,12 @@ func TestSliderCapture(t *testing.T){
  build(_hgUIInput{pointer:_hgVec2{400,5},release:true});if c.active!=""{t.Fatal("capture not released")}
  build(_hgUIInput{left:true});near(t,v,.99)
 }
-func TestThemeSnapshot(t *testing.T){c:=_hguiCrear();frame(c,_hgUIInput{});theme:=_hguiRetro(2);s:=_hguiTema(theme);theme.Espacio=99;s.Entrar();_hguiTexto("a",fit(),fit());s.Salir();end(c);near(t,c.previous[1].theme.Espacio,4)}
+func TestTextColor(t *testing.T){
+ c:=_hguiCrear();frame(c,_hgUIInput{});_hguiTexto("a",fit(),fit(),_hgColor{});_hguiTexto("b",fit(),fit(),_hgColor{R:255,A:255});end(c)
+ if c.previous[1].tint.A!=0 {t.Fatal("default text color should be transparent (inherit theme)")}
+ if c.previous[2].tint.R!=255||c.previous[2].tint.A!=255 {t.Fatal("explicit text color not stored")}
+}
+func TestThemeSnapshot(t *testing.T){c:=_hguiCrear();frame(c,_hgUIInput{});theme:=_hguiRetro(2);s:=_hguiTema(theme);theme.Espacio=99;s.Entrar();_hguiTexto("a",fit(),fit(),_hgColor{});s.Salir();end(c);near(t,c.previous[1].theme.Espacio,4)}
 `
  file:=filepath.Join(dir,"ui_test.go");if err:=os.WriteFile(file,[]byte(source),0600);err!=nil {t.Fatal(err)}
  exe:=filepath.Join(runtime.GOROOT(),"bin","go");if runtime.GOOS=="windows" {exe+=".exe"}

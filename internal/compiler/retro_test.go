@@ -55,7 +55,10 @@ func TestRetroRenderingRuntime(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	source := strings.Replace(string(generated), "import (", "import (\n\"fmt\"", 1)
+	source := string(generated)
+	if !strings.Contains(source, `"fmt"`) {
+		source = strings.Replace(source, "import (", "import (\n\"fmt\"", 1)
+	}
 	source += `
 type retroCheck struct{}
 func (*retroCheck) Layout(w,h int)(int,int){return 48,48}

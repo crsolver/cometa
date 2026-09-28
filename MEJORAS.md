@@ -31,6 +31,18 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 
 ## Biblioteca estándar
 
+### Un contenedor `contenido()` con un hijo `expandir()` colapsa a tamaño 0 sin aviso
+
+- **Observado:** `con ui.fila("acciones", espacio = 2)` (sin `ancho`, así que hereda `contenido()`) con un único `ui.boton(..., ancho = ui.expandir())` dentro produce una fila y un botón invisibles, de ancho 0 — sin ningún error ni advertencia.
+- **Problema:** el tamaño natural de un hijo `expandir()` es su mínimo (0 salvo que se indique), así que un padre `contenido()` calcula "ajústate a tu contenido" como 0. Es coherente con cómo funciona `contenido()`, pero es fácil de escribir por accidente (por ejemplo al componer un grupo de opciones con botones `expandir()`) y el resultado es una interfaz silenciosamente vacía en vez de un error.
+- **Posible solución:** que `_hgUIRequire` detecte esta combinación igual que ya hace con `porcentaje` bajo `contenido` en el mismo eje, o que `contenido()` sin límites explícitos tome el mínimo de `expandir()` como advertencia en vez de 0 silencioso.
+
+### `ui.campo_texto` no admite selección de texto ni portapapeles
+
+- **Observado:** el campo de texto de `std/pincel/ui` inserta y borra caracteres y mueve el cursor con las flechas/Inicio/Fin, pero no se puede seleccionar texto (arrastrar o Mayús+flecha), hacer clic para posicionar el cursor en medio del texto, ni pegar desde el portapapeles.
+- **Problema:** cubre el caso de un campo corto (nombre, valor numérico), pero cualquier edición más larga es incómoda: no hay forma de reemplazar todo el contenido de una vez ni de corregir un error a mitad de la palabra sin usar solo las flechas.
+- **Posible solución:** añadir un segundo índice de selección al nodo, resaltar el rango seleccionado al dibujar, calcular la posición de clic contra las líneas medidas, y usar las funciones de portapapeles de Ebitengine para copiar/pegar.
+
 ### `azar.entero(min, max)` excluye `max`
 
 - **Observado:** `azar.entero(1, 6)` nunca devuelve 6; para un dado hay que escribir `azar.entero(1, 7)`.

@@ -65,8 +65,8 @@ tipo Partida
 	pub fn pintar()
 		graficos.limpiar(.VerdePino)
 		graficos.rectangulo(0, 0, ancho, 14, .Negro)
-		retro.texto("Puntos: ${@puntos}", 4, 3, color = .Amarillo)
-		retro.texto("Tiempo: ${mate.techo(@restante)}", 150, 3)
+		retro.texto("Puntos: ${@puntos}", 4, 3, 1, color = .Amarillo)
+		retro.texto("Tiempo: ${mate.techo(@restante)}", 150, 3, 1)
 
 		graficos.rectangulo_v(@objetivo, {8, 8}, .Amarillo)
 		graficos.imagen_v(sprite, @jugador)

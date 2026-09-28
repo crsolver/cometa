@@ -54,7 +54,6 @@ Dibujar, cambiar o restablecer la cámara fuera de la fase activa de `pintar` pr
 `std/pincel/retro` incluye los atlas originales DUNGEON.mode de [datagoblin](https://datagoblin.itch.io/dungeonmode), distribuidos bajo CC0. No requiere PNG, TTF ni llamadas a `recursos` en el proyecto del usuario.
 
 ```cometa
-usar std/pincel
 usar std/pincel/graficos
 usar std/pincel/retro
 
@@ -67,7 +66,7 @@ tipo Partida
 		retro.icono(.Llave, 24, 24, color = .Amarillo)
 
 fn inicio()
-	pincel.ejecutar(Partida {}, 180, 180, escala = 4, pixelado = verdadero) capturar |error|
+	retro.ejecutar(Partida {}) capturar |error|
 		imprimir(error)
 ```
 
@@ -86,6 +85,8 @@ Las posiciones son píxeles de la esquina superior izquierda; cada celda ocupa `
 Iconos disponibles: `.Corazon`, `.CorazonVacio`, `.Espada`, `.Escudo`, `.Llave`, `.Calavera`, `.Arriba`, `.Abajo`, `.Izquierda`, `.Derecha`. `glifo` acepta índices de 0 a 255, calculados como `fila * 16 + columna`, y `.Dungeon` o `.ASCII` como atlas. Índices o escalas inválidos producen un error en ejecución.
 
 `pincel.ejecutar` acepta los parámetros finales `pixelado bool = falso` y `retro bool = falso`. Con `pixelado = verdadero` desactiva el filtro de presentación de Ebitengine; combínalo con una ventana fija a escala entera, como 4. El muestreo de los glifos siempre usa vecino más cercano. Traslaciones y zoom enteros de cámara sin rotación mantienen píxeles uniformes; transformaciones fraccionarias, rotaciones o escalas de ventana fraccionarias no lo garantizan. No se implementa letterboxing entero al redimensionar.
+
+`std/pincel/retro` también expone `retro.ejecutar(instancia Juego, ancho entero = 320, alto entero = 200, titulo cadena = "Cometa", escala decimal = 4, redimensionable bool = falso, pantalla_completa bool = falso, tps entero = 60, pixelado bool = verdadero, retro bool = falso) !`: los mismos parámetros que `pincel.ejecutar`, pero con defaults de consola de fantasía — 320×200 (40×25 celdas exactas de 8×8), escala entera 4 (ventana de 1280×800) y `pixelado = verdadero`. Úsalo en vez de `pincel.ejecutar` cuando el juego dibuja con la fuente Dungeon; los parámetros nombrados siguen sobrescribiendo cualquier default.
 
 Para una pantalla CRT sutil, usa `pincel.ejecutar(Partida {}, escala = 4, retro = verdadero) !`. Este modo activa vecino más cercano incluso con `pixelado = falso` y aplica líneas de barrido suaves, una máscara RGB tenue y una viñeta ligera a toda la imagen, incluido el texto. Los patrones finos se atenúan a escalas pequeñas. No curva la imagen ni añade parpadeo; mantiene la resolución lógica, la cámara, las coordenadas del ratón, la relación de aspecto y las bandas al redimensionar o usar pantalla completa. Funciona con cualquier juego Pincel sin importar `std/pincel/retro`. Con `retro = falso`, `pixelado` conserva su comportamiento habitual. Los errores al inicializar el shader producen `.Error(cadena)`.
 
