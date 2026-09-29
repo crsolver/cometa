@@ -53,7 +53,7 @@ fn inicio()
 	imprimir(booleanos[verdadero] o "error")
 	var enteros = [1: "uno"]
 	imprimir(enteros[1] o "error")
-`, "0\n-1\n2\ntrue\n5\n5\n99\n3\n3\ntrue\ntrue\ntrue\n8\ntrue\nfalse\ntrue\n3\n7\n42\n0\n1\nsí\nuno\n")
+`, "0\n-1\n2\nverdadero\n5\n5\n99\n3\n3\nverdadero\nverdadero\nverdadero\n8\nverdadero\nfalso\nverdadero\n3\n7\n42\n0\n1\nsí\nuno\n")
 }
 
 func TestMapsNestedAndContextualRuntime(t *testing.T) {
@@ -249,5 +249,5 @@ fn inicio()
 	var valores = cajas[0].mapa.valores()
 	valores[0] = 99
 	imprimir(cajas[0].mapa[1] o 0)
-`, "1\n1\n28\n1\n0\ntrue\n7\n0\ntrue\n10\n")
+`, "1\n1\n28\n1\n0\nverdadero\n7\n0\nverdadero\n10\n")
 }

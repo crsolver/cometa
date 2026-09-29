@@ -92,7 +92,7 @@ fn inicio()
 	if err != nil {
 		t.Fatal(err)
 	}
-	runGeneratedGo(t, generated, "2\n{87 176 103 255}\nfuera\n{181 59 89 255}\n{0 0 0 0}\n")
+	runGeneratedGo(t, generated, "2\nNRGBA {r: 87, g: 176, b: 103, a: 255}\nfuera\nNRGBA {r: 181, g: 59, b: 89, a: 255}\nNRGBA {r: 0, g: 0, b: 0, a: 0}\n")
 	palette := map[rune]color.NRGBA{'.': {}, 'R': {181, 59, 89, 255}, 'B': {71, 114, 191, 255}, 'G': {87, 176, 103, 255}, 'W': {255, 249, 228, 255}, 'm': {128, 0, 127, 255}}
 	expectPNG(t, dir+"/marco.png", palette, "RRRRRRR", "RBGGGGR", "R.BGGGR", "R..BGGR", "R...BGR", "R....BR", "RRRRRRR")
 	expectPNG(t, dir+"/circulo.png", palette, "..WWW..", ".W...W.", "W.....W", "W.....W", "W.....W", ".W...W.", "..WWW..")

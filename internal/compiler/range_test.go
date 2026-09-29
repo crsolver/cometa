@@ -44,12 +44,22 @@ func TestRangesAreOnlyLoopSyntax(t *testing.T) {
 		"var rango = 0..5", "imprimir(0..5)", "var lista = [0..5]",
 		"repetir (..5) |i| imprimir(i)", "repetir (0..) |i| imprimir(i)",
 		"repetir (0..2..5) |i| imprimir(i)", "repetir (0...5) |i| imprimir(i)",
-		"repetir (0..5) imprimir(0)",
 	} {
 		t.Run(body, func(t *testing.T) {
 			if _, err := Compile("rango.cometa", []byte("fn inicio()\n\t"+body+"\n")); err == nil {
 				t.Fatal("expected invalid range syntax to fail")
 			}
 		})
+	}
+}
+
+func TestRangeLoopWithoutVariablesCompiles(t *testing.T) {
+	for _, body := range []string{
+		"repetir (0..3) imprimir(0)",
+		"repetir (3..0)\n\t\timprimir(0)",
+	} {
+		if _, err := Compile("rango.cometa", []byte("fn inicio()\n\t"+body+"\n")); err != nil {
+			t.Fatalf("%q: %v", body, err)
+		}
 	}
 }

@@ -149,6 +149,7 @@ func (d *TypeDecl) Position() Pos { return d.Pos }
 type Field struct {
 	Public   bool
 	Embedded bool
+	Default  Expr
 	Pos      Pos
 	Name     string
 	Type     TypeRef

@@ -214,3 +214,18 @@ func TestParsesListIndexAsFunctionArgument(t *testing.T) {
 		t.Fatalf("indexed object = %#v", index.Object)
 	}
 }
+
+func TestParsesRangeLoopWithoutVariables(t *testing.T) {
+	tokens, err := lexer.Lex("sin.cometa", "fn inicio()\n\trepetir (0..3)\n\t\timprimir(1)\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	program, err := Parse("sin.cometa", tokens)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loop := program.Decls[0].(*ast.FuncDecl).Body[0].(*ast.RepeatStmt)
+	if loop.RangeEnd == nil || loop.Element != "" || len(loop.Body) != 1 {
+		t.Fatalf("unexpected loop: %#v", loop)
+	}
+}

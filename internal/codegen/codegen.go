@@ -90,7 +90,9 @@ func Generate(filename string, program *ast.Program, model *sema.Model) ([]byte,
 		imports[path] = true
 	}
 	if usesPrint(program) {
-		imports[`"fmt"`] = true
+		for _, path := range []string{"fmt", "reflect", "sort", "strconv", "strings", "unicode"} {
+			imports[`"`+path+`"`] = true
+		}
 	}
 	if stringFeatures {
 		imports[`"strconv"`] = true
@@ -127,6 +129,9 @@ func Generate(filename string, program *ast.Program, model *sema.Model) ([]byte,
 	}
 	if stringFeatures {
 		g.write("%s\n", stringRuntime)
+	}
+	if usesPrint(program) {
+		g.write("%s\n", printRuntime)
 	}
 	if len(model.NumericCalls) > 0 || model.Game.Used {
 		g.write("%s\n", numericRuntime)
@@ -362,7 +367,9 @@ func (g *generator) emitRange(stmt *ast.RepeatStmt, indent int) {
 		g.line(indent, "%s:", g.loopLabel)
 	}
 	g.line(indent, "for %s := int64(0); (%s > 0 && %s < %s) || (%s < 0 && %s > %s); %s, %s = %s + %s, %s + 1 {", index, step, current, end, step, current, end, current, index, current, step, index)
-	g.line(indent+1, "%s := %s", localName(stmt.Element), current)
+	if stmt.Element != "" {
+		g.line(indent+1, "%s := %s", localName(stmt.Element), current)
+	}
 	if stmt.Index != "" {
 		g.line(indent+1, "%s := %s", localName(stmt.Index), index)
 	}
@@ -454,7 +461,7 @@ func (g *generator) rawExpr(expr ast.Expr) string {
 		switch called := expression.Callee.(type) {
 		case *ast.IdentExpr:
 			if called.Name == "imprimir" {
-				callee = "fmt.Println"
+				callee = "_hsimprimir"
 			} else if called.Name == "inicio" {
 				callee = "main"
 			} else {
@@ -473,7 +480,7 @@ func (g *generator) rawExpr(expr ast.Expr) string {
 		for index, field := range explicit {
 			fields[index] = g.fieldName(typeInfo, field.Name) + ": " + g.expr(field.Value)
 		}
-		fields = append(fields, g.defaultFields(typeInfo, explicit)...)
+		fields = append(fields, g.defaultFields(typeInfo, explicit, 0)...)
 		if stdlib.IsValue(typeInfo.Name) {
 			return goType(typeInfo) + "{" + strings.Join(fields, ", ") + "}"
 		}

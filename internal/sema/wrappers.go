@@ -275,6 +275,9 @@ func (c *checker) checkRequiredCycles(program *ast.Program) error {
 		defer delete(path, key)
 		info := c.model.StructInfo(t)
 		for _, field := range info.Decl.Fields {
+			if field.Default != nil {
+				continue
+			}
 			if err := visit(info.Fields[field.Name].Type, path, field.Pos); err != nil {
 				return err
 			}

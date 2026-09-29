@@ -195,7 +195,7 @@ mate.seno(angulo decimal) decimal
 mate.coseno(angulo decimal) decimal
 mate.atan2(y decimal, x decimal) decimal
 azar.real(minimo decimal, maximo decimal) decimal
-azar.entero(minimo entero, maximo entero) entero
+azar.entero(minimo entero, maximo entero) entero  // incluye minimo, excluye maximo: un dado es azar.entero(1, 7)
 color.rgba(r entero, g entero, b entero, a entero = 255) color.Color
 
 graficos.limpiar(color color.Color)

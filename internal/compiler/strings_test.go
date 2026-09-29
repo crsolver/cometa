@@ -31,7 +31,7 @@ fn inicio()
 	imprimir("abc".obtener(99) o "no")
 	imprimir("".dividir("").longitud())
 	imprimir("ab".reemplazar("", "-"))
-`, "Hola Ana\nHola Ana\nAna, 21, verdadero, ab\n${nombre}\n11\nfalse\ntrue\n5\ntrue\ntrue\n  ÁNA🙂ANA  \n  ána🙂ana  \nÁna🙂ana\nbXnXnX\n4\n🙂\nñ🙂\n\nno\n0\n-a-b-\n")
+`, "Hola Ana\nHola Ana\nAna, 21, verdadero, ab\n${nombre}\n11\nfalso\nverdadero\n5\nverdadero\nverdadero\n  ÁNA🙂ANA  \n  ána🙂ana  \nÁna🙂ana\nbXnXnX\n4\n🙂\nñ🙂\n\nno\n0\n-a-b-\n")
 }
 
 func TestStringDiagnosticsAndConstants(t *testing.T) {

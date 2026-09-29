@@ -32,7 +32,7 @@ func TestListMethodsRuntime(t *testing.T) {
 	imprimir(valores.longitud())
 	var vacia [entero] = []
 	imprimir(vacia.primero() o -1)
-`, "3\nfalse\ntrue\n1\n-1\n20\n-1\n10\n20\ntrue\ntrue\nfalse\ntrue\nfalse\n60\n999\n7\n-1\n")
+`, "3\nfalso\nverdadero\n1\n-1\n20\n-1\n10\n20\nverdadero\nverdadero\nfalso\nverdadero\nfalso\n60\n999\n7\n-1\n")
 }
 
 func TestListMutationReceiversAliasingAndOrder(t *testing.T) {

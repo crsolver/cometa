@@ -459,6 +459,40 @@ func (c *checker) checkFunction(function *ast.FuncDecl, receiver *TypeInfo) erro
 	return nil
 }
 
+func (c *checker) checkFieldDefaults(d *ast.TypeDecl) error {
+	oldVars, oldBindings, oldReads, oldScope := c.vars, c.bindings, c.reads, c.typeScope
+	oldReceiver, oldDefault := c.receiver, c.inDefault
+	defer func() {
+		c.vars, c.bindings, c.reads, c.typeScope = oldVars, oldBindings, oldReads, oldScope
+		c.receiver, c.inDefault = oldReceiver, oldDefault
+	}()
+	c.setScope(d)
+	c.vars = map[string]Type{}
+	c.bindings = map[string]*ast.VarDeclStmt{}
+	c.reads = map[*ast.VarDeclStmt]bool{}
+	c.receiver = nil
+	info := c.model.Types[d.Name]
+	for _, field := range d.Fields {
+		if field.Default == nil {
+			continue
+		}
+		expected := info.Fields[field.Name].Type
+		c.inDefault = true
+		actual, err := c.checkExprExpected(field.Default, &expected)
+		c.inDefault = false
+		if err != nil {
+			c.report(err)
+			c.damaged++
+			continue
+		}
+		if !c.model.Assignable(actual, expected) {
+			c.report(c.fail(field.Default.Position(), "el valor predeterminado de %q debe ser %s, no %s", field.Name, expected.String(), actual.String()))
+			c.damaged++
+		}
+	}
+	return nil
+}
+
 func (c *checker) checkGlobal(name string) (err error) {
 	if c.invalid[name] {
 		return errInvalid
@@ -873,10 +907,12 @@ func (c *checker) checkRepeat(stmt *ast.RepeatStmt) error {
 		} else {
 			elementType = *iterable.Elem
 		}
-		if _, exists := c.vars[stmt.Element]; exists {
-			return c.fail(stmt.Pos, "la variable %q ya fue declarada", stmt.Element)
+		if stmt.Element != "" {
+			if _, exists := c.vars[stmt.Element]; exists {
+				return c.fail(stmt.Pos, "la variable %q ya fue declarada", stmt.Element)
+			}
+			c.vars[stmt.Element] = elementType
 		}
-		c.vars[stmt.Element] = elementType
 		if stmt.Index != "" {
 			if stmt.Index == stmt.Element {
 				return c.fail(stmt.Pos, "las variables de elemento e índice deben tener nombres distintos")
@@ -1373,7 +1409,7 @@ func (c *checker) checkStructLiteral(expr *ast.StructLiteralExpr, expected *Type
 	}
 	for _, field := range info.Decl.Fields {
 		err := func() error {
-			if !seen[field.Name] {
+			if !seen[field.Name] && field.Default == nil {
 				if c.model.Types[result.Name].Fields[field.Name].Type.Kind == TypeParameter {
 					return c.fail(expr.Pos, "el campo %s requiere inicialización explícita", field.Name)
 				}

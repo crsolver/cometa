@@ -217,6 +217,9 @@ func (p *parser) parseTypeDecl() (*ast.TypeDecl, error) {
 				if parseErr != nil {
 					return parseErr
 				}
+				if p.at(token.Assign) {
+					return p.error(p.current(), "los campos embebidos no admiten valores predeterminados")
+				}
 				if _, parseErr = p.expect(token.Newline, "se esperaba el final del tipo embebido"); parseErr != nil {
 					return parseErr
 				}
@@ -231,10 +234,17 @@ func (p *parser) parseTypeDecl() (*ast.TypeDecl, error) {
 			if parseErr != nil {
 				return parseErr
 			}
+			field := &ast.Field{Public: public, Pos: fieldName.Pos, Name: fieldName.Lexeme, Type: fieldType}
+			if p.match(token.Assign) {
+				field.Default, parseErr = p.parseExpression(0)
+				if parseErr != nil {
+					return parseErr
+				}
+			}
 			if _, parseErr = p.expect(token.Newline, "se esperaba el final de la declaración del campo"); parseErr != nil {
 				return parseErr
 			}
-			decl.Fields = append(decl.Fields, &ast.Field{Public: public, Pos: fieldName.Pos, Name: fieldName.Lexeme, Type: fieldType})
+			decl.Fields = append(decl.Fields, field)
 			return nil
 		}()
 		if err != nil {
@@ -518,6 +528,16 @@ func (p *parser) parseRepeatStmt() (ast.Stmt, error) {
 		}
 		if _, err = p.expect(token.RParen, "se esperaba ')' después de la lista o rango del ciclo"); err != nil {
 			return nil, err
+		}
+		if stmt.RangeEnd != nil && !p.at(token.Pipe) {
+			// A range loop may omit its variables to just repeat N times.
+			stmt.Iterable = iterable
+			body, bodyErr := p.parseSuite()
+			if bodyErr != nil {
+				return nil, bodyErr
+			}
+			stmt.Body = body
+			return stmt, nil
 		}
 		if _, err = p.expect(token.Pipe, "se esperaba '|' antes de las variables del ciclo"); err != nil {
 			return nil, err

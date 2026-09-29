@@ -86,7 +86,7 @@ var FunctionDocs = map[string]string{
 
 	// azar
 	"azar.real":   "Un decimal aleatorio uniforme dentro de [minimo, maximo].",
-	"azar.entero": "Un entero aleatorio uniforme dentro de [minimo, maximo], ambos incluidos.",
+	"azar.entero": "Un entero aleatorio uniforme en [minimo, maximo): incluye minimo y excluye maximo, como los rangos a..b. Para un dado usa azar.entero(1, 7). Si minimo == maximo devuelve minimo.",
 
 	// color
 	"color.rgba": "Construye un Color a partir de sus componentes rojo, verde, azul y alfa (0-255 cada uno; alfa por defecto totalmente opaco).",

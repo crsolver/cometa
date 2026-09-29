@@ -55,7 +55,7 @@ fn inicio()
 	imprimir("${minimo} ${maximo}")
 	var grande = 9007199254740993
 	imprimir(decimal(grande) == 9007199254740992.0)
-`, "2\n-2\n-1\n2.5\n10\n5\n5\n5\n5\n5\n2\n-2\n2.5\n5\n5\n5\n5\n5\n-1\n5\n-9223372036854775808 9223372036854775807\ntrue\n")
+`, "2\n-2\n-1\n2.5\n10\n5\n5\n5\n5\n5\n2\n-2\n2.5\n5\n5\n5\n5\n5\n-1\n5\n-9223372036854775808 9223372036854775807\nverdadero\n")
 }
 
 func TestNumericSimpleAndFlowGeneration(t *testing.T) {
@@ -143,7 +143,7 @@ func TestNumericConversionFailureRuntime(t *testing.T) {
 		t.Fatal(err)
 	}
 	source := strings.Replace(string(generated), "func main() {", "func unusedMain() {", 1)
-	source = strings.Replace(source, `import "fmt"`, "import (\"fmt\"; \"math\")", 1)
+	source = strings.Replace(source, "import (", "import (\n\t\"math\"", 1)
 	source += `
 func main() {
  for _, v := range []float64{math.NaN(), math.Inf(1), math.Inf(-1), 9223372036854775808.0, -9223372036854777856.0} {

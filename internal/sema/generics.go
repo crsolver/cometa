@@ -1,9 +1,9 @@
 package sema
 
 import (
-	"fmt"
 	"cometa/internal/ast"
 	"cometa/internal/stdlib"
+	"fmt"
 	"sort"
 )
 
@@ -356,6 +356,9 @@ func (c *checker) check(program *ast.Program) (*Model, error) {
 		}
 		switch d := d.(type) {
 		case *ast.TypeDecl:
+			if err := c.checkFieldDefaults(d); err != nil {
+				c.report(err)
+			}
 			for _, method := range d.Methods {
 				if err := c.checkFunction(method, c.model.Types[d.Name]); err != nil {
 					c.report(err)

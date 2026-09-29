@@ -110,6 +110,7 @@ func (b *binder) bind() error {
 			d.Name = symbol
 			for _, f := range d.Fields {
 				b.typeRef(&f.Type)
+				f.Default = b.expr(f.Default, map[string]bool{})
 			}
 			for _, f := range d.Methods {
 				f.Receiver = symbol

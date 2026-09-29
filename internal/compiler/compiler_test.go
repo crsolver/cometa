@@ -56,7 +56,7 @@ func TestCompilesListAndInfiniteRepeats(t *testing.T) {
 		"indice := int64(indice)",
 		"continue",
 		"break",
-		"for {\n\t\tfmt.Println(\"hola\")",
+		"for {\n\t\t_hsimprimir(\"hola\")",
 	} {
 		if !strings.Contains(string(got), expected) {
 			t.Errorf("generated Go does not contain %q:\n%s", expected, got)

@@ -47,7 +47,7 @@ fn pintar() imprimir(0)
 		t.Fatal(err)
 	}
 	runnable := strings.Replace(string(generated), "func main() {", "func unusedMain() {", 1) + "\nfunc main() { Probar() }\n"
-	runGeneratedGo(t, []byte(runnable), "5\n6\n5\n6\n1\ntrue\ntrue\nfalse\nfalse\ntrue\n5\ntrue\n12\n")
+	runGeneratedGo(t, []byte(runnable), "5\n6\n5\n6\n1\nverdadero\nverdadero\nfalso\nfalso\nverdadero\n5\nverdadero\n12\n")
 }
 
 func TestGameConfigurationAndTransformsRuntime(t *testing.T) {

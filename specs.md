@@ -103,6 +103,26 @@ fn inicio()
 - Los literales de listas y estructuras crean valores nuevos en cada evaluación. Las referencias obtenidas de parámetros anteriores conservan su semántica habitual de compartir objetos y almacenamiento.
 - `inicio` sigue sin aceptar parámetros. Los constructores de enum e `imprimir` conservan sus reglas de argumentos.
 
+## Valores predeterminados de campos
+
+```cometa
+tipo Mascota
+	nombre cadena
+	energia entero = 10
+
+fn inicio()
+	var gato = Mascota {nombre: "Michi"}
+	imprimir(gato.energia)
+	var perro = Mascota {nombre: "Rex", energia: 3}
+	imprimir(perro.energia)
+```
+
+- Los campos de un `tipo` aceptan `nombre Tipo = expresión`. Un valor explícito en el literal, incluso `0`, `falso`, `""` o `[]`, sustituye al predeterminado; omitir el campo evalúa la expresión.
+- Cada expresión predeterminada se evalúa una sola vez por literal que omite ese campo, en el orden de declaración de los campos. Admite literales contextuales, llamadas a funciones y referencias a globales, pero no puede referirse a otros campos del mismo tipo (ni siquiera a sí mismo) ni usar `@`, porque no hay un receptor durante la construcción del literal.
+- Los literales de listas y estructuras usados como predeterminados crean valores nuevos en cada literal que los omite; no se comparten entre instancias distintas.
+- Un campo con valor predeterminado queda exento de la regla de inicialización obligatoria, incluyendo la de los ciclos de campos requeridos: un tipo autorreferencial que sería rechazado como ciclo sin valor predeterminado se acepta si el campo que cierra el ciclo lo tiene, aunque construir una instancia sin una anulación explícita que termine la recursión sigue siendo responsabilidad de quien llama.
+- Los campos embebidos no admiten valores predeterminados. Los campos declarados directamente como un parámetro de tipo `T` siguen requiriendo inicialización explícita en cada instanciación.
+
 ## Tipos
 
 | Cometa | Go |
@@ -398,7 +418,7 @@ tipo Contador
 		@valor = @valor + cantidad
 ```
 
-La función superior `inicio` debe escribirse exactamente como `fn inicio()` y se genera como `func main()`. `imprimir(valor)` acepta un valor y se genera como `fmt.Println(valor)`.
+La función superior `inicio` debe escribirse exactamente como `fn inicio()` y se genera como `func main()`. `imprimir(valor)` acepta un valor y lo escribe con un formateador propio de Cometa: `verdadero`/`falso`, cadenas entre comillas dentro de colecciones, listas `[1, 2]`, mapas `["a": 1]`, estructuras `Mascota {nombre: "Toby"}` y opcionales `Alguno(1)`/`Ninguno`. Las variantes de enum aún usan el formato de Go.
 
 ## Condicionales
 
@@ -545,6 +565,7 @@ Los rangos `inicio..final` solo se permiten dentro de los paréntesis de `repeti
 repetir (0..5) |i| imprimir(i) // 0, 1, 2, 3, 4
 repetir (5..0) |i|
 	imprimir(i) // 5, 4, 3, 2, 1
+repetir (0..3) imprimir("hola") // sin variables: repite 3 veces
 repetir (0..2) |valor, indice|
 	imprimir(valor) // 0.5, 1.5
 ```

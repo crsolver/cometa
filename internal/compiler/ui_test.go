@@ -38,6 +38,15 @@ func (*uiCheck) Update() error {
  _hgupdating=true;_hgtick++;root:=_hguiCuadro(c);root.Entrar();theme:=_hguiTema(_hguiFuente(&_hgFuente{source:fontSource},20));theme.Entrar();_hguiTexto("Texto TTF: áéñ",_hguiFijo(100),_hguiContenido(0,1e9),_hgColor{});theme.Salir();root.Salir();_hgupdating=false
  if len(c.previous[1].lines)<2 {panic("TTF did not wrap")}
  screen.Clear();_hguiPintar(c);pixels:=make([]byte,len(first));screen.ReadPixels(pixels);found:=false;for i:=3;i<len(pixels);i+=4{if pixels[i]>0{found=true;break}};if !found {panic("TTF text absent")}
+ _hgUIActive=nil;_hgtick++;_hgupdating=true
+ func(){
+  defer func(){r:=recover();if r==nil||!strings.Contains(fmt.Sprint(r),"expandir sin mínimo bajo contenido") {panic(fmt.Sprint("expected collapse error, got ",r))}}()
+  c2:=_hguiCrear();r2:=_hguiCuadro(c2);r2.Entrar()
+  fila:=_hguiFila("f",_hguiContenido(0,1e9),_hguiContenido(0,1e9),0,_hgBordes{},0,0,false);fila.Entrar()
+  _hguiBoton("b","x",_hguiExpandir(0,1e9),_hguiContenido(0,1e9),true)
+  fila.Salir();r2.Salir()
+ }()
+ _hgUIActive=nil
  fmt.Println("ok");return ebiten.Termination
 }
 func main(){ebiten.SetWindowVisible(false);ebiten.SetRunnableOnUnfocused(true);if err:=ebiten.RunGame(&uiCheck{});err!=nil{panic(err)}}

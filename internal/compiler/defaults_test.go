@@ -77,7 +77,7 @@ fn inicio()
 	imprimir(lista())
 	elegir()
 	elegir(.A, activo = falso, texto = "")
-`, "2\n2\n2\n2\nhola\ntrue\nA\nfalse\n")
+`, "2\n2\n2\n2\nhola\nverdadero\nA\nfalso\n")
 }
 
 func TestInvalidDefaults(t *testing.T) {

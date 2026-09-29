@@ -1,10 +1,10 @@
 package codegen
 
 import (
-	"fmt"
 	"cometa/internal/ast"
 	"cometa/internal/sema"
 	"cometa/internal/stdlib"
+	"fmt"
 	"strings"
 )
 
@@ -401,7 +401,7 @@ func (g *generator) flowRaw(e ast.Expr, t sema.Type, indent int) string {
 			}
 			fields = append(fields, g.fieldName(t, f.Name)+": "+value)
 		}
-		fields = append(fields, g.defaultFields(t, explicit)...)
+		fields = append(fields, g.defaultFields(t, explicit, indent)...)
 		if stdlib.IsValue(t.Name) {
 			return goType(t) + "{" + strings.Join(fields, ", ") + "}"
 		}
@@ -481,7 +481,7 @@ func (g *generator) flowCall(call *ast.CallExpr, indent int) string {
 	case *ast.IdentExpr:
 		callee = exported(v.Name)
 		if v.Name == "imprimir" {
-			callee = "fmt.Println"
+			callee = "_hsimprimir"
 		}
 		if v.Name == "inicio" {
 			callee = "main"
@@ -741,7 +741,7 @@ func (g *generator) literalFields(t sema.Type, literal *ast.StructLiteralExpr) [
 	return fields
 }
 
-func (g *generator) defaultFields(t sema.Type, supplied []ast.FieldValue) []string {
+func (g *generator) defaultFields(t sema.Type, supplied []ast.FieldValue, indent int) []string {
 	seen := map[string]bool{}
 	for _, f := range supplied {
 		seen[f.Name] = true
@@ -749,16 +749,27 @@ func (g *generator) defaultFields(t sema.Type, supplied []ast.FieldValue) []stri
 	var fields []string
 	info := g.model.StructInfo(t)
 	for _, field := range info.Decl.Fields {
-		ft := info.Fields[field.Name].Type
-		if !seen[field.Name] && ft.Kind == sema.Map {
-			fields = append(fields, g.fieldName(t, field.Name)+": make("+goType(ft)+")")
+		if seen[field.Name] {
+			continue
 		}
-		if !seen[field.Name] && ft.Kind == sema.Named {
+		ft := info.Fields[field.Name].Type
+		if field.Default != nil {
+			value := ""
+			if g.flow {
+				value = g.flowExpr(field.Default, indent)
+			}
+			if value == "" {
+				value = g.expr(field.Default)
+			}
+			fields = append(fields, g.fieldName(t, field.Name)+": "+value)
+		} else if ft.Kind == sema.Map {
+			fields = append(fields, g.fieldName(t, field.Name)+": make("+goType(ft)+")")
+		} else if ft.Kind == sema.Named {
 			if stdlib.IsValue(ft.Name) {
-				fields = append(fields, g.fieldName(t, field.Name)+": "+goType(ft)+"{"+strings.Join(g.defaultFields(ft, nil), ", ")+"}")
+				fields = append(fields, g.fieldName(t, field.Name)+": "+goType(ft)+"{"+strings.Join(g.defaultFields(ft, nil, indent), ", ")+"}")
 				continue
 			}
-			fields = append(fields, g.fieldName(t, field.Name)+": &"+namedGoType(ft)+"{"+strings.Join(g.defaultFields(ft, nil), ", ")+"}")
+			fields = append(fields, g.fieldName(t, field.Name)+": &"+namedGoType(ft)+"{"+strings.Join(g.defaultFields(ft, nil, indent), ", ")+"}")
 		}
 	}
 	if t.Name == stdlib.Symbol("Camara2D") && !seen["zoom"] {
@@ -796,7 +807,9 @@ func (g *generator) flowLoop(s *ast.RepeatStmt, indent int) {
 	} else if end != "" {
 		current, index := g.freshName(), g.freshName()
 		g.line(indent, "for %s, %s := %s, int64(0); (%s > 0 && %s < %s) || (%s < 0 && %s > %s); %s, %s = %s + %s, %s + 1 {", current, index, start, step, current, end, step, current, end, current, index, current, step, index)
-		g.line(indent+1, "%s := %s", localName(s.Element), current)
+		if s.Element != "" {
+			g.line(indent+1, "%s := %s", localName(s.Element), current)
+		}
 		if s.Index != "" {
 			g.line(indent+1, "%s := %s", localName(s.Index), index)
 		}

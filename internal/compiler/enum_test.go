@@ -114,7 +114,7 @@ fn inicio()
 	imprimir(contextual.caracter)
 	E.Numero(1)
 `
-	generated := runCometa(t, source, "A\nvalor\n2\nb\nc\ntexto\n3\ntrue\nlista\nanidado\n[]\n[]\ncontextual\n")
+	generated := runCometa(t, source, "A\nvalor\n2\nb\nc\ntexto\n3\nverdadero\nlista\nanidado\n[]\n[]\ncontextual\n")
 	for _, fragment := range []string{"payload2 *Boton", "payload6 []*E", "payload7 *E", "switch", "func() string", "func() *Boton"} {
 		if !strings.Contains(string(generated), fragment) {
 			t.Errorf("missing %q in generated storage/match code", fragment)

@@ -104,7 +104,7 @@ fn inicio()
 	imprimir(c.leer(valor = c.n, ignorado = cambiar(c)))
 	imprimir(logica() capturar falso)
 	delegar() capturar |error| imprimir(error)
-`, "12\ntrue\nfalse\n")
+`, "12\nverdadero\nfalso\n")
 }
 
 func TestReturnsInsideValueConstruction(t *testing.T) {

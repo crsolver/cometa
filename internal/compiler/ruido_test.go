@@ -70,7 +70,7 @@ fn inicio()
 	imprimir(r.suave(0, 0) == r.suave(y = 0, x = 0, semilla = 0))
 	imprimir(r.fractal(1, 2) == r.fractal(lacunaridad = 2, persistencia = 0.5, octavas = 4, semilla = 0, y = 2, x = 1))
 	imprimir(r.fractal(1, 2, octavas = 1, semilla = 42) == r.suave(1, 2, 42))
-`, "true\ntrue\ntrue\n")
+`, "verdadero\nverdadero\nverdadero\n")
 	for _, source := range []string{
 		"fn inicio() imprimir(ruido.suave(0, 0))\n",
 		"usar std/mate\nfn inicio() imprimir(ruido.suave(0, 0))\n",
@@ -92,7 +92,7 @@ fn inicio()
 	if err != nil {
 		t.Fatal(err)
 	}
-	runGeneratedGo(t, generated, "true\n")
+	runGeneratedGo(t, generated, "verdadero\n")
 }
 
 func TestNoiseExample(t *testing.T) {
@@ -111,5 +111,5 @@ fn inicio()
 	imprimir(t != terreno(43))
 	imprimir(c != cuevas(43))
 `)...)
-	runCometa(t, string(source), "true\ntrue\ntrue\ntrue\n")
+	runCometa(t, string(source), "verdadero\nverdadero\nverdadero\nverdadero\n")
 }

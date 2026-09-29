@@ -3,7 +3,7 @@
 tipo Mascota
 	nombre cadena
 	especie cadena
-	energia entero
+	energia entero = 10 // valor predeterminado: se usa si el literal omite el campo
 
 	// Dentro de un método, @ accede a los campos del propio objeto.
 	fn jugar()
@@ -32,3 +32,7 @@ fn inicio()
 	var mismo = perro
 	mismo.nombre = "Toby Jr."
 	imprimir(perro.nombre)
+
+	// Al omitir "energia" en el literal, se usa su valor predeterminado.
+	var gato = Mascota {nombre: "Michi", especie: "gato"}
+	imprimir(gato.estado())
