@@ -33,3 +33,15 @@ fn inicio()
 	imprimir(7 / 2)    // 3: la división entre enteros descarta los decimales
 	imprimir(7 % 2)    // 1: el resto de la división
 	imprimir(7.0 / 2)  // 3.5: con un decimal el resultado es decimal
+
+	// Convertir entre texto y números.
+	// a_entero y a_decimal devuelven .Ninguno si el texto no es un número, así que
+	// se usan con "o" para dar un valor por defecto.
+	var entrada = "42"
+	var numero = entrada.a_entero() o 0
+	imprimir(numero + 1)              // 43
+	imprimir("abc".a_entero() o -1)   // -1
+	imprimir("Puntos: " + cadena(numero))
+	// formato escribe un número con la cantidad de decimales que quieras.
+	var precio = 3.14159
+	imprimir(precio.formato(2))       // 3.14

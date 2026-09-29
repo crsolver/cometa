@@ -49,7 +49,7 @@ The machine has two Go installations. `C:\msys64\mingw64\bin\go.exe` reports Go 
 
 - `std/mate/curvas` exposes 31 pure scalar easing functions under `curvas`: `lineal` plus ten families with `_entrada`, `_salida`, `_entrada_salida`. Inputs clamp to [0, 1] with exact endpoints; elastic/back output overshoot is preserved. No tween state or Ebitengine dependency. See `docs/curvas.md`, `examples/pincel/08_curvas.cometa`, and `internal/stdlib/curvas_runtime.txt`.
 
-- Library APIs require explicit per-file imports: `std/mate`, `std/azar`, and `std/pincel` (core: `ejecutar`, `Juego`) plus individual `std/pincel/{graficos,color,entrada,audio,ventana,tiempo,recursos}` modules; `std/pincel` does not import submodules. Aliases use `como`; local `./std/` paths remain filesystem imports.
+- Library APIs require explicit per-file imports: `std/mate`, `std/azar`, and `std/pincel` (core: `ejecutar`, `Juego`) plus individual `std/pincel/{graficos,color,entrada,audio,ventana,tiempo,recursos,rejilla,datos}` modules; `std/pincel` does not import submodules. Aliases use `como`; local `./std/` paths remain filesystem imports.
 - Types are qualified: `mate.Vec2`, `mate.Rect`, `color.Color`, etc. Contextual literals/constants remain supported. Former library names are not globally reserved.
 - Games start from `inicio()` through `pincel.ejecutar(instancia, ...configuracion) !`. The object implements `pincel.Juego` with `pub fn actualizar(dt decimal)` and `pub fn pintar()` methods. No automatic callbacks or `pincel.configuracion`.
 - Drawing phase checks live in the library runtime. Resource embedding still requires direct global constructors with literal module-relative paths.
@@ -108,6 +108,28 @@ The machine has two Go installations. `C:\msys64\mingw64\bin\go.exe` reports Go 
 - `vscode-extension/src/extension.ts`: VS Code language client. It launches the configured/default executable with `lsp` and explicit stdio transport.
 - `vscode-extension/scripts/build-server.js`: cross-platform Go build helper and local-cache setup.
 
+## Errors, run diagnostics and releases
+
+- `ejecutar`/`construir`/`captura` compile with `compiler.CompileProjectForRun`, which emits `//line file.cometa:N` before each statement (`codegen.Options.LineDirectives`; `compilar` output has none, so goldens are unaffected). Go panics and `go build` errors then carry Cometa lines. `cmd/cometa/errors.go` filters the game's stderr (`crashFilter`), translates the panic into Spanish with the source line, and classifies `go build` failures (no network, old Go, missing native libs, internal codegen bugs). Missing Go is detected in `goExecutable`; a slow first build prints a notice after 4 s.
+- "¿Quisiste decir…?" comes from `diagnostic.Suggest/Hint` (bind.go names, sema members/methods/variants); `diagnostic.Foreign` maps keywords from other languages (`while`, `if`, `print`…). Parser errors that start with "se esperaba" get ", pero se encontró …" plus `+=`/`++`/reserved-word hints (`parser.foundSuffix`).
+- `imprimir` spells enum variants and results (`Evento.Texto("hola")`, `Ok(1)`, `Error("x")`) using `_hsenumNombres`, registered per enum in generated `init` functions only when `imprimir` is used.
+- `cometa --version` reports `main.version`, injected by GoReleaser (`.goreleaser.yaml`). `.github/workflows/ci.yml` runs vet/tests on three OSes and the extension build; `release.yml` publishes archives and per-platform `.vsix` on `v*` tags. Neither workflow has been run yet.
+
+## Language ergonomics added in the beta push
+
+- `x op= v` (`+= -= *= /= %=`) is desugared in the parser to `x = x op v` with a second, independently parsed copy of the target; targets containing calls are rejected so nothing runs twice, and `AssignStmt.Compound` lets sema reject map entries with a clear message.
+- `mientras cond` is desugared in the parser to an infinite `repetir` whose first statement is `si !cond romper`, so sema/codegen have no new loop kind (`continuar` re-tests the condition).
+- `casos` over `entero`/`cadena`/`bool` uses `MatchArm.Literals` (parser: `enum.go`), `internal/sema/scalar_match.go` and `emitScalarMatch`/the scalar branch of `flowMatch` (Go `switch`). Arms may also name top-level `const`s with a plain literal value (a lone identifier parses as a type pattern; `checker.constantLabel` converts it, and lists go through `parseLabel`; duplicates are detected by value). A final `_` is required except for a complete `bool` match; decimals and `|x|` bindings are rejected.
+- `cadena(x)` is parsed as the interpolation `"${x}"`. `a_entero()`/`a_decimal()` are string methods (`StringCalls`); `formato(n)` lives on numbers (`internal/sema/numbers.go`, `Model.NumberCalls`, `flowNumberCall`).
+- Every user `tipo` has a built-in shallow `copiar()` (`Model.StructCopies`); a user-declared `copiar` wins. `enum == .Variante` (unit variants only) is recorded in `Model.EnumCompares` and lowered to a tag comparison.
+- `num` is no longer a keyword; using it as a type still reports "el tipo num fue eliminado".
+
+## Pincel additions (beta push)
+
+- New stdlib code lives in `internal/stdlib/extra_runtime.txt` (embedded and tree-shaken like the other runtimes): `azar.semilla` (a private PCG generator), `datos` (JSON key-value store under `os.UserConfigDir()/cometa/<dir>-<file>/`; codegen defines `_hgdatosCarpeta` when `std/pincel/datos` is imported, see `dataFolder`), standard-layout gamepads (`BotonMando`/`EjeMando`), `graficos.Hoja` (`graficos.hoja(imagen, w, h)` wraps any `Imagen`, so no asset-plumbing changes) and `rejilla.Rejilla` (integer grid, methods on a pointer type, `choca` for solid-cell collision, `dibujar` culls off-screen cells). Vec2/Rect helpers, `mate` extras, `graficos.medir_texto`, `retro.ancho_texto`, `pincel.salir` and extra `Tecla` constants live in `runtime.txt`/`catalog.go`.
+- Every catalog entry needs `FunctionDocs`/`MethodDocs`/`TypeDocs` (`docs_test.go` enforces it) and new type names must be added to both `typeName` regexes (`modules.go`, `ui.go`), `TypeModules`, `Fields` and `IsValue` when they are value types.
+- Real Go type-checking of game runtime code only happens in `cometa construir/ejecutar`; `compilar` validates syntax only. After touching runtime `.txt` files, build a scratch game with the new API. Console-only pieces (rejilla, azar, datos, mate) are covered by `internal/compiler/pincel_extras_test.go` without Ebitengine.
+
 ## LSP and VS Code details
 
 - `vscode-languageclient v10.1.1` appends `--stdio` when `TransportKind.stdio` is configured. Do not remove support for `cometa lsp --stdio`; doing so causes immediate server exit, `EPIPE`, and a VS Code restart loop.
@@ -134,7 +156,7 @@ The machine has two Go installations. `C:\msys64\mingw64\bin\go.exe` reports Go 
 - Use `apply_patch` for source edits.
 - Preserve user-created or generated files unless their ownership is certain. A root-level `usuario.go` may exist from manual testing.
 - `experiments/`, `bin/`, `out/`, `node_modules/`, `.cache/`, `.gocache/`, `.gomodcache/`, and `.gotmp/` are intentionally ignored.
-- Keep `specs.md`, `README.md`, VS Code metadata, examples, and tests synchronized with language changes.
+- `README.md` is a short Spanish landing page (install, first program, links); language reference belongs in `specs.md` and `docs/`. Keep `specs.md`, `README.md`, VS Code metadata, examples, and tests synchronized with language changes.
 - `examples/` is for learners: short, commented, runnable programs in `basico/` (console) and `pincel/` (games), indexed by `examples/README.md`. `TestNumericExamples` compiles every `examples/*/*.cometa`; deeper files are imported modules. Keep large showcase games out of it.
 - `MEJORAS.md` is the backlog of language/stdlib rough edges found while writing Cometa code. Add an entry (observed, problem, possible fix) whenever you hit one; remove it when fixed.
 - `experiments/` is ignored by Git and holds local experiments and showcase games (huerto, plataformas, escape_retro, etc.). Never make tests or docs depend on it; copy programs that tests need into `internal/compiler/testdata/programas/`.

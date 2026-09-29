@@ -158,6 +158,9 @@ type Model struct {
 	ListCalls        map[*ast.CallExpr]string
 	MapCalls         map[*ast.CallExpr]string
 	StringCalls      map[*ast.CallExpr]string
+	NumberCalls      map[*ast.CallExpr]string
+	StructCopies     map[*ast.CallExpr]Type // built-in copiar() calls on user structs
+	EnumCompares     map[*ast.BinaryExpr]EnumCompare
 	LocalNames       map[string]bool
 	Enums            map[string]*EnumInfo
 	Constructors     map[ast.Expr]ConstructorInfo
@@ -251,6 +254,9 @@ func newChecker(filename string) *checker {
 		ListCalls:     map[*ast.CallExpr]string{},
 		MapCalls:      map[*ast.CallExpr]string{},
 		StringCalls:   map[*ast.CallExpr]string{},
+		NumberCalls:   map[*ast.CallExpr]string{},
+		StructCopies:  map[*ast.CallExpr]Type{},
+		EnumCompares:  map[*ast.BinaryExpr]EnumCompare{},
 		LocalNames:    map[string]bool{},
 		ExpectedTypes: map[ast.Expr]Type{},
 		PatternTypes:  map[*ast.MatchArm]Type{},
@@ -771,6 +777,11 @@ func (c *checker) checkStatement(stmt ast.Stmt) error {
 		if err != nil {
 			return err
 		}
+		if index, ok := statement.Target.(*ast.IndexExpr); ok && statement.Compound != "" {
+			if objectType, known := c.model.ExprTypes[index.Object]; known && objectType.Kind == Map {
+				return c.fail(statement.Pos, "'%s=' no funciona con entradas de un mapa porque la clave puede no existir; escribe m[k] = (m[k] o 0) %s valor", statement.Compound, statement.Compound)
+			}
+		}
 		value, err := c.checkExprExpected(statement.Value, &target)
 		if err != nil {
 			return err
@@ -971,7 +982,7 @@ func (c *checker) assignmentTarget(expr ast.Expr) (Type, error) {
 		if !exists {
 			global := c.model.Globals[target.Name]
 			if global == nil {
-				return Type{}, c.fail(target.Pos, "el nombre %q no existe; los campos requieren '@'", target.Name)
+				return Type{}, c.fail(target.Pos, "el nombre %q no existe%s", target.Name, c.nameHint(target.Name))
 			}
 			if global.Constant {
 				return Type{}, c.fail(target.Pos, "la constante %q no puede reasignarse", target.Name)
@@ -997,7 +1008,7 @@ func (c *checker) assignmentTarget(expr ast.Expr) (Type, error) {
 		}
 		field := member.Field
 		if field.Decl == nil {
-			return Type{}, c.fail(target.Pos, "el campo %q no existe en %s", target.Name, c.receiver.Decl.Name)
+			return Type{}, c.fail(target.Pos, "el campo %q no existe en %s%s", target.Name, c.receiver.Decl.Name, diagnostic.Hint(target.Name, sortedKeys(c.model.Members(c.receiverType()))))
 		}
 		c.model.ExprTypes[target] = field.Type
 		return field.Type, nil
@@ -1020,7 +1031,7 @@ func (c *checker) assignmentTarget(expr ast.Expr) (Type, error) {
 		}
 		field := member.Field
 		if field.Decl == nil {
-			return Type{}, c.fail(target.Pos, "el campo %q no existe en %s", target.Name, objectType.Name)
+			return Type{}, c.fail(target.Pos, "el campo %q no existe en %s%s", target.Name, objectType.Name, diagnostic.Hint(target.Name, sortedKeys(c.model.Members(objectType))))
 		}
 		c.model.ExprTypes[target] = field.Type
 		return field.Type, nil
@@ -1091,7 +1102,7 @@ func (c *checker) checkExpression(expr ast.Expr, expected *Type) (Type, error) {
 		case "entero":
 			result = Type{Kind: Integer}
 			if _, parseErr := strconv.ParseInt(expression.Value, 10, 64); parseErr != nil {
-				err = c.fail(expression.Pos, "literal entero fuera del rango de int64")
+				err = c.fail(expression.Pos, "literal entero fuera del rango de entero (el máximo es 9223372036854775807)")
 			}
 		case "decimal":
 			result = Type{Kind: Decimal}
@@ -1118,7 +1129,7 @@ func (c *checker) checkExpression(expr ast.Expr, expected *Type) (Type, error) {
 				break
 			}
 			if t.Kind != String && !t.Numeric() && t.Kind != Boolean && t.Kind != Never {
-				err = c.fail(part.Expr.Position(), "la interpolación requiere cadena, entero o bool, no %s", t.String())
+				err = c.fail(part.Expr.Position(), "la interpolación requiere cadena, entero, decimal o bool, no %s", t.String())
 				break
 			}
 		}
@@ -1144,7 +1155,7 @@ func (c *checker) checkExpression(expr ast.Expr, expected *Type) (Type, error) {
 				result = global.Type
 				c.model.GlobalRefs[expression] = global
 			} else {
-				err = c.fail(expression.Pos, "el nombre %q no existe; los campos requieren '@'", expression.Name)
+				err = c.fail(expression.Pos, "el nombre %q no existe%s", expression.Name, c.nameHint(expression.Name))
 			}
 		}
 	case *ast.ReceiverExpr:
@@ -1170,7 +1181,7 @@ func (c *checker) checkExpression(expr ast.Expr, expected *Type) (Type, error) {
 			if member.Method.Decl != nil {
 				err = c.fail(expression.Pos, "el método @%s debe llamarse con paréntesis", expression.Name)
 			} else {
-				err = c.fail(expression.Pos, "el miembro %q no existe en %s", expression.Name, c.receiver.Decl.Name)
+				err = c.fail(expression.Pos, "el miembro %q no existe en %s%s", expression.Name, c.receiver.Decl.Name, diagnostic.Hint(expression.Name, sortedKeys(c.model.Members(c.receiverType()))))
 			}
 		} else {
 			result = field.Type
@@ -1203,7 +1214,7 @@ func (c *checker) checkExpression(expr ast.Expr, expected *Type) (Type, error) {
 			if _, exists := c.model.Methods(objectType)[expression.Name]; exists {
 				err = c.fail(expression.Pos, "el método %s.%s debe llamarse con paréntesis", objectType.String(), expression.Name)
 			} else {
-				err = c.fail(expression.Pos, "el miembro %q no existe en %s", expression.Name, objectType.String())
+				err = c.fail(expression.Pos, "el miembro %q no existe en %s%s", expression.Name, objectType.String(), diagnostic.Hint(expression.Name, sortedKeys(c.model.Methods(objectType))))
 			}
 			break
 		}
@@ -1211,7 +1222,7 @@ func (c *checker) checkExpression(expr ast.Expr, expected *Type) (Type, error) {
 			if _, exists := StringMethods()[expression.Name]; exists {
 				err = c.fail(expression.Pos, "el método cadena.%s debe llamarse con paréntesis", expression.Name)
 			} else {
-				err = c.fail(expression.Pos, "el miembro %q no existe en cadena", expression.Name)
+				err = c.fail(expression.Pos, "el miembro %q no existe en cadena%s", expression.Name, diagnostic.Hint(expression.Name, sortedKeys(StringMethods())))
 			}
 			break
 		}
@@ -1229,7 +1240,7 @@ func (c *checker) checkExpression(expr ast.Expr, expected *Type) (Type, error) {
 		} else if member.Method.Decl != nil {
 			err = c.fail(expression.Pos, "el método %s.%s debe llamarse con paréntesis", objectType.Name, expression.Name)
 		} else {
-			err = c.fail(expression.Pos, "el miembro %q no existe en %s", expression.Name, objectType.Name)
+			err = c.fail(expression.Pos, "el miembro %q no existe en %s%s", expression.Name, objectType.Name, diagnostic.Hint(expression.Name, sortedKeys(c.model.Members(objectType))))
 		}
 	case *ast.IndexExpr:
 		result, err = c.checkIndex(expression)
@@ -1387,7 +1398,7 @@ func (c *checker) checkStructLiteral(expr *ast.StructLiteralExpr, expected *Type
 			seen[value.Name] = true
 			field, exists := info.Fields[value.Name]
 			if !exists {
-				return c.fail(value.Pos, "el campo %q no existe en %s", value.Name, result.Name)
+				return c.fail(value.Pos, "el campo %q no existe en %s%s", value.Name, result.Name, diagnostic.Hint(value.Name, sortedKeys(info.Fields)))
 			}
 			if !ast.Accessible(field.Decl.Public, field.Decl.Pos, value.Pos) {
 				return c.fail(value.Pos, "el campo %q es privado", value.Name)
@@ -1499,6 +1510,11 @@ func (c *checker) checkUnary(expr *ast.UnaryExpr) (Type, error) {
 }
 
 func (c *checker) checkBinary(expr *ast.BinaryExpr) (Type, error) {
+	if expr.Operator == "==" || expr.Operator == "!=" {
+		if t, handled, err := c.checkContextualEnumEquality(expr); handled {
+			return t, err
+		}
+	}
 	left, err := c.checkExpr(expr.Left)
 	right, rightErr := c.checkExpr(expr.Right)
 	if err != nil || rightErr != nil {
@@ -1548,6 +1564,15 @@ func (c *checker) checkBinary(expr *ast.BinaryExpr) (Type, error) {
 			return Type{Kind: Boolean}, nil
 		}
 	case "==", "!=":
+		if left.Kind == Enum && left.Equal(right) {
+			for _, pair := range [][2]ast.Expr{{expr.Right, expr.Left}, {expr.Left, expr.Right}} {
+				if constructor, ok := c.model.Constructors[pair[0]]; ok && constructor.Variant.Payload.Kind == Void {
+					c.model.EnumCompares[expr] = EnumCompare{Value: pair[1], Tag: constructor.Variant.Tag}
+					return Type{Kind: Boolean}, nil
+				}
+			}
+			return Type{}, c.fail(expr.Pos, "los enums solo se comparan con una variante sin payload (estado == .Corriendo); para lo demás usa casos")
+		}
 		if left.Equal(right) && left.Kind != Void && left.Kind != Never && left.Kind != Slice && left.Kind != Map && left.Kind != Enum && left.Kind != Interface && left.Kind != TypeParameter && !left.Wrapped() {
 			return Type{Kind: Boolean}, nil
 		}
@@ -1620,7 +1645,7 @@ func (c *checker) checkCall(call *ast.CallExpr) (Type, error) {
 	case *ast.InstantiateExpr:
 		base, exists := c.model.Functions[callee.Name]
 		if !exists {
-			return Type{}, c.fail(callee.Pos, "la función %q no existe", callee.Name)
+			return Type{}, c.fail(callee.Pos, "la función %q no existe%s", callee.Name, c.nameHint(callee.Name))
 		}
 		var err error
 		signature, err = c.instantiateFunction(base, callee.Args, callee.Pos)
@@ -1649,7 +1674,7 @@ func (c *checker) checkCall(call *ast.CallExpr) (Type, error) {
 		var exists bool
 		signature, exists = c.model.Functions[callee.Name]
 		if !exists {
-			return Type{}, c.fail(callee.Pos, "la función %q no existe", callee.Name)
+			return Type{}, c.fail(callee.Pos, "la función %q no existe%s", callee.Name, c.nameHint(callee.Name))
 		}
 	case *ast.ReceiverExpr:
 		if callee.Name == "" {
@@ -1664,7 +1689,7 @@ func (c *checker) checkCall(call *ast.CallExpr) (Type, error) {
 		}
 		signature = member.Method
 		if signature.Decl == nil {
-			return Type{}, c.fail(callee.Pos, "el método %q no existe en %s", callee.Name, c.receiver.Decl.Name)
+			return Type{}, c.fail(callee.Pos, "el método %q no existe en %s%s", callee.Name, c.receiver.Decl.Name, diagnostic.Hint(callee.Name, sortedKeys(c.model.Members(c.receiverType()))))
 		}
 	case *ast.MemberExpr:
 		objectType, err := c.checkExpr(callee.Object)
@@ -1680,8 +1705,22 @@ func (c *checker) checkCall(call *ast.CallExpr) (Type, error) {
 		if objectType.Kind == String {
 			return c.checkStringCall(call, callee)
 		}
+		if objectType.Numeric() {
+			return c.checkNumberCall(call, callee)
+		}
 		if objectType.Kind != Named && objectType.Kind != Interface && objectType.Kind != TypeParameter {
 			return Type{}, c.fail(callee.Pos, "%s no tiene métodos", objectType.String())
+		}
+		// Every user-declared tipo has a built-in shallow copiar(), unless the
+		// type (or something it embeds) declares its own.
+		if objectType.Kind == Named && callee.Name == "copiar" && c.model.Types[objectType.Name] != nil && stdlib.GoType(objectType.Name) == "" {
+			if _, defined := c.model.Methods(objectType)["copiar"]; !defined {
+				if len(call.Args) != 0 {
+					return Type{}, c.fail(call.Pos, "copiar no acepta argumentos")
+				}
+				c.model.StructCopies[call] = objectType
+				return objectType, nil
+			}
 		}
 		var exists bool
 		if objectType.Kind == Named {
@@ -1691,7 +1730,7 @@ func (c *checker) checkCall(call *ast.CallExpr) (Type, error) {
 		}
 		signature, exists = c.model.Methods(objectType)[callee.Name]
 		if !exists {
-			return Type{}, c.fail(callee.Pos, "el método %q no existe en %s", callee.Name, objectType.Name)
+			return Type{}, c.fail(callee.Pos, "el método %q no existe en %s%s", callee.Name, objectType.Name, diagnostic.Hint(callee.Name, sortedKeys(c.model.Members(objectType))))
 		}
 	default:
 		return Type{}, c.fail(call.Pos, "solo se pueden llamar funciones o métodos del receptor")
@@ -1779,4 +1818,31 @@ func (c *checker) fail(pos ast.Pos, format string, args ...any) error {
 		filename = pos.Filename
 	}
 	return &Error{Filename: filename, Pos: pos, Message: fmt.Sprintf(format, args...)}
+}
+
+// sortedKeys lists map keys so suggestions do not depend on iteration order.
+func sortedKeys[V any](m map[string]V) []string {
+	keys := make([]string, 0, len(m))
+	for key := range m {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// nameHint explains an unknown name: a missing '@', a keyword borrowed from
+// another language, or a close spelling of something in scope.
+func (c *checker) nameHint(name string) string {
+	if c.receiver != nil {
+		if _, ok := c.model.Members(c.receiverType())[name]; ok {
+			return "; para usar un campo o método del objeto escribe '@" + name + "'"
+		}
+	}
+	if foreign := diagnostic.Foreign(name); foreign != "" {
+		return "; " + foreign
+	}
+	candidates := sortedKeys(c.vars)
+	candidates = append(candidates, sortedKeys(c.model.Globals)...)
+	candidates = append(candidates, sortedKeys(c.model.Functions)...)
+	return diagnostic.Hint(name, candidates)
 }

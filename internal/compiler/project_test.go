@@ -146,8 +146,8 @@ func TestProjectFailures(t *testing.T) {
 		{"duplicate", "usar a\nusar ./a como otro\n", "", "", "duplicada"},
 		{"alias", "usar a\npub fn a()\n\timprimir(1)\n", "", "", "conflicto"},
 		{"entry", "usar a\n", "fn inicio() imprimir(1)\n", "", "inicio"},
-		{"reexport", "usar a\nfn inicio() a.b.f()\n", "usar b\n", "pub fn f() imprimir(1)\n", "desconocida"},
-		{"leak", "usar a\nfn inicio() f()\n", "pub fn f() imprimir(1)\n", "", "desconocida"},
+		{"reexport", "usar a\nfn inicio() a.b.f()\n", "usar b\n", "pub fn f() imprimir(1)\n", "no tiene"},
+		{"leak", "usar a\nfn inicio() f()\n", "pub fn f() imprimir(1)\n", "", "no existe"},
 		{"nominal", "usar a\nusar b\npub fn f(valor a.Usuario)\n\timprimir(valor)\nfn inicio() f(b.Usuario {})\n", "pub tipo Usuario\n\tpub x entero\n", "pub tipo Usuario\n\tpub x entero\n", "Usuario"},
 		{"dependency error", "usar a\n", "pub fn f() entero \"error\"\n", "", "entero"},
 	} {

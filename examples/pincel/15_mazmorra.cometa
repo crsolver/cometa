@@ -1,0 +1,186 @@
+// Pincel: un roguelike por turnos, repartido en dos archivos.
+// Aprenderás a usar un módulo (mazmorra/nivel.cometa genera el mapa), a repetir
+// una partida con la misma semilla del azar y a manejar escenas con un enum.
+//
+// Menú: izquierda/derecha cambian la semilla, Enter empieza.
+// Juego: flechas o WASD mueven un paso (los enemigos responden); chocar contra uno lo ataca.
+// Baja las escaleras (>) para pasar al siguiente piso. Llega al piso 3 para ganar.
+usar std/mate
+usar std/azar
+usar std/pincel
+usar std/pincel/graficos
+usar std/pincel/color
+usar std/pincel/entrada
+usar std/pincel/rejilla
+usar std/pincel/retro
+usar mazmorra/nivel
+
+const tam entero = 8
+const pisos entero = 3
+
+enum Escena
+	Menu
+	Jugando
+	Ganaste
+	Muerto
+
+tipo Criatura
+	x entero
+	y entero
+	vida entero
+	simbolo cadena
+	color color.Color
+
+tipo Partida
+	escena Escena = .Menu
+	semilla entero = 1
+	piso entero
+	mapa rejilla.Rejilla
+	heroe Criatura
+	enemigos [Criatura]
+	salida_x entero
+	salida_y entero
+	mensaje cadena
+
+	// Crea el piso actual: la semilla y el piso dan siempre la misma mazmorra.
+	fn crear_piso()
+		var generado = nivel.generar(@semilla * 10 + @piso)
+		@mapa = generado.mapa
+		@heroe.x = generado.centros_x[0]
+		@heroe.y = generado.centros_y[0]
+		var ultimo = generado.centros_x.longitud() - 1
+		@salida_x = generado.centros_x[ultimo]
+		@salida_y = generado.centros_y[ultimo]
+		@enemigos = []
+		// Un enemigo en cada sala, salvo en la de entrada y la de la escalera.
+		repetir (1..ultimo) |sala|
+			var vida = 3 + @piso
+			@enemigos.agregar(Criatura {x: generado.centros_x[sala], y: generado.centros_y[sala], vida: vida, simbolo: "g", color: .Verde})
+
+	fn empezar()
+		@piso = 1
+		@heroe = Criatura {vida: 10, simbolo: "@", color: .Amarillo}
+		@mensaje = ""
+		@crear_piso()
+		@escena = .Jugando
+
+	// ¿Hay algún enemigo en esa casilla?
+	fn enemigo_en(x entero, y entero) Criatura?
+		repetir (@enemigos) |enemigo|
+			si enemigo.x == x && enemigo.y == y
+				retornar enemigo
+		.Ninguno
+
+	fn libre(x entero, y entero) bool
+		var valor = @mapa.obtener(x, y) o nivel.pared
+		var hay_enemigo = falso
+		si @enemigo_en(x, y) |otro|
+			hay_enemigo = verdadero
+		valor == nivel.suelo && !hay_enemigo && !(x == @heroe.x && y == @heroe.y)
+
+	fn mover_heroe(dx entero, dy entero)
+		var x = @heroe.x + dx
+		var y = @heroe.y + dy
+		si @enemigo_en(x, y) |enemigo|
+			var dano = azar.entero(1, 5)
+			enemigo.vida -= dano
+			@mensaje = "Golpeas al goblin (-${dano})"
+			si enemigo.vida <= 0
+				@mensaje = "¡Derrotaste al goblin!"
+				si @enemigos.buscar_indice(enemigo) |i|
+					@enemigos.eliminar(i)
+		osi @libre(x, y)
+			@heroe.x = x
+			@heroe.y = y
+		sino
+			// Chocar contra una pared no gasta el turno.
+			@mensaje = ""
+
+	fn turno_enemigos()
+		repetir (@enemigos) |enemigo|
+			var dx = @heroe.x - enemigo.x
+			var dy = @heroe.y - enemigo.y
+			si mate.absoluto(dx) + mate.absoluto(dy) == 1
+				var dano = azar.entero(1, 3)
+				@heroe.vida -= dano
+				@mensaje = "El goblin te muerde (-${dano})"
+			osi mate.absoluto(dx) + mate.absoluto(dy) < 8
+				// Da un paso hacia el héroe por el eje donde está más lejos.
+				var paso_x = 0
+				var paso_y = 0
+				si mate.absoluto(dx) >= mate.absoluto(dy)
+					paso_x = mate.signo(dx)
+				sino
+					paso_y = mate.signo(dy)
+				si @libre(enemigo.x + paso_x, enemigo.y + paso_y)
+					enemigo.x += paso_x
+					enemigo.y += paso_y
+
+	fn actuar(dx entero, dy entero)
+		@mover_heroe(dx, dy)
+		si @heroe.x == @salida_x && @heroe.y == @salida_y
+			si @piso == pisos
+				@escena = .Ganaste
+			sino
+				@piso += 1
+				@crear_piso()
+				@mensaje = "Bajas al piso ${@piso}"
+			retornar
+		@turno_enemigos()
+		si @heroe.vida <= 0
+			@escena = .Muerto
+
+	pub fn actualizar(dt decimal)
+		casos @escena
+			.Menu =>
+				si entrada.tecla_presionada(.Derecha)
+					@semilla += 1
+				si entrada.tecla_presionada(.Izquierda) && @semilla > 1
+					@semilla -= 1
+				si entrada.tecla_presionada(.Enter)
+					@empezar()
+			.Jugando =>
+				si entrada.tecla_presionada(.Derecha) || entrada.tecla_presionada(.D)
+					@actuar(1, 0)
+				osi entrada.tecla_presionada(.Izquierda) || entrada.tecla_presionada(.A)
+					@actuar(-1, 0)
+				osi entrada.tecla_presionada(.Arriba) || entrada.tecla_presionada(.W)
+					@actuar(0, -1)
+				osi entrada.tecla_presionada(.Abajo) || entrada.tecla_presionada(.S)
+					@actuar(0, 1)
+			_ =>
+				si entrada.tecla_presionada(.Enter)
+					@escena = .Menu
+
+	fn dibujar_mapa()
+		repetir (0..nivel.filas) |y|
+			repetir (0..nivel.columnas) |x|
+				si (@mapa.obtener(x, y) o nivel.suelo) == nivel.pared
+					retro.texto("#", x * tam, 8 + y * tam, color = .Carbon)
+		retro.texto(">", @salida_x * tam, 8 + @salida_y * tam, color = .Celeste)
+		repetir (@enemigos) |enemigo|
+			retro.texto(enemigo.simbolo, enemigo.x * tam, 8 + enemigo.y * tam, color = enemigo.color)
+		retro.texto(@heroe.simbolo, @heroe.x * tam, 8 + @heroe.y * tam, color = @heroe.color)
+
+	pub fn pintar()
+		graficos.limpiar(.Negro)
+		casos @escena
+			.Menu =>
+				retro.texto("MAZMORRA", 88, 40, 2, color = .Amarillo)
+				retro.texto("Semilla: < ${@semilla} >", 72, 88)
+				retro.texto("Enter: empezar", 72, 112, color = .Crema)
+			.Jugando =>
+				@dibujar_mapa()
+				retro.texto("Piso ${@piso}/${pisos}   Vida ${@heroe.vida}", 2, 0)
+				retro.texto(@mensaje, 2, 160, color = .Crema)
+			.Ganaste =>
+				retro.texto("¡Escapaste de la mazmorra!", 32, 72, color = .Amarillo)
+				retro.texto("Enter: menú", 80, 96)
+			.Muerto =>
+				retro.texto("Has muerto en el piso ${@piso}", 36, 72, color = .Rosa)
+				retro.texto("Enter: menú", 80, 96)
+
+fn inicio()
+	var partida = Partida {mapa: rejilla.nueva(1, 1)}
+	pincel.ejecutar(partida, 240, 168, escala = 3, titulo = "Mazmorra", pixelado = verdadero) capturar |error|
+		imprimir(error)

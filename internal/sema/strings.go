@@ -1,11 +1,14 @@
 package sema
 
-import "cometa/internal/ast"
+import (
+	"cometa/internal/ast"
+	"cometa/internal/diagnostic"
+)
 
 var stringMethodOrder = []string{
 	"longitud", "esta_vacia", "contiene", "buscar_indice", "empieza_con",
 	"termina_con", "mayusculas", "minusculas", "recortar", "reemplazar",
-	"dividir", "obtener", "subcadena",
+	"dividir", "obtener", "subcadena", "a_entero", "a_decimal",
 }
 
 func StringMethods() map[string]FuncInfo {
@@ -13,6 +16,8 @@ func StringMethods() map[string]FuncInfo {
 	number := Type{Kind: Integer}
 	optionalNumber := Type{Kind: Optional, Elem: &number}
 	optionalString := Type{Kind: Optional, Elem: &stringType}
+	decimal := Type{Kind: Decimal}
+	optionalDecimal := Type{Kind: Optional, Elem: &decimal}
 	methods := map[string]FuncInfo{}
 	add := func(name string, params []ast.Param, types []Type, result Type) {
 		methods[name] = FuncInfo{Decl: &ast.FuncDecl{Name: name, Params: params}, Params: types, Return: result}
@@ -30,6 +35,8 @@ func StringMethods() map[string]FuncInfo {
 	add("dividir", []ast.Param{{Name: "separador"}}, []Type{stringType}, Type{Kind: Slice, Elem: &stringType})
 	add("obtener", []ast.Param{{Name: "indice"}}, []Type{number}, optionalString)
 	add("subcadena", []ast.Param{{Name: "inicio"}, {Name: "fin"}}, []Type{number, number}, optionalString)
+	add("a_entero", nil, nil, optionalNumber)
+	add("a_decimal", nil, nil, optionalDecimal)
 	return methods
 }
 
@@ -50,13 +57,15 @@ func StringMethodDocumentation(name string) string {
 		"dividir":       "Divide la cadena conservando las partes vacías.",
 		"obtener":       "Devuelve el punto de código del índice, o .Ninguno.",
 		"subcadena":     "Devuelve el rango [inicio, fin), o .Ninguno si no es válido.",
+		"a_entero":      "Convierte el texto a entero, o devuelve .Ninguno si no es un entero válido (sin espacios; usa recortar() antes).",
+		"a_decimal":     "Convierte el texto a decimal (con punto, por ejemplo \"3.5\"), o devuelve .Ninguno si no es un número finito válido.",
 	}[name]
 }
 
 func (c *checker) checkStringCall(call *ast.CallExpr, member *ast.MemberExpr) (Type, error) {
 	signature, exists := StringMethods()[member.Name]
 	if !exists {
-		return Type{}, c.fail(member.Pos, "el método %q no existe en cadena", member.Name)
+		return Type{}, c.fail(member.Pos, "el método %q no existe en cadena%s", member.Name, diagnostic.Hint(member.Name, sortedKeys(StringMethods())))
 	}
 	result, err := c.bindArguments(call, signature)
 	if err == nil {

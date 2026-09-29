@@ -1,0 +1,187 @@
+// Native implementations for azar.semilla, datos, gamepad input, graficos.Hoja and std/pincel/rejilla.
+
+// --- azar: a private generator so a seed makes a run reproducible.
+var _hgazarGen = rand.New(rand.NewPCG(rand.Uint64(),rand.Uint64()))
+func _hgazarSemilla(n int64){_hgazarGen=rand.New(rand.NewPCG(uint64(n),uint64(n)^0x9e3779b97f4a7c15))}
+
+// --- datos: a small key-value store kept in the user's config folder. _hgdatosCarpeta is defined by the compiler.
+var _hgdatosDatos map[string]string
+func _hgdatosArchivo() (string,string,error){
+ base,err:=os.UserConfigDir();if err!=nil{return "","",err}
+ dir:=filepath.Join(base,"cometa",_hgdatosCarpeta)
+ return dir,filepath.Join(dir,"datos.json"),nil
+}
+func _hgdatosCargar(){
+ if _hgdatosDatos!=nil{return}
+ _hgdatosDatos=map[string]string{}
+ _,file,err:=_hgdatosArchivo();if err!=nil{return}
+ data,err:=os.ReadFile(file);if err!=nil{return}
+ loaded:=map[string]string{}
+ if json.Unmarshal(data,&loaded)==nil{_hgdatosDatos=loaded}
+}
+func _hgdatosEscribir() error{
+ dir,file,err:=_hgdatosArchivo();if err!=nil{return err}
+ if err=os.MkdirAll(dir,0o755);err!=nil{return err}
+ data,err:=json.MarshalIndent(_hgdatosDatos,""," ");if err!=nil{return err}
+ tmp:=file+".tmp"
+ if err=os.WriteFile(tmp,data,0o644);err!=nil{return err}
+ return os.Rename(tmp,file)
+}
+func _hgdatosLeer(clave string) struct { tag int; payload1 string } {
+ _hgdatosCargar()
+ if v,ok:=_hgdatosDatos[clave];ok{return struct { tag int; payload1 string }{tag:1,payload1:v}}
+ return struct { tag int; payload1 string }{}
+}
+func _hgdatosGuardar(clave,valor string) struct { tag int; payload2 string } {
+ if clave==""{return struct { tag int; payload2 string }{tag:2,payload2:"la clave no puede estar vacía"}}
+ _hgdatosCargar();_hgdatosDatos[clave]=valor
+ if err:=_hgdatosEscribir();err!=nil{return struct { tag int; payload2 string }{tag:2,payload2:"no se pudieron guardar los datos: "+err.Error()}}
+ return struct { tag int; payload2 string }{tag:1}
+}
+func _hgdatosBorrar(clave string) struct { tag int; payload2 string } {
+ _hgdatosCargar()
+ if _,ok:=_hgdatosDatos[clave];!ok{return struct { tag int; payload2 string }{tag:1}}
+ delete(_hgdatosDatos,clave)
+ if err:=_hgdatosEscribir();err!=nil{return struct { tag int; payload2 string }{tag:2,payload2:"no se pudieron guardar los datos: "+err.Error()}}
+ return struct { tag int; payload2 string }{tag:1}
+}
+
+// --- gamepad: only pads with the standard layout, numbered from 0 in a stable order.
+type _hgBotonMando ebiten.StandardGamepadButton
+type _hgEjeMando ebiten.StandardGamepadAxis
+func _hgmandoIds() []ebiten.GamepadID{
+ var ids []ebiten.GamepadID
+ for _,id:=range ebiten.AppendGamepadIDs(nil){if ebiten.IsStandardGamepadLayoutAvailable(id){ids=append(ids,id)}}
+ sort.Slice(ids,func(i,j int)bool{return ids[i]<ids[j]})
+ return ids
+}
+func _hgmandos() int64{return int64(len(_hgmandoIds()))}
+func _hgmandoId(m int64) (ebiten.GamepadID,bool){ids:=_hgmandoIds();if m<0||m>=int64(len(ids)){return 0,false};return ids[m],true}
+func _hgmandoBoton(m int64,b _hgBotonMando) bool{id,ok:=_hgmandoId(m);return ok&&ebiten.IsStandardGamepadButtonPressed(id,ebiten.StandardGamepadButton(b))}
+func _hgmandoBotonPresionado(m int64,b _hgBotonMando) bool{id,ok:=_hgmandoId(m);return ok&&inpututil.IsStandardGamepadButtonJustPressed(id,ebiten.StandardGamepadButton(b))}
+func _hgmandoEje(m int64,e _hgEjeMando,zonaMuerta float64) float64{
+ id,ok:=_hgmandoId(m);if !ok{return 0}
+ v:=ebiten.StandardGamepadAxisValue(id,ebiten.StandardGamepadAxis(e))
+ if math.Abs(v)<zonaMuerta{return 0}
+ return v
+}
+
+// --- graficos.Hoja: an image cut into equal cells numbered left to right, top to bottom.
+type _hgHoja struct { img *_hgImagen; cw, ch, cols, rows int64 }
+func _hghoja(img *_hgImagen,cw,ch int64) *_hgHoja{
+ b:=img.bounds();w,h:=int64(b.Dx()),int64(b.Dy())
+ if cw<=0||ch<=0{panic("graficos.hoja: el tamaño de cada cuadro debe ser positivo")}
+ if cw>w||ch>h{panic(fmt.Sprintf("graficos.hoja: un cuadro de %dx%d no cabe en una imagen de %dx%d",cw,ch,w,h))}
+ return &_hgHoja{img,cw,ch,w/cw,h/ch}
+}
+func _hgcuadros(h *_hgHoja) int64{return h.cols*h.rows}
+func _hgtamanoCuadro(h *_hgHoja) _hgVec2{return _hgVec2{float64(h.cw),float64(h.ch)}}
+// Indexes outside the sheet draw nothing, so -1 works as an empty tile.
+func _hgcuadro(h *_hgHoja,i int64,p,o,s _hgVec2,r float64,c _hgColor,espejoH,espejoV bool){
+ if i<0||i>=h.cols*h.rows{return}
+ if espejoH{s.X=-s.X;o.X=float64(h.cw)-o.X}
+ if espejoV{s.Y=-s.Y;o.Y=float64(h.ch)-o.Y}
+ src:=_hgRect{_hgVec2{float64((i%h.cols)*h.cw),float64((i/h.cols)*h.ch)},_hgVec2{float64(h.cw),float64(h.ch)}}
+ _hgregion(h.img,src,p,o,s,r,c)
+}
+func _hgcuadroXY(h *_hgHoja,i int64,x,y float64,o,s _hgVec2,r float64,c _hgColor,espejoH,espejoV bool){_hgcuadro(h,i,_hgVec2{x,y},o,s,r,c,espejoH,espejoV)}
+
+// --- rejilla.Rejilla: a grid of integers, typically tile indexes (-1 for empty).
+type _hgRejilla struct { cols, rows int64; cells []int64 }
+func _hgrejillaNueva(cols,rows,valor int64) *_hgRejilla{
+ if cols<=0||rows<=0||cols>65536||rows>65536||cols*rows>16777216{panic("rejilla.nueva: las columnas y filas deben ser positivas (máximo 16 millones de celdas)")}
+ cells:=make([]int64,cols*rows)
+ if valor!=0{for i:=range cells{cells[i]=valor}}
+ return &_hgRejilla{cols,rows,cells}
+}
+func _hgrejillaDesdeTexto(filas []string,simbolos map[string]int64) *_hgRejilla{
+ if len(filas)==0{panic("rejilla.desde_texto requiere al menos una fila")}
+ width:=len([]rune(filas[0]))
+ if width==0{panic("rejilla.desde_texto: la primera fila está vacía")}
+ g:=&_hgRejilla{int64(width),int64(len(filas)),make([]int64,width*len(filas))}
+ for y,fila:=range filas{
+  runes:=[]rune(fila)
+  if len(runes)!=width{panic(fmt.Sprintf("rejilla.desde_texto: la fila %d mide %d caracteres y la primera %d",y+1,len(runes),width))}
+  for x,r:=range runes{
+   v,ok:=simbolos[string(r)]
+   if !ok{panic(fmt.Sprintf("rejilla.desde_texto: el símbolo %q (fila %d, columna %d) no está en el mapa de símbolos",string(r),y+1,x+1))}
+   g.cells[y*width+x]=v
+  }
+ }
+ return g
+}
+func (g *_hgRejilla) Columnas() int64{return g.cols}
+func (g *_hgRejilla) Filas() int64{return g.rows}
+func (g *_hgRejilla) dentro(x,y int64) bool{return x>=0&&y>=0&&x<g.cols&&y<g.rows}
+func (g *_hgRejilla) Obtener(x,y int64) struct { tag int; payload1 int64 }{
+ if !g.dentro(x,y){return struct { tag int; payload1 int64 }{}}
+ return struct { tag int; payload1 int64 }{tag:1,payload1:g.cells[y*g.cols+x]}
+}
+func (g *_hgRejilla) Poner(x,y,valor int64) bool{if !g.dentro(x,y){return false};g.cells[y*g.cols+x]=valor;return true}
+func (g *_hgRejilla) Rellenar(valor int64){for i:=range g.cells{g.cells[i]=valor}}
+// Choca reports whether any cell touched by area holds one of the solid values; cells outside the grid are never solid.
+func (g *_hgRejilla) Choca(area _hgRect,celda _hgVec2,solidos []int64) bool{
+ if !(celda.X>0)||!(celda.Y>0){panic("rejilla.choca: el tamaño de celda debe ser positivo")}
+ if !(area.Tamano.X>0)||!(area.Tamano.Y>0){return false}
+ fx0,fx1:=math.Floor(area.Pos.X/celda.X),math.Ceil((area.Pos.X+area.Tamano.X)/celda.X)-1
+ fy0,fy1:=math.Floor(area.Pos.Y/celda.Y),math.Ceil((area.Pos.Y+area.Tamano.Y)/celda.Y)-1
+ x0,x1:=int64(math.Max(fx0,0)),int64(math.Min(fx1,float64(g.cols-1)))
+ y0,y1:=int64(math.Max(fy0,0)),int64(math.Min(fy1,float64(g.rows-1)))
+ for y:=y0;y<=y1;y++{
+  for x:=x0;x<=x1;x++{
+   v:=g.cells[y*g.cols+x]
+   for _,s:=range solidos{if s==v{return true}}
+  }
+ }
+ return false
+}
+// Mover slides area by delta (x first, then y) and returns the displacement actually applied: it stops flush against solid cells.
+func (g *_hgRejilla) Mover(area _hgRect,celda,delta _hgVec2,solidos []int64) _hgVec2{
+ if !(celda.X>0)||!(celda.Y>0){panic("rejilla.mover: el tamaño de celda debe ser positivo")}
+ var out _hgVec2
+ out.X=g.moverEje(area,celda,delta.X,true,solidos)
+ area.Pos.X+=out.X
+ out.Y=g.moverEje(area,celda,delta.Y,false,solidos)
+ return out
+}
+func (g *_hgRejilla) moverEje(area _hgRect,celda _hgVec2,d float64,horizontal bool,solidos []int64) float64{
+ if d==0||math.IsNaN(d)||math.IsInf(d,0){return 0}
+ size:=celda.Y
+ if horizontal{size=celda.X}
+ n:=math.Ceil(math.Abs(d)/(size/2))
+ if n>4096{n=4096}
+ step:=d/n
+ hit:=func(s float64) bool{
+  a:=area
+  if horizontal{a.Pos.X+=s}else{a.Pos.Y+=s}
+  return g.Choca(a,celda,solidos)
+ }
+ moved:=0.0
+ for i:=0.0;i<n;i++{
+  if !hit(moved+step){moved+=step;continue}
+  lo,hi:=moved,moved+step
+  for j:=0;j<30;j++{
+   m:=(lo+hi)/2
+   if hit(m){hi=m}else{lo=m}
+  }
+  return lo
+ }
+ return d
+}
+func _hgrejillaDibujar(g *_hgRejilla,h *_hgHoja,pos,escala _hgVec2,tinte _hgColor){
+ _hgdraw()
+ w,hh:=_hgtamano().X,_hgtamano().Y
+ dx,dy:=float64(h.cw)*escala.X,float64(h.ch)*escala.Y
+ for y:=int64(0);y<g.rows;y++{
+  for x:=int64(0);x<g.cols;x++{
+   v:=g.cells[y*g.cols+x]
+   if v<0||v>=h.cols*h.rows{continue}
+   dest:=_hgVec2{pos.X+float64(x)*dx,pos.Y+float64(y)*dy}
+   if _hgcamara.Rotacion==0{
+    p:=_hgpoint(dest)
+    if p.X+math.Abs(dx)*_hgcamara.Zoom<0||p.Y+math.Abs(dy)*_hgcamara.Zoom<0||p.X>w||p.Y>hh{continue}
+   }
+   _hgcuadro(h,v,dest,_hgVec2{},escala,0,tinte,false,false)
+  }
+ }
+}

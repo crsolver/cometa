@@ -37,6 +37,7 @@ func (g *generator) deliver(value string, indent int, target string) {
 }
 
 func (g *generator) flowStmt(stmt ast.Stmt, indent int, target string) {
+	g.directive(stmt.Position())
 	switch s := stmt.(type) {
 	case *ast.ScopeStmt:
 		value := g.flowExpr(s.Value, indent)
@@ -150,6 +151,21 @@ func (g *generator) flowIf(branches []ast.IfBranch, otherwise []ast.Stmt, indent
 func (g *generator) flowMatch(m *ast.MatchExpr, indent int, target string) {
 	if g.model.ExprTypes[m.Value].Kind == sema.Interface {
 		g.flowTypeMatch(m, indent, target)
+		return
+	}
+	if g.scalarMatch(m) {
+		value := g.flowExpr(m.Value, indent)
+		g.line(indent, "switch %s {", value)
+		wildcard := false
+		for _, arm := range m.Arms {
+			g.scalarCase(arm, indent)
+			wildcard = wildcard || arm.Pattern == "_"
+			g.flowBlock(arm.Body, indent+1, target)
+		}
+		if !wildcard {
+			g.line(indent, "default: panic(\"valor de casos inválido\")")
+		}
+		g.line(indent, "}")
 		return
 	}
 	value := g.flowExpr(m.Value, indent)
@@ -356,6 +372,13 @@ func (g *generator) flowRaw(e ast.Expr, t sema.Type, indent int) string {
 		}
 		return "(" + v.Operator + g.flowExpr(v.Value, indent) + ")"
 	case *ast.BinaryExpr:
+		if compare, ok := g.model.EnumCompares[v]; ok {
+			value := g.flowExpr(compare.Value, indent)
+			if value == "" {
+				return ""
+			}
+			return "(" + value + ".tag " + v.Operator + " " + fmt.Sprint(compare.Tag) + ")"
+		}
 		left := g.flowExpr(v.Left, indent)
 		if v.Operator == "&&" || v.Operator == "||" {
 			result := g.freshName()
@@ -473,6 +496,16 @@ func (g *generator) flowCall(call *ast.CallExpr, indent int) string {
 	}
 	if operation, ok := g.model.StringCalls[call]; ok {
 		return g.flowStringCall(call, operation, indent)
+	}
+	if operation, ok := g.model.NumberCalls[call]; ok {
+		return g.flowNumberCall(call, operation, indent)
+	}
+	if _, ok := g.model.StructCopies[call]; ok {
+		// Structs are pointers, so a shallow copy duplicates the pointed-to value.
+		original := g.flowExpr(call.Callee.(*ast.MemberExpr).Object, indent)
+		duplicate := g.freshName()
+		g.line(indent, "%s := *%s", duplicate, original)
+		return "&" + duplicate
 	}
 	callee := ""
 	switch v := call.Callee.(type) {
@@ -701,6 +734,18 @@ func (g *generator) flowStringCall(call *ast.CallExpr, operation string, indent 
 		g.line(indent+1, "%s = %s{tag: 1, payload1: int64(%s)}", result, goType(info.Signature.Return), index)
 		g.line(indent, "}")
 		return result
+	case "a_entero", "a_decimal":
+		result, parsed := g.freshName(), g.freshName()
+		g.line(indent, "var %s %s", result, goType(info.Signature.Return))
+		if operation == "a_entero" {
+			g.line(indent, "if %s, err := strconv.ParseInt(%s, 10, 64); err == nil {", parsed, receiver)
+		} else {
+			// v-v is 0 only for finite numbers, which rejects "inf" and "nan".
+			g.line(indent, "if %s, err := strconv.ParseFloat(%s, 64); err == nil && %s-%s == 0 {", parsed, receiver, parsed, parsed)
+		}
+		g.line(indent+1, "%s = %s{tag: 1, payload1: %s}", result, goType(info.Signature.Return), parsed)
+		g.line(indent, "}")
+		return result
 	case "obtener", "subcadena":
 		result, runes := g.freshName(), g.freshName()
 		g.line(indent, "var %s %s", result, goType(info.Signature.Return))
@@ -717,6 +762,26 @@ func (g *generator) flowStringCall(call *ast.CallExpr, operation string, indent 
 		return result
 	}
 	panic("unknown string operation: " + operation)
+}
+
+func (g *generator) flowNumberCall(call *ast.CallExpr, operation string, indent int) string {
+	member := call.Callee.(*ast.MemberExpr)
+	receiverType := g.model.ExprTypes[member.Object]
+	receiver := g.capture(receiverType, g.flowExpr(member.Object, indent), indent)
+	info := g.model.Calls[call]
+	args := make([]string, len(call.Args))
+	for i, arg := range call.Args {
+		args[i] = g.capture(g.model.ExprTypes[arg], g.flowExpr(arg, indent), indent)
+	}
+	ordered := make([]string, len(info.Signature.Params))
+	for i, parameter := range info.Parameters {
+		ordered[parameter] = args[i]
+	}
+	switch operation {
+	case "formato":
+		return "_hsformatoNumero(float64(" + receiver + "), " + ordered[0] + ")"
+	}
+	panic("unknown number operation: " + operation)
 }
 
 func validRuneIndex(index, length string, existing bool) string {

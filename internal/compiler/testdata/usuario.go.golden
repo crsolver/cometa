@@ -9,6 +9,8 @@ import (
 	"unicode"
 )
 
+var _hsenumNombres = map[string][]string{}
+
 func _hsimprimir(args ...any) {
 	parts := make([]string, len(args))
 	for i, a := range args {
@@ -76,6 +78,32 @@ func _hsformato(v reflect.Value, nested bool, depth int) string {
 		}
 	case reflect.Struct:
 		t := v.Type()
+		if t.NumField() > 0 && t.Field(0).Name == "tag" {
+			if t.Name() != "" {
+				base := t.Name()
+				if i := strings.Index(base, "["); i >= 0 {
+					base = base[:i]
+				}
+				if names, ok := _hsenumNombres[base]; ok {
+					tag := int(v.Field(0).Int())
+					if tag >= 1 && tag < len(names) && names[tag] != "" {
+						text := names[0] + "." + names[tag]
+						if f := v.FieldByName("payload" + strconv.Itoa(tag)); f.IsValid() {
+							text += "(" + _hsformato(f, true, depth+1) + ")"
+						}
+						return text
+					}
+				}
+			} else if f := v.FieldByName("payload2"); f.IsValid() {
+				if v.Field(0).Int() == 2 {
+					return "Error(" + _hsformato(f, true, depth+1) + ")"
+				}
+				if ok := v.FieldByName("payload1"); ok.IsValid() {
+					return "Ok(" + _hsformato(ok, true, depth+1) + ")"
+				}
+				return "Ok"
+			}
+		}
 		if t.Name() == "" && t.NumField() == 2 && t.Field(0).Name == "tag" && t.Field(1).Name == "payload1" {
 			if v.Field(0).Int() != 1 {
 				return "Ninguno"

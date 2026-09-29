@@ -29,11 +29,27 @@ type generator struct {
 	scopes         []string
 	loopScopeDepth int
 	defaultFlags   map[*ast.FuncDecl][]string
+	lineDirectives bool
+	position       ast.Pos // Cometa statement being lowered, for //line directives
+	directiveDone  bool    // the directive for the next line was already written
+	printing       bool // imprimir is used, so the print runtime is emitted
+}
+
+// Options tunes code generation without changing the language semantics.
+type Options struct {
+	// LineDirectives emits //line comments so Go build errors and runtime
+	// panics report Cometa file and line numbers.
+	LineDirectives bool
 }
 
 func Generate(filename string, program *ast.Program, model *sema.Model) ([]byte, error) {
+	return GenerateWithOptions(filename, program, model, Options{})
+}
 
-	g := &generator{model: model, defaultFlags: map[*ast.FuncDecl][]string{}}
+func GenerateWithOptions(filename string, program *ast.Program, model *sema.Model, options Options) ([]byte, error) {
+
+	g := &generator{model: model, defaultFlags: map[*ast.FuncDecl][]string{}, lineDirectives: options.LineDirectives}
+	g.printing = usesPrint(program)
 	g.flow = model.HasScopes
 	if model.Game.Used {
 		g.flow = true
@@ -41,7 +57,10 @@ func Generate(filename string, program *ast.Program, model *sema.Model) ([]byte,
 	if len(model.ListCalls) > 0 {
 		g.flow = true
 	}
-	stringFeatures := len(model.StringCalls) > 0
+	if len(model.StructCopies) > 0 {
+		g.flow = true
+	}
+	stringFeatures := len(model.StringCalls) > 0 || len(model.NumberCalls) > 0
 	if stringFeatures {
 		g.flow = true
 	}
@@ -116,6 +135,14 @@ func Generate(filename string, program *ast.Program, model *sema.Model) ([]byte,
 	}
 	if runtimeSource != "" {
 		g.write("%s\n", runtimeSource)
+		for _, module := range model.Game.Modules {
+			if module == "std/pincel/datos" {
+				// Saved data belongs to the project, not to the window title,
+				// so it can be read before pincel.ejecutar runs.
+				g.write("var _hgdatosCarpeta = %q\n\n", dataFolder(filename))
+				break
+			}
+		}
 		var nativeNames []string
 		for name := range model.Types {
 			if native := stdlib.GoType(name); native != "" && strings.Contains(runtimeSource, "type "+strings.TrimPrefix(native, "*")+" ") {
@@ -183,7 +210,7 @@ func (g *generator) emitGlobal(decl *ast.GlobalDecl) {
 		g.line(0, "")
 		return
 	}
-	child := &generator{model: g.model, flow: true, nextName: g.nextName, defaultFlags: g.defaultFlags}
+	child := &generator{model: g.model, flow: true, nextName: g.nextName, defaultFlags: g.defaultFlags, lineDirectives: g.lineDirectives, position: g.position}
 	child.line(0, "func() %s {", goType(info.Type))
 	value := child.flowExpr(decl.Value, 1)
 	child.line(1, "return %s", value)
@@ -280,7 +307,22 @@ func (g *generator) emitBlock(body []ast.Stmt, indent int, returnFinal bool) {
 	}
 }
 
+// directive maps the following generated lines back to a Cometa source line.
+func (g *generator) directive(pos ast.Pos) {
+	if !g.lineDirectives || pos.Filename == "" || pos.Line <= 0 {
+		return
+	}
+	g.position = pos
+	g.writeDirective()
+	g.directiveDone = true
+}
+
+func (g *generator) writeDirective() {
+	fmt.Fprintf(&g.buffer, "//line %s:%d\n", g.position.Filename, g.position.Line)
+}
+
 func (g *generator) emitStmt(stmt ast.Stmt, indent int, returnValue bool) {
+	g.directive(stmt.Position())
 	switch statement := stmt.(type) {
 	case *ast.MatchStmt:
 		g.emitMatch(statement.Match, indent, returnValue)
@@ -415,7 +457,7 @@ func (g *generator) rawExpr(expr ast.Expr) string {
 	}
 	switch expression := expr.(type) {
 	case *ast.MatchExpr:
-		child := &generator{model: g.model, nextName: g.nextName}
+		child := &generator{model: g.model, nextName: g.nextName, lineDirectives: g.lineDirectives, position: g.position}
 		raw := g.model.ExprTypes[expr]
 		if _, ok := g.model.NumericCoercions[expr]; ok {
 			raw = sema.Type{Kind: sema.Integer}
@@ -452,6 +494,9 @@ func (g *generator) rawExpr(expr ast.Expr) string {
 	case *ast.UnaryExpr:
 		return "(" + expression.Operator + g.expr(expression.Value) + ")"
 	case *ast.BinaryExpr:
+		if compare, ok := g.model.EnumCompares[expression]; ok {
+			return "(" + g.expr(compare.Value) + ".tag " + expression.Operator + " " + strconv.Itoa(compare.Tag) + ")"
+		}
 		return "(" + g.expr(expression.Left) + " " + expression.Operator + " " + g.expr(expression.Right) + ")"
 	case *ast.CallExpr:
 		if t, ok := g.model.NumericCalls[expression]; ok {
@@ -781,7 +826,7 @@ func validate(filename string, source []byte) error {
 	set := token.NewFileSet()
 	file, err := parser.ParseFile(set, filename+".go", source, parser.AllErrors)
 	if err != nil {
-		return fmt.Errorf("el Go generado no es válido: %w", err)
+		return fmt.Errorf("error interno del compilador (por favor reporta este error): el Go generado no es válido: %w", err)
 	}
 	var typeErrors []string
 	config := types.Config{
@@ -789,7 +834,7 @@ func validate(filename string, source []byte) error {
 		Error:    func(err error) { typeErrors = append(typeErrors, err.Error()) },
 	}
 	if _, err = config.Check("main", set, []*goast.File{file}, nil); err != nil {
-		return fmt.Errorf("el Go generado no pasa la verificación de tipos: %s", strings.Join(typeErrors, "; "))
+		return fmt.Errorf("error interno del compilador (por favor reporta este error): el Go generado no pasa la verificación de tipos: %s", strings.Join(typeErrors, "; "))
 	}
 	return nil
 }
@@ -799,6 +844,12 @@ func (g *generator) write(format string, args ...any) {
 }
 
 func (g *generator) line(indent int, format string, args ...any) {
+	// Go advances a //line directive by one per generated line, so a statement
+	// lowered to several lines needs the directive repeated to keep its line.
+	if g.lineDirectives && g.position.Line > 0 && indent > 0 && !g.directiveDone {
+		g.writeDirective()
+	}
+	g.directiveDone = false
 	g.buffer.WriteString(strings.Repeat("\t", indent))
 	fmt.Fprintf(&g.buffer, format, args...)
 	g.buffer.WriteByte('\n')

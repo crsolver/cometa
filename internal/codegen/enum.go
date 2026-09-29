@@ -2,6 +2,10 @@ package codegen
 
 import (
 	"fmt"
+	"path/filepath"
+	"strings"
+	"unicode"
+
 	"cometa/internal/ast"
 	"cometa/internal/sema"
 )
@@ -28,9 +32,81 @@ func (g *generator) emitEnum(decl *ast.EnumDecl) {
 	}
 	g.line(0, "}")
 	g.line(0, "")
+	// imprimir spells variants by name, so the runtime needs them by tag.
+	names := make([]string, len(decl.Variants)+1) // tags start at 1
+	for _, variant := range decl.Variants {
+		if tag := info.Variants[variant.Name].Tag; tag >= 0 && tag < len(names) {
+			names[tag] = variant.Name
+		}
+	}
+	if g.printing {
+		list := fmt.Sprintf("%q", displayName(decl.Name))
+		for _, name := range names[1:] {
+			list += fmt.Sprintf(", %q", name)
+		}
+		g.line(0, "func init() { _hsenumNombres[%q] = []string{%s} }", exported(decl.Name), list)
+		g.line(0, "")
+	}
+}
+
+// displayName drops the module prefix the project binder adds to imported names.
+func displayName(name string) string {
+	if strings.HasPrefix(name, "CometaModulo") {
+		rest := strings.TrimLeft(strings.TrimPrefix(name, "CometaModulo"), "X")
+		rest = strings.TrimLeft(rest, "0123456789")
+		return strings.TrimPrefix(rest, "_")
+	}
+	return name
+}
+
+// scalarMatch reports whether a casos switches over entero, cadena or bool
+// values instead of an enum, optional or result.
+func (g *generator) scalarMatch(m *ast.MatchExpr) bool {
+	switch g.model.ExprTypes[m.Value].Kind {
+	case sema.Integer, sema.String, sema.Boolean:
+		return true
+	}
+	return false
+}
+
+// scalarCase writes the `case`/`default` line of a literal arm.
+func (g *generator) scalarCase(arm *ast.MatchArm, indent int) {
+	if arm.Pattern == "_" {
+		g.line(indent, "default:")
+		return
+	}
+	literals := make([]string, len(arm.Literals))
+	for i, literal := range arm.Literals {
+		literals[i] = g.expr(literal)
+	}
+	g.line(indent, "case %s:", strings.Join(literals, ", "))
+}
+
+func (g *generator) emitScalarMatch(m *ast.MatchExpr, indent int, returnValue bool) {
+	name := g.freshName()
+	g.line(indent, "{")
+	g.line(indent+1, "%s := %s", name, g.expr(m.Value))
+	g.line(indent+1, "switch %s {", name)
+	wildcard := false
+	for _, arm := range m.Arms {
+		g.scalarCase(arm, indent+1)
+		wildcard = wildcard || arm.Pattern == "_"
+		g.emitBlock(arm.Body, indent+2, returnValue)
+	}
+	// A bool match may be exhaustive without '_'; the default keeps Go's return checker satisfied.
+	if !wildcard {
+		g.line(indent+1, "default:")
+		g.line(indent+2, "panic(\"valor de casos inválido\")")
+	}
+	g.line(indent+1, "}")
+	g.line(indent, "}")
 }
 
 func (g *generator) emitMatch(m *ast.MatchExpr, indent int, returnValue bool) {
+	if g.scalarMatch(m) {
+		g.emitScalarMatch(m, indent, returnValue)
+		return
+	}
 	name := g.freshName()
 	info := g.model.Enums[g.model.ExprTypes[m.Value].Name]
 	g.line(indent, "{")
@@ -89,4 +165,26 @@ func needsLoopLabel(body []ast.Stmt, inMatch bool) bool {
 		}
 	}
 	return false
+}
+
+// dataFolder names the per-game folder used by std/pincel/datos: the project
+// directory plus the entry file, restricted to safe file-name characters.
+func dataFolder(entry string) string {
+	clean := func(text string) string {
+		var b strings.Builder
+		for _, r := range text {
+			if unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_' || r == '-' {
+				b.WriteRune(r)
+			} else {
+				b.WriteByte('_')
+			}
+		}
+		return b.String()
+	}
+	stem := strings.TrimSuffix(filepath.Base(entry), filepath.Ext(entry))
+	directory := filepath.Base(filepath.Dir(entry))
+	if directory == "." || directory == string(filepath.Separator) || directory == "" {
+		return clean(stem)
+	}
+	return clean(directory) + "-" + clean(stem)
 }

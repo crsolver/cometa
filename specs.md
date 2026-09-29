@@ -16,7 +16,7 @@ Un AST o modelo parcial nunca permite generar Go, construir ni ejecutar. Los err
 
 `usar std/mate/curvas` importa el namespace `curvas`, independiente de `std/mate` y de Ebitengine. Expone `lineal` y las familias `cuadratica`, `cubica`, `cuartica`, `quintica`, `senoidal`, `circular`, `exponencial`, `elastica`, `retroceso` y `rebote`, cada una con sufijos `_entrada`, `_salida` y `_entrada_salida`: 31 funciones puras `(progreso decimal) decimal`. Los enteros se amplían a decimal como en otras llamadas. Para progreso menor o igual a 0 devuelven exactamente 0; para progreso mayor o igual a 1 devuelven exactamente 1. Los infinitos se limitan a esos extremos y NaN se propaga. Solo se limita la entrada: las curvas elásticas y de retroceso conservan resultados fuera de [0, 1]. No administran tiempo ni estado. Véase [la API de curvas](docs/curvas.md).
 
-`usar std/mate` y `usar std/azar` importan matemáticas y azar sin Ebitengine. `usar std/pincel` importa el núcleo de Pincel (`pincel.ejecutar` y la interfaz `pincel.Juego`). El resto de Pincel son módulos independientes bajo `std/pincel/`: `graficos`, `color`, `entrada`, `audio`, `ventana`, `tiempo`, `recursos`, `retro`, `lienzo` y `ui`. El último segmento es el alias predeterminado; se admite `como`. `usar std/pincel` no importa los submódulos; no existe importación comodín ni reexportación implícita. Cada archivo importa lo que utiliza. `./std/...` sigue siendo una ruta local.
+`usar std/mate` y `usar std/azar` importan matemáticas y azar sin Ebitengine. `usar std/pincel` importa el núcleo de Pincel (`pincel.ejecutar` y la interfaz `pincel.Juego`). El resto de Pincel son módulos independientes bajo `std/pincel/`: `graficos`, `color`, `entrada`, `audio`, `ventana`, `tiempo`, `recursos`, `retro`, `lienzo`, `rejilla`, `datos` y `ui`. El último segmento es el alias predeterminado; se admite `como`. `usar std/pincel` no importa los submódulos; no existe importación comodín ni reexportación implícita. Cada archivo importa lo que utiliza. `./std/...` sigue siendo una ruta local.
 
 Los tipos se califican: `mate.Vec2`, `mate.Rect`, `graficos.Camara2D`, `color.Color`, `entrada.Tecla`, `entrada.BotonRaton`, `graficos.Imagen`, `graficos.Fuente`, `audio.Sonido` y `audio.Reproduccion`. Los seis primeros conservan semántica de valor; los recursos son handles opacos compartidos. Sus nombres no están reservados globalmente. Se conservan operadores vectoriales, métodos, literales nombrados/posicionales y constantes contextuales.
 
@@ -54,7 +54,7 @@ El mismo ejecutable inicia el servidor LSP mediante `cometa lsp`. El servidor se
 
 - La indentación usa exclusivamente tabuladores. Los espacios iniciales en una línea con código son un error.
 - Una línea vacía o que solo contiene un comentario `//` no afecta los bloques.
-- `tipo`, `enum`, `interfaz`, `fn`, `si`, `osi`, `sino`, `casos` y `repetir` abren bloques. Las variantes de un enum y las ramas de `casos` siempre se indentan.
+- `tipo`, `enum`, `interfaz`, `fn`, `si`, `osi`, `sino`, `casos`, `repetir` y `mientras` abren bloques. Las variantes de un enum y las ramas de `casos` siempre se indentan.
 - Un cuerpo en la misma línea contiene una sola sentencia o expresión y termina con esa línea.
 - No existen `fin`, dos puntos de declaración ni bloques de control con llaves. Las llaves delimitan literales de estructuras. `=>` se usa exclusivamente entre el patrón y el cuerpo de una rama de `casos`.
 
@@ -136,9 +136,17 @@ fn inicio()
 
 Las estructuras y enums declarados por el programa tienen semántica de referencia. Las interfaces conservan el valor dinámico y los parámetros de tipo conservan la representación de su argumento. Los tipos, campos, métodos y funciones generados se exportan en Go.
 
+Todo `tipo` declarado tiene un método incorporado `copiar()` que devuelve un objeto nuevo del mismo tipo con los mismos valores en sus campos. La copia es superficial, igual que en listas y mapas: los campos que son otras estructuras, listas o mapas siguen compartiéndose con el original. Si el tipo (o un tipo que embebe) declara su propio método `copiar`, ese método tiene prioridad. No acepta argumentos y no existe para los tipos de la biblioteca estándar, que ya son valores.
+
+```cometa
+var b = a.copiar()
+b.vida = 3          // a.vida no cambia
+b.arma.dano = 50     // a.arma.dano sí cambia: el arma se comparte
+```
+
 ### Números
 
-`entero` tiene signo y 64 bits; `decimal` usa IEEE-754 binario de 64 bits, no aritmética decimal exacta. `num` fue eliminado: debe elegirse uno de los dos tipos. Los literales sin punto son enteros, los literales con punto son decimales; se rechazan literales fuera del rango de su tipo, y se admite `-9223372036854775808`.
+`entero` tiene signo y 64 bits; `decimal` usa IEEE-754 binario de 64 bits, no aritmética decimal exacta. El antiguo tipo `num` fue eliminado: debe elegirse uno de los dos tipos (el nombre `num` ya no está reservado y puede usarse para variables). Los literales sin punto son enteros, los literales con punto son decimales; se rechazan literales fuera del rango de su tipo, y se admite `-9223372036854775808`.
 
 `entero` se promueve implícitamente a `decimal` en asignaciones, argumentos, retornos, campos, ramas y elementos de literales. Dos operandos enteros conservan el tipo con `+`, `-`, `*` y `/`; `5 / 2` vale `2` y `-5 / 2` vale `-2`. `%` solo admite enteros y su resto tiene el signo del dividendo. Si algún operando es decimal, los operadores aritméticos y las comparaciones promueven el entero. El tipo esperado del resultado no cambia la división: `var x decimal = 5 / 2` vale `2.0`; use `5 / 2.0` para obtener `2.5`.
 
@@ -175,6 +183,17 @@ Los índices y longitudes cuentan puntos de código Unicode. Los índices deben 
 | `dividir(separador cadena)` | `[cadena]` |
 | `obtener(indice entero)` | `cadena?` |
 | `subcadena(inicio entero, fin entero)` | `cadena?` |
+| `a_entero()` | `entero?` |
+| `a_decimal()` | `decimal?` |
+
+`a_entero()` y `a_decimal()` convierten texto a número y devuelven `.Ninguno` si no es válido: no aceptan espacios (usa `recortar()` antes), `a_decimal` usa el punto como separador (`"3.5"`) y rechaza `inf`, `nan` y valores fuera de rango, y `a_entero` rechaza los valores que no caben en 64 bits. Para la conversión contraria, `cadena(valor)` convierte un `entero`, `decimal`, `bool` o `cadena` a texto igual que `"${valor}"`.
+
+```cometa
+var edad = "42".a_entero() o 0
+imprimir("Puntos: " + cadena(edad))
+```
+
+Los números `entero` y `decimal` tienen el método `formato(decimales entero)`, que devuelve una `cadena` con exactamente esa cantidad de decimales (entre 0 y 20; los valores fuera de ese rango se ajustan): `3.14159.formato(2)` es `"3.14"` y `7.formato(2)` no existe como literal (el lexer lee `7.` como decimal), pero una variable entera sí: `var n = 7`, `n.formato(2)` es `"7.00"`.
 
 `dividir("")` divide por punto de código y devuelve una lista vacía para la cadena vacía. `reemplazar("", texto)` inserta el reemplazo en los límites entre puntos de código, incluidos ambos extremos. Los métodos no modifican el receptor.
 
@@ -418,7 +437,7 @@ tipo Contador
 		@valor = @valor + cantidad
 ```
 
-La función superior `inicio` debe escribirse exactamente como `fn inicio()` y se genera como `func main()`. `imprimir(valor)` acepta un valor y lo escribe con un formateador propio de Cometa: `verdadero`/`falso`, cadenas entre comillas dentro de colecciones, listas `[1, 2]`, mapas `["a": 1]`, estructuras `Mascota {nombre: "Toby"}` y opcionales `Alguno(1)`/`Ninguno`. Las variantes de enum aún usan el formato de Go.
+La función superior `inicio` debe escribirse exactamente como `fn inicio()` y se genera como `func main()`. `imprimir(valor)` acepta un valor y lo escribe con un formateador propio de Cometa: `verdadero`/`falso`, cadenas entre comillas dentro de colecciones, listas `[1, 2]`, mapas `["a": 1]`, estructuras `Mascota {nombre: "Toby"}` opcionales `Alguno(1)`/`Ninguno`, resultados `Ok(1)`/`Error("motivo")` y variantes de enum `Evento.Texto("hola")`.
 
 ## Condicionales
 
@@ -498,7 +517,24 @@ fn texto(evento Evento) cadena
 
 Dentro de un `casos` usado como sentencia, `romper` y `continuar` siguen controlando el `repetir` más cercano. Un `casos` usado como expresión no puede transferir control hacia un ciclo exterior; sí puede contener y controlar sus propios ciclos.
 
-`casos` acepta enums, opcionales y resultados. No hay patrones de literales primitivos, guardas, desestructuración anidada, métodos de enums ni operadores de igualdad entre enums u otros wrappers. El comodín descarta los payloads restantes.
+`casos` acepta enums, opcionales, resultados y valores `entero`, `cadena` o `bool`. No hay guardas, desestructuración anidada ni métodos de enums. El comodín descarta los payloads restantes.
+
+### Comparar un enum con una variante
+
+`==` y `!=` comparan un enum con una variante sin payload, en cualquier orden: `si estado == .Corriendo`, `si Estado.Fin != e`. Solo se compara la variante. Comparar dos valores de enum entre sí, o con una variante que tiene payload, es un error que remite a `casos`.
+
+### `casos` sobre valores simples
+
+Con un `entero`, una `cadena` o un `bool`, las ramas usan literales (`1`, `-1`, `"a"`, `verdadero`) o nombres de constantes de este archivo declaradas con `const` y un valor literal (`moneda =>`); una rama puede listar varios separados por comas. No se admiten expresiones, interpolación, decimales, rangos ni el nombre `|x|`. Cada valor puede aparecer una sola vez, también si se escribe una vez como literal y otra como constante. Las constantes de otros módulos (`mod.nombre`) todavía no se admiten como ramas.
+
+```cometa
+casos tecla
+	1 => imprimir("uno")
+	2, 3 => imprimir("dos o tres")
+	_ => imprimir("otro")
+```
+
+Como en los enums, `casos` debe ser exhaustivo: un `entero` o una `cadena` requieren una rama final `_`; un `bool` que cubre `verdadero` y `falso` no la necesita. Funciona como sentencia y como valor, con las mismas reglas de `romper`/`continuar`. El valor se evalúa una sola vez.
 
 ## Opcionales, errores y retornos explícitos
 
@@ -577,6 +613,22 @@ Sin una lista ni variables, `repetir` crea un ciclo infinito. Su cuerpo también
 ```cometa
 repetir imprimir("hola")
 ```
+
+### `mientras`
+
+`mientras condición` repite su bloque mientras la condición (un `bool`) sea verdadera. La condición se evalúa antes de cada vuelta, incluida la primera, así que el cuerpo puede no ejecutarse nunca. `romper` y `continuar` funcionan como en `repetir`; `continuar` vuelve a evaluar la condición. Su cuerpo también puede ir en la misma línea.
+
+```cometa
+var vidas = 3
+mientras vidas > 0
+	vidas -= 1
+```
+
+`mientras` se traduce a un `repetir` infinito que sale con `romper` cuando la condición es falsa, por lo que no añade otro tipo de ciclo al resto del compilador. Es una palabra reservada.
+
+## Asignación compuesta
+
+`+=`, `-=`, `*=`, `/=` y `%=` actualizan una variable, campo o elemento de lista: `x += 1` equivale a `x = x + 1`, con las mismas reglas de tipos (`entero += decimal` es un error; `decimal += entero` se ensancha; `cadena += cadena` concatena). Como el destino se lee y se escribe, solo puede contener variables, campos, `@`, literales, índices y operadores; una llamada como `lista[f()] += 1` se rechaza para que `f()` no se ejecute dos veces. Las entradas de un mapa no admiten estos operadores porque la clave puede no existir: escribe `m[k] = (m[k] o 0) + 1`. No existen `++` ni `--`.
 
 ## Alcance del MVP
 

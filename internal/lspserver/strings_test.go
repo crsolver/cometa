@@ -20,7 +20,7 @@ func TestStringMethodCompletionAndHover(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(completion.Items) != 13 {
+	if len(completion.Items) != 15 {
 		t.Fatalf("completion = %+v", completion.Items)
 	}
 	labels := make([]string, len(completion.Items))
@@ -61,7 +61,7 @@ func TestStringMethodCompletionOnLiteral(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(completion.Items) != 13 {
+	if len(completion.Items) != 15 {
 		t.Fatalf("completion = %+v", completion.Items)
 	}
 }

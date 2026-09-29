@@ -3,6 +3,7 @@ package parser
 import (
 	"cometa/internal/ast"
 	"cometa/internal/token"
+	"strings"
 )
 
 func (p *parser) parseEnumDecl() (*ast.EnumDecl, error) {
@@ -101,6 +102,19 @@ func (p *parser) parseMatch() (*ast.MatchExpr, error) {
 			} else if p.at(token.Ident) && p.current().Lexeme == "_" {
 				pattern := p.advance()
 				arm.Pattern, arm.NamePos = "_", pattern.Pos
+			} else if p.at(token.Number) || p.at(token.String) || p.at(token.True) || p.at(token.False) || p.at(token.Minus) {
+				// Literal arms over entero, cadena or bool: `1 =>`, `2, 3 =>`, `"a" =>`, `verdadero =>`.
+				arm.NamePos = p.current().Pos
+				for {
+					literal, err := p.parseLabel()
+					if err != nil {
+						return err
+					}
+					arm.Literals = append(arm.Literals, literal)
+					if !p.match(token.Comma) {
+						break
+					}
+				}
 			} else {
 				ref, err := p.parseTypeRef()
 				if err != nil {
@@ -116,6 +130,17 @@ func (p *parser) parseMatch() (*ast.MatchExpr, error) {
 						return p.error(pattern, "el comodín debe escribirse '_'")
 					}
 					arm.Pattern, arm.NamePos = pattern.Lexeme, pattern.Pos
+				} else if p.at(token.Comma) && simpleName(ref) {
+					// `moneda, pinchos =>`: a list of constant names over entero, cadena or bool.
+					arm.NamePos = ref.Pos
+					arm.Literals = append(arm.Literals, &ast.IdentExpr{Pos: ref.Pos, Name: ref.Name})
+					for p.match(token.Comma) {
+						literal, err := p.parseLabel()
+						if err != nil {
+							return err
+						}
+						arm.Literals = append(arm.Literals, literal)
+					}
 				} else {
 					arm.TypePattern, arm.NamePos = &ref, ref.Pos
 				}
@@ -142,4 +167,19 @@ func (p *parser) parseMatch() (*ast.MatchExpr, error) {
 	}
 	_, err = p.expect(token.Dedent, "se esperaba el final de casos")
 	return m, err
+}
+
+// simpleName reports whether a parsed type is just an identifier, which may
+// also be the name of a constant used as a `casos` label.
+func simpleName(t ast.TypeRef) bool {
+	return t.Name != "" && !strings.Contains(t.Name, ".") && t.Wrapper == "" && t.Element == nil && t.Key == nil && t.Payload == nil && t.ErrorType == nil && len(t.Args) == 0
+}
+
+// parseLabel parses one value of a scalar `casos` arm: a literal or the name of a constant.
+func (p *parser) parseLabel() (ast.Expr, error) {
+	if p.at(token.Ident) {
+		name := p.advance()
+		return &ast.IdentExpr{Pos: name.Pos, Name: name.Lexeme}, nil
+	}
+	return p.parsePrefix()
 }

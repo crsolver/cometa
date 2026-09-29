@@ -1,0 +1,70 @@
+name: Release
+
+# Push a tag such as v0.1.0 to publish the `cometa` archives and the VS Code
+# extension (.vsix, one per platform, with the language server bundled).
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  archives:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  vsix:
+    needs: archives
+    strategy:
+      matrix:
+        include:
+          - { target: win32-x64, goos: windows, goarch: amd64, exe: cometa.exe }
+          - { target: win32-arm64, goos: windows, goarch: arm64, exe: cometa.exe }
+          - { target: linux-x64, goos: linux, goarch: amd64, exe: cometa }
+          - { target: linux-arm64, goos: linux, goarch: arm64, exe: cometa }
+          - { target: darwin-x64, goos: darwin, goarch: amd64, exe: cometa }
+          - { target: darwin-arm64, goos: darwin, goarch: arm64, exe: cometa }
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Build the language server for ${{ matrix.target }}
+        env:
+          CGO_ENABLED: "0"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          mkdir -p vscode-extension/bin
+          go build -ldflags "-s -w -X main.version=${GITHUB_REF_NAME}" -o vscode-extension/bin/${{ matrix.exe }} ./cmd/cometa
+      - name: Package the extension
+        working-directory: vscode-extension
+        run: |
+          cp ../LICENSE .
+          npm ci
+          npm run compile
+          npm prune --omit=dev
+          npx --yes @vscode/vsce package --target ${{ matrix.target }} \
+            --allow-missing-repository \
+            --out cometa-${{ matrix.target }}.vsix
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${GITHUB_REF_NAME}" vscode-extension/cometa-${{ matrix.target }}.vsix --clobber

@@ -72,7 +72,7 @@ func (c *checker) gameCall(call *ast.CallExpr) (Type, bool, error) {
 	if err != nil {
 		return Type{}, true, err
 	}
-	if f.Namespace == "mate" && (f.Name == "absoluto" || f.Name == "minimo" || f.Name == "maximo" || f.Name == "limitar") {
+	if f.Namespace == "mate" && (f.Name == "absoluto" || f.Name == "minimo" || f.Name == "maximo" || f.Name == "limitar" || f.Name == "signo") {
 		kind := Integer
 		for _, arg := range call.Args {
 			t, err := c.checkExpr(arg)

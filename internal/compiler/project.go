@@ -279,6 +279,16 @@ func CompileProject(entry string, loader SourceLoader) ([]byte, error) {
 	return codegen.Generate(p.Root.Path, p.Program, p.Model)
 }
 
+// CompileProjectForRun is CompileProject with //line directives, so build
+// errors and runtime panics of the generated Go point at Cometa source lines.
+func CompileProjectForRun(entry string, loader SourceLoader) ([]byte, error) {
+	p, err := AnalyzeProject(entry, loader)
+	if err != nil {
+		return nil, err
+	}
+	return codegen.GenerateWithOptions(p.Root.Path, p.Program, p.Model, codegen.Options{LineDirectives: true})
+}
+
 func declarationName(d ast.Decl) (string, ast.Pos) {
 	switch d := d.(type) {
 	case *ast.TypeDecl:

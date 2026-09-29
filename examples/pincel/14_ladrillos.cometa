@@ -1,0 +1,148 @@
+// Pincel: un rompe-ladrillos.
+// Aprenderás a rebotar una bola contra rectángulos con Rect.colision_circulo,
+// a quitar elementos de una lista mientras la recorres (al revés) y a
+// usar un enum como estado de la partida.
+//
+// Flechas o A/D (o el ratón) mueven la pala. Espacio lanza la bola. R reinicia.
+usar std/mate
+usar std/azar
+usar std/pincel
+usar std/pincel/graficos
+usar std/pincel/color
+usar std/pincel/entrada
+usar std/pincel/retro
+
+const ancho entero = 240
+const alto entero = 180
+const radio decimal = 3
+
+enum Estado
+	Esperando
+	Jugando
+	Ganaste
+	Perdiste
+
+tipo Ladrillo
+	caja mate.Rect
+	color color.Color
+
+tipo Partida
+	estado Estado = .Esperando
+	pala mate.Rect
+	bola mate.Vec2
+	vel mate.Vec2
+	ladrillos [Ladrillo]
+	vidas entero
+	puntos entero
+
+	fn reiniciar()
+		@ladrillos = []
+		var colores [color.Color] = [.Rojo, .Ocre, .Amarillo, .Verde, .Azul]
+		repetir (0..5) |fila|
+			repetir (0..10) |columna|
+				var caja = mate.Rect {pos: {8 + columna * 22, 24 + fila * 10}, tamano: {20, 8}}
+				@ladrillos.agregar(Ladrillo {caja: caja, color: colores.obtener(fila) o .Blanco})
+		@vidas = 3
+		@puntos = 0
+		@preparar()
+
+	// Deja la bola sobre la pala, lista para lanzarse.
+	fn preparar()
+		@pala = {pos: {100, 166}, tamano: {40, 6}}
+		@vel = {0, 0}
+		@estado = .Esperando
+
+	fn mover_pala(dt decimal)
+		var direccion = 0.0
+		si entrada.tecla_mantenida(.Derecha) || entrada.tecla_mantenida(.D)
+			direccion += 1
+		si entrada.tecla_mantenida(.Izquierda) || entrada.tecla_mantenida(.A)
+			direccion -= 1
+		@pala.pos.x += direccion * 170 * dt
+		// El ratón coloca la pala directamente (la posición ya viene en píxeles lógicos).
+		var raton = entrada.posicion_raton()
+		si entrada.raton_mantenido(.Izquierdo)
+			@pala.pos.x = raton.x - @pala.tamano.x / 2
+		@pala.pos.x = mate.limitar(@pala.pos.x, 0, ancho - @pala.tamano.x)
+
+	fn rebotar_en_paredes()
+		si @bola.x < radio
+			@bola.x = radio
+			@vel.x = mate.absoluto(@vel.x)
+		si @bola.x > ancho - radio
+			@bola.x = ancho - radio
+			@vel.x = -mate.absoluto(@vel.x)
+		si @bola.y < radio
+			@bola.y = radio
+			@vel.y = mate.absoluto(@vel.y)
+
+	fn rebotar_en_pala()
+		si @vel.y > 0 && @pala.colision_circulo(@bola, radio)
+			// Cuanto más lejos del centro golpea, más se inclina el rebote.
+			var desvio = (@bola.x - @pala.centro().x) / (@pala.tamano.x / 2)
+			var rapidez = @vel.longitud()
+			@vel = mate.Vec2 {x: desvio, y: -1}.normalizado() * rapidez
+			@bola.y = @pala.pos.y - radio
+
+	fn rebotar_en_ladrillos()
+		// Se recorre al revés para poder eliminar sin saltarse elementos.
+		repetir (@ladrillos.longitud()..0) |n|
+			var i = n - 1
+			si @ladrillos.obtener(i) |ladrillo|
+				si ladrillo.caja.colision_circulo(@bola, radio)
+					var centro = ladrillo.caja.centro()
+					var dx = mate.absoluto(@bola.x - centro.x) / ladrillo.caja.tamano.x
+					var dy = mate.absoluto(@bola.y - centro.y) / ladrillo.caja.tamano.y
+					si dx > dy
+						@vel.x = -@vel.x
+					sino
+						@vel.y = -@vel.y
+					@ladrillos.eliminar(i)
+					@puntos += 10
+					@vel = @vel * 1.02
+					retornar
+
+	pub fn actualizar(dt decimal)
+		si entrada.tecla_presionada(.R)
+			@reiniciar()
+		@mover_pala(dt)
+		casos @estado
+			.Esperando =>
+				@bola = {x: @pala.centro().x, y: @pala.pos.y - radio}
+				si entrada.tecla_presionada(.Espacio)
+					@vel = mate.Vec2 {x: azar.real(-0.6, 0.6), y: -1}.normalizado() * 120
+					@estado = .Jugando
+			.Jugando =>
+				@bola = @bola + @vel * dt
+				@rebotar_en_paredes()
+				@rebotar_en_pala()
+				@rebotar_en_ladrillos()
+				si @ladrillos.longitud() == 0
+					@estado = .Ganaste
+				osi @bola.y > alto
+					@vidas -= 1
+					si @vidas == 0
+						@estado = .Perdiste
+					sino
+						@preparar()
+			_ => retornar
+
+	pub fn pintar()
+		graficos.limpiar(.AzulNoche)
+		repetir (@ladrillos) |ladrillo|
+			graficos.rectangulo_v(ladrillo.caja.pos, ladrillo.caja.tamano, ladrillo.color)
+		graficos.rectangulo_v(@pala.pos, @pala.tamano, .Blanco)
+		graficos.circulo(@bola.x, @bola.y, radio, .Amarillo)
+		retro.texto("Puntos: ${@puntos}", 4, 3)
+		retro.texto("Vidas: ${@vidas}", 168, 3)
+		casos @estado
+			.Esperando => retro.texto("Espacio: lanzar", 80, 120, color = .Crema)
+			.Ganaste => retro.texto("¡Ganaste!  R: otra vez", 56, 120, color = .Amarillo)
+			.Perdiste => retro.texto("Fin del juego  R: otra vez", 44, 120, color = .Rosa)
+			_ => retornar
+
+fn inicio()
+	var partida = Partida {}
+	partida.reiniciar()
+	pincel.ejecutar(partida, ancho, alto, escala = 3, titulo = "Ladrillos", pixelado = verdadero) capturar |error|
+		imprimir(error)

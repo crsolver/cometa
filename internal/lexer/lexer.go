@@ -33,8 +33,8 @@ var keywords = map[string]token.Kind{
 	"enum": token.Enum, "casos": token.Casos,
 	"tipo": token.Tipo, "fn": token.Fn, "si": token.Si, "osi": token.Osi,
 	"var": token.Var, "const": token.Const,
-	"sino": token.Sino, "num": token.Num, "entero": token.Entero, "decimal": token.Decimal, "cadena": token.Cadena, "bool": token.Bool,
-	"repetir": token.Repetir, "continuar": token.Continuar, "romper": token.Romper,
+	"sino": token.Sino, "entero": token.Entero, "decimal": token.Decimal, "cadena": token.Cadena, "bool": token.Bool,
+	"repetir": token.Repetir, "mientras": token.Mientras, "continuar": token.Continuar, "romper": token.Romper,
 	"verdadero": token.True, "falso": token.False,
 }
 
@@ -173,7 +173,7 @@ func lexLine(filename string, lineNo, start int, runes []rune) ([]token.Token, e
 		}
 		if i+1 < len(runes) {
 			pair := string(runes[i : i+2])
-			pairs := map[string]token.Kind{"..": token.Range, "=>": token.Arrow, "==": token.Equal, "!=": token.NotEqual, "<=": token.LessEq, ">=": token.GreaterEq, "&&": token.And, "||": token.Or}
+			pairs := map[string]token.Kind{"..": token.Range, "+=": token.PlusAssign, "-=": token.MinusAssign, "*=": token.StarAssign, "/=": token.SlashAssign, "%=": token.PercentAssign, "=>": token.Arrow, "==": token.Equal, "!=": token.NotEqual, "<=": token.LessEq, ">=": token.GreaterEq, "&&": token.And, "||": token.Or}
 			if kind, ok := pairs[pair]; ok {
 				out = append(out, token.Token{Kind: kind, Lexeme: pair, Pos: pos})
 				i += 2
@@ -190,7 +190,7 @@ func lexLine(filename string, lineNo, start int, runes []rune) ([]token.Token, e
 		}
 		kind, ok := singles[ch]
 		if !ok {
-			return nil, lexError(filename, lineNo, i+1, fmt.Sprintf("carácter inesperado %q", ch))
+			return nil, lexError(filename, lineNo, i+1, unexpectedCharacter(ch))
 		}
 		out = append(out, token.Token{Kind: kind, Lexeme: string(ch), Pos: pos})
 		i++
@@ -263,4 +263,27 @@ func scanInterpolation(runes []rune, start int) (int, bool) {
 
 func lexError(filename string, line, column int, message string) error {
 	return &Error{Filename: filename, Pos: ast.Pos{Line: line, Column: column}, Message: message}
+}
+
+// unexpectedCharacter explains characters that exist in other languages but
+// not in Cometa, and shows the rest as readable text instead of Go escapes.
+func unexpectedCharacter(ch rune) string {
+	switch ch {
+	case '&':
+		return "carácter inesperado '&'; para «y» lógico usa '&&' (Cometa no tiene operadores de bits)"
+	case '^', '~':
+		return fmt.Sprintf("carácter inesperado '%c'; Cometa no tiene operadores de bits", ch)
+	case ';':
+		return "carácter inesperado ';'; en Cometa cada instrucción va en su propia línea"
+	case '\'':
+		return "carácter inesperado \"'\"; los textos usan comillas dobles: \"así\""
+	case '“', '”':
+		return "carácter inesperado; usa comillas rectas dobles (\") en lugar de comillas tipográficas"
+	case ' ':
+		return "carácter inesperado: espacio de no separación; bórralo y escribe un espacio normal"
+	}
+	if ch < 32 || ch == 127 {
+		return fmt.Sprintf("carácter de control inesperado (código %d)", ch)
+	}
+	return fmt.Sprintf("carácter inesperado '%c'", ch)
 }

@@ -2,6 +2,7 @@ package sema
 
 import (
 	"cometa/internal/ast"
+	"cometa/internal/diagnostic"
 	"cometa/internal/stdlib"
 	"strings"
 )
@@ -43,7 +44,7 @@ func (c *checker) checkContextualVariant(expr *ast.ContextualVariantExpr, call *
 	info := c.model.EnumFor(*expected)
 	variant, exists := info.Variants[expr.Name]
 	if !exists {
-		return Type{}, c.fail(expr.NamePos, "la variante %q no existe en %s", expr.Name, expected.String())
+		return Type{}, c.fail(expr.NamePos, "la variante %q no existe en %s%s", expr.Name, expected.String(), diagnostic.Hint(expr.Name, sortedKeys(info.Variants)))
 	}
 	var node ast.Expr = expr
 	if call == nil {
@@ -102,7 +103,7 @@ func (c *checker) enumMember(member *ast.MemberExpr) (*EnumInfo, VariantInfo, bo
 	info = c.model.EnumFor(t)
 	variant, exists := info.Variants[member.Name]
 	if !exists {
-		return info, variant, true, c.fail(member.NamePos, "la variante %q no existe en %s", member.Name, ident.Name)
+		return info, variant, true, c.fail(member.NamePos, "la variante %q no existe en %s%s", member.Name, ident.Name, diagnostic.Hint(member.Name, sortedKeys(info.Variants)))
 	}
 	return info, variant, true, nil
 }
@@ -126,8 +127,12 @@ func (c *checker) checkMatch(m *ast.MatchExpr, value bool, expected *Type) (Type
 	if t.Kind == Interface {
 		return c.checkTypeMatch(m, value, expected, t)
 	}
-	if t.Kind != Enum && !t.Wrapped() {
-		return Type{}, c.fail(m.Pos, "casos requiere un enum, opcional o resultado, no %s", t.String())
+	scalar := t.Kind == Integer || t.Kind == String || t.Kind == Boolean
+	if t.Kind != Enum && !t.Wrapped() && !scalar {
+		return Type{}, c.fail(m.Pos, "casos requiere un enum, opcional, resultado, entero, cadena o bool, no %s", t.String())
+	}
+	if scalar && m.Binding != "" {
+		return Type{}, c.fail(m.BindingPos, "casos sobre %s no admite un nombre entre '|'; solo los enums con payload lo usan", t.String())
 	}
 	info := c.model.EnumFor(t)
 	outer, depth := c.vars, c.loopDepth
@@ -153,6 +158,13 @@ func (c *checker) checkMatch(m *ast.MatchExpr, value bool, expected *Type) (Type
 		}
 		err := func() error {
 			c.bindings = cloneBindings(outerBindings)
+			c.constantLabel(arm)
+			if scalar || len(arm.Literals) > 0 {
+				if err := c.checkScalarArm(arm, t, seen, &wildcard); err != nil {
+					return err
+				}
+				c.vars = cloneVars(outer)
+			} else {
 			c.model.PatternTypes[arm] = t
 			if arm.TypePattern != nil {
 				return c.fail(arm.Pos, "las variantes de casos requieren Enum.Variante o .Variante")
@@ -182,11 +194,12 @@ func (c *checker) checkMatch(m *ast.MatchExpr, value bool, expected *Type) (Type
 			} else {
 				variant, exists := info.Variants[arm.Pattern]
 				if !exists {
-					return c.fail(arm.Pos, "la variante %q no existe en %s", arm.Pattern, t.Name)
+					return c.fail(arm.Pos, "la variante %q no existe en %s%s", arm.Pattern, t.Name, diagnostic.Hint(arm.Pattern, sortedKeys(info.Variants)))
 				}
 				if m.Binding != "" && variant.Payload.Kind != Void {
 					c.vars[m.Binding] = variant.Payload
 				}
+			}
 			}
 			if value {
 				branchExpected := expected
@@ -229,7 +242,11 @@ func (c *checker) checkMatch(m *ast.MatchExpr, value bool, expected *Type) (Type
 	if broken {
 		return Type{}, errInvalid
 	}
-	if !wildcard {
+	if scalar {
+		if !wildcard && !(t.Kind == Boolean && seen["verdadero"] && seen["falso"]) {
+			return Type{}, c.fail(m.Pos, "casos sobre %s requiere una rama final '_'", t.String())
+		}
+	} else if !wildcard {
 		var missing []string
 		for _, variant := range info.Decl.Variants {
 			if !seen[variant.Name] {

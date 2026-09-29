@@ -126,8 +126,8 @@ func TestNumericDiagnostics(t *testing.T) {
 		{"fn inicio()\n\tvar xs = [1]\n\tvar ds [decimal] = xs\n", "no se puede asignar [entero] a [decimal]"},
 		{"fn inicio()\n\tvar x entero? = 1\n\tvar y decimal? = x\n", "no se puede asignar entero? a decimal?"},
 		{"fn inicio() imprimir(1.0 % 2)\n", "requiere enteros"},
-		{"fn inicio() imprimir(9223372036854775808)\n", "fuera del rango de int64"},
-		{"fn inicio() imprimir(-9223372036854775809)\n", "fuera del rango de int64"},
+		{"fn inicio() imprimir(9223372036854775808)\n", "fuera del rango de entero"},
+		{"fn inicio() imprimir(-9223372036854775809)\n", "fuera del rango de entero"},
 		{"fn inicio() imprimir(entero(verdadero))\n", "argumento numérico"},
 	} {
 		_, err := Compile("numeric.cometa", []byte(tc.source))
@@ -152,7 +152,7 @@ func main() {
  fmt.Println(_hentero(-9223372036854775808.0))
 }
 `
-	runGeneratedGo(t, []byte(source), strings.Repeat("conversión a entero inválida: valor no finito o fuera del rango de int64\n", 5)+"-9223372036854775808\n")
+	runGeneratedGo(t, []byte(source), strings.Repeat("conversión a entero inválida: valor no finito o fuera del rango de entero\n", 5)+"-9223372036854775808\n")
 }
 
 func TestNumericExamples(t *testing.T) {

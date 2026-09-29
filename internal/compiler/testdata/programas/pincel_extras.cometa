@@ -1,0 +1,57 @@
+usar std/mate
+usar std/azar
+usar std/pincel
+usar std/pincel/graficos
+usar std/pincel/entrada
+usar std/pincel/datos
+usar std/pincel/lienzo
+usar std/pincel/rejilla
+
+tipo Partida
+	mapa rejilla.Rejilla
+	hoja graficos.Hoja
+	pos mate.Vec2
+	cuadros entero
+	mejor entero
+
+	pub fn actualizar(dt decimal)
+		@cuadros += 1
+		var ancho = @mapa.columnas() + @mapa.filas()
+		si @mapa.obtener(1, 1) |celda|
+			ancho += celda
+		si @mapa.poner(0, 0, 2)
+			ancho += 1
+		@mapa.rellenar(1)
+		@mapa.poner(2, 2, 0)
+		si @mapa.choca(mate.Rect {pos: {14, 14}, tamano: {4, 4}}, {16, 16}, [0])
+			ancho += 1
+		si entrada.mandos() > 0
+			si entrada.mando_boton(0, .A) || entrada.mando_boton_presionado(0, .Inicio)
+				ancho += 1
+			@pos.x += entrada.mando_eje(0, .IzquierdoX) + entrada.mando_eje(0, .DerechoY, zona_muerta = 0.3)
+		azar.semilla(123)
+		var n = azar.entero(1, 7)
+		datos.guardar("mejor", cadena(n + ancho)) capturar |error|
+			imprimir(error)
+		@mejor = (datos.leer("mejor") o "0").a_entero() o 0
+		si @cuadros > 2
+			pincel.salir()
+
+	pub fn pintar()
+		graficos.limpiar(.Negro)
+		rejilla.dibujar(@mapa, @hoja, {4, 4}, {2, 2})
+		graficos.cuadro(@hoja, 1, 10, 10, espejo_h = verdadero)
+		graficos.cuadro_v(@hoja, -1, {0, 0})
+		graficos.cuadro_v(@hoja, @hoja_cuadros(), @pos, escala = {2, 2}, espejo_v = verdadero)
+
+	fn hoja_cuadros() entero
+		graficos.cuadros(@hoja) + entero(graficos.tamano_cuadro(@hoja).x)
+
+fn inicio()
+	var imagen = lienzo.nuevo(32, 16, .Rojo)
+	var partida = Partida {
+		mapa: rejilla.desde_texto(["#..", ".#.", "..#"], ["#": 1, ".": 0]),
+		hoja: graficos.hoja(imagen, 16, 16),
+	}
+	pincel.ejecutar(partida) capturar |error|
+		imprimir(error)

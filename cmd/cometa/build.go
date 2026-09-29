@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"go/parser"
 	"go/token"
@@ -10,19 +11,24 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 )
 
-func goExecutable() string {
+func goExecutable() (string, error) {
 	if path := os.Getenv("COMETA_GO"); path != "" {
-		return path
+		return path, nil
 	}
 	if runtime.GOOS == "windows" {
 		path := `C:\Program Files\Go\bin\go.exe`
 		if _, err := os.Stat(path); err == nil {
-			return path
+			return path, nil
 		}
 	}
-	return "go"
+	path, err := exec.LookPath("go")
+	if err != nil {
+		return "", fmt.Errorf("no se encontró Go. Cometa necesita Go 1.25 o superior para ejecutar y construir programas.\nInstálalo desde https://go.dev/dl/ y vuelve a abrir la terminal (o define COMETA_GO con la ruta de go)")
+	}
+	return path, nil
 }
 
 // Each build is isolated from source directories and their existing go.mod.
@@ -61,13 +67,25 @@ func buildProgram(source []byte, output string, execute bool) error {
 			return err
 		}
 	}
-	cmd := exec.Command(goExecutable(), "build", "-mod=mod", "-o", output, ".")
+	goPath, err := goExecutable()
+	if err != nil {
+		return err
+	}
+	cmd := exec.Command(goPath, "build", "-mod=mod", "-o", output, ".")
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), "GOWORK=off")
 	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err = cmd.Run(); err != nil {
-		return fmt.Errorf("no se pudo construir el juego (Go y descarga de dependencias requeridos): %w", err)
+	var buildErrors bytes.Buffer
+	cmd.Stderr = &buildErrors
+	// The first Ebitengine build downloads and compiles dependencies; say so
+	// when it is taking a while instead of looking frozen.
+	slow := time.AfterFunc(4*time.Second, func() {
+		fmt.Fprintln(os.Stderr, "compilando… la primera vez se descargan y compilan las dependencias del juego (puede tardar unos minutos)")
+	})
+	err = cmd.Run()
+	slow.Stop()
+	if err != nil {
+		return buildFailure(buildErrors.String(), err)
 	}
 	if !execute {
 		return nil
@@ -75,8 +93,14 @@ func buildProgram(source []byte, output string, execute bool) error {
 	game := exec.Command(output)
 	game.Stdin = os.Stdin
 	game.Stdout = os.Stdout
-	game.Stderr = os.Stderr
-	if err = game.Run(); err != nil {
+	crash := &crashFilter{out: os.Stderr}
+	game.Stderr = crash
+	err = game.Run()
+	crash.Flush()
+	if err != nil {
+		if crash.Report() {
+			return errReported
+		}
 		return fmt.Errorf("el juego terminó con error: %w", err)
 	}
 	return nil

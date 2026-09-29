@@ -1,0 +1,133 @@
+// Pincel: un plataformas con gravedad, salto, monedas y pinchos.
+// Aprenderás a mover un personaje con velocidad, a resolver colisiones contra un mapa
+// de tiles con `rejilla.mover` y a cambiar el mapa mientras se juega.
+//
+// Flechas o A/D para andar, Espacio, W o flecha arriba para saltar, R reinicia.
+usar std/mate
+usar std/pincel
+usar std/pincel/graficos
+usar std/pincel/entrada
+usar std/pincel/lienzo
+usar std/pincel/rejilla
+usar std/pincel/retro
+
+const celda entero = 16
+const aire entero = 0
+const ladrillo entero = 1
+const moneda entero = 2
+const pinchos entero = 3
+
+const gravedad decimal = 700
+const velocidad decimal = 90
+const salto decimal = 260
+
+// Hoja de cuatro cuadros: aire, ladrillo, moneda y pinchos.
+fn crear_hoja() graficos.Hoja
+	var imagen = lienzo.nuevo(64, 16, .Transparente)
+	lienzo.rect(imagen, 0, 0, 16, 16, .AzulNoche)
+	lienzo.rect(imagen, 16, 0, 16, 16, .Marron)
+	lienzo.rect(imagen, 16, 0, 16, 3, .VerdePino)
+	lienzo.rect(imagen, 32, 0, 16, 16, .AzulNoche)
+	lienzo.circulo(imagen, 40, 8, 4, .Amarillo)
+	lienzo.rect(imagen, 48, 0, 16, 16, .AzulNoche)
+	repetir (0..4) |i|
+		lienzo.linea(imagen, 48 + i * 4, 15, 50 + i * 4, 8, .Gris)
+		lienzo.linea(imagen, 52 + i * 4, 15, 50 + i * 4, 8, .Gris)
+	graficos.hoja(imagen, celda, celda)
+
+fn crear_mapa() rejilla.Rejilla
+	rejilla.desde_texto([
+		"####################",
+		"#..................#",
+		"#..................#",
+		"#.......o..........#",
+		"#......###....o....#",
+		"#..o...........###.#",
+		"#.###..........#...#",
+		"#......^^^.....#.o.#",
+		"#..o..#####..o.#.###",
+		"#.........#.....^..#",
+		"####################",
+	], ["#": ladrillo, ".": aire, "o": moneda, "^": pinchos])
+
+tipo Plataformas
+	mapa rejilla.Rejilla
+	hoja graficos.Hoja
+	pos mate.Vec2
+	vel mate.Vec2
+	en_suelo bool
+	monedas entero
+	total entero
+
+	fn reiniciar()
+		@mapa = crear_mapa()
+		@pos = {24, 130}
+		@vel = {0, 0}
+		@monedas = 0
+		@total = 0
+		repetir (0..@mapa.filas()) |y|
+			repetir (0..@mapa.columnas()) |x|
+				var valor = @mapa.obtener(x, y) o aire
+				si valor == moneda
+					@total += 1
+
+	fn cuerpo(pos mate.Vec2) mate.Rect
+		mate.Rect {pos: pos, tamano: {10, 14}}
+
+	// Lee la celda que hay bajo el centro del personaje.
+	fn celda_actual() entero
+		var centro = @cuerpo(@pos).centro()
+		@mapa.obtener(mate.piso(centro.x / celda), mate.piso(centro.y / celda)) o aire
+
+	pub fn actualizar(dt decimal)
+		si entrada.tecla_presionada(.R)
+			@reiniciar()
+
+		var direccion = 0.0
+		si entrada.tecla_mantenida(.Derecha) || entrada.tecla_mantenida(.D)
+			direccion += 1
+		si entrada.tecla_mantenida(.Izquierda) || entrada.tecla_mantenida(.A)
+			direccion -= 1
+		@vel.x = direccion * velocidad
+
+		si @en_suelo && (entrada.tecla_presionada(.Espacio) || entrada.tecla_presionada(.W) || entrada.tecla_presionada(.Arriba))
+			@vel.y = -salto
+		@vel.y += gravedad * dt
+
+		// mover avanza lo que puede sin atravesar ladrillos y devuelve lo que realmente se movió.
+		// Si es menos de lo pedido en un eje, hubo un choque en ese eje.
+		var pedido = @vel * dt
+		var hecho = @mapa.mover(@cuerpo(@pos), {celda, celda}, pedido, [ladrillo])
+		@pos = @pos + hecho
+		@en_suelo = falso
+		si hecho.x != pedido.x
+			@vel.x = 0
+		si hecho.y != pedido.y
+			// Chocar al caer es tocar el suelo; chocar al subir es golpear el techo.
+			@en_suelo = pedido.y > 0
+			@vel.y = 0
+
+		// Las constantes con nombre sirven como ramas de `casos`.
+		casos @celda_actual()
+			moneda =>
+				var centro = @cuerpo(@pos).centro()
+				@mapa.poner(mate.piso(centro.x / celda), mate.piso(centro.y / celda), aire)
+				@monedas += 1
+			pinchos =>
+				@pos = {24, 130}
+				@vel = {0, 0}
+			_ => retornar
+
+	pub fn pintar()
+		graficos.limpiar(.AzulNoche)
+		rejilla.dibujar(@mapa, @hoja)
+		graficos.rectangulo_v(@pos, {10, 14}, .Rojo)
+		retro.texto("Monedas: ${@monedas}/${@total}", 4, 3, color = .Blanco)
+		si @monedas == @total
+			retro.texto("¡Las tienes todas!  R: repetir", 40, 84, color = .Amarillo)
+
+fn inicio()
+	var juego = Plataformas {mapa: crear_mapa(), hoja: crear_hoja()}
+	juego.reiniciar()
+	pincel.ejecutar(juego, 320, 180, titulo = "Plataformas", escala = 3, pixelado = verdadero) capturar |error|
+		imprimir(error)

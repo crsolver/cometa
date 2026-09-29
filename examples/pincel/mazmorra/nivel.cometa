@@ -1,0 +1,76 @@
+// Generador de mazmorras: un módulo sin gráficos, solo azar y una rejilla.
+// El juego lo importa con `usar mazmorra/nivel`; solo se ve lo marcado con pub.
+usar std/azar
+usar std/pincel/rejilla
+
+pub const columnas entero = 30
+pub const filas entero = 19
+pub const pared entero = 1
+pub const suelo entero = 0
+
+// Una sala rectangular. Es privada: quien use el módulo solo ve sus centros.
+tipo Sala
+	x entero
+	y entero
+	ancho entero
+	alto entero
+
+	fn centro_x() entero
+		@x + @ancho / 2
+
+	fn centro_y() entero
+		@y + @alto / 2
+
+	fn toca(otra Sala) bool
+		@x <= otra.x + otra.ancho && otra.x <= @x + @ancho && @y <= otra.y + otra.alto && otra.y <= @y + @alto
+
+pub tipo Nivel
+	pub mapa rejilla.Rejilla
+	// Centros de las salas: la primera es la entrada y la última la salida.
+	pub centros_x [entero]
+	pub centros_y [entero]
+
+// Excava un tramo horizontal y otro vertical entre dos puntos.
+fn conectar(mapa rejilla.Rejilla, x1 entero, y1 entero, x2 entero, y2 entero)
+	var x = x1
+	mientras x != x2
+		mapa.poner(x, y1, suelo)
+		si x2 > x
+			x += 1
+		sino
+			x -= 1
+	var y = y1
+	mientras y != y2
+		mapa.poner(x2, y, suelo)
+		si y2 > y
+			y += 1
+		sino
+			y -= 1
+	mapa.poner(x2, y2, suelo)
+
+// La misma semilla produce siempre la misma mazmorra.
+pub fn generar(semilla entero) Nivel
+	azar.semilla(semilla)
+	var mapa = rejilla.nueva(columnas, filas, pared)
+	var salas [Sala] = []
+	repetir (0..40) |intento|
+		si salas.longitud() < 7
+			var ancho = azar.entero(4, 9)
+			var alto = azar.entero(3, 6)
+			var sala = Sala {x: azar.entero(1, columnas - ancho - 1), y: azar.entero(1, filas - alto - 1), ancho: ancho, alto: alto}
+			var libre = verdadero
+			repetir (salas) |otra|
+				si sala.toca(otra)
+					libre = falso
+			si libre
+				salas.agregar(sala)
+				repetir (0..alto) |dy|
+					repetir (0..ancho) |dx|
+						mapa.poner(sala.x + dx, sala.y + dy, suelo)
+	var nivel = Nivel {mapa: mapa}
+	repetir (salas) |sala, i|
+		nivel.centros_x.agregar(sala.centro_x())
+		nivel.centros_y.agregar(sala.centro_y())
+		si i > 0
+			conectar(mapa, nivel.centros_x[i - 1], nivel.centros_y[i - 1], sala.centro_x(), sala.centro_y())
+	nivel

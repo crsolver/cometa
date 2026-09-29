@@ -169,3 +169,19 @@ func TestEnumExample(t *testing.T) {
 	}
 	runCometa(t, string(source), "izquierda\nleyendo el boton:\nb\ncargando pagina\nbuton presionado:\nb\nv4\nv6\n")
 }
+
+// runGoExpectingFailure runs a generated program that must panic and returns its output.
+func runGoExpectingFailure(t *testing.T, file string) string {
+	t.Helper()
+	goName := "go"
+	if runtime.GOOS == "windows" {
+		goName += ".exe"
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, filepath.Join(runtime.GOROOT(), "bin", goName), "run", file).CombinedOutput()
+	if err == nil {
+		t.Fatalf("el programa debía fallar\n%s", out)
+	}
+	return string(out)
+}

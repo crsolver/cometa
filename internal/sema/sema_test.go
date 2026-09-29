@@ -28,7 +28,7 @@ func TestSemanticErrors(t *testing.T) {
 		want   string
 	}{
 		{"unknown name", "fn f() entero desconocido\n", `el nombre "desconocido" no existe`},
-		{"missing receiver marker", "tipo T\n\tx entero\n\tfn f() entero x\n", `el nombre "x" no existe; los campos requieren '@'`},
+		{"missing receiver marker", "tipo T\n\tx entero\n\tfn f() entero x\n", `el nombre "x" no existe; para usar un campo o método del objeto escribe '@x'`},
 		{"incompatible assignment", "tipo T\n\tx entero\n\tfn f()\n\t\t@x = verdadero\n", "no se puede asignar bool a entero"},
 		{"invalid operator", "fn f(a decimal) decimal a % 2\n", `el operador % requiere enteros`},
 		{"missing return", "fn f(a entero) entero\n\tsi verdadero a\n", `debe producir entero en todos los caminos`},

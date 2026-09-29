@@ -17,6 +17,9 @@ Pincel es la familia de bibliotecas de juego incluida con Cometa. Se importa cad
 | `std/pincel/recursos` | Carga y empaquetado de recursos |
 | `std/pincel/retro` | Texto bitmap e iconos incorporados de 8×8 |
 | `std/pincel/lienzo` | [Pixel art con código](lienzo.md): sprites desde texto, lienzos editables y PNG |
+| `std/pincel/rejilla` | Mapas de tiles: cuadrículas de enteros con dibujo y colisión |
+| `std/pincel/datos` | Guardar y leer pares clave-texto (mejor puntuación, opciones) |
+| `std/pincel/ui` | [Interfaz en modo inmediato](ui.md): botones, campos de texto, barras |
 
 El último segmento es el namespace; `usar std/pincel/graficos como g` permite `g.limpiar(.Negro)`. Cada archivo declara sus imports. No se importan automáticamente tipos ni otros módulos.
 
@@ -103,13 +106,19 @@ X crece a la derecha, Y hacia abajo. Distancias en píxeles lógicos y ángulos 
 radianes. `mate.Vec2` admite suma/resta de vectores, negación, multiplicación por escalar
 en ambos órdenes y división por escalar. Normalizar cero devuelve cero. Se admiten literales nombrados y posicionales, además de `{2, 3}` cuando se conoce el tipo esperado.
 
-`color.Color`, `entrada.Tecla` y `entrada.BotonRaton` son valores opacos con constantes contextuales:
+`color.Color`, `entrada.Tecla`, `entrada.BotonRaton`, `entrada.BotonMando` y `entrada.EjeMando` son valores opacos con constantes contextuales:
 
 - color.Color: los 24 tonos de la paleta siguiente y `.Transparente` (RGBA 0, 0, 0, 0).
   `color.rgba` permite colores personalizados y limita los canales a 0–255.
-- entrada.Tecla: `.A` a `.Z`, `.Izquierda`, `.Derecha`, `.Arriba`, `.Abajo`, `.Espacio`,
-  `.Escape`, `.Enter`, `.Tab`, `.Retroceso`, `.Shift`, `.Control`.
+- entrada.Tecla: `.A` a `.Z`, los dígitos `.Cero` a `.Nueve`, `.F1` a `.F12`, `.Izquierda`,
+  `.Derecha`, `.Arriba`, `.Abajo`, `.Espacio`, `.Escape`, `.Enter`, `.Tab`, `.Retroceso`,
+  `.Shift`, `.Control`, `.Alt`, `.Suprimir`, `.Inicio`, `.Fin`, `.RePag`, `.AvPag`,
+  `.ShiftIzquierdo`, `.ShiftDerecho`, `.ControlIzquierdo`, `.ControlDerecho`.
 - entrada.BotonRaton: `.Izquierdo`, `.Derecho`, `.Medio`.
+- entrada.BotonMando (distribución estándar): `.A`, `.B`, `.X`, `.Y`, `.Arriba`, `.Abajo`,
+  `.Izquierda`, `.Derecha`, `.HombroIzquierdo`, `.HombroDerecho`, `.GatilloIzquierdo`,
+  `.GatilloDerecho`, `.Atras`, `.Inicio`, `.PalancaIzquierda`, `.PalancaDerecha`.
+- entrada.EjeMando: `.IzquierdoX`, `.IzquierdoY`, `.DerechoX`, `.DerechoY`.
 
 La paleta de `std/pincel/color` usa alfa 255 en todos sus tonos:
 
@@ -172,6 +181,7 @@ son opcionales. Las expresiones de argumentos se evalúan una vez, en orden fuen
 también al usar argumentos nombrados.
 
 ```cometa
+pincel.salir()   // cierra el juego al terminar el cuadro actual
 pincel.ejecutar(instancia pincel.Juego, ancho entero = 320, alto entero = 180, titulo cadena = "Cometa", escala decimal = 1, redimensionable bool = falso, pantalla_completa bool = falso, tps entero = 60, pixelado bool = falso, retro bool = falso) !
 mate.Vec2.longitud() decimal
 mate.Vec2.normalizado() mate.Vec2
@@ -180,7 +190,15 @@ mate.Vec2.producto_punto(otro mate.Vec2) decimal
 mate.Vec2.rotado(angulo decimal) mate.Vec2
 mate.Vec2.colision_circulo(radio decimal, otro mate.Vec2, radio_otro decimal) bool
 mate.Rect.interseca(otro mate.Rect) bool
+mate.Vec2.angulo() decimal
+mate.Vec2.interpolar(otro mate.Vec2, t decimal) mate.Vec2
+mate.Vec2.reflejar(normal mate.Vec2) mate.Vec2
+mate.Vec2.perpendicular() mate.Vec2
 mate.Rect.contiene(punto mate.Vec2) bool
+mate.Rect.centro() mate.Vec2
+mate.Rect.interseccion(otro mate.Rect) mate.Rect   // tamaño cero si no se tocan
+mate.Rect.desplazado(delta mate.Vec2) mate.Rect
+mate.Rect.colision_circulo(centro mate.Vec2, radio decimal) bool
 mate.pi // constante decimal
 mate.absoluto(valor decimal) decimal
 mate.minimo(a decimal, b decimal) decimal
@@ -194,8 +212,16 @@ mate.raiz(valor decimal) decimal
 mate.seno(angulo decimal) decimal
 mate.coseno(angulo decimal) decimal
 mate.atan2(y decimal, x decimal) decimal
+mate.tangente(angulo decimal) decimal
+mate.potencia(base decimal, exponente decimal) decimal
+mate.signo(valor decimal) decimal                  // con enteros devuelve un entero
+mate.distancia(x1 decimal, y1 decimal, x2 decimal, y2 decimal) decimal
+mate.angulo(x1 decimal, y1 decimal, x2 decimal, y2 decimal) decimal
+mate.radianes(grados decimal) decimal
+mate.grados(radianes decimal) decimal
 azar.real(minimo decimal, maximo decimal) decimal
 azar.entero(minimo entero, maximo entero) entero  // incluye minimo, excluye maximo: un dado es azar.entero(1, 7)
+azar.semilla(valor entero)                          // partidas reproducibles
 color.rgba(r entero, g entero, b entero, a entero = 255) color.Color
 
 graficos.limpiar(color color.Color)
@@ -214,6 +240,12 @@ graficos.region_v(imagen graficos.Imagen, fuente mate.Rect, pos mate.Vec2, orige
 graficos.region_rect(imagen graficos.Imagen, fuente mate.Rect, destino mate.Rect, origen mate.Vec2 = {}, rotacion decimal = 0, tinte color.Color = .Blanco)
 graficos.texto(texto cadena, fuente graficos.Fuente, x decimal, y decimal, tamano decimal = 20, color color.Color = .Blanco, origen mate.Vec2 = {}, rotacion decimal = 0)
 graficos.texto_v(texto cadena, fuente graficos.Fuente, pos mate.Vec2, tamano decimal = 20, color color.Color = .Blanco, origen mate.Vec2 = {}, rotacion decimal = 0)
+graficos.medir_texto(texto cadena, fuente graficos.Fuente, tamano decimal = 20) mate.Vec2
+graficos.hoja(imagen graficos.Imagen, ancho_cuadro entero, alto_cuadro entero) graficos.Hoja
+graficos.cuadros(hoja graficos.Hoja) entero
+graficos.tamano_cuadro(hoja graficos.Hoja) mate.Vec2
+graficos.cuadro(hoja graficos.Hoja, indice entero, x decimal, y decimal, origen mate.Vec2 = {}, escala mate.Vec2 = {x: 1, y: 1}, rotacion decimal = 0, tinte color.Color = .Blanco, espejo_h bool = falso, espejo_v bool = falso)
+graficos.cuadro_v(hoja graficos.Hoja, indice entero, pos mate.Vec2, origen mate.Vec2 = {}, escala mate.Vec2 = {x: 1, y: 1}, rotacion decimal = 0, tinte color.Color = .Blanco, espejo_h bool = falso, espejo_v bool = falso)
 graficos.texto_depuracion(texto cadena, x decimal = 0, y decimal = 0)
 graficos.texto_depuracion_v(texto cadena, pos mate.Vec2 = {})
 graficos.tamano() mate.Vec2
@@ -228,6 +260,25 @@ entrada.raton_presionado(boton entrada.BotonRaton) bool
 entrada.raton_soltado(boton entrada.BotonRaton) bool
 entrada.posicion_raton() mate.Vec2
 entrada.rueda() mate.Vec2
+entrada.mandos() entero
+entrada.mando_boton(mando entero, boton entrada.BotonMando) bool
+entrada.mando_boton_presionado(mando entero, boton entrada.BotonMando) bool
+entrada.mando_eje(mando entero, eje entrada.EjeMando, zona_muerta decimal = 0.15) decimal
+
+datos.guardar(clave cadena, valor cadena) !
+datos.leer(clave cadena) cadena?
+datos.borrar(clave cadena) !
+
+rejilla.nueva(columnas entero, filas entero, valor entero = 0) rejilla.Rejilla
+rejilla.desde_texto(filas [cadena], simbolos [cadena: entero]) rejilla.Rejilla
+rejilla.dibujar(mapa rejilla.Rejilla, hoja graficos.Hoja, pos mate.Vec2 = {}, escala mate.Vec2 = {x: 1, y: 1}, tinte color.Color = .Blanco)
+rejilla.Rejilla.columnas() entero
+rejilla.Rejilla.filas() entero
+rejilla.Rejilla.obtener(x entero, y entero) entero?
+rejilla.Rejilla.poner(x entero, y entero, valor entero) bool
+rejilla.Rejilla.rellenar(valor entero)
+rejilla.Rejilla.choca(area mate.Rect, tamano_celda mate.Vec2, solidos [entero]) bool
+rejilla.Rejilla.mover(area mate.Rect, tamano_celda mate.Vec2, delta mate.Vec2, solidos [entero]) mate.Vec2
 
 audio.reproducir(sonido audio.Sonido, volumen decimal = 1, bucle bool = falso) audio.Reproduccion
 audio.pausar(reproduccion audio.Reproduccion)
@@ -269,6 +320,76 @@ el contexto. Lea los estados presionado/soltado en `actualizar`: corresponden al
 
 Audio retiene las reproducciones activas aunque se descarte el handle. Al terminar
 libera el reproductor; `reanudar` reinicia un sonido terminado/detenido. Volumen 0–1.
+Si no hay dispositivo de audio, el juego imprime un aviso y sigue sin sonido.
+
+## Escenas: menú, juego y fin
+
+Casi todo juego tiene varias pantallas. La receta más simple es un `enum` con una variante por
+escena, un campo con la escena actual y un `casos` en `actualizar` y otro en `pintar`:
+
+```cometa
+enum Escena
+	Menu
+	Jugando
+	Fin
+
+tipo Partida
+	escena Escena = .Menu
+
+	pub fn actualizar(dt decimal)
+		casos @escena
+			.Menu => si entrada.tecla_presionada(.Enter) @escena = .Jugando
+			.Jugando => @jugar(dt)
+			.Fin => si entrada.tecla_presionada(.Enter) @escena = .Menu
+```
+
+Cambiar de escena es asignar `@escena`. Como `casos` debe cubrir todas las variantes, al añadir una
+escena nueva el compilador te avisa de cada lugar donde falta tratarla. Prepara el estado de la escena
+en una función (`empezar`, `terminar`) que también cambie `@escena`, y deja el estado que sobrevive
+entre escenas (la mejor puntuación) en campos de `Partida`. Para guardar datos entre ejecuciones usa
+`std/pincel/datos`. Ejemplo completo: [12_escenas](../examples/pincel/12_escenas.cometa).
+
+## Hojas de sprites y mapas de tiles
+
+`graficos.hoja(imagen, ancho_cuadro, alto_cuadro)` corta una imagen (cargada con
+`recursos.imagen` o dibujada con `lienzo`) en cuadros iguales numerados desde 0, de
+izquierda a derecha y de arriba abajo. `graficos.cuadro` y `graficos.cuadro_v` dibujan
+un cuadro con los mismos parámetros que `imagen` más `espejo_h` y `espejo_v`, que voltean
+el cuadro dentro de su propio rectángulo. Un índice fuera de la hoja no dibuja nada, así que `-1` sirve como
+«vacío». Como `graficos.hoja` es una función normal, no exige rutas literales.
+
+`std/pincel/rejilla` guarda una cuadrícula de enteros, normalmente el número de tile de
+cada celda. `rejilla.desde_texto` construye una a partir de filas de texto y un mapa de
+símbolos (`["#": 1, ".": 0]`); un símbolo desconocido o filas de distinto largo detienen el
+programa con un mensaje que indica la fila y la columna. `rejilla.dibujar` dibuja todas las
+celdas con una hoja y omite las que quedan fuera de la pantalla.
+`Rejilla.choca(area, tamano_celda, solidos)` dice si un rectángulo del mundo toca alguna
+celda cuyo valor está en `solidos`; lo que queda fuera de la rejilla nunca es sólido
+(rodéala de paredes si quieres que lo sea).
+`Rejilla.mover(area, tamano_celda, delta, solidos)` desplaza el rectángulo (primero en x y luego en y) y devuelve lo que realmente se movió: se detiene pegado a la pared, así que no queda hueco, y si el resultado de un eje es menor que el pedido, hubo un choque en ese eje (caer y chocar es tocar el suelo). Mantén `delta` menor que una celda por llamada. Ver [el plataformas](../examples/pincel/13_plataformas.cometa). Es un objeto compartido: dos variables pueden apuntar a la misma rejilla.
+Ver [el ejemplo del laberinto](../examples/pincel/11_mapa.cometa).
+
+## Guardar datos
+
+`std/pincel/datos` guarda pares clave-texto en un archivo dentro de la carpeta de
+configuración del usuario (`%AppData%` en Windows, `~/.config` en Linux, `~/Library/Application Support`
+en macOS), en una subcarpeta `cometa/<carpeta-del-proyecto>-<archivo>`. Se identifica por el
+proyecto y no por el título de la ventana, así que puede leerse antes de `pincel.ejecutar`.
+Para números usa `cadena(n)` al guardar y `a_entero()`/`a_decimal()` al leer:
+`var mejor = (datos.leer("mejor") o "0").a_entero() o 0`. `guardar` y `borrar` devuelven un
+resultado (`!`) porque el disco puede fallar.
+
+## Mandos
+
+`entrada.mandos()` cuenta los mandos conectados con distribución estándar (los de Xbox,
+PlayStation y similares); se numeran desde 0. `mando_boton` y `mando_boton_presionado` leen
+botones y `mando_eje` una palanca en `[-1, 1]`, ignorando por defecto lo que quede por debajo
+de `zona_muerta = 0.15`. Un mando que no existe devuelve `falso` o `0`. No se admiten pantallas táctiles.
+
+## Números aleatorios reproducibles
+
+`azar.semilla(n)` fija la semilla: a partir de ahí `azar.entero` y `azar.real` producen siempre
+la misma secuencia, útil para niveles o «retos del día». Sin llamarla, cada ejecución es distinta.
 
 ## Comandos y alcance
 
@@ -280,6 +401,6 @@ al finalizar. La primera compilación requiere red para descargar dependencias.
 
 Se fija Ebitengine v2.10.1. Go 1.25+ y las dependencias nativas de Ebitengine son
 necesarios. `COMETA_GO` permite elegir Go. La entrega inicial soporta escritorio;
-web, móvil, gamepads, touch, física completa, tilemaps, partículas, UI y shaders
-quedan fuera. Los tipos y namespaces están reservados; la interfaz genérica de
+web, móvil, pantallas táctiles, física completa, partículas y shaders quedan fuera; la interfaz
+básica vive en `std/pincel/ui` (ver [ui.md](ui.md)). Los tipos y namespaces están reservados; la interfaz genérica de
 los ejemplos antes llamada `graficos.Fuente` ahora se llama `Proveedor`.

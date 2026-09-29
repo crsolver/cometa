@@ -1,0 +1,92 @@
+// Pincel: escenas (menú, juego y fin) con un enum y `casos`.
+// Cada escena es una variante de `Escena`; `actualizar` y `pintar` eligen qué hacer según la actual.
+// Menú: Enter empieza. Juego: flechas o WASD mueven, esquiva el bloque rojo. Fin: Enter vuelve al menú.
+usar std/mate
+usar std/pincel
+usar std/pincel/graficos
+usar std/pincel/entrada
+usar std/pincel/retro
+
+const ancho entero = 240
+const alto entero = 160
+
+enum Escena
+	Menu
+	Jugando
+	Fin
+
+tipo Partida
+	escena Escena = .Menu
+	jugador mate.Vec2
+	peligro mate.Vec2
+	tiempo decimal
+	mejor decimal
+
+	// Cambiar de escena es asignar; aquí también se prepara lo que la escena necesita.
+	fn empezar()
+		@jugador = {x: 112, y: 72}
+		@peligro = {x: 0, y: 40}
+		@tiempo = 0
+		@escena = .Jugando
+
+	fn terminar()
+		si @tiempo > @mejor
+			@mejor = @tiempo
+		@escena = .Fin
+
+	fn mover_jugador(dt decimal)
+		var direccion = mate.Vec2 {}
+		si entrada.tecla_mantenida(.Derecha) || entrada.tecla_mantenida(.D)
+			direccion.x = 1
+		si entrada.tecla_mantenida(.Izquierda) || entrada.tecla_mantenida(.A)
+			direccion.x = -1
+		si entrada.tecla_mantenida(.Abajo) || entrada.tecla_mantenida(.S)
+			direccion.y = 1
+		si entrada.tecla_mantenida(.Arriba) || entrada.tecla_mantenida(.W)
+			direccion.y = -1
+		@jugador = @jugador + direccion.normalizado() * 90 * dt
+		@jugador.x = mate.limitar(@jugador.x, 0, ancho - 16)
+		@jugador.y = mate.limitar(@jugador.y, 16, alto - 16)
+
+	fn perseguir(dt decimal)
+		// El bloque rojo persigue al jugador y cada vez va más rápido.
+		var hacia = (@jugador - @peligro).normalizado()
+		@peligro = @peligro + hacia * (30 + @tiempo * 4) * dt
+
+	pub fn actualizar(dt decimal)
+		casos @escena
+			.Menu =>
+				si entrada.tecla_presionada(.Enter)
+					@empezar()
+			.Jugando =>
+				@tiempo += dt
+				@mover_jugador(dt)
+				@perseguir(dt)
+				var caja_jugador = mate.Rect {pos: @jugador, tamano: {16, 16}}
+				var caja_peligro = mate.Rect {pos: @peligro, tamano: {12, 12}}
+				si caja_jugador.interseca(caja_peligro)
+					@terminar()
+			.Fin =>
+				si entrada.tecla_presionada(.Enter)
+					@escena = .Menu
+
+	pub fn pintar()
+		graficos.limpiar(.VerdePino)
+		casos @escena
+			.Menu =>
+				retro.texto("ESQUIVA", 88, 48)
+				retro.texto("Enter: empezar", 64, 88)
+				si @mejor > 0
+					retro.texto("Mejor: ${@mejor.formato(1)} s", 68, 112, color = .Amarillo)
+			.Jugando =>
+				graficos.rectangulo_v(@peligro, {12, 12}, .Rojo)
+				graficos.rectangulo_v(@jugador, {16, 16}, .Amarillo)
+				retro.texto("Tiempo: ${@tiempo.formato(1)}", 4, 3, color = .Blanco)
+			.Fin =>
+				retro.texto("¡Te atraparon!", 68, 56, color = .Rosa)
+				retro.texto("Resististe ${@tiempo.formato(1)} s", 56, 76)
+				retro.texto("Enter: menú", 76, 108)
+
+fn inicio()
+	pincel.ejecutar(Partida {}, ancho, alto, escala = 3, titulo = "Escenas") capturar |error|
+		imprimir(error)

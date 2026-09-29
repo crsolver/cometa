@@ -36,3 +36,9 @@ fn inicio()
 	// Al omitir "energia" en el literal, se usa su valor predeterminado.
 	var gato = Mascota {nombre: "Michi", especie: "gato"}
 	imprimir(gato.estado())
+
+	// copiar() crea un objeto nuevo con los mismos valores.
+	var clon = perro.copiar()
+	clon.nombre = "Toby clon"
+	imprimir(perro.nombre)
+	imprimir(clon.nombre)

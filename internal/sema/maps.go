@@ -1,6 +1,9 @@
 package sema
 
-import "cometa/internal/ast"
+import (
+	"cometa/internal/ast"
+	"cometa/internal/diagnostic"
+)
 
 func mapKeyAllowed(t Type) bool { return t.Kind == String || t.Kind == Integer || t.Kind == Boolean }
 
@@ -44,7 +47,7 @@ func MapMethodDocumentation(name string) string {
 func (c *checker) checkMapCall(call *ast.CallExpr, member *ast.MemberExpr, t Type) (Type, error) {
 	f, ok := MapMethods(t)[member.Name]
 	if !ok {
-		return Type{}, c.fail(member.Pos, "el método %q no existe en %s", member.Name, t.String())
+		return Type{}, c.fail(member.Pos, "el método %q no existe en %s%s", member.Name, t.String(), diagnostic.Hint(member.Name, sortedKeys(MapMethods(t))))
 	}
 	result, err := c.bindArguments(call, f)
 	if err == nil {

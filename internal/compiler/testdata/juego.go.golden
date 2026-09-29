@@ -63,6 +63,10 @@ var _hgcamara = _hgCamara2D{Zoom: 1}
 var _hgplayers = map[*_hgReproduccion]bool{}
 var _hgwhite *ebiten.Image
 var _hgupdating bool
+var _hgsalirPedido bool
+
+func _hgsalir() { _hgsalirPedido = true }
+
 var _hgtick uint64
 
 func (g *_hgGame) Update() error {
@@ -73,6 +77,9 @@ func (g *_hgGame) Update() error {
 	_hgupdating = true
 	defer func() { _hgupdating = false }()
 	g.instancia.Actualizar(1 / float64(_hgconfig.Tps))
+	if _hgsalirPedido {
+		return ebiten.Termination
+	}
 	for r := range _hgplayers {
 		if !r.paused && !r.player.IsPlaying() {
 			r.player.Close()
@@ -114,6 +121,16 @@ func _hgnormalizar(v _hgVec2) _hgVec2 {
 }
 func _hgdistancia(a, b _hgVec2) float64     { return _hglongitud(_hgsub(a, b)) }
 func _hgproductoPunto(a, b _hgVec2) float64 { return a.X*b.X + a.Y*b.Y }
+func _hganguloVec(v _hgVec2) float64        { return math.Atan2(v.Y, v.X) }
+func _hginterpolarVec(a, b _hgVec2, t float64) _hgVec2 {
+	return _hgVec2{a.X + (b.X-a.X)*t, a.Y + (b.Y-a.Y)*t}
+}
+func _hgreflejar(v, n _hgVec2) _hgVec2 {
+	n = _hgnormalizar(n)
+	d := 2 * (v.X*n.X + v.Y*n.Y)
+	return _hgVec2{v.X - d*n.X, v.Y - d*n.Y}
+}
+func _hgperpendicular(v _hgVec2) _hgVec2 { return _hgVec2{-v.Y, v.X} }
 func _hgrotar(v _hgVec2, a float64) _hgVec2 {
 	s, c := math.Sincos(a)
 	return _hgVec2{v.X*c - v.Y*s, v.X*s + v.Y*c}
@@ -149,6 +166,30 @@ func _hgraiz(v float64) float64            { return math.Sqrt(v) }
 func _hgseno(v float64) float64            { return math.Sin(v) }
 func _hgcoseno(v float64) float64          { return math.Cos(v) }
 func _hgatan2(y, x float64) float64        { return math.Atan2(y, x) }
+func _hgtangente(v float64) float64        { return math.Tan(v) }
+func _hgpotencia(b, e float64) float64     { return math.Pow(b, e) }
+func _hgsigno(v float64) float64 {
+	if v > 0 {
+		return 1
+	}
+	if v < 0 {
+		return -1
+	}
+	return 0
+}
+func _hgsignoEntero(v int64) int64 {
+	if v > 0 {
+		return 1
+	}
+	if v < 0 {
+		return -1
+	}
+	return 0
+}
+func _hgdistanciaXY(x1, y1, x2, y2 float64) float64 { return math.Hypot(x2-x1, y2-y1) }
+func _hganguloXY(x1, y1, x2, y2 float64) float64    { return math.Atan2(y2-y1, x2-x1) }
+func _hgradianes(g float64) float64                 { return g * math.Pi / 180 }
+func _hggrados(r float64) float64                   { return r * 180 / math.Pi }
 func _hgdraw() {
 	if _hgscreen == nil {
 		panic("dibujar solo se permite desde pintar")
@@ -221,6 +262,10 @@ func _hgtexto(value string, font *_hgFuente, p _hgVec2, size float64, c _hgColor
 	op.LineSpacing = size * 1.2
 	text.Draw(_hgscreen, value, &text.GoTextFace{Source: font.source, Size: size}, op)
 }
+func _hgmedirTexto(value string, font *_hgFuente, size float64) _hgVec2 {
+	w, h := text.Measure(value, &text.GoTextFace{Source: font.source, Size: size}, size*1.2)
+	return _hgVec2{w, h}
+}
 func _hgtextoDepuracion(value string, p _hgVec2) {
 	_hgdraw()
 	ebitenutil.DebugPrintAt(_hgscreen, value, int(p.X), int(p.Y))
@@ -240,6 +285,25 @@ func _hgrectangulos(a, b _hgRect) bool {
 func _hgcirculos(a _hgVec2, ra float64, b _hgVec2, rb float64) bool {
 	return _hgdistancia(a, b) <= ra+rb
 }
+func _hgcentroRect(r _hgRect) _hgVec2 { return _hgVec2{r.Pos.X + r.Tamano.X/2, r.Pos.Y + r.Tamano.Y/2} }
+func _hginterseccionRect(a, b _hgRect) _hgRect {
+	x1 := math.Max(a.Pos.X, b.Pos.X)
+	y1 := math.Max(a.Pos.Y, b.Pos.Y)
+	x2 := math.Min(a.Pos.X+a.Tamano.X, b.Pos.X+b.Tamano.X)
+	y2 := math.Min(a.Pos.Y+a.Tamano.Y, b.Pos.Y+b.Tamano.Y)
+	if x2 <= x1 || y2 <= y1 {
+		return _hgRect{}
+	}
+	return _hgRect{_hgVec2{x1, y1}, _hgVec2{x2 - x1, y2 - y1}}
+}
+func _hgdesplazadoRect(r _hgRect, d _hgVec2) _hgRect {
+	return _hgRect{_hgVec2{r.Pos.X + d.X, r.Pos.Y + d.Y}, r.Tamano}
+}
+func _hgcirculoRect(r _hgRect, c _hgVec2, radio float64) bool {
+	nx := math.Max(r.Pos.X, math.Min(c.X, r.Pos.X+r.Tamano.X))
+	ny := math.Max(r.Pos.Y, math.Min(c.Y, r.Pos.Y+r.Tamano.Y))
+	return math.Hypot(c.X-nx, c.Y-ny) <= radio
+}
 func _hgpuntoRectangulo(p _hgVec2, r _hgRect) bool {
 	return p.X >= r.Pos.X && p.Y >= r.Pos.Y && p.X < r.Pos.X+r.Tamano.X && p.Y < r.Pos.Y+r.Tamano.Y
 }
@@ -250,6 +314,16 @@ func (v _hgVec2) Producto_punto(otro _hgVec2) float64 { return _hgproductoPunto(
 func (v _hgVec2) Rotado(angulo float64) _hgVec2       { return _hgrotar(v, angulo) }
 func (v _hgVec2) Colision_circulo(radio float64, otro _hgVec2, radioOtro float64) bool {
 	return _hgcirculos(v, radio, otro, radioOtro)
+}
+func (v _hgVec2) Angulo() float64                            { return _hganguloVec(v) }
+func (v _hgVec2) Interpolar(otro _hgVec2, t float64) _hgVec2 { return _hginterpolarVec(v, otro, t) }
+func (v _hgVec2) Reflejar(normal _hgVec2) _hgVec2            { return _hgreflejar(v, normal) }
+func (v _hgVec2) Perpendicular() _hgVec2                     { return _hgperpendicular(v) }
+func (r _hgRect) Centro() _hgVec2                            { return _hgcentroRect(r) }
+func (r _hgRect) Interseccion(otro _hgRect) _hgRect          { return _hginterseccionRect(r, otro) }
+func (r _hgRect) Desplazado(delta _hgVec2) _hgRect           { return _hgdesplazadoRect(r, delta) }
+func (r _hgRect) Colision_circulo(centro _hgVec2, radio float64) bool {
+	return _hgcirculoRect(r, centro, radio)
 }
 func (r _hgRect) Interseca(otro _hgRect) bool { return _hgrectangulos(r, otro) }
 func (r _hgRect) Contiene(punto _hgVec2) bool { return _hgpuntoRectangulo(punto, r) }
@@ -407,6 +481,43 @@ func _hgcapturar(screen *ebiten.Image) {
 	}
 	_hgcapturaHecha = true
 }
+
+type _hgHoja struct {
+	img                *_hgImagen
+	cw, ch, cols, rows int64
+}
+
+func _hghoja(img *_hgImagen, cw, ch int64) *_hgHoja {
+	b := img.bounds()
+	w, h := int64(b.Dx()), int64(b.Dy())
+	if cw <= 0 || ch <= 0 {
+		panic("graficos.hoja: el tamaño de cada cuadro debe ser positivo")
+	}
+	if cw > w || ch > h {
+		panic(fmt.Sprintf("graficos.hoja: un cuadro de %dx%d no cabe en una imagen de %dx%d", cw, ch, w, h))
+	}
+	return &_hgHoja{img, cw, ch, w / cw, h / ch}
+}
+func _hgcuadros(h *_hgHoja) int64        { return h.cols * h.rows }
+func _hgtamanoCuadro(h *_hgHoja) _hgVec2 { return _hgVec2{float64(h.cw), float64(h.ch)} }
+func _hgcuadro(h *_hgHoja, i int64, p, o, s _hgVec2, r float64, c _hgColor, espejoH, espejoV bool) {
+	if i < 0 || i >= h.cols*h.rows {
+		return
+	}
+	if espejoH {
+		s.X = -s.X
+		o.X = float64(h.cw) - o.X
+	}
+	if espejoV {
+		s.Y = -s.Y
+		o.Y = float64(h.ch) - o.Y
+	}
+	src := _hgRect{_hgVec2{float64((i % h.cols) * h.cw), float64((i / h.cols) * h.ch)}, _hgVec2{float64(h.cw), float64(h.ch)}}
+	_hgregion(h.img, src, p, o, s, r, c)
+}
+func _hgcuadroXY(h *_hgHoja, i int64, x, y float64, o, s _hgVec2, r float64, c _hgColor, espejoH, espejoV bool) {
+	_hgcuadro(h, i, _hgVec2{x, y}, o, s, r, c, espejoH, espejoV)
+}
 func _hgescribirPNG(src image.Image, ruta string, escala int64) error {
 	if escala <= 0 || escala > 64 {
 		return fmt.Errorf("la escala debe estar entre 1 y 64")
@@ -471,14 +582,24 @@ func Fragment(dst vec4, src vec2, color vec4) vec4 {
 }
 `
 
+func (_hgRect) _cometa_public_Centro()           {}
+func (_hgRect) _cometa_public_Colision_circulo() {}
 func (_hgRect) _cometa_public_Contiene()         {}
+func (_hgRect) _cometa_public_Desplazado()       {}
 func (_hgRect) _cometa_public_Interseca()        {}
+func (_hgRect) _cometa_public_Interseccion()     {}
+func (_hgVec2) _cometa_public_Angulo()           {}
 func (_hgVec2) _cometa_public_Colision_circulo() {}
 func (_hgVec2) _cometa_public_Distancia_a()      {}
+func (_hgVec2) _cometa_public_Interpolar()       {}
 func (_hgVec2) _cometa_public_Longitud()         {}
 func (_hgVec2) _cometa_public_Normalizado()      {}
+func (_hgVec2) _cometa_public_Perpendicular()    {}
 func (_hgVec2) _cometa_public_Producto_punto()   {}
+func (_hgVec2) _cometa_public_Reflejar()         {}
 func (_hgVec2) _cometa_public_Rotado()           {}
+
+var _hsenumNombres = map[string][]string{}
 
 func _hsimprimir(args ...any) {
 	parts := make([]string, len(args))
@@ -547,6 +668,32 @@ func _hsformato(v reflect.Value, nested bool, depth int) string {
 		}
 	case reflect.Struct:
 		t := v.Type()
+		if t.NumField() > 0 && t.Field(0).Name == "tag" {
+			if t.Name() != "" {
+				base := t.Name()
+				if i := strings.Index(base, "["); i >= 0 {
+					base = base[:i]
+				}
+				if names, ok := _hsenumNombres[base]; ok {
+					tag := int(v.Field(0).Int())
+					if tag >= 1 && tag < len(names) && names[tag] != "" {
+						text := names[0] + "." + names[tag]
+						if f := v.FieldByName("payload" + strconv.Itoa(tag)); f.IsValid() {
+							text += "(" + _hsformato(f, true, depth+1) + ")"
+						}
+						return text
+					}
+				}
+			} else if f := v.FieldByName("payload2"); f.IsValid() {
+				if v.Field(0).Int() == 2 {
+					return "Error(" + _hsformato(f, true, depth+1) + ")"
+				}
+				if ok := v.FieldByName("payload1"); ok.IsValid() {
+					return "Ok(" + _hsformato(ok, true, depth+1) + ")"
+				}
+				return "Ok"
+			}
+		}
 		if t.Name() == "" && t.NumField() == 2 && t.Field(0).Name == "tag" && t.Field(1).Name == "payload1" {
 			if v.Field(0).Int() != 1 {
 				return "Ninguno"
@@ -572,7 +719,7 @@ func _hsformato(v reflect.Value, nested bool, depth int) string {
 
 func _hentero(v float64) int64 {
 	if v != v || v < -9223372036854775808.0 || v >= 9223372036854775808.0 {
-		panic("conversión a entero inválida: valor no finito o fuera del rango de int64")
+		panic("conversión a entero inválida: valor no finito o fuera del rango de entero")
 	}
 	return int64(v)
 }

@@ -1,0 +1,122 @@
+// Pincel: un laberinto con mapa de tiles.
+// Aprenderás a usar una rejilla (el mapa), una hoja de sprites (los dibujos de cada
+// tile), colisiones con celdas sólidas y a guardar la mejor marca entre partidas.
+//
+// Mueve al jugador con las flechas, WASD o un mando. R reinicia y Escape sale.
+usar std/mate
+usar std/pincel
+usar std/pincel/graficos
+usar std/pincel/entrada
+usar std/pincel/lienzo
+usar std/pincel/rejilla
+usar std/pincel/datos
+usar std/pincel/retro
+
+const celda entero = 16
+const suelo entero = 0
+const pared entero = 1
+const meta entero = 2
+
+// Una hoja divide una imagen en cuadros iguales numerados desde 0,
+// de izquierda a derecha y de arriba abajo. Aquí la dibujamos con lienzo:
+// el cuadro 0 es el suelo, el 1 la pared y el 2 la meta.
+fn crear_hoja() graficos.Hoja
+	var imagen = lienzo.nuevo(48, 16, .VerdePino)
+	lienzo.rect(imagen, 16, 0, 16, 16, .Carbon)
+	lienzo.rect(imagen, 18, 2, 12, 12, .Gris)
+	lienzo.circulo(imagen, 40, 8, 5, .Amarillo)
+	graficos.hoja(imagen, celda, celda)
+
+tipo Laberinto
+	mapa rejilla.Rejilla
+	hoja graficos.Hoja
+	jugador mate.Vec2
+	tiempo decimal
+	mejor decimal
+	terminado bool
+
+	fn reiniciar()
+		@jugador = {19, 19}
+		@tiempo = 0
+		@terminado = falso
+
+	// Mueve al jugador solo si el destino no toca ninguna pared.
+	fn mover(dx decimal, dy decimal)
+		var destino = mate.Rect {pos: {@jugador.x + dx, @jugador.y + dy}, tamano: {10, 10}}
+		si !@mapa.choca(destino, {celda, celda}, [pared])
+			@jugador = destino.pos
+
+	pub fn actualizar(dt decimal)
+		si entrada.tecla_presionada(.Escape)
+			pincel.salir()
+		si entrada.tecla_presionada(.R)
+			@reiniciar()
+		si @terminado
+			retornar
+		@tiempo += dt
+
+		var direccion = mate.Vec2 {}
+		si entrada.tecla_mantenida(.Derecha) || entrada.tecla_mantenida(.D)
+			direccion.x = 1
+		si entrada.tecla_mantenida(.Izquierda) || entrada.tecla_mantenida(.A)
+			direccion.x = -1
+		si entrada.tecla_mantenida(.Abajo) || entrada.tecla_mantenida(.S)
+			direccion.y = 1
+		si entrada.tecla_mantenida(.Arriba) || entrada.tecla_mantenida(.W)
+			direccion.y = -1
+		// Si hay un mando conectado, la palanca izquierda también mueve.
+		si entrada.mandos() > 0
+			direccion.x += entrada.mando_eje(0, .IzquierdoX)
+			direccion.y += entrada.mando_eje(0, .IzquierdoY)
+		si direccion.longitud() > 1
+			direccion = direccion.normalizado()
+
+		// Se mueve un eje cada vez para poder deslizarse por las paredes.
+		var paso = direccion * 70 * dt
+		@mover(paso.x, 0)
+		@mover(0, paso.y)
+
+		// ¿En qué celda está el centro del jugador?
+		var centro = mate.Rect {pos: @jugador, tamano: {10, 10}}.centro()
+		si @mapa.obtener(mate.piso(centro.x / celda), mate.piso(centro.y / celda)) |valor|
+			si valor == meta
+				@terminado = verdadero
+				si @mejor == 0 || @tiempo < @mejor
+					@mejor = @tiempo
+					// datos guarda texto en el disco; se conserva entre partidas.
+					datos.guardar("mejor_tiempo", cadena(@mejor)) capturar |error|
+						imprimir(error)
+
+	pub fn pintar()
+		graficos.limpiar(.Negro)
+		rejilla.dibujar(@mapa, @hoja)
+		graficos.rectangulo_v(@jugador, {10, 10}, .Rojo)
+		retro.texto("Tiempo: ${@tiempo.formato(1)}", 2, 168, color = .Blanco)
+		si @mejor > 0
+			retro.texto("Mejor: ${@mejor.formato(1)}", 200, 168, color = .Amarillo)
+		si @terminado
+			retro.texto("¡Meta!  R: repetir", 88, 84, color = .Amarillo)
+
+fn inicio()
+	// El texto se convierte en el mapa: cada carácter vale el número indicado.
+	var mapa = rejilla.desde_texto([
+		"####################",
+		"#..#.......#.......#",
+		"#..#.#####.#.#####.#",
+		"#....#...#...#...#.#",
+		"######.#.#####.#.#.#",
+		"#......#.......#.#.#",
+		"#.######.#######.#.#",
+		"#.#....#.#.......#.#",
+		"#.#.##.#.#.#######.#",
+		"#...##...#........*#",
+		"####################",
+	], ["#": pared, ".": suelo, "*": meta])
+
+	// Recupera la mejor marca guardada (0 si aún no hay ninguna).
+	var mejor = (datos.leer("mejor_tiempo") o "0").a_decimal() o 0.0
+
+	var laberinto = Laberinto {mapa: mapa, hoja: crear_hoja(), mejor: mejor}
+	laberinto.reiniciar()
+	pincel.ejecutar(laberinto, 320, 180, titulo = "Laberinto", escala = 3, pixelado = verdadero) capturar |error|
+		imprimir(error)

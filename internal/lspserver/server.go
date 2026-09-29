@@ -637,6 +637,9 @@ func hoverInExpression(expression ast.Expr, model *sema.Model, position ast.Pos,
 				if operation, builtin := model.StringCalls[expr]; builtin {
 					info.documentation = sema.StringMethodDocumentation(operation)
 				}
+				if operation, builtin := model.NumberCalls[expr]; builtin {
+					info.documentation = sema.NumberMethodDocumentation(operation)
+				}
 				return info, true
 			}
 		}

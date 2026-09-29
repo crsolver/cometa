@@ -38,3 +38,7 @@ fn inicio()
 	casos luz
 		.Rojo => imprimir("¡Alto!")
 		_ => imprimir("Puedes seguir")
+
+	// Para comprobar una sola variante basta con ==.
+	si luz == .Rojo
+		imprimir("El semáforo está en rojo")

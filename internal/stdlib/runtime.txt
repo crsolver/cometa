@@ -21,12 +21,15 @@ var _hgaudio *audio.Context
 var _hgplayers = map[*_hgReproduccion]bool{}
 var _hgwhite *ebiten.Image
 var _hgupdating bool
+var _hgsalirPedido bool
+func _hgsalir(){_hgsalirPedido=true}
 var _hgtick uint64
 
 func (g *_hgGame) Update() error {
  if _hgcapturaHecha {return ebiten.Termination}
  _hgtick++; _hgupdating=true; defer func(){_hgupdating=false}()
  g.instancia.Actualizar(1/float64(_hgconfig.Tps))
+ if _hgsalirPedido {return ebiten.Termination}
  for r := range _hgplayers { if !r.paused && !r.player.IsPlaying() { r.player.Close(); r.player=nil; delete(_hgplayers,r) } }
  return nil
 }
@@ -44,6 +47,10 @@ func _hglongitud(v _hgVec2) float64{return math.Hypot(v.X,v.Y)}
 func _hgnormalizar(v _hgVec2) _hgVec2{n:=_hglongitud(v);if n==0{return _hgVec2{}};return _hgscale(v,1/n)}
 func _hgdistancia(a,b _hgVec2) float64{return _hglongitud(_hgsub(a,b))}
 func _hgproductoPunto(a,b _hgVec2) float64{return a.X*b.X+a.Y*b.Y}
+func _hganguloVec(v _hgVec2) float64{return math.Atan2(v.Y,v.X)}
+func _hginterpolarVec(a,b _hgVec2,t float64) _hgVec2{return _hgVec2{a.X+(b.X-a.X)*t,a.Y+(b.Y-a.Y)*t}}
+func _hgreflejar(v,n _hgVec2) _hgVec2{n=_hgnormalizar(n);d:=2*(v.X*n.X+v.Y*n.Y);return _hgVec2{v.X-d*n.X,v.Y-d*n.Y}}
+func _hgperpendicular(v _hgVec2) _hgVec2{return _hgVec2{-v.Y,v.X}}
 func _hgrotar(v _hgVec2,a float64) _hgVec2{s,c:=math.Sincos(a);return _hgVec2{v.X*c-v.Y*s,v.X*s+v.Y*c}}
 func _hgabs(v float64) float64{return math.Abs(v)}
 func _hgmin(a,b float64) float64{return math.Min(a,b)}
@@ -61,8 +68,16 @@ func _hgraiz(v float64) float64{return math.Sqrt(v)}
 func _hgseno(v float64) float64{return math.Sin(v)}
 func _hgcoseno(v float64) float64{return math.Cos(v)}
 func _hgatan2(y,x float64) float64{return math.Atan2(y,x)}
-func _hgazarReal(a,b float64) float64 {if math.IsNaN(a)||math.IsNaN(b)||math.IsInf(a,0)||math.IsInf(b,0)||a>b||math.IsInf(b-a,0){panic("rango aleatorio inválido")};return a+rand.Float64()*(b-a)}
-func _hgazarEntero(a,b int64) int64 {if a>b{panic("rango entero inválido")};if a==b{return a};return int64(uint64(a)+rand.Uint64N(uint64(b)-uint64(a)))}
+func _hgtangente(v float64) float64{return math.Tan(v)}
+func _hgpotencia(b,e float64) float64{return math.Pow(b,e)}
+func _hgsigno(v float64) float64{if v>0{return 1};if v<0{return -1};return 0}
+func _hgsignoEntero(v int64) int64{if v>0{return 1};if v<0{return -1};return 0}
+func _hgdistanciaXY(x1,y1,x2,y2 float64) float64{return math.Hypot(x2-x1,y2-y1)}
+func _hganguloXY(x1,y1,x2,y2 float64) float64{return math.Atan2(y2-y1,x2-x1)}
+func _hgradianes(g float64) float64{return g*math.Pi/180}
+func _hggrados(r float64) float64{return r*180/math.Pi}
+func _hgazarReal(a,b float64) float64 {if math.IsNaN(a)||math.IsNaN(b)||math.IsInf(a,0)||math.IsInf(b,0)||a>b||math.IsInf(b-a,0){panic("rango aleatorio inválido")};return a+_hgazarGen.Float64()*(b-a)}
+func _hgazarEntero(a,b int64) int64 {if a>b{panic("rango entero inválido")};if a==b{return a};return int64(uint64(a)+_hgazarGen.Uint64N(uint64(b)-uint64(a)))}
 func _hgrgba(r,g,b,a int64) _hgColor{return _hgColor{uint8(_hglimitarEntero(r,0,255)),uint8(_hglimitarEntero(g,0,255)),uint8(_hglimitarEntero(b,0,255)),uint8(_hglimitarEntero(a,0,255))}}
 func _hgdraw(){if _hgscreen==nil{panic("dibujar solo se permite desde pintar")}}
 func _hgcameraMatrix() ebiten.GeoM {var m ebiten.GeoM;m.Translate(-_hgcamara.Pos.X,-_hgcamara.Pos.Y);m.Rotate(-_hgcamara.Rotacion);m.Scale(_hgcamara.Zoom,_hgcamara.Zoom);m.Translate(_hgcamara.Origen.X,_hgcamara.Origen.Y);return m}
@@ -80,6 +95,7 @@ func _hgimageDraw(img *ebiten.Image,p,o,s _hgVec2,r float64,c _hgColor){_hgdraw(
 func _hgimagen(img *_hgImagen,p,o,s _hgVec2,r float64,c _hgColor){_hgimageDraw(img.gpu(),p,o,s,r,c)}
 func _hgregion(img *_hgImagen,region _hgRect,p,o,s _hgVec2,r float64,c _hgColor){_hgdraw();area:=image.Rect(int(region.Pos.X),int(region.Pos.Y),int(region.Pos.X+region.Tamano.X),int(region.Pos.Y+region.Tamano.Y));if area.Empty(){return};_hgimageDraw(img.gpu().SubImage(area).(*ebiten.Image),p,o,s,r,c)}
 func _hgtexto(value string,font *_hgFuente,p _hgVec2,size float64,c _hgColor,o _hgVec2,r float64){_hgdraw();op:=&text.DrawOptions{};op.GeoM=_hgtransform(p,o,_hgVec2{1,1},r,true);op.ColorScale.ScaleWithColor(c);op.LineSpacing=size*1.2;text.Draw(_hgscreen,value,&text.GoTextFace{Source:font.source,Size:size},op)}
+func _hgmedirTexto(value string,font *_hgFuente,size float64) _hgVec2{w,h:=text.Measure(value,&text.GoTextFace{Source:font.source,Size:size},size*1.2);return _hgVec2{w,h}}
 func _hgtextoDepuracion(value string,p _hgVec2){_hgdraw();ebitenutil.DebugPrintAt(_hgscreen,value,int(p.X),int(p.Y))}
 func _hgtamano() _hgVec2{return _hgVec2{float64(_hgconfig.Ancho),float64(_hgconfig.Alto)}}
 func _hgusarCamara(c _hgCamara2D){_hgdraw();if c.Zoom<=0||math.IsNaN(c.Zoom)||math.IsInf(c.Zoom,0){panic("zoom debe ser positivo y finito")};_hgcamara=c}
@@ -96,13 +112,25 @@ func _hgreproducir(sound *_hgSonido,volume float64,loop bool) *_hgReproduccion{r
 func _hgpausar(r *_hgReproduccion){if r.player!=nil{r.player.Pause();r.paused=true}}
 func _hgreanudar(r *_hgReproduccion){
  if _hgaudio==nil{_hgaudio=audio.NewContext(48000)}
- if r.player==nil{var src io.ReadSeeker=bytes.NewReader(r.sound.pcm);if r.loop{src=audio.NewInfiniteLoop(src,int64(len(r.sound.pcm)))};p,err:=_hgaudio.NewPlayer(src);if err!=nil{log.Fatal(err)};r.player=p;r.player.SetVolume(r.volume)}
+ if r.player==nil{var src io.ReadSeeker=bytes.NewReader(r.sound.pcm);if r.loop{src=audio.NewInfiniteLoop(src,int64(len(r.sound.pcm)))};p,err:=_hgaudio.NewPlayer(src);if err!=nil{log.Printf("audio no disponible: %v",err);return};r.player=p;r.player.SetVolume(r.volume)}
  r.paused=false;r.player.Play();_hgplayers[r]=true
 }
 func _hgdetener(r *_hgReproduccion){if r.player!=nil{r.player.Close();r.player=nil};r.paused=false;delete(_hgplayers,r)}
 func _hgvolumen(r *_hgReproduccion,v float64){r.volume=_hglimitar(v,0,1);if r.player!=nil{r.player.SetVolume(r.volume)}}
 func _hgrectangulos(a,b _hgRect) bool{return a.Pos.X<b.Pos.X+b.Tamano.X&&a.Pos.X+a.Tamano.X>b.Pos.X&&a.Pos.Y<b.Pos.Y+b.Tamano.Y&&a.Pos.Y+a.Tamano.Y>b.Pos.Y}
 func _hgcirculos(a _hgVec2,ra float64,b _hgVec2,rb float64) bool{return _hgdistancia(a,b)<=ra+rb}
+func _hgcentroRect(r _hgRect) _hgVec2{return _hgVec2{r.Pos.X+r.Tamano.X/2,r.Pos.Y+r.Tamano.Y/2}}
+func _hginterseccionRect(a,b _hgRect) _hgRect{
+ x1:=math.Max(a.Pos.X,b.Pos.X);y1:=math.Max(a.Pos.Y,b.Pos.Y)
+ x2:=math.Min(a.Pos.X+a.Tamano.X,b.Pos.X+b.Tamano.X);y2:=math.Min(a.Pos.Y+a.Tamano.Y,b.Pos.Y+b.Tamano.Y)
+ if x2<=x1||y2<=y1{return _hgRect{}}
+ return _hgRect{_hgVec2{x1,y1},_hgVec2{x2-x1,y2-y1}}
+}
+func _hgdesplazadoRect(r _hgRect,d _hgVec2) _hgRect{return _hgRect{_hgVec2{r.Pos.X+d.X,r.Pos.Y+d.Y},r.Tamano}}
+func _hgcirculoRect(r _hgRect,c _hgVec2,radio float64) bool{
+ nx:=math.Max(r.Pos.X,math.Min(c.X,r.Pos.X+r.Tamano.X));ny:=math.Max(r.Pos.Y,math.Min(c.Y,r.Pos.Y+r.Tamano.Y))
+ return math.Hypot(c.X-nx,c.Y-ny)<=radio
+}
 func _hgpuntoRectangulo(p _hgVec2,r _hgRect) bool{return p.X>=r.Pos.X&&p.Y>=r.Pos.Y&&p.X<r.Pos.X+r.Tamano.X&&p.Y<r.Pos.Y+r.Tamano.Y}
 func _hgtitulo(t string){ebiten.SetWindowTitle(t)}
 func _hgpantallaCompleta(v bool){ebiten.SetFullscreen(v)}
@@ -124,6 +152,14 @@ func (v _hgVec2) Distancia_a(otro _hgVec2) float64 {return _hgdistancia(v,otro)}
 func (v _hgVec2) Producto_punto(otro _hgVec2) float64 {return _hgproductoPunto(v,otro)}
 func (v _hgVec2) Rotado(angulo float64) _hgVec2 {return _hgrotar(v,angulo)}
 func (v _hgVec2) Colision_circulo(radio float64,otro _hgVec2,radioOtro float64) bool {return _hgcirculos(v,radio,otro,radioOtro)}
+func (v _hgVec2) Angulo() float64 {return _hganguloVec(v)}
+func (v _hgVec2) Interpolar(otro _hgVec2,t float64) _hgVec2 {return _hginterpolarVec(v,otro,t)}
+func (v _hgVec2) Reflejar(normal _hgVec2) _hgVec2 {return _hgreflejar(v,normal)}
+func (v _hgVec2) Perpendicular() _hgVec2 {return _hgperpendicular(v)}
+func (r _hgRect) Centro() _hgVec2 {return _hgcentroRect(r)}
+func (r _hgRect) Interseccion(otro _hgRect) _hgRect {return _hginterseccionRect(r,otro)}
+func (r _hgRect) Desplazado(delta _hgVec2) _hgRect {return _hgdesplazadoRect(r,delta)}
+func (r _hgRect) Colision_circulo(centro _hgVec2,radio float64) bool {return _hgcirculoRect(r,centro,radio)}
 func (r _hgRect) Interseca(otro _hgRect) bool {return _hgrectangulos(r,otro)}
 func (r _hgRect) Contiene(punto _hgVec2) bool {return _hgpuntoRectangulo(punto,r)}
 func _hgrectanguloXY(x,y,w,h float64,c _hgColor,o _hgVec2,r float64){_hgrectangulo(_hgVec2{x,y},_hgVec2{w,h},c,o,r)}

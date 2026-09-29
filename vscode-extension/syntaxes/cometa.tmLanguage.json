@@ -107,7 +107,7 @@
       "patterns": [
 		{ "name": "storage.modifier.cometa", "match": "\\bpub\\b" },
         { "name": "keyword.control.conditional.cometa", "match": "\\b(?:con|si|osi|sino|casos|o|capturar|intentar|retornar|como)\\b" },
-        { "name": "keyword.control.loop.cometa", "match": "\\b(?:repetir|continuar|romper)\\b" },
+        { "name": "keyword.control.loop.cometa", "match": "\\b(?:repetir|mientras|continuar|romper)\\b" },
         { "name": "storage.type.function.cometa", "match": "\\bfn\\b" },
         { "name": "storage.type.struct.cometa", "match": "\\b(?:tipo|enum|interfaz)\\b" },
         { "name": "storage.type.variable.cometa", "match": "\\b(?:var|const)\\b" }
@@ -157,7 +157,7 @@
       "patterns": [
         { "name": "keyword.operator.variadic.cometa", "match": "\\.\\.\\." },
         { "name": "keyword.operator.range.cometa", "match": "\\.\\." },
-        { "name": "keyword.operator.cometa", "match": "=>|==|!=|<=|>=|&&|\\|\\||[+\\-*/%=<>!?]" }
+        { "name": "keyword.operator.cometa", "match": "=>|==|!=|<=|>=|[+\\-*/%]=|&&|\\|\\||[+\\-*/%=<>!?]" }
       ]
     },
     "punctuation": {

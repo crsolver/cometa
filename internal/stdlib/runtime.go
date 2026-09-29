@@ -25,6 +25,9 @@ var ruidoRuntimeSource string
 //go:embed crt_runtime.txt
 var crtRuntimeSource string
 
+//go:embed extra_runtime.txt
+var extraRuntimeSource string
+
 //go:embed lienzo_runtime.txt
 var lienzoRuntimeSource string
 
@@ -51,7 +54,7 @@ var runtimeImports = map[string]string{
 	"wav": "github.com/hajimehoshi/ebiten/v2/audio/wav", "ebitenutil": "github.com/hajimehoshi/ebiten/v2/ebitenutil",
 	"inpututil": "github.com/hajimehoshi/ebiten/v2/inpututil", "text": "github.com/hajimehoshi/ebiten/v2/text/v2",
 	"vector": "github.com/hajimehoshi/ebiten/v2/vector",
-	"strconv": "strconv", "os": "os", "png": "image/png",
+	"strconv": "strconv", "os": "os", "png": "image/png", "json": "encoding/json", "filepath": "path/filepath", "sort": "sort",
 }
 
 // Runtime selects the declarations reachable from imported library exports.
@@ -61,7 +64,7 @@ func Runtime(modules []string) (string, []string, error) {
 		return "", nil, nil
 	}
 	fs := token.NewFileSet()
-	source := runtimeSource + "\n" + lienzoRuntimeSource + "\n" + crtRuntimeSource + "\n" + curvasRuntimeSource + "\n" + ruidoRuntimeSource
+	source := runtimeSource + "\n" + extraRuntimeSource + "\n" + lienzoRuntimeSource + "\n" + crtRuntimeSource + "\n" + curvasRuntimeSource + "\n" + ruidoRuntimeSource
 	for _, module := range modules {
 		if module == "std/pincel/ui" { source += "\n" + uiCoreSource + "\n" + uiRuntimeSource; break }
 	}

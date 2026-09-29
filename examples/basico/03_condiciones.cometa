@@ -22,3 +22,10 @@ fn inicio()
 	var edad = 15
 	var etapa = si edad >= 18 "adulto" sino "joven"
 	imprimir("Etapa: ${etapa}")
+
+	// casos elige entre valores concretos. Una rama puede tener varios valores
+	// y la rama final _ recoge todo lo demás.
+	var dia = 6
+	casos dia
+		6, 7 => imprimir("Fin de semana")
+		_ => imprimir("Día laborable")

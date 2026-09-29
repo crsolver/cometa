@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"cometa/internal/ast"
 	"cometa/internal/diagnostic"
@@ -352,7 +353,7 @@ func (p *parser) parseTypeRef() (ast.TypeRef, error) {
 		if op.Kind == token.Bang {
 			errorType := ast.TypeRef{Pos: op.Pos, Name: "cadena"}
 			adjacent := p.current().Pos.Line == op.Pos.Line && p.current().Pos.Column == op.Pos.Column+1
-			if adjacent && (p.at(token.Ident) || (p.at(token.Num) || p.at(token.Entero) || p.at(token.Decimal)) || p.at(token.Cadena) || p.at(token.Bool) || p.at(token.LParen) || p.at(token.LBracket)) {
+			if adjacent && (p.at(token.Ident) || (p.at(token.Entero) || p.at(token.Decimal)) || p.at(token.Cadena) || p.at(token.Bool) || p.at(token.LParen) || p.at(token.LBracket)) {
 				errorType, err = p.parseTypeAtom()
 				if err != nil {
 					return base, err
@@ -395,7 +396,7 @@ func (p *parser) parseTypeAtom() (ast.TypeRef, error) {
 		return ast.TypeRef{Pos: start.Pos, Key: key, Element: &element}, nil
 	}
 	current := p.current()
-	if current.Kind != token.Num && current.Kind != token.Entero && current.Kind != token.Decimal && current.Kind != token.Cadena && current.Kind != token.Bool && current.Kind != token.Ident {
+	if current.Kind != token.Entero && current.Kind != token.Decimal && current.Kind != token.Cadena && current.Kind != token.Bool && current.Kind != token.Ident {
 		return ast.TypeRef{}, p.error(current, "se esperaba un tipo")
 	}
 	p.advance()
@@ -495,6 +496,9 @@ func (p *parser) parseStatement() (ast.Stmt, error) {
 	if p.at(token.Repetir) {
 		return p.parseRepeatStmt()
 	}
+	if p.at(token.Mientras) {
+		return p.parseWhileStmt()
+	}
 	if p.at(token.Var) {
 		return p.parseVarDecl()
 	}
@@ -507,6 +511,33 @@ func (p *parser) parseStatement() (ast.Stmt, error) {
 		return &ast.BreakStmt{Pos: start.Pos}, nil
 	}
 	return p.parseSimpleStatement()
+}
+
+// parseWhileStmt reads `mientras condición` and lowers it to an infinite
+// repetir that leaves when the condition is false:
+//
+//	repetir
+//		si !condición
+//			romper
+//		...cuerpo
+//
+// so `continuar` re-tests the condition and later phases need no new loop kind.
+func (p *parser) parseWhileStmt() (ast.Stmt, error) {
+	start := p.advance()
+	condition, err := p.parseExpression(0)
+	if err != nil {
+		return nil, err
+	}
+	body, err := p.parseSuite()
+	if err != nil {
+		return nil, err
+	}
+	exit := &ast.IfStmt{Pos: start.Pos, Branches: []ast.IfBranch{{
+		Pos:       start.Pos,
+		Condition: &ast.UnaryExpr{Pos: start.Pos, Operator: "!", Value: condition},
+		Body:      []ast.Stmt{&ast.BreakStmt{Pos: start.Pos}},
+	}}}
+	return &ast.RepeatStmt{Pos: start.Pos, Body: append([]ast.Stmt{exit}, body...)}, nil
 }
 
 func (p *parser) parseRepeatStmt() (ast.Stmt, error) {
@@ -594,10 +625,55 @@ func (p *parser) parseVarDecl() (ast.Stmt, error) {
 	return &ast.VarDeclStmt{Pos: start.Pos, NamePos: name.Pos, Name: name.Lexeme, Type: declaredType, Value: value}, nil
 }
 
+var compoundOperators = map[token.Kind]string{
+	token.PlusAssign: "+", token.MinusAssign: "-", token.StarAssign: "*",
+	token.SlashAssign: "/", token.PercentAssign: "%",
+}
+
+// simpleTarget reports whether evaluating expr twice is harmless, which is
+// what `target op= value` needs because it is rewritten as `target = target op value`.
+func simpleTarget(expr ast.Expr) bool {
+	switch e := expr.(type) {
+	case *ast.IdentExpr, *ast.ReceiverExpr, *ast.LiteralExpr:
+		return true
+	case *ast.MemberExpr:
+		return simpleTarget(e.Object)
+	case *ast.IndexExpr:
+		return simpleTarget(e.Object) && simpleTarget(e.Index)
+	case *ast.UnaryExpr:
+		return simpleTarget(e.Value)
+	case *ast.BinaryExpr:
+		return simpleTarget(e.Left) && simpleTarget(e.Right)
+	}
+	return false
+}
+
 func (p *parser) parseSimpleStatement() (ast.Stmt, error) {
+	start := p.index
 	expr, err := p.parseExpression(0)
 	if err != nil {
 		return nil, err
+	}
+	if operator, ok := compoundOperators[p.current().Kind]; ok {
+		op := p.advance()
+		if !simpleTarget(expr) {
+			return nil, p.error(op, "el lado izquierdo de '"+op.Lexeme+"' no puede contener llamadas a funciones; guarda ese valor en una variable antes")
+		}
+		value, parseErr := p.parseExpression(0)
+		if parseErr != nil {
+			return nil, parseErr
+		}
+		// Parse the target a second time so the rewritten expression owns an
+		// independent tree (later passes annotate nodes in place).
+		end := p.index
+		p.index = start
+		target, copyErr := p.parseExpression(0)
+		p.index = end
+		if copyErr != nil {
+			return nil, copyErr
+		}
+		return &ast.AssignStmt{Pos: expr.Position(), Target: expr, Compound: operator,
+			Value: &ast.BinaryExpr{Pos: op.Pos, Left: target, Operator: operator, Right: value}}, nil
 	}
 	if p.match(token.Assign) {
 		value, parseErr := p.parseExpression(0)
@@ -832,6 +908,21 @@ func (p *parser) parsePrefix() (ast.Expr, error) {
 	case token.True, token.False:
 		p.advance()
 		return &ast.LiteralExpr{Pos: current.Pos, Kind: "bool", Value: current.Lexeme}, nil
+	case token.Cadena:
+		// cadena(valor) converts like "${valor}", so it reuses interpolation.
+		if !p.peekAt(1, token.LParen) {
+			return nil, p.error(current, "se esperaba una expresión")
+		}
+		p.advance()
+		p.advance()
+		value, err := p.parseExpression(0)
+		if err != nil {
+			return nil, err
+		}
+		if _, err = p.expect(token.RParen, "se esperaba ')' después del valor de cadena(...)"); err != nil {
+			return nil, err
+		}
+		return &ast.InterpolatedStringExpr{Pos: current.Pos, Parts: []ast.InterpolatedStringPart{{Expr: value}}}, nil
 	case token.Ident, token.Entero, token.Decimal:
 		p.advance()
 		return &ast.IdentExpr{Pos: current.Pos, Name: current.Lexeme}, nil
@@ -1291,7 +1382,7 @@ func (p *parser) parseIfExpr() (ast.Expr, error) {
 }
 
 func (p *parser) startsDefiniteType() bool {
-	return (p.at(token.Num) || p.at(token.Entero) || p.at(token.Decimal)) || p.at(token.Cadena) || p.at(token.Bool) || p.at(token.LBracket) || p.at(token.Bang) || p.at(token.LParen)
+	return (p.at(token.Entero) || p.at(token.Decimal)) || p.at(token.Cadena) || p.at(token.Bool) || p.at(token.LBracket) || p.at(token.Bang) || p.at(token.LParen)
 }
 
 func (p *parser) parseBinding() (string, ast.Pos, error) {
@@ -1350,5 +1441,56 @@ func (p *parser) expect(kind token.Kind, message string) (token.Token, error) {
 }
 
 func (p *parser) error(at token.Token, message string) error {
+	if strings.HasPrefix(message, "se esperaba") {
+		message += p.foundSuffix(at, message)
+	}
 	return &Error{Filename: p.filename, Pos: at.Pos, Message: message}
+}
+
+// foundSuffix says what the parser saw instead, with a hint for mistakes
+// borrowed from other languages ('+=', '++', 'while', ...).
+func (p *parser) foundSuffix(at token.Token, message string) string {
+	var found string
+	switch at.Kind {
+	case token.EOF:
+		found = "el final del archivo"
+	case token.Newline:
+		found = "el final de la línea"
+	case token.Indent:
+		found = "una línea indentada"
+	case token.Dedent:
+		found = "el fin del bloque"
+	default:
+		found = "'" + at.Lexeme + "'"
+	}
+	out := ", pero se encontró " + found
+	if hint := diagnostic.Foreign(at.Lexeme); hint != "" && at.Kind == token.Ident {
+		return out + "; " + hint
+	}
+	if at.Kind != token.Ident && isWord(at.Lexeme) && strings.Contains(message, "nombre") {
+		return ", pero '" + at.Lexeme + "' es una palabra reservada de Cometa y no puede usarse como nombre"
+	}
+	previous := func(back int) token.Kind {
+		if p.index-back < 0 || p.index-back >= len(p.tokens) {
+			return ""
+		}
+		return p.tokens[p.index-back].Kind
+	}
+	switch {
+	case (at.Kind == token.Plus || at.Kind == token.Minus) && previous(1) == at.Kind:
+		return out + "; Cometa no tiene '++' ni '--'; escribe x = x + 1"
+	}
+	return out
+}
+
+func isWord(text string) bool {
+	if text == "" {
+		return false
+	}
+	for _, r := range text {
+		if !unicode.IsLetter(r) && r != '_' {
+			return false
+		}
+	}
+	return true
 }

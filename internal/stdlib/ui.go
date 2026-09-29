@@ -9,7 +9,7 @@ func installUI() {
   "Bordes":"izquierda decimal\nderecha decimal\narriba decimal\nabajo decimal",
   "Tema":"fondo Color\nnormal Color\nsobre Color\npresionado Color\nfoco Color\ndeshabilitado Color\ntexto Color\nespacio decimal",
  } { Fields[name]=fields; TypeModules[name]="ui" }
- typeName = regexp.MustCompile(`\b(Vec2|Rect|Color|Camara2D|Imagen|Fuente|Tecla|BotonRaton|Sonido|Reproduccion|Juego|Icono|Atlas|Contexto|AmbitoUI|Medida|Alineacion|Bordes|Tema)\b`)
+ typeName = regexp.MustCompile(`\b(Vec2|Rect|Color|Camara2D|Imagen|Fuente|Tecla|BotonRaton|BotonMando|EjeMando|Hoja|Rejilla|Sonido|Reproduccion|Juego|Icono|Atlas|Contexto|AmbitoUI|Medida|Alineacion|Bordes|Tema)\b`)
  Constants["Alineacion"]=map[string]string{"Inicio":"_hgAlineacion(0)","Centro":"_hgAlineacion(1)","Final":"_hgAlineacion(2)"}
  add := func(name,signature,goName string,draw bool) { Functions=append(Functions,Function{"ui",name,signature,goName,draw,false}) }
  add("crear",") Contexto","uiCrear",false)

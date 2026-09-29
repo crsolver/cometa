@@ -2,6 +2,11 @@ package codegen
 
 const stringRuntime = `
 func _hsnumero(v float64) string { return strconv.FormatFloat(v, 'g', -1, 64) }
+func _hsformatoNumero(v float64, decimales int64) string {
+	if decimales < 0 { decimales = 0 }
+	if decimales > 20 { decimales = 20 }
+	return strconv.FormatFloat(v, 'f', int(decimales), 64)
+}
 func _hsbool(v bool) string { if v { return "verdadero" }; return "falso" }
 func _hsindice(s, buscar string) int {
 	i := strings.Index(s, buscar)
@@ -13,6 +18,8 @@ func _hsindice(s, buscar string) int {
 // printRuntime formats values for imprimir with Cometa spellings: verdadero/falso,
 // quoted strings and comma-separated lists, maps and structures inside collections.
 const printRuntime = `
+var _hsenumNombres = map[string][]string{}
+
 func _hsimprimir(args ...any) {
 	parts := make([]string, len(args))
 	for i, a := range args {
@@ -72,6 +79,26 @@ func _hsformato(v reflect.Value, nested bool, depth int) string {
 		}
 	case reflect.Struct:
 		t := v.Type()
+		if t.NumField() > 0 && t.Field(0).Name == "tag" {
+			if t.Name() != "" {
+				base := t.Name()
+				if i := strings.Index(base, "["); i >= 0 { base = base[:i] }
+				if names, ok := _hsenumNombres[base]; ok {
+					tag := int(v.Field(0).Int())
+					if tag >= 1 && tag < len(names) && names[tag] != "" {
+						text := names[0] + "." + names[tag]
+						if f := v.FieldByName("payload" + strconv.Itoa(tag)); f.IsValid() {
+							text += "(" + _hsformato(f, true, depth+1) + ")"
+						}
+						return text
+					}
+				}
+			} else if f := v.FieldByName("payload2"); f.IsValid() {
+				if v.Field(0).Int() == 2 { return "Error(" + _hsformato(f, true, depth+1) + ")" }
+				if ok := v.FieldByName("payload1"); ok.IsValid() { return "Ok(" + _hsformato(ok, true, depth+1) + ")" }
+				return "Ok"
+			}
+		}
 		if t.Name() == "" && t.NumField() == 2 && t.Field(0).Name == "tag" && t.Field(1).Name == "payload1" {
 			if v.Field(0).Int() != 1 { return "Ninguno" }
 			return "Alguno(" + _hsformato(v.Field(1), true, depth+1) + ")"

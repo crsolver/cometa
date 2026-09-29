@@ -1,4 +1,4 @@
-// Repetir acciones con repetir.
+// Repetir acciones con repetir y mientras.
 
 fn inicio()
 	// Un rango cuenta desde el primer número hasta antes del segundo.
@@ -25,10 +25,17 @@ fn inicio()
 			romper
 		imprimir(numero)
 
+	// mientras repite mientras la condición sea verdadera.
+	// x += 1 es lo mismo que x = x + 1 (también hay -=, *=, /= y %=).
+	var vidas = 3
+	mientras vidas > 0
+		imprimir("Vidas: ${vidas}")
+		vidas -= 1
+
 	// Sin rango ni lista, repetir es infinito: sal con romper.
 	var intentos = 0
 	repetir
-		intentos = intentos + 1
+		intentos += 1
 		si intentos == 3
 			romper
 	imprimir("Intentos: ${intentos}")

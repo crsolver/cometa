@@ -3,6 +3,7 @@ package compiler
 import (
 	"cometa/internal/ast"
 	"cometa/internal/diagnostic"
+	"path/filepath"
 	"reflect"
 	"strings"
 )
@@ -14,6 +15,7 @@ type binder struct {
 	module  *Module
 	types   map[string]bool
 	errors  diagnostic.List
+	scope   map[string]bool // locals visible to the name being resolved, for suggestions
 }
 
 func copyScope(scope map[string]bool, names ...string) map[string]bool {
@@ -59,7 +61,23 @@ func (b *binder) name(name string, pos ast.Pos) string {
 		return d.Symbol
 	}
 	if !m.Unavailable {
-		b.fail(pos, "declaración desconocida %q en el módulo %s", name, m.Path)
+		var candidates []string
+		for known := range m.Declarations {
+			candidates = append(candidates, known)
+		}
+		if m == b.module {
+			for local := range b.scope {
+				candidates = append(candidates, local)
+			}
+			candidates = append(candidates, "imprimir")
+			hint := diagnostic.Hint(name, candidates)
+			if foreign := diagnostic.Foreign(name); foreign != "" {
+				hint = "; " + foreign
+			}
+			b.fail(pos, "el nombre %q no existe%s", name, hint)
+		} else {
+			b.fail(pos, "el módulo %s no tiene %q%s", strings.TrimSuffix(filepath.Base(m.Path), ".cometa"), name, diagnostic.Hint(name, candidates))
+		}
 	}
 	invalid := "\x00" + m.Path + ":" + name
 	b.project.Program.InvalidNames[invalid] = pos
@@ -197,7 +215,9 @@ func (b *binder) expr(expr ast.Expr, scope map[string]bool) ast.Expr {
 	switch e := expr.(type) {
 	case *ast.IdentExpr:
 		if !scope[e.Name] && !b.types[e.Name] && e.Name != "imprimir" && e.Name != "entero" && e.Name != "decimal" {
+			b.scope = scope
 			e.Name = b.name(e.Name, e.Pos)
+			b.scope = nil
 		}
 		return e
 	case *ast.MemberExpr:
@@ -247,6 +267,9 @@ func (b *binder) expr(expr ast.Expr, scope map[string]bool) ast.Expr {
 	case *ast.MatchExpr:
 		e.Value = b.expr(e.Value, scope)
 		for _, arm := range e.Arms {
+			for i, literal := range arm.Literals {
+				arm.Literals[i] = b.expr(literal, scope)
+			}
 			b.typeRef(arm.TypePattern)
 			b.typeRef(arm.QualifierType)
 			if arm.QualifierType != nil {

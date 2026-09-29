@@ -70,6 +70,13 @@ func _hgretroTexto(value string,x,y,scale int64,c _hgColor){
  _hgdraw();_hgretroScale(scale)
  _hgretroLayout(value,func(index,col,row int64){_hgretroGlifo(index,x+col*8*scale,y+row*8*scale,scale,c,1)})
 }
+// Width of the widest line up to its last visible glyph, so text can be centered.
+func _hgretroAnchoTexto(value string,scale int64) int64{
+ _hgretroScale(scale)
+ widest:=int64(0)
+ _hgretroLayout(value,func(index,col,row int64){if col+1>widest{widest=col+1}})
+ return widest*8*scale
+}
 // Defaults a fantasy-console-sized window (320x200, escala 4, pixelado) to fit the 8x8 dungeon font cleanly.
 func _hgretroEjecutar(instancia _hgJuego,w,h int64,title string,scale float64,resize,full bool,tps int64,pixelado,retro bool) struct {tag int; payload2 string} {
  return _hgejecutar(instancia,w,h,title,scale,resize,full,tps,pixelado,retro)

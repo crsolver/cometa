@@ -74,7 +74,10 @@ type MatchArm struct {
 	QualifierPos  Pos
 	NamePos       Pos
 	Pattern       string
-	Body          []Stmt
+	// Literals holds the values of a `casos` arm over entero, cadena or bool
+	// (`2, 3 =>`); such arms have no Pattern unless they are the `_` wildcard.
+	Literals []Expr
+	Body     []Stmt
 }
 
 // ContextualVariantExpr resolves its enum from the expected expression type.
@@ -197,6 +200,10 @@ type AssignStmt struct {
 	Pos    Pos
 	Target Expr
 	Value  Expr
+	// Compound is the operator of a `+=`-style statement ("+", "-", ...). The
+	// parser already rewrote Value to `Target op rhs` (with an independent copy
+	// of Target); the field only lets diagnostics mention what was written.
+	Compound string
 }
 
 func (*AssignStmt) stmtNode()       {}

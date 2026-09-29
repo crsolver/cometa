@@ -37,7 +37,7 @@ fn inicio()
 func TestStringDiagnosticsAndConstants(t *testing.T) {
 	tests := []struct{ name, source, want string }{
 		{"mixed concatenation", "fn inicio() imprimir(\"x\" + 1)\n", `no acepta cadena y entero`},
-		{"interpolation type", "fn inicio() imprimir(\"${[1]}\")\n", `requiere cadena, entero o bool`},
+		{"interpolation type", "fn inicio() imprimir(\"${[1]}\")\n", `requiere cadena, entero, decimal o bool`},
 		{"empty interpolation", "fn inicio() imprimir(\"${}\")\n", `no puede estar vacía`},
 		{"unclosed interpolation", "fn inicio() imprimir(\"${1\")\n", `interpolación sin cerrar`},
 		{"interpolated const", "const x = \"${1}\"\nfn inicio() imprimir(x)\n", `inicializador de una constante`},

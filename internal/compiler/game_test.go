@@ -88,7 +88,7 @@ func TestGameErrors(t *testing.T) {
 }
 
 func TestAllGameSignatures(t *testing.T) {
-	const imports = "usar std/mate/curvas\nusar std/mate/ruido\nusar std/pincel/retro\nusar std/pincel/ui\nusar std/pincel/lienzo\n" + pincelImports
+	const imports = "usar std/mate/curvas\nusar std/mate/ruido\nusar std/pincel/retro\nusar std/pincel/ui\nusar std/pincel/lienzo\nusar std/pincel/rejilla\nusar std/pincel/datos\n" + pincelImports
 	var all strings.Builder
 	// Signature defaults are parsed and checked by the same checker as user calls.
 	for _, f := range stdlib.Functions {

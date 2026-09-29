@@ -11,3 +11,4 @@
 /vscode-extension/out/
 *.vsix
 /experiments/
+/.claude/

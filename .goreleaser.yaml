@@ -1,0 +1,39 @@
+# GoReleaser builds the standalone `cometa` executable for each platform.
+# The compiler itself needs no cgo; Ebitengine is only built later, on the
+# user's machine, when `cometa ejecutar`/`construir` compiles a game.
+version: 2
+
+project_name: cometa
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: cometa
+    main: ./cmd/cometa
+    binary: cometa
+    env:
+      - CGO_ENABLED=0
+    goos: [windows, linux, darwin]
+    goarch: [amd64, arm64]
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+
+archives:
+  - id: cometa
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: "cometa_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+      - examples/**/*
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  disable: true

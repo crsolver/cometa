@@ -1,6 +1,9 @@
 package sema
 
-import "cometa/internal/ast"
+import (
+	"cometa/internal/ast"
+	"cometa/internal/diagnostic"
+)
 
 var listMethodOrder = []string{
 	"longitud", "esta_vacia", "contiene", "buscar_indice", "obtener",
@@ -90,7 +93,7 @@ func (c *checker) checkListCall(call *ast.CallExpr, member *ast.MemberExpr, list
 	methods := ListMethods(list)
 	signature, exists := methods[member.Name]
 	if !exists {
-		return Type{}, c.fail(member.Pos, "el método %q no existe en %s", member.Name, list.String())
+		return Type{}, c.fail(member.Pos, "el método %q no existe en %s%s", member.Name, list.String(), diagnostic.Hint(member.Name, sortedKeys(methods)))
 	}
 	if listMutators[member.Name] && !assignableListReceiver(member.Object) {
 		return Type{}, c.fail(member.Object.Position(), "el método %q requiere una lista asignable", member.Name)

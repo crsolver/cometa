@@ -16,12 +16,24 @@ import (
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		if err != errReported {
+			fmt.Fprintln(os.Stderr, err)
+		}
 		os.Exit(1)
 	}
 }
 
+// version is set at release time with -ldflags "-X main.version=v0.1.0".
+var version = "dev"
+
 func run(args []string) error {
+	if len(args) == 1 && (args[0] == "--version" || args[0] == "version" || args[0] == "-v") {
+		fmt.Println("cometa", version)
+		return nil
+	}
+	if len(args) > 0 && args[0] == "nuevo" {
+		return runNew(args[1:])
+	}
 	if len(args) == 2 && args[0] == "biblioteca" {
 		source, ok := stdlib.Source(args[1])
 		if !ok {
@@ -34,7 +46,7 @@ func run(args []string) error {
 		return lspserver.Run(context.Background())
 	}
 	if len(args) == 0 || (args[0] != "compilar" && args[0] != "ejecutar" && args[0] != "construir" && args[0] != "captura") {
-		return fmt.Errorf("uso: cometa <compilar|ejecutar|construir> <archivo.cometa> [-o salida] | captura <archivo.cometa> [-o captura.png] [--cuadros N] [--escala N] | lsp")
+		return fmt.Errorf("uso: cometa <comando> ...\n  nuevo     <nombre> [--juego]            crea un proyecto de ejemplo (consola o juego)\n  ejecutar <archivo.cometa>              compila y ejecuta el programa\n  construir <archivo.cometa> [-o salida]  genera un ejecutable\n  compilar  <archivo.cometa> [-o salida.go]  genera el código Go\n  captura   <archivo.cometa> [-o captura.png] [--cuadros N] [--escala N]\n  biblioteca <std/módulo>                 muestra las declaraciones de un módulo estándar\n  lsp                                     servidor de lenguaje para editores\n  --version                               muestra la versión")
 	}
 	var input, output string
 	frames, scale := 1, 1
@@ -89,7 +101,11 @@ func run(args []string) error {
 			}
 		}
 	}
-	generated, err := compiler.CompileProject(input, nil)
+	compile := compiler.CompileProject
+	if args[0] != "compilar" {
+		compile = compiler.CompileProjectForRun
+	}
+	generated, err := compile(input, nil)
 	if err != nil {
 		return err
 	}
