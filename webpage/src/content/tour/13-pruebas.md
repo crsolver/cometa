@@ -1,6 +1,6 @@
 ---
 titulo: "Pruebas"
-orden: 12
+orden: 13
 resumen: "Escribe pruebas con std/pruebas y ejecútalas con cometa probar."
 ---
 

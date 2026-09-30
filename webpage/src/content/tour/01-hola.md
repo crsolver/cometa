@@ -5,7 +5,7 @@ resumen: "Tu primer programa: la función inicio y cómo ejecutarlo."
 ejemplo: "basico/01_hola.cometa"
 ---
 
-Todo programa Cometa empieza en la función `inicio`. Los bloques se marcan con **tabuladores**: no hay llaves ni `fin`. Los comentarios empiezan con `//`.
+Todo programa Cometa empieza en la función `inicio`. Los bloques se marcan con **tabuladores**.
 
 ```cometa
 fn inicio()
@@ -26,8 +26,13 @@ cometa ejecutar hola.cometa
 | `cometa ejecutar archivo.cometa` | Compila y ejecuta |
 | `cometa construir archivo.cometa -o salida` | Genera un ejecutable nativo |
 | `cometa compilar archivo.cometa -o salida.go` | Muestra el código Go que produce Cometa |
-| `cometa probar pruebas.cometa` | Ejecuta pruebas (lección 12) |
+| `cometa probar pruebas.cometa` | Ejecuta pruebas (lección 13) |
 
-Cometa se traduce a Go, así que necesitas Go 1.25 o superior instalado. Si algo falla, los errores llegan en español, con la línea de tu código y sugerencias del tipo «¿Quisiste decir…?».
+## Comentarios
+Usa '//' para escribir un comentario de una línea
+```cometa
+// Esto es un comentario
+```
+
 
 ## Programa completo

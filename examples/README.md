@@ -23,7 +23,7 @@ Programas de consola: solo imprimen texto.
 | [07_mapas](basico/07_mapas.cometa) | Mapas clave-valor y contar palabras |
 | [08_tipos](basico/08_tipos.cometa) | Tipos propios con campos y métodos (`@`) y `copiar()` |
 | [09_enums](basico/09_enums.cometa) | `enum`, `casos` y `==` con variantes |
-| [10_opcionales_errores](basico/10_opcionales_errores.cometa) | `T?`, `T!`, `o`, `capturar` e `intentar` |
+| [10_errores](basico/10_errores.cometa) | `T!`, `.Ok`/`.Error`, `o`, `atrapar` e `intentar` |
 | [11_interfaces](basico/11_interfaces.cometa) | Interfaces: tipos distintos con el mismo comportamiento |
 | [12_modulos](basico/12_modulos.cometa) | Repartir el código en archivos con `usar` y `pub` |
 | [13_dados](basico/13_dados.cometa) | Programa completo con números aleatorios |

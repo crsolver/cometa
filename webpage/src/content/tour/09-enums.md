@@ -1,6 +1,6 @@
 ---
 titulo: "Enums y casos"
-orden: 8
+orden: 9
 resumen: "Variantes con datos y casos exhaustivos."
 ejemplo: "basico/09_enums.cometa"
 ---

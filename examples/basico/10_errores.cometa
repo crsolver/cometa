@@ -1,0 +1,40 @@
+// Errores (T!): operaciones que pueden fallar y explican por qué.
+
+// entero! devuelve un entero o un error con un mensaje.
+fn dividir(a entero, b entero) entero!
+	si b == 0
+		retornar .Error("no se puede dividir entre cero")
+	a / b
+
+// intentar pasa el error hacia arriba si la operación falla.
+fn mitad_de_division(a entero, b entero) entero!
+	var resultado = intentar dividir(a, b)
+	resultado / 2
+
+// ! solo: la operación no devuelve nada, pero puede fallar.
+fn retirar(saldo entero, monto entero) !
+	si monto > saldo
+		retornar .Error("saldo insuficiente")
+	imprimir("Retiraste ${monto}")
+	.Ok
+
+fn inicio()
+	// o: un valor por defecto si hay un error (funciona igual que con opcionales).
+	var bien = dividir(10, 2) o 0
+	imprimir(bien)
+
+	// atrapar con |error|: un bloque decide qué hacer con el error.
+	var mal = dividir(10, 0) atrapar |error|
+		imprimir("Error: ${error}")
+		-1
+	imprimir(mal)
+
+	// El error de dividir sube a través de mitad_de_division.
+	imprimir(mitad_de_division(20, 2) o 0)
+	imprimir(mitad_de_division(20, 0) o 0)
+
+	// Un resultado sin valor también hay que revisarlo.
+	retirar(100, 30) atrapar |error|
+		imprimir("No se pudo: ${error}")
+	retirar(100, 500) atrapar |error|
+		imprimir("No se pudo: ${error}")
