@@ -1,4 +1,8 @@
-# Cometa
+<p align="center">
+  <img src="docs/logo.svg" alt="Logo de Cometa" width="120">
+</p>
+
+<h1 align="center">Cometa</h1>
 
 Cometa es un lenguaje de programación con sintaxis en español, pensado para aprender y para hacer juegos 2D por diversión. Los bloques se marcan con tabuladores, los tipos son estáticos y el programa se traduce a Go.
 

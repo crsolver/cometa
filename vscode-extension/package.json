@@ -4,6 +4,7 @@
   "description": "Cometa: a statically typed Spanish-syntax language with compiler, editor support, and the optional Pincel game library.",
   "version": "0.0.1",
   "publisher": "local",
+  "icon": "images/icon.png",
   "main": "./out/extension.js",
   "activationEvents": [
     "onLanguage:cometa"
@@ -25,7 +26,11 @@
         "extensions": [
           ".cometa"
         ],
-        "configuration": "./language-configuration.json"
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./images/cometa.svg",
+          "dark": "./images/cometa.svg"
+        }
       }
     ],
     "grammars": [
