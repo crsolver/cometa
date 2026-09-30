@@ -4,12 +4,6 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 
 ## Lenguaje
 
-### El editor no sugiere `formato` en números ni `copiar` en tipos propios
-
-- **Observado:** al escribir `precio.` o `perro.`, el autocompletado no ofrece `formato()` (métodos de `entero`/`decimal`) ni el `copiar()` incorporado de los tipos declarados; ambos funcionan al compilar y muestran su documentación al pasar el cursor solo en el caso de `formato`.
-- **Problema:** son funciones nuevas que la gente solo descubre leyendo la documentación.
-- **Posible solución:** que `Model.Methods` (o la lista de completado) incluya `NumberMethods()` para números y una entrada sintética `copiar` para los tipos declarados, sin que cuenten para satisfacer interfaces.
-
 ### Un literal entero no admite llamadas de método (`7.formato(2)`)
 
 - **Observado:** `7.formato(2)` falla con «se esperaba un dígito después del punto decimal» porque el lexer lee `7.` como el inicio de un decimal; `3.5.formato(2)` sí funciona.

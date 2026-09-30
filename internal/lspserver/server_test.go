@@ -163,7 +163,7 @@ func TestCompletesFieldsAndMethodsForVariable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(completion.Items) != 2 {
+	if len(completion.Items) != 3 {
 		t.Fatalf("completion items = %+v", completion.Items)
 	}
 	if completion.Items[0].Label != "nombre" || completion.Items[0].Kind == nil || *completion.Items[0].Kind != lsp.CompletionItemKindField {

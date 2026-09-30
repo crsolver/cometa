@@ -16,9 +16,9 @@ func TestEnumCompletion(t *testing.T) {
 	}{
 		{"enum variants", enumSource + "fn inicio()\n\tvar e = Evento.\n", "Evento.", []string{"Cargar", "Boton", "Texto"}},
 		{"enum after cursor", "fn inicio()\n\tvar e = Evento.\n" + enumSource, "Evento.", []string{"Cargar", "Boton", "Texto"}},
-		{"payload inline", enumSource + "fn inicio()\n\tcasos Evento.Cargar |e|\n\t\t.Boton => imprimir(e.)\n", "e.", []string{"caracter"}},
-		{"payload multiline", enumSource + "fn inicio()\n\tcasos Evento.Cargar |e|\n\t\t.Boton =>\n\t\t\timprimir(e.)\n", "e.", []string{"caracter"}},
-		{"payload value match", enumSource + "fn f(evento Evento) cadena\n\tcasos evento |e|\n\t\t.Boton => e.\n", "e.", []string{"caracter"}},
+		{"payload inline", enumSource + "fn inicio()\n\tcasos Evento.Cargar |e|\n\t\t.Boton => imprimir(e.)\n", "e.", []string{"caracter", "copiar()"}},
+		{"payload multiline", enumSource + "fn inicio()\n\tcasos Evento.Cargar |e|\n\t\t.Boton =>\n\t\t\timprimir(e.)\n", "e.", []string{"caracter", "copiar()"}},
+		{"payload value match", enumSource + "fn f(evento Evento) cadena\n\tcasos evento |e|\n\t\t.Boton => e.\n", "e.", []string{"caracter", "copiar()"}},
 		{"payload unavailable", enumSource + "fn inicio()\n\tcasos Evento.Cargar |e|\n\t\t.Cargar => imprimir(e.)\n", "e.", nil},
 		{"wildcard unavailable", enumSource + "fn inicio()\n\tcasos Evento.Cargar |e|\n\t\t_ => imprimir(e.)\n", "e.", nil},
 		{"enum instance", enumSource + "fn inicio()\n\tvar e = Evento.Cargar\n\te.\n", "e.", nil},

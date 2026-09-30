@@ -17,7 +17,7 @@ func TestWrapperCompletion(t *testing.T) {
 		{"fn f() !\n\t.^\n", "Ok,Error"},
 		{"fn f(n entero?) entero\n\tcasos n\n\t\t.^\n", "Ninguno,Alguno"},
 		{"fn f(n entero!) entero\n\tcasos n\n\t\t.^\n", "Ok,Error"},
-		{"tipo U\n\tnombre cadena\nfn f(u U?)\n\tsi u |v|\n\t\timprimir(v.^)\n", "nombre"},
+		{"tipo U\n\tnombre cadena\nfn f(u U?)\n\tsi u |v|\n\t\timprimir(v.^)\n", "nombre,copiar()"},
 		{"tipo U\n\tnombre cadena\nfn f(u U?)\n\timprimir(u.^)\n", ""},
 	} {
 		mark := strings.Index(tc.source, "^")

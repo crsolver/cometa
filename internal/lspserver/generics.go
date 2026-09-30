@@ -4,6 +4,7 @@ import (
 	"github.com/owenrumney/go-lsp/lsp"
 	"cometa/internal/ast"
 	"cometa/internal/sema"
+	"cometa/internal/stdlib"
 	"sort"
 	"strings"
 )
@@ -229,6 +230,41 @@ func splitTopLevel(s string) []string {
 	}
 	parts = append(parts, s[start:])
 	return parts
+}
+
+// memberItems completes t.<member> for a value the user typed: declared members
+// plus the methods the language provides without a source declaration (number
+// formato and the copiar of every user tipo). They are suggestions only; they
+// never count towards interface satisfaction.
+func memberItems(model *sema.Model, t sema.Type, positions ...ast.Pos) *lsp.CompletionList {
+	kind := lsp.CompletionItemKindMethod
+	if t.Numeric() {
+		methods := sema.NumberMethods()
+		var names []string
+		for name := range methods {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		items := []lsp.CompletionItem{}
+		for _, name := range names {
+			items = append(items, lsp.CompletionItem{
+				Label: completionLabel(name, len(methods[name].Params)), Kind: &kind, InsertText: name,
+				Documentation: completionDocumentation(signatureDetail(methods[name]), sema.NumberMethodDocumentation(name)),
+			})
+		}
+		return &lsp.CompletionList{Items: items}
+	}
+	list := resolvedMemberItems(model, t, positions...)
+	if t.Kind == sema.Named && model.Types[t.Name] != nil && stdlib.GoType(t.Name) == "" {
+		if _, defined := model.Methods(t)["copiar"]; !defined {
+			synthetic := sema.FuncInfo{Decl: &ast.FuncDecl{Name: "copiar"}, Return: t}
+			list.Items = append(list.Items, lsp.CompletionItem{
+				Label: completionLabel("copiar", 0), Kind: &kind, InsertText: "copiar",
+				Documentation: completionDocumentation(signatureDetail(synthetic), "Devuelve una copia superficial independiente."),
+			})
+		}
+	}
+	return list
 }
 
 func resolvedMemberItems(model *sema.Model, t sema.Type, positions ...ast.Pos) *lsp.CompletionList {

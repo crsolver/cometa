@@ -533,9 +533,12 @@ func (h *Handler) moduleCompletion(params *lsp.CompletionParams, text string) *l
 			}
 		}
 		if selected != nil {
+			if resolved.Numeric() {
+				return displayItems(p, memberItems(p.Model, resolved))
+			}
 			if resolved.Kind == sema.Named || resolved.Kind == sema.Interface || resolved.Kind == sema.TypeParameter ||
 				resolved.Kind == sema.Slice || resolved.Kind == sema.Map || resolved.Kind == sema.String {
-				items := resolvedMemberItems(p.Model, resolved, ast.Pos{Filename: p.Root.Path})
+				items := memberItems(p.Model, resolved, ast.Pos{Filename: p.Root.Path})
 				return displayItems(p, withMethodDocs(p, p.Model.Methods(resolved), items))
 			}
 			if resolved.Kind == sema.Enum {

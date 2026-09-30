@@ -152,6 +152,9 @@ func (h *Handler) Completion(_ context.Context, params *lsp.CompletionParams) (*
 	if receiverType.Kind == sema.Interface || receiverType.Kind == sema.TypeParameter {
 		return resolvedMemberItems(model, receiverType), nil
 	}
+	if receiverType.Numeric() {
+		return memberItems(model, receiverType), nil
+	}
 	if receiverType.Kind != sema.Named && receiverType.Kind != sema.Slice && receiverType.Kind != sema.Map && receiverType.Kind != sema.String {
 		if receiverType.Kind == sema.Invalid {
 			if info := model.Enums[receiverName]; info != nil {
@@ -160,7 +163,7 @@ func (h *Handler) Completion(_ context.Context, params *lsp.CompletionParams) (*
 		}
 		return &lsp.CompletionList{}, nil
 	}
-	return resolvedMemberItems(model, receiverType), nil
+	return memberItems(model, receiverType), nil
 }
 
 func memberReceiverStart(prefix string, end int) int {
