@@ -45,5 +45,5 @@ tipo Creador
 
 fn inicio()
 	var creador = Creador {contexto: ui.crear(), nombre: ""}
-	pincel.ejecutar(creador, 320, 200, titulo = "Crear personaje", escala = 2, pixelado = verdadero) capturar |error|
+	pincel.ejecutar(creador, 320, 200, titulo = "Crear personaje", escala = 2, pixelado = verdadero) atrapar |error|
 		imprimir(error)

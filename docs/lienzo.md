@@ -51,7 +51,7 @@ Cada clave del mapa es un solo carácter. `.` y el espacio son transparentes sal
 | `pegar(destino, fuente, x, y, espejo_h = falso, espejo_v = falso)` | Copia con mezcla alfa; los píxeles opacos se copian exactos y los transparentes se ignoran |
 | `guardar(imagen, ruta, escala = 1) !` | Escribe un PNG, ampliado por vecino más cercano (escala 1–64) |
 
-`guardar` devuelve un resultado que debe manejarse, por ejemplo con `capturar |error| imprimir(error)`. Las rutas relativas parten del directorio de trabajo del proceso.
+`guardar` devuelve un resultado que debe manejarse, por ejemplo con `atrapar |error| imprimir(error)`. Las rutas relativas parten del directorio de trabajo del proceso.
 
 ## Ver el resultado
 

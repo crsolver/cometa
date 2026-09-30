@@ -105,14 +105,14 @@ func TestDatosStoresValues(t *testing.T) {
 
 fn inicio()
 	imprimir(datos.leer("x"))
-	datos.guardar("x", "42") capturar |e1|
+	datos.guardar("x", "42") atrapar |e1|
 		imprimir(e1)
 	imprimir(datos.leer("x"))
 	imprimir((datos.leer("x") o "0").a_entero() o -1)
-	datos.borrar("x") capturar |e2|
+	datos.borrar("x") atrapar |e2|
 		imprimir(e2)
 	imprimir(datos.leer("x"))
-	datos.guardar("", "1") capturar |e3|
+	datos.guardar("", "1") atrapar |e3|
 		imprimir(e3)
 `})
 	generated, err := CompileProject(entry, loader)
@@ -150,7 +150,7 @@ tipo P
 	pub fn pintar()
 		imprimir(0)
 fn inicio()
-	pincel.ejecutar(P {}) capturar |e|
+	pincel.ejecutar(P {}) atrapar |e|
 		imprimir(e)
 `
 	entry, loader := memoryProject(t, map[string]string{"main.cometa": source})

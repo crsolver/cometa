@@ -76,7 +76,7 @@ fn inicio()
 	imprimir(elegir(.Ninguno))
 	imprimir(condicional(5))
 	imprimir(prueba(.Ninguno))
-	imprimir(operar() capturar 99)
+	imprimir(operar() o 99)
 	casos caja.pendiente
 		.Ninguno => imprimir("pendiente")
 		.Alguno => imprimir("resuelto")
@@ -102,8 +102,8 @@ fn delegar() !bool
 fn inicio()
 	var c = Caja {n: 2}
 	imprimir(c.leer(valor = c.n, ignorado = cambiar(c)))
-	imprimir(logica() capturar falso)
-	delegar() capturar |error| imprimir(error)
+	imprimir(logica() o falso)
+	delegar() atrapar |error| imprimir(error)
 `, "12\nverdadero\nfalso\n")
 }
 
@@ -126,17 +126,17 @@ fn ramas(b bool) entero!
 		retornar .Error("ramas")
 	99
 fn inicio()
-	imprimir(llamada() capturar |e|
+	imprimir(llamada() atrapar |e|
 		imprimir(e)
 		0
 	)
-	constructor() capturar |e|
+	constructor() atrapar |e|
 		imprimir(e)
 		0
-	asignacion() capturar |e|
+	asignacion() atrapar |e|
 		imprimir(e)
 		0
-	imprimir(ramas(verdadero) capturar 0)
+	imprimir(ramas(verdadero) o 0)
 `, "llamada\n0\nconstructor\nasignacion\n3\n")
 }
 
@@ -184,12 +184,12 @@ fn inicio()
 	casos nombre(verdadero) |v|
 		.Ok => imprimir(v)
 		.Error => imprimir("error")
-	var recuperado = nombre(falso) capturar |e|
+	var recuperado = nombre(falso) atrapar |e|
 		casos e |detalle|
 			.Ausente => "ausente"
 			.Detalle => detalle
 	imprimir(recuperado)
-	guardar_otro() capturar |e| imprimir(e)
+	guardar_otro() atrapar |e| imprimir(e)
 	var anidado Usuario?! = .Ok(.Ninguno)
 	casos anidado |valor|
 		.Ok => imprimir((valor o Usuario {nombre: "vacío"}).nombre)
@@ -218,22 +218,22 @@ fn salida(c Contador) entero!
 	valor
 fn verdadero_opcional() bool? verdadero
 fn recuperar(c Contador) entero!
-	var valor = falla(c) capturar |e|
+	var valor = falla(c) atrapar |e|
 		retornar .Error(e)
 	paso(c, 9)
 	valor
 fn inicio()
 	var c = Contador {}
-	imprimir(operacion(c) capturar 42)
+	imprimir(operacion(c) o 42)
 	imprimir(c.n)
 	var presente entero? = 7
 	imprimir(presente o paso(c, 3))
 	var correcto entero! = 8
-	imprimir(correcto capturar paso(c, 4))
+	imprimir(correcto o paso(c, 4))
 	imprimir(c.n)
-	imprimir(salida(c) capturar 5)
+	imprimir(salida(c) o 5)
 	imprimir(c.n)
-	imprimir(recuperar(c) capturar 6)
+	imprimir(recuperar(c) o 6)
 	imprimir(c.n)
 `, "42\n12\n7\n8\n12\n5\n122\n6\n1222\n")
 }
@@ -262,7 +262,11 @@ func TestWrapperDiagnostics(t *testing.T) {
 		{"bare absence", "fn inicio()\n\tvar n = .Ninguno\n", "inferir"},
 		{"unit parentheses", "fn f() ! .Ok()\n", "no acepta"},
 		{"unit payload binding", "fn f(n !)\n\tcasos n |v|\n\t\t.Ok => imprimir(v)\n\t\t.Error => imprimir(v)\n", "no existe"},
-		{"wrong recovery type", "fn f(n entero!) entero n capturar \"no\"\n", "recuperación"},
+		{"wrong recovery type", "fn f(n entero!) entero n o \"no\"\n", "recuperación"},
+		{"catch default value", "fn f(n entero!) entero n atrapar 0\n", "usa o"},
+		{"catch default block", "fn f(n entero!) entero\n\tn atrapar\n\t\timprimir(\"x\")\n\t\t0\n", "usa o"},
+		{"catch optional", "fn f(n entero?) entero n atrapar |e| 0\n", "solo acepta resultados"},
+		{"fallback unit result", "fn f(n !)\n\tn o imprimir(1)\n", "usa atrapar"},
 		{"branch unused result", "fn inicio()\n\tsi verdadero\n\t\tvar n entero! = 1\n\tsino\n\t\tvar n entero! = 2\n\t\tcasos n\n\t\t\t_ => imprimir(1)\n", "debe usarse"},
 		{"optional binding scope", "fn f(n entero?) entero\n\tsi n |v| imprimir(v)\n\tv\n", "no existe"},
 	}

@@ -19,7 +19,7 @@ func TestBuildGameExecutable(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		output += ".exe"
 	}
-	if err := os.WriteFile(input, []byte("usar std/pincel\nusar std/pincel/graficos\ntipo Partida\n\tpub fn actualizar(dt decimal) imprimir(dt)\n\tpub fn pintar() graficos.limpiar(.Negro)\nfn inicio()\n\tpincel.ejecutar(Partida {}) capturar |e| imprimir(e)\n"), 0600); err != nil {
+	if err := os.WriteFile(input, []byte("usar std/pincel\nusar std/pincel/graficos\ntipo Partida\n\tpub fn actualizar(dt decimal) imprimir(dt)\n\tpub fn pintar() graficos.limpiar(.Negro)\nfn inicio()\n\tpincel.ejecutar(Partida {}) atrapar |e| imprimir(e)\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	if err := run([]string{"construir", input, "-o", output}); err != nil {
@@ -49,7 +49,7 @@ func TestCaptureGameScreen(t *testing.T) {
 	dir := t.TempDir()
 	input := filepath.Join(dir, "game.cometa")
 	output := filepath.Join(dir, "shot.png")
-	game := "usar std/pincel\nusar std/pincel/graficos\nusar std/pincel/lienzo\nvar punto = lienzo.nuevo(1, 1, .Rojo)\ntipo Partida\n\tpub fn actualizar(dt decimal) retornar\n\tpub fn pintar()\n\t\tgraficos.limpiar(.Negro)\n\t\tgraficos.imagen(punto, 1, 0)\nfn inicio()\n\tpincel.ejecutar(Partida {}, 3, 2) capturar |e| imprimir(e)\n"
+	game := "usar std/pincel\nusar std/pincel/graficos\nusar std/pincel/lienzo\nvar punto = lienzo.nuevo(1, 1, .Rojo)\ntipo Partida\n\tpub fn actualizar(dt decimal) retornar\n\tpub fn pintar()\n\t\tgraficos.limpiar(.Negro)\n\t\tgraficos.imagen(punto, 1, 0)\nfn inicio()\n\tpincel.ejecutar(Partida {}, 3, 2) atrapar |e| imprimir(e)\n"
 	if err := os.WriteFile(input, []byte(game), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +68,7 @@ func TestCaptureGameScreen(t *testing.T) {
 	if img.Bounds().Dx() != 6 || img.Bounds().Dy() != 4 {
 		t.Fatalf("capture bounds = %v", img.Bounds())
 	}
-	for _, point := range [][3]int{{0, 0, 0}, {2, 0, 181}, {3, 1, 181}, {4, 3, 0}} {
+	for _, point := range [][3]int{{0, 0, 0}, {2, 0, 255}, {3, 1, 255}, {4, 3, 0}} {
 		if r, _, _, _ := img.At(point[0], point[1]).RGBA(); int(r>>8) != point[2] {
 			t.Fatalf("pixel %v red = %d", point, r>>8)
 		}

@@ -112,7 +112,7 @@ func ModulePath(namespace string) string {
 	if namespace == "pincel" {
 		return "std/pincel"
 	}
-	if namespace == "mate" || namespace == "azar" {
+	if namespace == "mate" || namespace == "azar" || namespace == "pruebas" {
 		return "std/" + namespace
 	}
 	return "std/pincel/" + namespace

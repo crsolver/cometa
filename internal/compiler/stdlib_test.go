@@ -18,7 +18,7 @@ func TestStandardMathWithoutGame(t *testing.T) {
 }
 
 func TestPincelExplicitStartup(t *testing.T) {
-	source := "usar std/pincel\nusar std/pincel/graficos\ntipo Demo\n\tpub fn actualizar(dt decimal) imprimir(dt)\n\tpub fn pintar() graficos.limpiar(.Negro)\nfn inicio()\n\tpincel.ejecutar(Demo {}) capturar |error|\n\t\timprimir(error)\n"
+	source := "usar std/pincel\nusar std/pincel/graficos\ntipo Demo\n\tpub fn actualizar(dt decimal) imprimir(dt)\n\tpub fn pintar() graficos.limpiar(.Negro)\nfn inicio()\n\tpincel.ejecutar(Demo {}) atrapar |error|\n\t\timprimir(error)\n"
 	generated, err := Compile("game.cometa", []byte(source))
 	if err != nil {
 		t.Fatal(err)

@@ -38,5 +38,5 @@ tipo Marcador
 
 fn inicio()
 	// retro.ejecutar usa defaults de consola de fantasía: 320x200, escala 4, pixelado.
-	retro.ejecutar(Marcador {vidas: 3}, titulo = "Retro", retro=verdadero) capturar |error|
+	retro.ejecutar(Marcador {vidas: 3}, titulo = "Retro", retro=verdadero) atrapar |error|
 		imprimir(error)

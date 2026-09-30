@@ -1,6 +1,7 @@
 package main
 
 import (
+	_ "embed"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -8,6 +9,19 @@ import (
 )
 
 var projectName = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_-]*$`)
+
+// Guía para agentes de IA que se escribe en cada proyecto nuevo: fija el papel de profesor
+// y resume el lenguaje. La parte de Pincel solo se añade a los proyectos de juego.
+var (
+	//go:embed plantillas/agentes_base.md
+	agentsBase string
+	//go:embed plantillas/agentes_pincel.md
+	agentsPincel string
+)
+
+const claudeInstructions = "@AGENTS.md\n"
+
+const usageNew = "uso: cometa nuevo <nombre> [--juego] [--sin-agentes]"
 
 const consoleTemplate = `// Tu primer programa en Cometa.
 // Ejecútalo con: cometa ejecutar principal.cometa
@@ -55,12 +69,12 @@ tipo Partida
 
 fn inicio()
 	var partida = Partida {pos: {152, 82}}
-	pincel.ejecutar(partida, ancho, alto, titulo = "Mi juego", escala = 3) capturar |error|
+	pincel.ejecutar(partida, ancho, alto, titulo = "Mi juego", escala = 3) atrapar |error|
 		imprimir(error)
 `
 
 // newProject creates a directory with a runnable starter program.
-func newProject(name string, game bool) error {
+func newProject(name string, game, agents bool) error {
 	if !projectName.MatchString(name) {
 		return fmt.Errorf("el nombre %q no es válido: usa letras, números, «_» o «-»", name)
 	}
@@ -78,21 +92,38 @@ func newProject(name string, game bool) error {
 	if err := os.WriteFile(file, []byte(template), 0o644); err != nil {
 		return fmt.Errorf("no se pudo escribir %s: %w", file, err)
 	}
+	if agents {
+		guide := agentsBase
+		if game {
+			guide += agentsPincel
+		}
+		for file, content := range map[string]string{"AGENTS.md": guide, "CLAUDE.md": claudeInstructions} {
+			path := filepath.Join(name, file)
+			if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+				return fmt.Errorf("no se pudo escribir %s: %w", path, err)
+			}
+		}
+	}
 	fmt.Printf("Proyecto creado en %s\n\nSiguiente paso:\n  cd %s\n  cometa ejecutar principal.cometa\n", name, name)
 	if game {
 		fmt.Println("\nLa primera vez se descargan y compilan las dependencias del juego; puede tardar unos minutos.")
 	}
+	if agents {
+		fmt.Println("\nSe añadió AGENTS.md (y CLAUDE.md): instrucciones para agentes de IA. Cometa es un lenguaje para aprender y divertirse,\nasí que el agente actuará como profesor más que como programador. Usa --sin-agentes para omitirlas.")
+	}
 	return nil
 }
 
-// runNew parses `cometa nuevo <nombre> [--juego]`.
+// runNew parses `cometa nuevo <nombre> [--juego] [--sin-agentes]`.
 func runNew(args []string) error {
 	var name string
-	game := false
+	game, agents := false, true
 	for _, arg := range args {
 		switch {
 		case arg == "--juego":
 			game = true
+		case arg == "--sin-agentes":
+			agents = false
 		case len(arg) > 0 && arg[0] == '-':
 			return fmt.Errorf("argumento inesperado %q\nuso: cometa nuevo <nombre> [--juego]", arg)
 		case name == "":
@@ -102,7 +133,7 @@ func runNew(args []string) error {
 		}
 	}
 	if name == "" {
-		return fmt.Errorf("uso: cometa nuevo <nombre> [--juego]")
+		return fmt.Errorf(usageNew)
 	}
-	return newProject(name, game)
+	return newProject(name, game, agents)
 }

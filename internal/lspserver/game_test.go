@@ -14,7 +14,7 @@ import (
 
 func TestPincelImportedDefinitions(t *testing.T) {
 	for _, tc := range []struct{ source, path, needle string }{
-		{"usar std/pincel\nfn f(g pincel.Juego)\n\tpincel.§ejecutar(g, retro = verdadero) capturar |e| imprimir(e)\n", "std/pincel", "retro bool = falso"},
+		{"usar std/pincel\nfn f(g pincel.Juego)\n\tpincel.§ejecutar(g, retro = verdadero) atrapar |e| imprimir(e)\n", "std/pincel", "retro bool = falso"},
 		{"usar std/pincel/retro como r\nfn pintar() r.§texto(\"hola\", 0, 0)\n", "std/pincel/retro", "fn texto("},
 		{"usar std/pincel/retro como r\nfn pintar() r.§icono(.Llave, 0, 0)\n", "std/pincel/retro", "fn icono("},
 		{"usar std/pincel/retro como r\nfn f(valor r.§Icono) imprimir(valor)\n", "std/pincel/retro", "tipo Icono"},

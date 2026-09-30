@@ -33,5 +33,5 @@ tipo Opciones
 
 fn inicio()
 	var opciones = Opciones {contexto: ui.crear(), volumen: 0.5, musica: verdadero}
-	pincel.ejecutar(opciones, 320, 180, titulo = "Pincel UI", escala = 3, pixelado = verdadero) capturar |error|
+	pincel.ejecutar(opciones, 320, 180, titulo = "Pincel UI", escala = 3, pixelado = verdadero) atrapar |error|
 		imprimir(error)

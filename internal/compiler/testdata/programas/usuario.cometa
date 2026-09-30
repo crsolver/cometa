@@ -82,7 +82,7 @@ fn abrir_archivo() cadena!
 	sino .Error("error")
 
 fn manejar()!
-	var texto = abrir_archivo() capturar |e| "hola"
+	var texto = abrir_archivo() atrapar |e| "hola"
 	.Ok
 
 tipo Usuario

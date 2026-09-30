@@ -16,5 +16,5 @@ tipo Partida
 		graficos.rectangulo_v(jugador.pos, mate.Vec2 {x: 10, y: 10}, .Rojo)
 
 fn inicio()
-	pincel.ejecutar(Partida {}) capturar |error|
+	pincel.ejecutar(Partida {}) atrapar |error|
 		imprimir(error)

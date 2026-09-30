@@ -41,5 +41,5 @@ tipo Jugador
 		graficos.texto_depuracion("Espacio pulsado ${@saltos} veces", 4, 164)
 
 fn inicio()
-	pincel.ejecutar(Jugador {pos: {x: 152, y: 82}}, 320, 180, titulo = "Teclado", escala = 3) capturar |error|
+	pincel.ejecutar(Jugador {pos: {x: 152, y: 82}}, 320, 180, titulo = "Teclado", escala = 3) atrapar |error|
 		imprimir(error)

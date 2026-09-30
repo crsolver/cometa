@@ -66,7 +66,7 @@ fn texto() cadena!
 fn inicio()
 	imprimir("${siguiente()} ${siguiente()}")
 	imprimir("anidada ${"x ${1}"}")
-	imprimir(texto() capturar |e| e)
+	imprimir(texto() atrapar |e| e)
 `, "1 2\nanidada x 1\nfallo\n")
 }
 

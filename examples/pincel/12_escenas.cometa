@@ -88,5 +88,5 @@ tipo Partida
 				retro.texto("Enter: menú", 76, 108)
 
 fn inicio()
-	pincel.ejecutar(Partida {}, ancho, alto, escala = 3, titulo = "Escenas") capturar |error|
+	pincel.ejecutar(Partida {}, ancho, alto, escala = 3, titulo = "Escenas") atrapar |error|
 		imprimir(error)

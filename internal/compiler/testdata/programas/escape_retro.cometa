@@ -326,5 +326,5 @@ tipo Partida
 fn inicio()
 	var partida = Partida {}
 	partida.reiniciar()
-	pincel.ejecutar(partida, 320, 240, titulo = "La última luz / Cometa retro", escala = 3, pixelado = verdadero, retro = verdadero) capturar |error|
+	pincel.ejecutar(partida, 320, 240, titulo = "La última luz / Cometa retro", escala = 3, pixelado = verdadero, retro = verdadero) atrapar |error|
 		imprimir(error)

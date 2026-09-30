@@ -23,7 +23,9 @@ cd hola
 cometa ejecutar principal.cometa
 ```
 
-`cometa nuevo` crea la carpeta `hola` con un archivo `principal.cometa`:
+`cometa nuevo` crea la carpeta `hola` con un archivo `principal.cometa` y, para quien use un asistente de IA, `AGENTS.md` y `CLAUDE.md`: unas instrucciones que le explican el lenguaje y le piden actuar como profesor en lugar de escribirte el código (Cometa es para aprender y divertirse). Añade `--sin-agentes` si no las quieres.
+
+El archivo `principal.cometa` contiene:
 
 ```cometa
 fn saludar(nombre cadena) cadena

@@ -759,7 +759,7 @@ func (_self *Partida) Pintar() {
 	var _cometa13 float64 = float64(10)
 	var _cometa14 float64 = float64(10)
 	var _cometa15 _hgVec2 = _hgVec2{X: _cometa13, Y: _cometa14}
-	var _cometa16 _hgColor = _hgColor{181, 59, 89, 255}
+	var _cometa16 _hgColor = _hgColor{255, 0, 0, 255}
 	var _cometa17 _hgVec2 = _hgVec2{}
 	var _cometa18 float64 = float64(0)
 	_hgrectangulo(_cometa12, _cometa15, _cometa16, _cometa17, _cometa18)

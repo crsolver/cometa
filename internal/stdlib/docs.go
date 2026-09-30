@@ -17,6 +17,7 @@ var NamespaceDocs = map[string]string{
 	"pincel":   "El núcleo del motor de juegos: pincel.ejecutar arranca el bucle de juego a partir de un valor que implemente pincel.Juego.",
 	"retro":    "Sprites y texto de estilo retro (DUNGEON.mode), listos para usar sin cargar ningún archivo. Ver examples/pincel/06_retro.cometa.",
 	"curvas":   "31 funciones de easing puras (sin estado) para animar valores de forma más natural que una interpolación lineal. Ver docs/curvas.md.",
+	"pruebas":  "Afirmaciones para escribir pruebas: cada fn prueba_* falla en la primera afirmación incumplida. Se ejecutan con `cometa probar`.",
 	"ruido":    "Ruido 2D pseudoaleatorio pero reproducible, útil para generar terrenos, texturas o variación orgánica a partir de una semilla.",
 	"datos":    "Guarda y lee pequeños datos de tu juego (mejor puntuación, opciones) como texto asociado a una clave; se conservan entre partidas en la carpeta de configuración del usuario.",
 	"rejilla":  "Una cuadrícula de números para mapas de tiles: crearla, leer y escribir celdas, dibujarla con una hoja de sprites y comprobar colisiones con celdas sólidas.",
@@ -28,6 +29,12 @@ var NamespaceDocs = map[string]string{
 // example-driven for functions whose behavior isn't obvious from the name
 // and signature alone.
 var FunctionDocs = map[string]string{
+	// pruebas
+	"pruebas.afirmar":    "Falla la prueba con el mensaje dado si la condición es falsa.",
+	"pruebas.igual":      "Falla la prueba si esperado y obtenido difieren. Acepta dos enteros, decimales, cadenas o bool del mismo tipo.",
+	"pruebas.casi_igual": "Falla la prueba si esperado y obtenido difieren en más que la tolerancia (útil para decimales).",
+	"pruebas.fallar":     "Falla la prueba de inmediato con el mensaje dado.",
+
 	// ruido
 	"ruido.suave":   "Ruido 2D suave en (x, y), siempre en [0, 1] y reproducible: la misma semilla y coordenadas dan siempre el mismo resultado.",
 	"ruido.fractal": "Como ruido.suave pero sumando varias octavas para un detalle más rico (piensa en montañas con relieve, no solo colinas).",

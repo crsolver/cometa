@@ -26,5 +26,5 @@ tipo Galeria
 		retro.icono(.Derecha, 152, 192)
 
 fn inicio()
-	pincel.ejecutar(Galeria {}, 288, 208, titulo = "Pincel retro", escala = 4, retro = verdadero) capturar |error|
+	pincel.ejecutar(Galeria {}, 288, 208, titulo = "Pincel retro", escala = 4, retro = verdadero) atrapar |error|
 		imprimir(error)

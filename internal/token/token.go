@@ -75,7 +75,7 @@ const (
 	Bang      Kind = "!"
 	Question  Kind = "?"
 	Fallback  Kind = "o"
-	Catch     Kind = "capturar"
+	Catch     Kind = "atrapar"
 	Try       Kind = "intentar"
 	Return    Kind = "retornar"
 )

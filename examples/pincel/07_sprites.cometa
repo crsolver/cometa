@@ -58,5 +58,5 @@ tipo Escena
 		graficos.imagen(cuadros[cuadro], @x, 40, escala = {x: 4, y: 4})
 
 fn inicio()
-	pincel.ejecutar(Escena {}, 160, 90, titulo = "Sprites", escala = 5, pixelado = verdadero) capturar |error|
+	pincel.ejecutar(Escena {}, 160, 90, titulo = "Sprites", escala = 5, pixelado = verdadero) atrapar |error|
 		imprimir(error)

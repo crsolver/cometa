@@ -87,7 +87,7 @@ fn cambiar(c Caja) !
 	.Ok
 fn inicio()
 	var c = Caja {valores: [1]}
-	cambiar(c) capturar |e| imprimir(e)
+	cambiar(c) atrapar |e| imprimir(e)
 	imprimir(c.valores.longitud())
 `, "fallo\n1\n")
 }

@@ -129,5 +129,5 @@ tipo Plataformas
 fn inicio()
 	var juego = Plataformas {mapa: crear_mapa(), hoja: crear_hoja()}
 	juego.reiniciar()
-	pincel.ejecutar(juego, 320, 180, titulo = "Plataformas", escala = 3, pixelado = verdadero) capturar |error|
+	pincel.ejecutar(juego, 320, 180, titulo = "Plataformas", escala = 3, pixelado = verdadero) atrapar |error|
 		imprimir(error)

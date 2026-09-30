@@ -33,5 +33,5 @@ tipo Animacion
 		graficos.circulo(rebote, 140, 8, .Amarillo)
 
 fn inicio()
-	pincel.ejecutar(Animacion {}, 320, 180, titulo = "Curvas", escala = 3) capturar |error|
+	pincel.ejecutar(Animacion {}, 320, 180, titulo = "Curvas", escala = 3) atrapar |error|
 		imprimir(error)

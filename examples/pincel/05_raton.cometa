@@ -28,5 +28,5 @@ tipo Pizarra
 		graficos.texto_depuracion("Clic: punto   Clic derecho: borrar   Puntos: ${@puntos.longitud()}", 4, 4)
 
 fn inicio()
-	pincel.ejecutar(Pizarra {}, 320, 180, titulo = "Ratón", escala = 3) capturar |error|
+	pincel.ejecutar(Pizarra {}, 320, 180, titulo = "Ratón", escala = 3) atrapar |error|
 		imprimir(error)

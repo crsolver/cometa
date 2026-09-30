@@ -15,5 +15,5 @@ tipo Ventana
 fn inicio()
 	// pincel.ejecutar abre la ventana y espera hasta que se cierre.
 	// 320x180 es el tamaño lógico; escala 3 agranda la ventana.
-	pincel.ejecutar(Ventana {}, 320, 180, titulo = "Mi primera ventana", escala = 3) capturar |error|
+	pincel.ejecutar(Ventana {}, 320, 180, titulo = "Mi primera ventana", escala = 3) atrapar |error|
 		imprimir(error)

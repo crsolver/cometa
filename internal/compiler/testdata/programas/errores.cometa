@@ -36,9 +36,9 @@ fn inicio()
 	var invitado = buscar(falso) o Usuario {nombre: "Invitado"}
 	imprimir(invitado.nombre)
 
-	var texto = nombre(falso) capturar |error|
+	var texto = nombre(falso) atrapar |error|
 		casos error |detalle|
 			.NoExiste => "no existe"
 			.Detalle => detalle
 	imprimir(texto)
-	guardar() capturar |error| imprimir(error)
+	guardar() atrapar |error| imprimir(error)

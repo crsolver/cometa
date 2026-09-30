@@ -15,7 +15,7 @@ tipo Partida
 		graficos.rectangulo_v(@pos, {10, 10}, .Rojo)
 
 fn inicio()
-	pincel.ejecutar(Partida {}, titulo = "Mi juego") capturar |error|
+	pincel.ejecutar(Partida {}, titulo = "Mi juego") atrapar |error|
 		imprimir(error)
 ```
 
@@ -56,7 +56,7 @@ Para un juego, usa `cometa nuevo mi_juego --juego`. La primera vez se descargan 
 
 | Comando | Qué hace |
 | --- | --- |
-| `cometa nuevo <nombre> [--juego]` | Crea un proyecto listo para ejecutar. |
+| `cometa nuevo <nombre> [--juego] [--sin-agentes]` | Crea un proyecto listo para ejecutar, con `AGENTS.md` para asistentes de IA (que actúan como profesor). |
 | `cometa ejecutar <archivo>` | Compila y ejecuta. |
 | `cometa construir <archivo> -o <salida>` | Genera un ejecutable con todos los recursos incluidos. |
 | `cometa captura <juego> -o <png>` | Ejecuta un juego con la ventana oculta y guarda una captura. |

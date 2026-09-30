@@ -31,7 +31,7 @@ tipo Partida
 			@pos.x += entrada.mando_eje(0, .IzquierdoX) + entrada.mando_eje(0, .DerechoY, zona_muerta = 0.3)
 		azar.semilla(123)
 		var n = azar.entero(1, 7)
-		datos.guardar("mejor", cadena(n + ancho)) capturar |error|
+		datos.guardar("mejor", cadena(n + ancho)) atrapar |error|
 			imprimir(error)
 		@mejor = (datos.leer("mejor") o "0").a_entero() o 0
 		si @cuadros > 2
@@ -53,5 +53,5 @@ fn inicio()
 		mapa: rejilla.desde_texto(["#..", ".#.", "..#"], ["#": 1, ".": 0]),
 		hoja: graficos.hoja(imagen, 16, 16),
 	}
-	pincel.ejecutar(partida) capturar |error|
+	pincel.ejecutar(partida) atrapar |error|
 		imprimir(error)

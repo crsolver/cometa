@@ -53,7 +53,7 @@ func TestLienzoRuntime(t *testing.T) {
 usar std/pincel/color
 
 fn guardar(img graficos.Imagen, nombre cadena, escala entero = 1)
-	lienzo.guardar(img, "` + dir + `/" + nombre, escala = escala) capturar |e| imprimir(e)
+	lienzo.guardar(img, "` + dir + `/" + nombre, escala = escala) atrapar |e| imprimir(e)
 
 fn inicio()
 	var marco = lienzo.nuevo(7, 7)
@@ -92,8 +92,8 @@ fn inicio()
 	if err != nil {
 		t.Fatal(err)
 	}
-	runGeneratedGo(t, generated, "2\nNRGBA {r: 87, g: 176, b: 103, a: 255}\nfuera\nNRGBA {r: 181, g: 59, b: 89, a: 255}\nNRGBA {r: 0, g: 0, b: 0, a: 0}\n")
-	palette := map[rune]color.NRGBA{'.': {}, 'R': {181, 59, 89, 255}, 'B': {71, 114, 191, 255}, 'G': {87, 176, 103, 255}, 'W': {255, 249, 228, 255}, 'm': {128, 0, 127, 255}}
+	runGeneratedGo(t, generated, "2\nNRGBA {r: 0, g: 255, b: 0, a: 255}\nfuera\nNRGBA {r: 255, g: 0, b: 0, a: 255}\nNRGBA {r: 0, g: 0, b: 0, a: 0}\n")
+	palette := map[rune]color.NRGBA{'.': {}, 'R': {255, 0, 0, 255}, 'B': {0, 0, 255, 255}, 'G': {0, 255, 0, 255}, 'W': {255, 255, 255, 255}, 'm': {128, 0, 127, 255}}
 	expectPNG(t, dir+"/marco.png", palette, "RRRRRRR", "RBGGGGR", "R.BGGGR", "R..BGGR", "R...BGR", "R....BR", "RRRRRRR")
 	expectPNG(t, dir+"/circulo.png", palette, "..WWW..", ".W...W.", "W.....W", "W.....W", "W.....W", ".W...W.", "..WWW..")
 	expectPNG(t, dir+"/espejo.png", palette, "BBRR", "BBRR")

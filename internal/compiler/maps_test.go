@@ -106,9 +106,9 @@ fn construir() [cadena: entero]!
 fn inicio()
 	receptor()[clave()] = valor()
 	imprimir(receptor()[clave()] o -1)
-	cambiar() capturar |e| imprimir(e)
+	cambiar() atrapar |e| imprimir(e)
 	imprimir(m["a"] o -1)
-	var construido = construir() capturar |e|
+	var construido = construir() atrapar |e|
 		imprimir(e)
 		[:]
 	var duplicados = [clave(): valor(), clave(): 10]

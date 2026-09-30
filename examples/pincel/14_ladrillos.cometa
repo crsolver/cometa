@@ -144,5 +144,5 @@ tipo Partida
 fn inicio()
 	var partida = Partida {}
 	partida.reiniciar()
-	pincel.ejecutar(partida, ancho, alto, escala = 3, titulo = "Ladrillos", pixelado = verdadero) capturar |error|
+	pincel.ejecutar(partida, ancho, alto, escala = 3, titulo = "Ladrillos", pixelado = verdadero) atrapar |error|
 		imprimir(error)

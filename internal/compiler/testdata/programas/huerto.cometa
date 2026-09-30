@@ -1289,6 +1289,6 @@ tipo Partida
 fn inicio()
 	finca.generar(azar.entero(1, 1000000))
 	hornear()
-	pincel.ejecutar(Partida {}, ancho, alto, titulo = "Huerto | Cometa", escala = 4, pixelado = verdadero) capturar |error|
+	pincel.ejecutar(Partida {}, ancho, alto, titulo = "Huerto | Cometa", escala = 4, pixelado = verdadero) atrapar |error|
 		imprimir(error)
 

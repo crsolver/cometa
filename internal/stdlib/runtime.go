@@ -22,6 +22,9 @@ var curvasRuntimeSource string
 //go:embed ruido_runtime.txt
 var ruidoRuntimeSource string
 
+//go:embed pruebas_runtime.txt
+var pruebasRuntimeSource string
+
 //go:embed crt_runtime.txt
 var crtRuntimeSource string
 
@@ -64,7 +67,7 @@ func Runtime(modules []string) (string, []string, error) {
 		return "", nil, nil
 	}
 	fs := token.NewFileSet()
-	source := runtimeSource + "\n" + extraRuntimeSource + "\n" + lienzoRuntimeSource + "\n" + crtRuntimeSource + "\n" + curvasRuntimeSource + "\n" + ruidoRuntimeSource
+	source := runtimeSource + "\n" + extraRuntimeSource + "\n" + lienzoRuntimeSource + "\n" + crtRuntimeSource + "\n" + curvasRuntimeSource + "\n" + ruidoRuntimeSource + "\n" + pruebasRuntimeSource
 	for _, module := range modules {
 		if module == "std/pincel/ui" { source += "\n" + uiCoreSource + "\n" + uiRuntimeSource; break }
 	}
@@ -137,6 +140,11 @@ func Runtime(modules []string) (string, []string, error) {
 			if f.Namespace == ns {
 				visit("_hg" + f.GoName)
 				visit("_hg" + f.GoName + "Entero")
+				if ns == "pruebas" {
+					for _, kind := range []string{"Decimal", "Cadena", "Bool"} {
+						visit("_hg" + f.GoName + kind)
+					}
+				}
 			}
 		}
 		for name, owner := range TypeModules {

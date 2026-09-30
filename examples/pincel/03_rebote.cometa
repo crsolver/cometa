@@ -27,5 +27,5 @@ tipo Pelota
 
 fn inicio()
 	var pelota = Pelota {pos: {x: 160, y: 90}, vel: {x: 120, y: 80}}
-	pincel.ejecutar(pelota, ancho, alto, titulo = "Rebote", escala = 3) capturar |error|
+	pincel.ejecutar(pelota, ancho, alto, titulo = "Rebote", escala = 3) atrapar |error|
 		imprimir(error)

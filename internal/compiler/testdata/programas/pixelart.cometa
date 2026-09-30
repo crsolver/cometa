@@ -141,5 +141,5 @@ tipo Escena
 
 fn inicio()
 	var escena = Escena {fondo: crear_fondo(), x: 20}
-	pincel.ejecutar(escena, ancho, alto, titulo = "Pixel art con lienzo", escala = 6, pixelado = verdadero) capturar |error|
+	pincel.ejecutar(escena, ancho, alto, titulo = "Pixel art con lienzo", escala = 6, pixelado = verdadero) atrapar |error|
 		imprimir(error)

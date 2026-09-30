@@ -40,7 +40,7 @@ tipo Partida
 		graficos.rectangulo_v(@pos, {10, 10}, .Rojo)
 
 fn inicio()
-	pincel.ejecutar(Partida {}, titulo = "Mi juego") capturar |error|
+	pincel.ejecutar(Partida {}, titulo = "Mi juego") atrapar |error|
 		imprimir(error)
 ```
 
@@ -69,7 +69,7 @@ tipo Partida
 		retro.icono(.Llave, 24, 24, color = .Amarillo)
 
 fn inicio()
-	retro.ejecutar(Partida {}) capturar |error|
+	retro.ejecutar(Partida {}) atrapar |error|
 		imprimir(error)
 ```
 
@@ -125,6 +125,12 @@ La paleta de `std/pincel/color` usa alfa 255 en todos sus tonos:
 | Constante | R | G | B |
 | --- | ---: | ---: | ---: |
 | `.Negro` | 0 | 0 | 0 |
+| `.Rojo` | 255 | 0 | 0 |
+| `.Verde` | 0 | 255 | 0 |
+| `.Azul` | 0 | 0 | 255 |
+| `.Amarillo` | 255 | 255 | 0 |
+| `.Cian` | 0 | 255 | 255 |
+| `.Magenta` | 255 | 0 | 255 |
 | `.VerdePino` | 0 | 43 | 36 |
 | `.AzulNoche` | 24 | 30 | 42 |
 | `.Oliva` | 84 | 106 | 0 |
@@ -138,20 +144,20 @@ La paleta de `std/pincel/color` usa alfa 255 en todos sus tonos:
 | `.Caqui` | 119 | 120 | 91 |
 | `.Malva` | 94 | 82 | 107 |
 | `.Ocre` | 130 | 91 | 49 |
-| `.Rojo` | 181 | 59 | 89 |
+| `.Carmesi` | 181 | 59 | 89 |
 | `.Rosa` | 255 | 87 | 119 |
-| `.Amarillo` | 255 | 185 | 21 |
+| `.Ambar` | 255 | 185 | 21 |
 | `.Crema` | 255 | 224 | 119 |
 | `.AzulIndigo` | 67 | 62 | 166 |
-| `.Azul` | 71 | 114 | 191 |
+| `.Cobalto` | 71 | 114 | 191 |
 | `.Violeta` | 150 | 102 | 238 |
-| `.Verde` | 87 | 176 | 103 |
+| `.Hierba` | 87 | 176 | 103 |
 | `.Celeste` | 153 | 215 | 229 |
-| `.Blanco` | 255 | 249 | 228 |
+| `.Marfil` | 255 | 249 | 228 |
+| `.Blanco` | 255 | 255 | 255 |
 
-`.Blanco` es un blanco cálido; como tinte predeterminado también aporta ese tono
-a imágenes y glifos. Para conservar los colores originales de una imagen, usa
-`tinte = color.rgba(255, 255, 255)`.
+`.Blanco` es blanco puro y, como tinte predeterminado, conserva los colores originales
+de imágenes y glifos. `.Marfil` es el blanco cálido de la paleta original.
 
 No son enums del usuario y no admiten `casos`. Se requiere un tipo esperado para
 las constantes, por ejemplo `entrada.tecla_mantenida(.Espacio)`.

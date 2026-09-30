@@ -33,5 +33,5 @@ tipo Paisaje
 			graficos.circulo(x, 100, 14, .VerdeBosque)
 
 fn inicio()
-	pincel.ejecutar(Paisaje {}, 320, 180, titulo = "Formas", escala = 3) capturar |error|
+	pincel.ejecutar(Paisaje {}, 320, 180, titulo = "Formas", escala = 3) atrapar |error|
 		imprimir(error)

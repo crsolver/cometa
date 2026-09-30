@@ -95,12 +95,21 @@ func (c *checker) checkRecovery(e *ast.RecoverExpr) (Type, error) {
 	if err != nil {
 		return Type{}, err
 	}
-	kind := Optional
 	if e.Error {
-		kind = Result
-	}
-	if t.Kind != kind {
-		return Type{}, c.fail(e.Pos, "el operador de recuperación no acepta %s", t.String())
+		// atrapar handles an error; plain defaults belong to o.
+		if t.Kind != Result {
+			return Type{}, c.fail(e.Pos, "atrapar solo acepta resultados, no %s; para un valor por defecto usa o", t.String())
+		}
+		if e.Binding == "" && t.Elem.Kind != Void {
+			return Type{}, c.fail(e.Pos, "atrapar necesita |error| para manejar el error; para un valor por defecto usa o")
+		}
+	} else {
+		if t.Kind != Optional && t.Kind != Result {
+			return Type{}, c.fail(e.Pos, "o solo acepta opcionales o resultados, no %s", t.String())
+		}
+		if t.Kind == Result && t.Elem.Kind == Void {
+			return Type{}, c.fail(e.Pos, "o necesita un resultado con valor; para manejar %s usa atrapar", t.String())
+		}
 	}
 	outer := c.vars
 	c.vars = cloneVars(outer)

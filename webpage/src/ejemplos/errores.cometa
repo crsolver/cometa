@@ -17,7 +17,7 @@ fn presentar(id entero) cadena!ErrorCarga
 	"${usuario.nombre} (mascota: ${mascota})"
 
 fn inicio()
-	var texto = presentar(0) capturar |error|
+	var texto = presentar(0) atrapar |error|
 		casos error |detalle|
 			.NoExiste => "no encontrado"
 			.Detalle => detalle

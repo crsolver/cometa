@@ -28,6 +28,12 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 - **Problema:** clasificar una puntuación o una edad obliga a usar una cadena de `si`/`osi`.
 - **Posible solución:** admitir rangos enteros de fin exclusivo, como en `repetir`.
 
+### Las listas no se pueden concatenar con `+`
+
+- **Observado:** `normal + espejadas` falla con «el operador "+" no acepta [graficos.Imagen] y [graficos.Imagen]» (al armar los cuadros de un personaje en `experiments/pesadilla`).
+- **Problema:** el mensaje no dice cómo hacerlo; hay que saber que existen `extender` y `agregar` y escribir un bucle o una copia.
+- **Posible solución:** sugerir `extender` en el mensaje de error, o admitir `+` entre listas del mismo tipo devolviendo una lista nueva.
+
 ## Herramientas
 
 ### Los errores en tiempo de ejecución no indican la columna
@@ -53,6 +59,12 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 - **Observado:** solo crea `principal.cometa` con «hola» o un cuadrado que se mueve.
 - **Problema:** no hay punto de partida para un juego con varios archivos (el ejemplo `12_escenas` muestra las escenas, pero no hay plantilla).
 - **Posible solución:** más plantillas (`--plantilla plataformas`, `menu`) cuando existan esos ejemplos.
+
+### `cometa captura` no puede simular entrada ni avanzar por escenas
+
+- **Observado:** para revisar un juego en salas, jefes o pantallas de fin hubo que meter en el propio juego un «bot» temporal (constante de prueba + entrada automática) y capturar tras N cuadros.
+- **Problema:** probar visualmente un juego con varias escenas obliga a modificar el código del juego; ya está anotado que `cometa probar` no tiene pruebas visuales.
+- **Posible solución:** `cometa captura --entrada guion.txt` con teclas por cuadro (`60 +D`, `90 -D`, `100 Enter`) o `--cuadros 100,300,900` para varias capturas en una sola ejecución.
 
 ## Biblioteca estándar
 
@@ -97,3 +109,34 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 - **Observado:** el campo de texto de `std/pincel/ui` inserta y borra caracteres y mueve el cursor con las flechas/Inicio/Fin, pero no se puede seleccionar texto (arrastrar o Mayús+flecha), hacer clic para posicionar el cursor en medio del texto, ni pegar desde el portapapeles.
 - **Problema:** cubre el caso de un campo corto (nombre, valor numérico), pero cualquier edición más larga es incómoda: no hay forma de reemplazar todo el contenido de una vez ni de corregir un error a mitad de la palabra sin usar solo las flechas.
 - **Posible solución:** añadir un segundo índice de selección al nodo, resaltar el rango seleccionado al dibujar, calcular la posición de clic contra las líneas medidas, y usar las funciones de portapapeles de Ebitengine para copiar/pegar.
+
+### No se puede destellar un sprite en blanco ni recortar el dibujo
+
+- **Observado:** `tinte` multiplica el color, así que no sirve para el destello blanco al recibir un golpe; en `pesadilla` cada sprite se genera dos veces (con la paleta normal y con una paleta toda blanca). Tampoco hay una región de recorte: para deslizar una sala dentro de un marco hubo que tapar lo que sobresalía con rectángulos del color de fondo.
+- **Problema:** dos efectos muy comunes en juegos pixel art (destello y transiciones dentro de un recuadro) obligan a rodeos.
+- **Posible solución:** un parámetro `relleno color.Color?` en `graficos.imagen`/`cuadro` que pinte la silueta, y `graficos.recortar(rect)` / `graficos.quitar_recorte()`.
+
+### Las posiciones decimales desenfocan los sprites de pixel art
+
+- **Observado:** con `pixelado = verdadero`, `graficos.imagen(img, 10.5, 20.3)` dibuja el sprite en una posición fraccionaria y los píxeles salen de distinto grosor; `pesadilla` redondea con un ayudante (`mate.redondear`) en cada llamada.
+- **Problema:** es fácil olvidarlo y el resultado se ve mal sin explicación.
+- **Posible solución:** que `pixelado = verdadero` ajuste a píxel entero las posiciones de imagen (o un parámetro `ajustar = verdadero`), y documentarlo en `docs/juegos.md`.
+
+## Plataforma de ejercicios
+
+### Falta lectura de entrada estándar en programas de consola
+
+- **Observado:** `imprimir` es la única E/S de consola; no hay forma de leer `stdin`.
+- **Problema:** los ejercicios de consola no pueden recibir datos de entrada; hoy solo valen funciones/estructuras y juegos.
+- **Posible solución:** un módulo `std/consola` con `leer_linea() cadena?`.
+
+### La API del compilador está bajo `internal/`
+
+- **Observado:** `compiler.AnalyzeProject`/`CompileProject` no se pueden importar desde otro módulo Go.
+- **Problema:** un servidor de plataforma tiene que invocar el binario `cometa` como proceso.
+- **Posible solución:** publicar un paquete estable (p. ej. `pkg/cometa`) o mantener la CLI con `--json` como contrato.
+
+### `cometa probar` aún no admite pruebas visuales
+
+- **Observado:** solo hay afirmaciones sobre valores; no hay forma de avanzar un `Juego` N cuadros y comprobar píxeles de la pantalla (ver paso 5 del plan).
+- **Posible solución:** `pruebas.avanzar(juego, cuadros)` y `pruebas.pantalla()` apoyados en el modo `captura`.

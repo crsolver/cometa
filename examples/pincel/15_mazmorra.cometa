@@ -182,5 +182,5 @@ tipo Partida
 
 fn inicio()
 	var partida = Partida {mapa: rejilla.nueva(1, 1)}
-	pincel.ejecutar(partida, 240, 168, escala = 3, titulo = "Mazmorra", pixelado = verdadero) capturar |error|
+	pincel.ejecutar(partida, 240, 168, escala = 3, titulo = "Mazmorra", pixelado = verdadero) atrapar |error|
 		imprimir(error)

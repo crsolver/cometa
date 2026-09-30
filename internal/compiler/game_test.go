@@ -34,7 +34,7 @@ tipo Partida
 	pub fn actualizar(dt decimal) actualizar(dt)
 	pub fn pintar() pintar()
 fn inicio()
-	pincel.ejecutar(Partida {}, 320, 240, titulo = "Prueba", escala = 2) capturar |e| imprimir(e)
+	pincel.ejecutar(Partida {}, 320, 240, titulo = "Prueba", escala = 2) atrapar |e| imprimir(e)
 `
 	got, err := Compile("game.cometa", []byte(pincelImports+source))
 	if err != nil {
@@ -88,7 +88,7 @@ func TestGameErrors(t *testing.T) {
 }
 
 func TestAllGameSignatures(t *testing.T) {
-	const imports = "usar std/mate/curvas\nusar std/mate/ruido\nusar std/pincel/retro\nusar std/pincel/ui\nusar std/pincel/lienzo\nusar std/pincel/rejilla\nusar std/pincel/datos\n" + pincelImports
+	const imports = "usar std/mate/curvas\nusar std/mate/ruido\nusar std/pincel/retro\nusar std/pincel/ui\nusar std/pincel/lienzo\nusar std/pincel/rejilla\nusar std/pincel/datos\nusar std/pruebas\n" + pincelImports
 	var all strings.Builder
 	// Signature defaults are parsed and checked by the same checker as user calls.
 	for _, f := range stdlib.Functions {
@@ -128,7 +128,7 @@ func TestAllGameSignatures(t *testing.T) {
 		if d.ReturnType != nil && d.ReturnType.Wrapper == "?" {
 			call = "var opcional = " + call
 		} else if d.ReturnType != nil && d.ReturnType.Wrapper == "!" {
-			call += " capturar |e| imprimir(e)"
+			call += " atrapar |e| imprimir(e)"
 		}
 		source := "fn helper(" + strings.Join(params, ",") + ")\n\t" + call + "\n" + minimalGame
 		all.WriteString(strings.Replace(strings.TrimSuffix(source, minimalGame), "fn helper(", "fn "+f.Namespace+"_"+f.Name+"(", 1))

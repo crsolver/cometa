@@ -84,7 +84,7 @@ tipo Laberinto
 				si @mejor == 0 || @tiempo < @mejor
 					@mejor = @tiempo
 					// datos guarda texto en el disco; se conserva entre partidas.
-					datos.guardar("mejor_tiempo", cadena(@mejor)) capturar |error|
+					datos.guardar("mejor_tiempo", cadena(@mejor)) atrapar |error|
 						imprimir(error)
 
 	pub fn pintar()
@@ -118,5 +118,5 @@ fn inicio()
 
 	var laberinto = Laberinto {mapa: mapa, hoja: crear_hoja(), mejor: mejor}
 	laberinto.reiniciar()
-	pincel.ejecutar(laberinto, 320, 180, titulo = "Laberinto", escala = 3, pixelado = verdadero) capturar |error|
+	pincel.ejecutar(laberinto, 320, 180, titulo = "Laberinto", escala = 3, pixelado = verdadero) atrapar |error|
 		imprimir(error)

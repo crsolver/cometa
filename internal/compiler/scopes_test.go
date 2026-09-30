@@ -28,7 +28,7 @@ fn propagar() entero!
 		retornar n
 fn inicio()
 	imprimir(prueba())
-	imprimir(propagar() capturar |e|
+	imprimir(propagar() atrapar |e|
 		imprimir(e)
 		0
 	)

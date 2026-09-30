@@ -29,7 +29,7 @@ var keywords = map[string]token.Kind{
 	"con":      token.Con,
 	"usar":     token.Usar,
 	"interfaz": token.Interfaz, "como": token.Como,
-	"o": token.Fallback, "capturar": token.Catch, "intentar": token.Try, "retornar": token.Return,
+	"o": token.Fallback, "atrapar": token.Catch, "intentar": token.Try, "retornar": token.Return,
 	"enum": token.Enum, "casos": token.Casos,
 	"tipo": token.Tipo, "fn": token.Fn, "si": token.Si, "osi": token.Osi,
 	"var": token.Var, "const": token.Const,

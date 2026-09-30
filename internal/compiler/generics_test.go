@@ -198,7 +198,7 @@ fn inicio()
 			imprimir(numero o 0)
 		.Error => imprimir(v)
 	var rr = error(10)
-	imprimir(rr capturar 0)
+	imprimir(rr o 0)
 	var e E<cadena> = .Dato("hola")
 	casos e |v|
 		.Dato => imprimir(v)

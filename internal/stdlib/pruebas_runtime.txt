@@ -1,0 +1,43 @@
+type _hgpruebaFallo struct{ mensaje string }
+
+func (f _hgpruebaFallo) PruebaFallo() string { return f.mensaje }
+func _hgpruebaFalla(mensaje, detalle string) {
+	if mensaje != "" && detalle != "" {
+		mensaje += ": "
+	}
+	panic(_hgpruebaFallo{mensaje + detalle})
+}
+func _hgpruebasAfirmar(condicion bool, mensaje string) {
+	if !condicion {
+		if mensaje == "" {
+			mensaje = "la afirmación falló"
+		}
+		panic(_hgpruebaFallo{mensaje})
+	}
+}
+func _hgpruebasFallar(mensaje string) { panic(_hgpruebaFallo{mensaje}) }
+func _hgpruebasIgualEntero(esperado, obtenido int64, mensaje string) {
+	if esperado != obtenido {
+		_hgpruebaFalla(mensaje, fmt.Sprintf("se esperaba %d pero se obtuvo %d", esperado, obtenido))
+	}
+}
+func _hgpruebasIgualDecimal(esperado, obtenido float64, mensaje string) {
+	if esperado != obtenido {
+		_hgpruebaFalla(mensaje, fmt.Sprintf("se esperaba %v pero se obtuvo %v", esperado, obtenido))
+	}
+}
+func _hgpruebasIgualCadena(esperado, obtenido string, mensaje string) {
+	if esperado != obtenido {
+		_hgpruebaFalla(mensaje, fmt.Sprintf("se esperaba %q pero se obtuvo %q", esperado, obtenido))
+	}
+}
+func _hgpruebasIgualBool(esperado, obtenido bool, mensaje string) {
+	if esperado != obtenido {
+		_hgpruebaFalla(mensaje, fmt.Sprintf("se esperaba %t pero se obtuvo %t", esperado, obtenido))
+	}
+}
+func _hgpruebasCasiIgual(esperado, obtenido, tolerancia float64, mensaje string) {
+	if math.IsNaN(esperado) || math.IsNaN(obtenido) || math.Abs(esperado-obtenido) > tolerancia {
+		_hgpruebaFalla(mensaje, fmt.Sprintf("se esperaba %v (±%v) pero se obtuvo %v", esperado, tolerancia, obtenido))
+	}
+}

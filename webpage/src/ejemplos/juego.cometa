@@ -19,5 +19,5 @@ tipo Partida
 		graficos.rectangulo_v(@pos, {16, 16}, .Amarillo)
 
 fn inicio()
-	pincel.ejecutar(Partida {pos: {x: 150, y: 80}}, titulo = "Mi cometa") capturar |error|
+	pincel.ejecutar(Partida {pos: {x: 150, y: 80}}, titulo = "Mi cometa") atrapar |error|
 		imprimir(error)

@@ -106,7 +106,7 @@
     "keywords": {
       "patterns": [
 		{ "name": "storage.modifier.cometa", "match": "\\bpub\\b" },
-        { "name": "keyword.control.conditional.cometa", "match": "\\b(?:con|si|osi|sino|casos|o|capturar|intentar|retornar|como)\\b" },
+        { "name": "keyword.control.conditional.cometa", "match": "\\b(?:con|si|osi|sino|casos|o|atrapar|intentar|retornar|como)\\b" },
         { "name": "keyword.control.loop.cometa", "match": "\\b(?:repetir|mientras|continuar|romper)\\b" },
         { "name": "storage.type.function.cometa", "match": "\\bfn\\b" },
         { "name": "storage.type.struct.cometa", "match": "\\b(?:tipo|enum|interfaz)\\b" },

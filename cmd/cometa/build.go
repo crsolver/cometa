@@ -18,6 +18,9 @@ func goExecutable() (string, error) {
 	if path := os.Getenv("COMETA_GO"); path != "" {
 		return path, nil
 	}
+	if b := findBundle(); b != nil {
+		return b.goEx, nil
+	}
 	if runtime.GOOS == "windows" {
 		path := `C:\Program Files\Go\bin\go.exe`
 		if _, err := os.Stat(path); err == nil {
@@ -38,6 +41,43 @@ func buildProgram(source []byte, output string, execute bool) error {
 		return err
 	}
 	defer os.RemoveAll(dir)
+	name := "juego"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	if execute {
+		output = filepath.Join(dir, name)
+	} else {
+		output, err = filepath.Abs(output)
+		if err != nil {
+			return err
+		}
+	}
+	if err = goBuild(dir, source, nil, output); err != nil {
+		return err
+	}
+	if !execute {
+		return nil
+	}
+	game := exec.Command(output)
+	game.Stdin = os.Stdin
+	game.Stdout = os.Stdout
+	crash := &crashFilter{out: os.Stderr}
+	game.Stderr = crash
+	err = game.Run()
+	crash.Flush()
+	if err != nil {
+		if crash.Report() {
+			return errReported
+		}
+		return fmt.Errorf("el juego terminó con error: %w", err)
+	}
+	return nil
+}
+
+// goBuild writes source (plus optional extra files of package main) into dir
+// with a fresh go.mod and compiles them to output.
+func goBuild(dir string, source []byte, extra map[string]string, output string) error {
 	module := "module cometa-programa\n\ngo 1.25.0\n"
 	file, err := parser.ParseFile(token.NewFileSet(), "main.go", source, parser.ImportsOnly)
 	if err != nil {
@@ -55,15 +95,8 @@ func buildProgram(source []byte, output string, execute bool) error {
 	if err = os.WriteFile(filepath.Join(dir, "main.go"), source, 0600); err != nil {
 		return err
 	}
-	name := "juego"
-	if runtime.GOOS == "windows" {
-		name += ".exe"
-	}
-	if execute {
-		output = filepath.Join(dir, name)
-	} else {
-		output, err = filepath.Abs(output)
-		if err != nil {
+	for name, content := range extra {
+		if err = os.WriteFile(filepath.Join(dir, name), []byte(content), 0600); err != nil {
 			return err
 		}
 	}
@@ -71,9 +104,22 @@ func buildProgram(source []byte, output string, execute bool) error {
 	if err != nil {
 		return err
 	}
-	cmd := exec.Command(goPath, "build", "-mod=mod", "-o", output, ".")
+	// -s -w skips symbol/DWARF generation: ~15% faster link. Panic traces use
+	// the runtime's own tables, so crash reports keep their Cometa lines.
+	args := []string{"build", "-mod=mod", "-ldflags=-s -w", "-o", output, "."}
+	env := append(os.Environ(), "GOWORK=off")
+	if b := findBundle(); b != nil && os.Getenv("COMETA_GO") == "" {
+		// -trimpath makes cached packages independent of the install directory.
+		args = append(args[:1], append([]string{"-trimpath"}, args[1:]...)...)
+		bundleEnv, err := b.env()
+		if err != nil {
+			return err
+		}
+		env = append(env, bundleEnv...)
+	}
+	cmd := exec.Command(goPath, args...)
 	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), "GOWORK=off")
+	cmd.Env = env
 	cmd.Stdout = os.Stdout
 	var buildErrors bytes.Buffer
 	cmd.Stderr = &buildErrors
@@ -86,22 +132,6 @@ func buildProgram(source []byte, output string, execute bool) error {
 	slow.Stop()
 	if err != nil {
 		return buildFailure(buildErrors.String(), err)
-	}
-	if !execute {
-		return nil
-	}
-	game := exec.Command(output)
-	game.Stdin = os.Stdin
-	game.Stdout = os.Stdout
-	crash := &crashFilter{out: os.Stderr}
-	game.Stderr = crash
-	err = game.Run()
-	crash.Flush()
-	if err != nil {
-		if crash.Report() {
-			return errReported
-		}
-		return fmt.Errorf("el juego terminó con error: %w", err)
 	}
 	return nil
 }

@@ -238,5 +238,5 @@ tipo Partida
 
 fn inicio()
 	partida.generar(azar.entero(1, 1000000))
-	pincel.ejecutar(Partida {}, 320, 180, titulo = "Bajo la tierra | Cometa", escala = 4, pixelado = verdadero) capturar |error|
+	pincel.ejecutar(Partida {}, 320, 180, titulo = "Bajo la tierra | Cometa", escala = 4, pixelado = verdadero) atrapar |error|
 		imprimir(error)

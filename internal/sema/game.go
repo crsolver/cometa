@@ -92,6 +92,30 @@ func (c *checker) gameCall(call *ast.CallExpr) (Type, bool, error) {
 			c.model.Game.Calls[call] = f
 		}
 	}
+	if f.Namespace == "pruebas" && f.Name == "igual" {
+		if len(call.Args) < 2 {
+			return Type{}, true, c.fail(call.Pos, "pruebas.igual requiere esperado y obtenido")
+		}
+		kinds := [2]Kind{}
+		for i := 0; i < 2; i++ {
+			t, err := c.checkExpr(call.Args[i])
+			if err != nil {
+				return Type{}, true, err
+			}
+			kinds[i] = t.Kind
+		}
+		kind := kinds[0]
+		if (kinds[0] == Integer && kinds[1] == Decimal) || (kinds[0] == Decimal && kinds[1] == Integer) {
+			kind = Decimal
+		}
+		suffix := map[Kind]string{Integer: "Entero", Decimal: "Decimal", String: "Cadena", Boolean: "Bool"}[kind]
+		if suffix == "" || (kinds[0] != kinds[1] && kind != Decimal) {
+			return Type{}, true, c.fail(call.Pos, "pruebas.igual compara dos valores del mismo tipo (entero, decimal, cadena o bool)")
+		}
+		sig.Params[0], sig.Params[1] = Type{Kind: kind}, Type{Kind: kind}
+		f.GoName += suffix
+		c.model.Game.Calls[call] = f
+	}
 	// Check defaults against the same types used for explicit arguments.
 	for i, p := range sig.Decl.Params {
 		if p.Default != nil {
