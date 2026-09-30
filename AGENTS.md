@@ -162,11 +162,13 @@ The machine has two Go installations. `C:\msys64\mingw64\bin\go.exe` reports Go 
 - `internal/compiler/testdata/programas/interfaces_genericos.cometa` demonstrates interfaces, generic structs/enums, constraints and safe inspection.
 - `internal/compiler/testdata/programas/usuario.cometa` demonstrates enums, matching and payload references. The original struct regression fixture is `internal/compiler/testdata/usuario.cometa`, paired with `usuario.go.golden` in that directory. Enum runtime tests also execute generated Go.
 
-## Website (webpage/)
+## Website (separate repo)
 
-- Astro 7 site: landing page plus `/tour/` (13 lessons in `webpage/src/content/tour/*.md`; `ejemplo:` frontmatter embeds a file from `examples/`), `/biblioteca/<modulo>` (generated), `/guias/` (renders `docs/*.md`), `/referencia/` (renders `specs.md`), 404 and sitemap.
-- `cmd/gendocs` writes `webpage/src/data/biblioteca.json` from `internal/stdlib` (Functions, Methods, Fields, Constants, `*Docs` maps); `npm run build` runs it through `prebuild`. New stdlib symbols appear automatically; add `FunctionDocs`/`MethodDocs`/`TypeDocs` so they have prose. `cmd/gendocs/main_test.go` checks the catalog is fully covered.
-- Markdown uses `unified()` from `@astrojs/markdown-remark` with `src/lib/enlaces.mjs` (rewrites `x.md`, `../specs.md`, `../examples/...` links). `.github/workflows/pages.yml` deploys to GitHub Pages (not yet run).
+- The site lives in its own repository, `crsolver/cometadev` (https://github.com/crsolver/cometadev), published at https://crsolver.github.io/cometadev/. Locally it is the sibling folder `../webpage` (not inside this repo). It is an Astro 7 site: landing page plus `/tour/`, `/biblioteca/<modulo>` (generated), `/guias/`, `/referencia/`, 404 and sitemap. See its README for details; all internal links go through `url()` because of the `/cometadev` base path.
+- The site holds a **snapshot** of this repo's content: `docs/*.md`, `specs.md`, `examples/`, `vscode-extension/syntaxes/cometa.tmLanguage.json` and the generated library reference. After changing any of those (or `internal/stdlib`), run `npm run sync` in the website repo (defaults to `../cometa`; pass another path or set `COMETA_REPO`), then commit and push it there; pushing to `main` redeploys.
+- `cmd/gendocs` writes `webpage/src/data/biblioteca.json` (relative to this repo's root; the folder no longer exists here and is recreated on demand) from `internal/stdlib` (Functions, Methods, Fields, Constants, `*Docs` maps). The website's sync script copies that file. New stdlib symbols appear automatically after a sync; add `FunctionDocs`/`MethodDocs`/`TypeDocs` so they have prose. `cmd/gendocs/main_test.go` checks the catalog is fully covered.
+- The docs/specs links `x.md`, `../specs.md`, `../examples/...` are rewritten by the website (`src/lib/enlaces.mjs`), and repo links use `https://github.com/crsolver/cometa`.
+- The Pages workflow lives in the website repo (`.github/workflows/pages.yml` there); this repo has none.
 
 ## Repository hygiene
 
