@@ -396,6 +396,9 @@ func (g *generator) flowRaw(e ast.Expr, t sema.Type, indent int) string {
 			return result
 		}
 		right := g.flowExpr(v.Right, indent)
+		if list := g.model.ExprTypes[v.Left]; list.Kind == sema.Slice && v.Operator == "+" {
+			return listConcat(list, left, right)
+		}
 		if t.Name == stdlib.Symbol("Vec2") {
 			switch v.Operator {
 			case "+":
@@ -684,6 +687,12 @@ func (g *generator) flowListCall(call *ast.CallExpr, operation string, indent in
 		return ""
 	}
 	panic("unknown list operation: " + operation)
+}
+
+// listConcat builds a fresh list so the result never aliases either operand.
+func listConcat(list sema.Type, left, right string) string {
+	t := goType(list)
+	return "func(a, b " + t + ") " + t + " { return append(append(make(" + t + ", 0, len(a)+len(b)), a...), b...) }(" + left + ", " + right + ")"
 }
 
 func validListIndex(index, receiver string, existing bool) string {

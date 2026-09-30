@@ -16,12 +16,6 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 - **Problema:** clasificar una puntuación o una edad obliga a usar una cadena de `si`/`osi`.
 - **Posible solución:** admitir rangos enteros de fin exclusivo, como en `repetir`.
 
-### Las listas no se pueden concatenar con `+`
-
-- **Observado:** `normal + espejadas` falla con «el operador "+" no acepta [graficos.Imagen] y [graficos.Imagen]» (al armar los cuadros de un personaje en `experiments/pesadilla`).
-- **Problema:** el mensaje no dice cómo hacerlo; hay que saber que existen `extender` y `agregar` y escribir un bucle o una copia.
-- **Posible solución:** sugerir `extender` en el mensaje de error, o admitir `+` entre listas del mismo tipo devolviendo una lista nueva.
-
 ## Herramientas
 
 ### Los errores en tiempo de ejecución no indican la columna

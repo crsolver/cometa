@@ -497,6 +497,9 @@ func (g *generator) rawExpr(expr ast.Expr) string {
 		if compare, ok := g.model.EnumCompares[expression]; ok {
 			return "(" + g.expr(compare.Value) + ".tag " + expression.Operator + " " + strconv.Itoa(compare.Tag) + ")"
 		}
+		if list := g.model.ExprTypes[expression.Left]; list.Kind == sema.Slice && expression.Operator == "+" {
+			return listConcat(list, g.expr(expression.Left), g.expr(expression.Right))
+		}
 		return "(" + g.expr(expression.Left) + " " + expression.Operator + " " + g.expr(expression.Right) + ")"
 	case *ast.CallExpr:
 		if t, ok := g.model.NumericCalls[expression]; ok {

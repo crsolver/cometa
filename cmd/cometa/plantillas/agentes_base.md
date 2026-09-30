@@ -43,7 +43,7 @@ cometa biblioteca std/<módulo>        muestra las declaraciones reales de un m�
 
 - Fuente en `.cometa`. **La indentación usa tabuladores** (nunca espacios). Los comentarios empiezan con `//`.
 - No hay `fin`, llaves de bloque ni `:` al declarar. Las llaves solo delimitan literales: `Punto {x: 1, y: 2}`.
-- Tipos: `entero`, `decimal`, `cadena`, `bool`, listas `[T]`, mapas `[K: V]`, opcionales `T?`, resultados `T!` o `T!E`. `entero` se convierte solo a `decimal`; `5 / 2` es `2`. No existe `num`.
+- Tipos: `entero`, `decimal`, `cadena`, `bool`, listas `[T]` (se unen con `+` en una lista nueva), mapas `[K: V]`, opcionales `T?`, resultados `T!` o `T!E`. `entero` se convierte solo a `decimal`; `5 / 2` es `2`. No existe `num`.
 - Variables: `var x = 1`, constantes `const N entero = 10`. Asignación compuesta: `x += 1`; en un mapa, `conteo[k] += 1` trata la clave ausente como 0.
 - Cadenas con interpolación: `"Hola ${nombre}"`. Booleanos: `verdadero` / `falso`; operadores `&&`, `||`, `!`.
 - Funciones: `fn nombre(a entero, b entero = 0) entero`. Un cuerpo corto puede ir en la misma línea. **La última expresión se devuelve sola**; `retornar` sale antes. El punto de entrada es `fn inicio()`.

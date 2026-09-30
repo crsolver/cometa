@@ -27,3 +27,7 @@ fn inicio()
 	nombres.agregar("Ana")
 	nombres.agregar("Luis")
 	imprimir(nombres)
+
+	// + une dos listas del mismo tipo en una lista nueva.
+	var todos = nombres + ["Eva", "Tomás"]
+	imprimir(todos)

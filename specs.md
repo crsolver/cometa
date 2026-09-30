@@ -346,6 +346,12 @@ imprimir(valores.buscar_indice(20) o -1)
 imprimir(valores.obtener(99) o 0)
 ```
 
+El operador `+` une dos listas del mismo tipo y devuelve una lista nueva con almacenamiento independiente; ninguna de las dos se modifica. `lista += otra` equivale a `lista = lista + otra`. Para añadir un solo elemento se usa `agregar`.
+
+```cometa
+var cuadros = normales + espejados
+```
+
 La asignación de una lista copia su descriptor de slice: cada alias conserva su propia longitud, aunque puede compartir el almacenamiento de los elementos. Por eso agregar mediante un alias no cambia la longitud de los demás; escribir, insertar, eliminar o invertir puede hacer visibles cambios de elementos en aliases que todavía compartan almacenamiento. Cambiar la longitud de un parámetro de lista tampoco cambia la variable del llamador. `copiar()` crea almacenamiento independiente, pero conserva las referencias contenidas.
 
 Los campos y métodos de una variable se acceden con `.`. El marcador `@` sigue reservado para el receptor del método actual.

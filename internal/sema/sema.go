@@ -1561,6 +1561,12 @@ func (c *checker) checkBinary(expr *ast.BinaryExpr) (Type, error) {
 		if expr.Operator == "+" && left.Kind == String && right.Kind == String {
 			return Type{Kind: String}, nil
 		}
+		if expr.Operator == "+" && left.Kind == Slice && left.Equal(right) {
+			return left, nil
+		}
+		if expr.Operator == "+" && left.Kind == Slice && right.Equal(*left.Elem) {
+			return Type{}, c.fail(expr.Pos, "el operador \"+\" no acepta %s y %s; + une dos listas del mismo tipo, para añadir un elemento usa agregar", left.String(), right.String())
+		}
 	case "<", "<=", ">", ">=":
 		if left.Kind == Decimal && right.Kind == Decimal {
 			return Type{Kind: Boolean}, nil

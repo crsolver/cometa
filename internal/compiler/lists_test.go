@@ -78,6 +78,28 @@ fn inicio()
 `, "7\n")
 }
 
+func TestListConcatenationRuntime(t *testing.T) {
+	runCometa(t, `var globales = [1] + [2, 3]
+fn unir<T>(a [T], b [T]) [T] a + b
+fn inicio()
+	var a = [1, 2]
+	var b = [3]
+	var c = a + b
+	c[0] = 99
+	imprimir(a[0])
+	imprimir(c)
+	var vacia [entero] = []
+	var d = a + vacia
+	d[1] = 7
+	imprimir(a[1])
+	a += [4]
+	imprimir(a.longitud())
+	imprimir(unir(["x"], ["y", "z"]))
+	imprimir(globales.longitud())
+	imprimir(([[1]] + [[2]]).longitud())
+`, "1\n[99, 2, 3]\n2\n3\n[\"x\", \"y\", \"z\"]\n3\n2\n")
+}
+
 func TestListMutationWaitsForPropagatingArguments(t *testing.T) {
 	runCometa(t, `tipo Caja
 	valores [entero]
@@ -103,6 +125,9 @@ func TestListMethodDiagnostics(t *testing.T) {
 		{"enum equality", "enum E\n\tA\nfn inicio()\n\tvar xs = [E.A]\n\timprimir(xs.contiene(E.A))\n", "no admite elementos de tipo E"},
 		{"interface equality", "interfaz I\nfn inicio()\n\tvar xs [I] = [1]\n\timprimir(xs.contiene(1))\n", "no admite elementos de tipo I"},
 		{"optional equality", "fn inicio()\n\tvar xs [entero?] = [1]\n\timprimir(xs.contiene(.Ninguno))\n", "no admite elementos de tipo entero?"},
+		{"concat mismatch", "fn inicio()\n\tvar xs = [1] + [\"a\"]\n", `no acepta [entero] y [cadena]`},
+		{"concat element", "fn inicio()\n\tvar xs = [1] + 2\n", "usa agregar"},
+		{"list minus", "fn inicio()\n\tvar xs = [1] - [1]\n", `no acepta [entero] y [entero]`},
 		{"type parameter equality", "fn buscar<T>(xs [T], valor T) bool xs.contiene(valor)\nfn inicio() imprimir(verdadero)\n", "no admite elementos de tipo T"},
 	}
 	for _, test := range tests {
