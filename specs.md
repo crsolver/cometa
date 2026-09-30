@@ -630,7 +630,7 @@ mientras vidas > 0
 
 ## Asignación compuesta
 
-`+=`, `-=`, `*=`, `/=` y `%=` actualizan una variable, campo o elemento de lista: `x += 1` equivale a `x = x + 1`, con las mismas reglas de tipos (`entero += decimal` es un error; `decimal += entero` se ensancha; `cadena += cadena` concatena). Como el destino se lee y se escribe, solo puede contener variables, campos, `@`, literales, índices y operadores; una llamada como `lista[f()] += 1` se rechaza para que `f()` no se ejecute dos veces. Las entradas de un mapa no admiten estos operadores porque la clave puede no existir: escribe `m[k] = (m[k] o 0) + 1`. No existen `++` ni `--`.
+`+=`, `-=`, `*=`, `/=` y `%=` actualizan una variable, campo, elemento de lista o entrada de mapa: `x += 1` equivale a `x = x + 1`, con las mismas reglas de tipos (`entero += decimal` es un error; `decimal += entero` se ensancha; `cadena += cadena` concatena). Como el destino se lee y se escribe, solo puede contener variables, campos, `@`, literales, índices y operadores; una llamada como `lista[f()] += 1` se rechaza para que `f()` no se ejecute dos veces. En una entrada de mapa, una clave ausente cuenta como el valor cero (`0`, `0.0` o `""`): `conteo[palabra] += 1` equivale a `conteo[palabra] = (conteo[palabra] o 0) + 1`, así que sirve para contar; solo se admite con valores `entero`, `decimal` o `cadena`. No existen `++` ni `--`.
 
 ## Alcance del MVP
 

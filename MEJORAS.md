@@ -10,12 +10,6 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 - **Problema:** obliga a usar una variable o paréntesis para un caso poco común, con un mensaje que no lo explica.
 - **Posible solución:** que el lexer no consuma el punto si le sigue una letra, o mejorar el mensaje para sugerir `(7).formato(2)`.
 
-### `+=` y compañía no funcionan con entradas de mapa
-
-- **Observado:** `puntos["ana"] += 1` se rechaza con un mensaje que pide escribir `puntos["ana"] = (puntos["ana"] o 0) + 1`.
-- **Problema:** contar elementos con un mapa es un patrón muy común y la forma larga es incómoda.
-- **Posible solución:** admitir `m[k] += v` tratando la clave ausente como el valor cero del tipo (0, "" ), o añadir un método `sumar(clave, valor)` a los mapas.
-
 ### `casos` sobre valores no admite rangos
 
 - **Observado:** las ramas de `casos` sobre `entero` aceptan literales y listas (`2, 3 =>`), pero no rangos como `1..5 =>` ni comparaciones.

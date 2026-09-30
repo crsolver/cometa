@@ -17,7 +17,7 @@ fn inicio()
 
 	repetir (0..lanzamientos) |i|
 		var cara = lanzar_dado()
-		conteo[cara] = (conteo[cara] o 0) + 1
+		conteo[cara] += 1
 
 	imprimir("Resultados de ${lanzamientos} lanzamientos:")
 	repetir (1..7) |cara|

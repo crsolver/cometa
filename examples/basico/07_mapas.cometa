@@ -22,8 +22,8 @@ fn inicio()
 	repetir (edades) |edad, nombre|
 		imprimir("${nombre} tiene ${edad} años")
 
-	// Contar palabras.
+	// Contar palabras. Con += una clave que aún no existe empieza en 0.
 	var conteo [cadena: entero] = [:]
 	repetir ("el gato y el perro y el pez".dividir(" ")) |palabra|
-		conteo[palabra] = (conteo[palabra] o 0) + 1
+		conteo[palabra] += 1
 	imprimir("'el' aparece ${conteo["el"] o 0} veces")

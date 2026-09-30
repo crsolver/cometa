@@ -7,6 +7,34 @@ import (
 
 func mapKeyAllowed(t Type) bool { return t.Kind == String || t.Kind == Integer || t.Kind == Boolean }
 
+// defaultCompoundMapRead makes `m[k] op= v` treat a missing key as the zero
+// value: the parser rewrote it as `m[k] = m[k] op v`, and the read `m[k]` (a
+// `V?`) becomes `m[k] o cero`. The guard on IndexExpr keeps a re-check of the
+// same tree from wrapping twice.
+func (c *checker) defaultCompoundMapRead(statement *ast.AssignStmt, value Type) error {
+	binary, ok := statement.Value.(*ast.BinaryExpr)
+	if !ok {
+		return nil
+	}
+	read, ok := binary.Left.(*ast.IndexExpr)
+	if !ok {
+		return nil
+	}
+	zero := &ast.LiteralExpr{Pos: read.Pos}
+	switch value.Kind {
+	case Integer:
+		zero.Kind, zero.Value = "entero", "0"
+	case Decimal:
+		zero.Kind, zero.Value = "decimal", "0.0"
+	case String:
+		zero.Kind, zero.Value = "cadena", `""`
+	default:
+		return c.fail(statement.Pos, "'%s=' en una entrada de mapa solo funciona con valores entero, decimal o cadena, no %s", statement.Compound, value.String())
+	}
+	binary.Left = &ast.RecoverExpr{Pos: read.Pos, Value: read, Body: []ast.Stmt{&ast.ExprStmt{Pos: read.Pos, Expr: zero}}}
+	return nil
+}
+
 // MapMethods shares concrete signatures between checking and editor tooling.
 func MapMethods(t Type) map[string]FuncInfo {
 	methods := map[string]FuncInfo{}

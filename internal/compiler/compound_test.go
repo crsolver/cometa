@@ -49,10 +49,40 @@ fn inicio()
 	runGeneratedGo(t, got, "1\n[1, 1, 13]\nhola\n5\n6\n3\n14\n")
 }
 
+func TestCompoundAssignmentMapEntries(t *testing.T) {
+	runCometa(t, `tipo Marcador
+	puntos [cadena: entero]
+fn inicio()
+	var conteo [cadena: entero] = [:]
+	repetir (["el", "sol", "el"]) |palabra|
+		conteo[palabra] += 1
+	imprimir(conteo["el"] o -1)
+	imprimir(conteo["sol"] o -1)
+	conteo["el"] *= 10
+	conteo["nada"] *= 10
+	imprimir(conteo["el"] o -1)
+	imprimir(conteo["nada"] o -1)
+	var pesos = [1: 1.5]
+	pesos[1] += 1
+	pesos[2] -= 0.5
+	imprimir(pesos[1] o -1)
+	imprimir(pesos[2] o -1)
+	var textos [bool: cadena] = [:]
+	textos[verdadero] += "ho"
+	textos[verdadero] += "la"
+	imprimir(textos[verdadero] o "?")
+	var m = Marcador {}
+	m.puntos["ana"] += 5
+	m.puntos["ana"] += 2
+	imprimir(m.puntos["ana"] o -1)
+`, "2\n1\n20\n0\n2.5\n-0.5\nhola\n7\n")
+}
+
 func TestCompoundAssignmentErrors(t *testing.T) {
 	cases := []struct{ name, source, want string }{
 		{"call target", "fn f() entero 1\nfn inicio()\n\tvar l = [1, 2]\n\tl[f()] += 1\n", "no puede contener llamadas"},
-		{"map entry", "fn inicio()\n\tvar m = [\"a\": 1]\n\tm[\"a\"] += 1\n", "no funciona con entradas de un mapa"},
+		{"map entry of bool", "fn inicio()\n\tvar m = [\"a\": verdadero]\n\tm[\"a\"] += verdadero\n", "solo funciona con valores entero, decimal o cadena"},
+		{"map entry type mismatch", "fn inicio()\n\tvar m = [\"a\": 1]\n\tm[\"a\"] += 1.5\n", "no se puede asignar"},
 		{"type mismatch", "fn inicio()\n\tvar x = 1\n\tx += 1.5\n", "no se puede asignar"},
 	}
 	for _, tc := range cases {

@@ -128,7 +128,7 @@ The machine has two Go installations. `C:\msys64\mingw64\bin\go.exe` reports Go 
 
 ## Language ergonomics added in the beta push
 
-- `x op= v` (`+= -= *= /= %=`) is desugared in the parser to `x = x op v` with a second, independently parsed copy of the target; targets containing calls are rejected so nothing runs twice, and `AssignStmt.Compound` lets sema reject map entries with a clear message.
+- `x op= v` (`+= -= *= /= %=`) is desugared in the parser to `x = x op v` with a second, independently parsed copy of the target; targets containing calls are rejected so nothing runs twice, and `AssignStmt.Compound` lets sema handle map entries: `checker.defaultCompoundMapRead` wraps the read copy as `m[k] o cero` (0, 0.0 or ""), so a missing key counts as the zero value; other value types are rejected.
 - `mientras cond` is desugared in the parser to an infinite `repetir` whose first statement is `si !cond romper`, so sema/codegen have no new loop kind (`continuar` re-tests the condition).
 - `casos` over `entero`/`cadena`/`bool` uses `MatchArm.Literals` (parser: `enum.go`), `internal/sema/scalar_match.go` and `emitScalarMatch`/the scalar branch of `flowMatch` (Go `switch`). Arms may also name top-level `const`s with a plain literal value (a lone identifier parses as a type pattern; `checker.constantLabel` converts it, and lists go through `parseLabel`; duplicates are detected by value). A final `_` is required except for a complete `bool` match; decimals and `|x|` bindings are rejected.
 - `cadena(x)` is parsed as the interpolation `"${x}"`. `a_entero()`/`a_decimal()` are string methods (`StringCalls`); `formato(n)` lives on numbers (`internal/sema/numbers.go`, `Model.NumberCalls`, `flowNumberCall`).

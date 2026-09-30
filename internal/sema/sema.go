@@ -779,7 +779,9 @@ func (c *checker) checkStatement(stmt ast.Stmt) error {
 		}
 		if index, ok := statement.Target.(*ast.IndexExpr); ok && statement.Compound != "" {
 			if objectType, known := c.model.ExprTypes[index.Object]; known && objectType.Kind == Map {
-				return c.fail(statement.Pos, "'%s=' no funciona con entradas de un mapa porque la clave puede no existir; escribe m[k] = (m[k] o 0) %s valor", statement.Compound, statement.Compound)
+				if err := c.defaultCompoundMapRead(statement, *objectType.Elem); err != nil {
+					return err
+				}
 			}
 		}
 		value, err := c.checkExprExpected(statement.Value, &target)
