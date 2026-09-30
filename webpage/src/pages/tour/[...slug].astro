@@ -1,0 +1,41 @@
+---
+import { getCollection, render } from 'astro:content';
+import Docs from '../../layouts/Docs.astro';
+import CodeWindow from '../../components/CodeWindow.astro';
+
+export async function getStaticPaths() {
+	const lecciones = (await getCollection('tour')).sort((a, b) => a.data.orden - b.data.orden);
+	return lecciones.map((entry, i) => ({
+		params: { slug: entry.id },
+		props: { entry, anterior: lecciones[i - 1], siguiente: lecciones[i + 1] },
+	}));
+}
+
+// Los programas completos viven en examples/: una sola fuente de verdad.
+const ejemplos = import.meta.glob('../../../../examples/**/*.cometa', {
+	query: '?raw',
+	import: 'default',
+	eager: true,
+}) as Record<string, string>;
+
+const { entry, anterior, siguiente } = Astro.props;
+const { Content, headings } = await render(entry);
+const { titulo, orden, resumen, ejemplo } = entry.data;
+const codigo = ejemplo ? ejemplos[`../../../../examples/${ejemplo}`] : undefined;
+if (ejemplo && codigo === undefined) throw new Error(`No existe examples/${ejemplo}`);
+const enlace = (l?: typeof entry) => (l ? { href: `/tour/${l.id}/`, texto: l.data.titulo } : undefined);
+---
+
+<Docs
+	titulo={titulo}
+	descripcion={resumen}
+	encabezados={headings}
+	anterior={enlace(anterior)}
+	siguiente={enlace(siguiente)}
+>
+	<span class="etiqueta">// lección {orden}</span>
+	<h1>{titulo}</h1>
+	<p class="lead">{resumen}</p>
+	<Content />
+	{codigo && <CodeWindow codigo={codigo} archivo={ejemplo!.split('/').pop()} />}
+</Docs>

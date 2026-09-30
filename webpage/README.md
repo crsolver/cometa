@@ -9,8 +9,12 @@ npm run build    # genera dist/
 npm run check    # revisión de tipos
 ```
 
+- `src/content/tour/*.md`: lecciones del tour (`/tour/`). El campo `ejemplo` incrusta un programa completo de `examples/`.
+- `docs/*.md` y `specs.md` del repositorio se publican como `/guias/` y `/referencia/` (sin copias); los enlaces relativos se reescriben en `src/lib/enlaces.mjs`.
+- `/biblioteca/`: referencia de la biblioteca estándar. `npm run sync` (y `prebuild`) ejecuta `go run ./cmd/gendocs`, que genera `src/data/biblioteca.json` (ignorado por Git) desde `internal/stdlib`, y copia la gramática de VS Code. Requiere Go.
+- `.github/workflows/pages.yml` publica el sitio en GitHub Pages.
 - `src/ejemplos/*.cometa`: ejemplos mostrados en la página. Son programas válidos; verifícalos con `cometa compilar`.
-- `src/lib/cometa.tmLanguage.json`: copia de `vscode-extension/syntaxes/cometa.tmLanguage.json`. Vuelve a copiarla cuando cambie la gramática.
+- `src/lib/cometa.tmLanguage.json`: copia de `vscode-extension/syntaxes/cometa.tmLanguage.json`, actualizada por `npm run sync`.
 - `src/lib/tema.ts`: tema de resaltado `cometa-noche`.
 - `src/styles/global.css`: paleta y estilos base.
 

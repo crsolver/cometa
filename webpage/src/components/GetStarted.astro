@@ -1,5 +1,6 @@
 ---
 import CodeWindow from './CodeWindow.astro';
+import { GITHUB } from '../lib/sitio';
 
 const pasos = [
 	{
@@ -47,8 +48,9 @@ const pasos = [
 		<div class="cta">
 			<h3>¿Listo para escribir tu primera línea en español?</h3>
 			<div class="cta-acciones">
-				<a class="boton boton-principal" href="https://github.com/crsolver/hacha2">Ver en GitHub <span aria-hidden="true">→</span></a>
-				<a class="boton boton-secundario" href="#ejemplos">Repasar ejemplos</a>
+				<a class="boton boton-principal" href={GITHUB}>Ver en GitHub <span aria-hidden="true">→</span></a>
+				<a class="boton boton-secundario" href="/tour/">Hacer el tour</a>
+				<a class="boton boton-secundario" href="/biblioteca/">Biblioteca estándar</a>
 			</div>
 		</div>
 	</div>

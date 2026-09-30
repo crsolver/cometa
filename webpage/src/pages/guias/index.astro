@@ -1,0 +1,22 @@
+---
+import { getCollection } from 'astro:content';
+import Docs from '../../layouts/Docs.astro';
+
+const guias = (await getCollection('guias')).sort((a, b) => a.id.localeCompare(b.id));
+const titulo = (cuerpo = '', id: string) => /^#\s+(.+)$/m.exec(cuerpo)?.[1] ?? id;
+---
+
+<Docs titulo="Guías" descripcion="Guías de Cometa: empezar, juegos con Pincel, pixel art, UI, curvas, ruido y pruebas.">
+	<h1>Guías</h1>
+	<p class="lead">Textos más largos sobre temas concretos. Empieza por «Empezar con Cometa».</p>
+	<div class="rejilla-modulos">
+		{
+			guias.map((g) => (
+				<a class="tarjeta" href={`/guias/${g.id}/`}>
+					<strong>{titulo(g.body, g.id)}</strong>
+					<code>{g.id}.md</code>
+				</a>
+			))
+		}
+	</div>
+</Docs>

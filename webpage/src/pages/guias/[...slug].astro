@@ -1,0 +1,16 @@
+---
+import { getCollection, render } from 'astro:content';
+import Docs from '../../layouts/Docs.astro';
+
+export async function getStaticPaths() {
+	const guias = await getCollection('guias');
+	return guias.map((entry) => ({ params: { slug: entry.id }, props: { entry } }));
+}
+const { entry } = Astro.props;
+const { Content, headings } = await render(entry);
+const titulo = /^#\s+(.+)$/m.exec(entry.body ?? '')?.[1] ?? entry.id;
+---
+
+<Docs titulo={titulo} descripcion={`Guía de Cometa: ${titulo}`} encabezados={headings}>
+	<Content />
+</Docs>

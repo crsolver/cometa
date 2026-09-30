@@ -12,3 +12,6 @@
 *.vsix
 /experiments/
 /.claude/
+/dist/
+
+/webpage/src/data/

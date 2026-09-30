@@ -1,0 +1,124 @@
+---
+import { getCollection } from 'astro:content';
+import Base from './Base.astro';
+import Nav from '../components/Nav.astro';
+import Footer from '../components/Footer.astro';
+import { biblioteca } from '../lib/biblioteca';
+import '../styles/docs.css';
+
+interface Props {
+	titulo: string;
+	descripcion: string;
+	/** Encabezados para la tabla de contenidos de la derecha. */
+	encabezados?: { depth: number; slug: string; text: string }[];
+	anterior?: { href: string; texto: string };
+	siguiente?: { href: string; texto: string };
+}
+const { titulo, descripcion, encabezados = [], anterior, siguiente } = Astro.props;
+
+const ruta = Astro.url.pathname;
+const lecciones = (await getCollection('tour')).sort((a, b) => a.data.orden - b.data.orden);
+const guias = (await getCollection('guias')).sort((a, b) => a.id.localeCompare(b.id));
+
+const grupos = [
+	{
+		titulo: 'Tour del lenguaje',
+		base: '/tour/',
+		items: lecciones.map((l) => ({ href: `/tour/${l.id}/`, texto: l.data.titulo })),
+	},
+	{
+		titulo: 'Biblioteca estándar',
+		base: '/biblioteca/',
+		items: biblioteca.map((m) => ({ href: `/biblioteca/${m.nombre}/`, texto: m.nombre })),
+	},
+	{
+		titulo: 'Guías',
+		base: '/guias/',
+		items: guias.map((g) => ({ href: `/guias/${g.id}/`, texto: g.id })),
+	},
+	{ titulo: 'Referencia', base: '/referencia/', items: [] },
+];
+const toc = encabezados.filter((h) => h.depth >= 2 && h.depth <= 3);
+---
+
+<Base titulo={`${titulo} · Cometa`} descripcion={descripcion}>
+	<Nav />
+	<div class="contenedor docs">
+		<aside class="lateral">
+			<details class="lateral-menu">
+				<summary>Navegar la documentación</summary>
+				{
+					grupos.map((g) => (
+						<div class="grupo">
+							{g.items.length ? (
+								<>
+									<a class="grupo-titulo" href={g.base}>{g.titulo}</a>
+									<ul>
+										{g.items.map((i) => (
+											<li>
+												<a href={i.href} aria-current={ruta === i.href ? 'page' : undefined}>
+													{i.texto}
+												</a>
+											</li>
+										))}
+									</ul>
+								</>
+							) : (
+								<a class="grupo-titulo" href={g.base} aria-current={ruta.startsWith(g.base) ? 'page' : undefined}>
+									{g.titulo}
+								</a>
+							)}
+						</div>
+					))
+				}
+			</details>
+		</aside>
+		<main class="contenido">
+			<article class="prosa">
+				<slot />
+			</article>
+			{
+				(anterior || siguiente) && (
+					<nav class="pasos" aria-label="Anterior y siguiente">
+						{anterior ? (
+							<a href={anterior.href} class="tarjeta">
+								<small>← Anterior</small>
+								{anterior.texto}
+							</a>
+						) : (
+							<span />
+						)}
+						{siguiente && (
+							<a href={siguiente.href} class="tarjeta sig">
+								<small>Siguiente →</small>
+								{siguiente.texto}
+							</a>
+						)}
+					</nav>
+				)
+			}
+		</main>
+		<aside class="toc">
+			{
+				toc.length > 0 && (
+					<>
+						<strong>En esta página</strong>
+						<ul>
+							{toc.map((h) => (
+								<li class={`n${h.depth}`}>
+									<a href={`#${h.slug}`}>{h.text}</a>
+								</li>
+							))}
+						</ul>
+					</>
+				)
+			}
+		</aside>
+	</div>
+	<Footer />
+	<script>
+		// En escritorio el menú lateral siempre está abierto.
+		const menu = document.querySelector<HTMLDetailsElement>('.lateral-menu');
+		if (menu && matchMedia('(min-width: 801px)').matches) menu.open = true;
+	</script>
+</Base>

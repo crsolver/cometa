@@ -86,7 +86,7 @@ The machine has two Go installations. `C:\msys64\mingw64\bin\go.exe` reports Go 
 - Receiver fields and methods require `@`; bare identifiers do not fall back to receiver members.
 - Structs embed declared structs with a bare type line (`Persona`, `Caja<entero>`). The implicit field/literal key is the base type name. Fields and methods promote at the shallowest depth in one namespace; direct members shadow promotions and equal-depth paths are ambiguous. Promoted methods satisfy interfaces. Literals accept direct keys only; embeddings retain reference, fresh-default and required-cycle rules. `internal/sema/embedding.go` shares resolution with LSP; promoted calls retain the receiver path for default helpers. See `internal/compiler/testdata/programas/embebidos.cometa`.
 - `imprimir(valor)` maps to `fmt.Println(valor)`.
-- Optionals use `T?`; results use `T!` (string error) or `T!E`; `!`/`!E` mean success without a payload. Constructors are `.Alguno`/`.Ninguno` and `.Ok`/`.Error`, with one implicit wrapping step under an expected type. Extraction requires `casos`, optional `si` binding, `o`, `capturar`, or `intentar`. `retornar` exits explicitly; propagation exits the enclosing Cometa function. No user-defined generics are required.
+- Optionals use `T?`; results use `T!` (string error) or `T!E`; `!`/`!E` mean success without a payload. Constructors are `.Alguno`/`.Ninguno` and `.Ok`/`.Error`, with one implicit wrapping step under an expected type. Extraction requires `casos`, optional `si` binding, `o`, `atrapar`, or `intentar`. `retornar` exits explicitly; propagation exits the enclosing Cometa function. No user-defined generics are required.
 - Omitted scalar/list/optional fields have valid defaults. Struct fields default to fresh recursive instances, but result/enum fields require explicit initialization through every required nested field. Required struct cycles are rejected; optionals and lists allow recursion. Ordinary declared references cannot be nil in Cometa.
 - Discarded wrapper expressions and unread local result (`T!E`) variables are errors. Optional (`T?`) locals may be declared, copied, and left unused; payload access still requires extraction. Parameter defaults cannot contain `retornar` or `intentar`.
 - `usar ruta [como alias]` imports a file module relative to the importing file, with `/` separators and implicit `.cometa`. Imports precede declarations, expose public declarations through a namespace, and do not re-export imports. Only the root may declare `inicio`. Duplicate physical imports and cycles are rejected. Local values can shadow aliases. See `examples/basico/12_modulos.cometa`.
@@ -108,12 +108,22 @@ The machine has two Go installations. `C:\msys64\mingw64\bin\go.exe` reports Go 
 - `vscode-extension/src/extension.ts`: VS Code language client. It launches the configured/default executable with `lsp` and explicit stdio transport.
 - `vscode-extension/scripts/build-server.js`: cross-platform Go build helper and local-cache setup.
 
+## Testing support (std/pruebas, cometa probar)
+
+- `std/pruebas` (`afirmar`, `igual`, `casi_igual`, `fallar`; runtime in `internal/stdlib/pruebas_runtime.txt`) has no Ebitengine dependency. Failures are panics of `_hgpruebaFallo`, which exposes `PruebaFallo()`. `igual` picks `Entero/Decimal/Cadena/Bool` runtime variants by argument type in `sema/game.go` (like `mate.absoluto`).
+- `cometa probar <pruebas.cometa> [--json] [--tiempo S] [--filtro x]` (`cmd/cometa/probar.go`) analyzes the project, finds top-level `fn prueba_*`, compiles the generated Go plus a `harness.go` (written through `goBuild` in `build.go`), runs it with a timeout and reads its JSONL event log (`COMETA_PROBAR_SALIDA`). Exit codes: 0 pass, 1 test failure, 2 compile error, 3 timeout, 4 internal. See `docs/pruebas.md`. Visual (Pincel) assertions are not implemented yet; see `MEJORAS.md`.
+
 ## Errors, run diagnostics and releases
 
 - `ejecutar`/`construir`/`captura` compile with `compiler.CompileProjectForRun`, which emits `//line file.cometa:N` before each statement (`codegen.Options.LineDirectives`; `compilar` output has none, so goldens are unaffected). Go panics and `go build` errors then carry Cometa lines. `cmd/cometa/errors.go` filters the game's stderr (`crashFilter`), translates the panic into Spanish with the source line, and classifies `go build` failures (no network, old Go, missing native libs, internal codegen bugs). Missing Go is detected in `goExecutable`; a slow first build prints a notice after 4 s.
 - "¿Quisiste decir…?" comes from `diagnostic.Suggest/Hint` (bind.go names, sema members/methods/variants); `diagnostic.Foreign` maps keywords from other languages (`while`, `if`, `print`…). Parser errors that start with "se esperaba" get ", pero se encontró …" plus `+=`/`++`/reserved-word hints (`parser.foundSuffix`).
 - `imprimir` spells enum variants and results (`Evento.Texto("hola")`, `Ok(1)`, `Error("x")`) using `_hsenumNombres`, registered per enum in generated `init` functions only when `imprimir` is used.
 - `cometa --version` reports `main.version`, injected by GoReleaser (`.goreleaser.yaml`). `.github/workflows/ci.yml` runs vet/tests on three OSes and the extension build; `release.yml` publishes archives and per-platform `.vsix` on `v*` tags. Neither workflow has been run yet.
+
+## Complete Windows bundle
+
+- `cmd/cometa/bundle.go`: if `go/bin/go(.exe)` sits next to `cometa` (or under `COMETA_HOME`), builds use that toolchain offline (`GOMODCACHE=modcache/`, `GOPROXY=off`, `-trimpath`, `CGO_ENABLED=0`, build cache seeded from `gocache/` into the user cache dir on first use). Without it, the system Go is used as before. `COMETA_SEMBRAR=1` writes caches straight into the bundle.
+- `scripts/bundle-windows.ps1` builds `dist/cometa_<v>_windows_amd64_completo.zip` (~200 MB: Go, Ebitengine modules, prewarmed cache, `THIRD_PARTY_NOTICES.txt`); run it manually (needs internet once) to make the offline install package; releases publish only the normal binary. Seeding builds real examples through `cometa construir` so cache keys match.
 
 ## Language ergonomics added in the beta push
 
@@ -150,6 +160,12 @@ The machine has two Go installations. `C:\msys64\mingw64\bin\go.exe` reports Go 
 - A binary-level LSP smoke test should initialize `vscode-extension/bin/cometa.exe lsp --stdio`, await the initialize response, send shutdown, await its response, then send exit. Sending shutdown and exit without awaiting the response can create a false cancellation failure.
 - `internal/compiler/testdata/programas/interfaces_genericos.cometa` demonstrates interfaces, generic structs/enums, constraints and safe inspection.
 - `internal/compiler/testdata/programas/usuario.cometa` demonstrates enums, matching and payload references. The original struct regression fixture is `internal/compiler/testdata/usuario.cometa`, paired with `usuario.go.golden` in that directory. Enum runtime tests also execute generated Go.
+
+## Website (webpage/)
+
+- Astro 7 site: landing page plus `/tour/` (13 lessons in `webpage/src/content/tour/*.md`; `ejemplo:` frontmatter embeds a file from `examples/`), `/biblioteca/<modulo>` (generated), `/guias/` (renders `docs/*.md`), `/referencia/` (renders `specs.md`), 404 and sitemap.
+- `cmd/gendocs` writes `webpage/src/data/biblioteca.json` from `internal/stdlib` (Functions, Methods, Fields, Constants, `*Docs` maps); `npm run build` runs it through `prebuild`. New stdlib symbols appear automatically; add `FunctionDocs`/`MethodDocs`/`TypeDocs` so they have prose. `cmd/gendocs/main_test.go` checks the catalog is fully covered.
+- Markdown uses `unified()` from `@astrojs/markdown-remark` with `src/lib/enlaces.mjs` (rewrites `x.md`, `../specs.md`, `../examples/...` links). `.github/workflows/pages.yml` deploys to GitHub Pages (not yet run).
 
 ## Repository hygiene
 
