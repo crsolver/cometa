@@ -6,7 +6,7 @@ Cometa es un lenguaje con sintaxis en español, pensado para aprender y para hac
 
 - El programa `cometa` (descárgalo de la página de versiones y ponlo en tu `PATH`).
 - **Go 1.25 o superior** ([go.dev/dl](https://go.dev/dl/)). Cometa se traduce a Go, y `cometa ejecutar` usa Go para compilar tu programa. Comprueba que funciona con `go version`.
-- Un editor. Para VS Code hay una extensión (`.vsix`) con colores, errores mientras escribes y autocompletado.
+- Un editor. Para VS Code hay una extensión con colores, errores mientras escribes y autocompletado (ver [Extensión de VS Code](#extensión-de-vs-code)).
 - En Linux, los juegos necesitan además las bibliotecas de desarrollo de Ebitengine (consulta [ebitengine.org](https://ebitengine.org/en/documents/install.html)).
 
 Comprueba la instalación:
@@ -14,6 +14,37 @@ Comprueba la instalación:
 ```console
 cometa --version
 ```
+
+## Extensión de VS Code
+
+La extensión da colores, errores mientras escribes, autocompletado, ir a la definición y sangría con tabuladores. Todavía no está en el Marketplace de VS Code, así que se instala a mano. Necesitas VS Code 1.106 o superior.
+
+**Opción A: desde un `.vsix`** (cuando haya una versión publicada). Descarga el archivo de tu sistema desde la página de versiones (por ejemplo `cometa-win32-x64.vsix`, `cometa-linux-x64.vsix` o `cometa-darwin-arm64.vsix`). Ya incluye el servidor de lenguaje. Instálalo con:
+
+```console
+code --install-extension cometa-win32-x64.vsix
+```
+
+También puedes abrir la vista de extensiones, pulsar `⋯` y elegir **Instalar desde VSIX…**.
+
+**Opción B: desde el código fuente.** Necesitas Go 1.25+ y Node.js 22+:
+
+```console
+git clone https://github.com/crsolver/cometa.git
+cd cometa/vscode-extension
+npm install
+npm run build
+npx @vscode/vsce package --allow-missing-repository
+code --install-extension cometa-language-0.0.1.vsix
+```
+
+Si solo quieres probarla sin instalarla, abre la carpeta `cometa` en VS Code y pulsa `F5` (**Run Cometa Extension**).
+
+Reinicia VS Code y abre un archivo `.cometa`: deberías ver el logo de Cometa y los colores. Si algo falla:
+
+- Mira **Salida → Cometa Language Server**.
+- Si usas un `cometa` propio, indícalo en el ajuste `cometa.server.path` (ruta absoluta al ejecutable). Si lo dejas vacío, se usa el que viene con la extensión.
+- Algunos temas de íconos (como Material Icon Theme) muestran su propio ícono en lugar del logo; los colores y el resto de funciones no cambian.
 
 ## 2. Tu primer programa
 
