@@ -2,8 +2,14 @@
   "name": "cometa-language",
   "displayName": "Cometa Language",
   "description": "Cometa: a statically typed Spanish-syntax language with compiler, editor support, and the optional Pincel game library.",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "publisher": "local",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/crsolver/cometa.git",
+    "directory": "vscode-extension"
+  },
   "icon": "images/icon.png",
   "main": "./out/extension.js",
   "activationEvents": [

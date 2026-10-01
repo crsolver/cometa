@@ -25,9 +25,9 @@ fn inicio()
 
 ## Instalar
 
-1. Descarga `cometa` de la página de versiones y ponlo en tu `PATH`.
+1. Descarga `cometa` de la [página de versiones](https://github.com/crsolver/cometa/releases/latest) y ponlo en tu `PATH`.
 2. Instala [Go 1.25 o superior](https://go.dev/dl/): Cometa usa Go para compilar tus programas. Puedes indicar otro ejecutable con la variable `COMETA_GO`.
-3. Opcional: instala la extensión de VS Code para tener colores, errores mientras escribes y autocompletado. Se instala desde un `.vsix` o compilándola; los pasos están en [docs/empezar.md](docs/empezar.md#extensión-de-vs-code).
+3. Opcional: instala la extensión de VS Code para tener colores, errores mientras escribes y autocompletado. Se instala desde el `.vsix` de la misma página; los pasos están en [docs/empezar.md](docs/empezar.md#extensión-de-vs-code).
 4. En Linux y macOS, los juegos necesitan las [dependencias de Ebitengine](https://ebitengine.org/en/documents/install.html).
 
 ```console

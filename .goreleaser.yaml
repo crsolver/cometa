@@ -18,7 +18,7 @@ builds:
     goos: [windows, linux, darwin]
     goarch: [amd64, arm64]
     ldflags:
-      - -s -w -X main.version={{.Version}}
+      - -s -w -X main.version={{.Tag}}
 
 archives:
   - id: cometa
@@ -37,3 +37,7 @@ checksum:
 
 changelog:
   disable: true
+
+# Tags such as v0.1.0-rc1 are published as pre-releases.
+release:
+  prerelease: auto

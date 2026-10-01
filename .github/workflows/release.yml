@@ -59,10 +59,13 @@ jobs:
         run: |
           cp ../LICENSE .
           npm ci
+          # The extension takes its version from the tag; vsce rejects
+          # pre-release suffixes, so v0.1.0-rc1 is packaged as 0.1.0.
+          version="${GITHUB_REF_NAME#v}"
+          npm version "${version%%-*}" --no-git-tag-version --allow-same-version
           npm run compile
           npm prune --omit=dev
           npx --yes @vscode/vsce package --target ${{ matrix.target }} \
-            --allow-missing-repository \
             --out cometa-${{ matrix.target }}.vsix
       - name: Attach to the release
         env:
