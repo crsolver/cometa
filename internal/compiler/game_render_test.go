@@ -16,7 +16,6 @@ func TestGameDrawingVariantsRuntime(t *testing.T) {
 		t.Fatal(err)
 	}
 	source := strings.Replace(string(generated), "func main() {", "func unusedMain() {", 1)
-	source = strings.Replace(source, "import (", "import (\n \"golang.org/x/image/font/gofont/goregular\"", 1)
 	source += `
 type renderCheck struct{}
 func (*renderCheck) Layout(w,h int)(int,int){return 64,64}
@@ -37,8 +36,7 @@ func (*renderCheck) Update()error {
  rect:=_hgRect{p,s};c:=_hgColor{255,0,0,255}
  raw:=ebiten.NewImage(8,8);raw.Fill(color.White)
  img:=&_hgImagen{image:raw}
- fontSource,err:=text.NewGoTextFaceSource(bytes.NewReader(goregular.TTF));if err!=nil{panic(err)}
- font:=&_hgFuente{fontSource}
+ font:=_hgfuentePredeterminada()
  for _,angle:=range []float64{0,math.Pi/2}{
   for _,camera:=range []_hgCamara2D{{Zoom:1},{Pos:_hgVec2{3,4},Origen:_hgVec2{2,1},Zoom:1.2,Rotacion:0.1}}{
    _hgcamara=camera
@@ -46,11 +44,11 @@ func (*renderCheck) Update()error {
    equalDraw(func(){_hgrectanguloRect(rect,c,o,angle)},func(){_hgrectangulo(p,s,c,o,angle)})
    equalDraw(func(){_hgcirculoXY(28,26,6,c)},func(){_hgcirculo(p,6,c)})
    equalDraw(func(){_hglineaXY(28,26,12,8,c,2)},func(){_hglinea(p,s,c,2)})
-   equalDraw(func(){_hgimagenXY(img,28,26,o,_hgVec2{1,1},angle,c)},func(){_hgimagen(img,p,o,_hgVec2{1,1},angle,c)})
-   equalDraw(func(){_hgimagenRect(img,rect,o,angle,c)},func(){_hgrectanguloRect(rect,c,o,angle)})
+   equalDraw(func(){_hgimagenXY(img,28,26,o,_hgVec2{1,1},angle,c,_hgColor{})},func(){_hgimagen(img,p,o,_hgVec2{1,1},angle,c,_hgColor{})})
+   equalDraw(func(){_hgimagenRect(img,rect,o,angle,c,_hgColor{})},func(){_hgrectanguloRect(rect,c,o,angle)})
    crop:=_hgRect{_hgVec2{2,2},_hgVec2{4,4}}
-   equalDraw(func(){_hgregionRect(img,crop,rect,o,angle,c)},func(){_hgimagenRect(img,rect,o,angle,c)})
-   equalDraw(func(){_hgregionXY(img,crop,28,26,o,_hgVec2{2,2},angle,c)},func(){_hgregion(img,crop,p,o,_hgVec2{2,2},angle,c)})
+   equalDraw(func(){_hgregionRect(img,crop,rect,o,angle,c,_hgColor{})},func(){_hgimagenRect(img,rect,o,angle,c,_hgColor{})})
+   equalDraw(func(){_hgregionXY(img,crop,28,26,o,_hgVec2{2,2},angle,c,_hgColor{})},func(){_hgregion(img,crop,p,o,_hgVec2{2,2},angle,c,_hgColor{})})
    equalDraw(func(){_hgtextoXY("Hi",font,28,26,12,c,o,angle)},func(){_hgtexto("Hi",font,p,12,c,o,angle)})
   }
  }
@@ -58,7 +56,7 @@ func (*renderCheck) Update()error {
  equalDraw(func(){_hgtextoDepuracionXY("Hi",10,10)},func(){_hgtextoDepuracion("Hi",_hgVec2{10,10})})
  // Verify a nonzero crop offset selects the source, not the whole image.
  raw.Fill(color.Black);raw.SubImage(image.Rect(2,2,6,6)).(*ebiten.Image).Fill(color.White)
- equalDraw(func(){_hgregionRect(img,_hgRect{_hgVec2{2,2},_hgVec2{4,4}},rect,o,0,c)},func(){_hgrectanguloRect(rect,c,o,0)})
+ equalDraw(func(){_hgregionRect(img,_hgRect{_hgVec2{2,2},_hgVec2{4,4}},rect,o,0,c,_hgColor{})},func(){_hgrectanguloRect(rect,c,o,0)})
  // Rectangle origin maps to the requested position under a quarter turn.
  pixels(func(){_hgrectanguloRect(rect,c,o,math.Pi/2)})
  if _,_,_,a:=_hgscreen.At(28,26).RGBA();a==0 {panic("rotated center missing")}

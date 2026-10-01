@@ -50,29 +50,17 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 
 ## Biblioteca estándar
 
-### `graficos.texto` exige aportar un archivo de fuente
+### Las rejillas no admiten pendientes
 
-- **Observado:** el texto con tipografías vectoriales necesita `recursos.fuente("ruta.ttf")`; el repositorio no incluye ninguna, y solo `retro.texto` funciona sin archivos (8×8 píxeles). `graficos.medir_texto` ya permite centrar, pero hay que traer la fuente.
-- **Problema:** quien quiere un marcador legible sin estilo retro debe buscar una fuente y respetar su licencia.
-- **Posible solución:** empaquetar una fuente de licencia libre (por ejemplo Go Regular, ya presente en el runtime de Go) y exponerla como `graficos.fuente_predeterminada()`.
+- **Observado:** ya hay plataformas de un solo sentido (`mover_con_plataformas`), consulta de celdas (`celda_en`, `valores_en`) y tiles animados, pero las celdas son siempre cuadradas y sólidas por completo.
+- **Problema:** un plataformas con rampas exige calcular la altura del suelo a mano.
+- **Posible solución:** un valor de celda con forma (rampa a 45°/22,5°) que `mover` resuelva ajustando y.
 
-### Ayudantes de cámara, temporizadores y ventana
+### Los métodos nativos no admiten parámetros por defecto
 
-- **Observado:** `Camara2D` solo transforma; no hay seguimiento de un objetivo, límites, sacudida ni conversión pantalla → mundo (`entrada.posicion_raton` ignora la cámara). Tampoco hay un temporizador o enfriamiento, ni ocultar el cursor, poner el icono de la ventana o saber si está en pantalla completa.
-- **Problema:** todo juego de desplazamiento reescribe esas piezas y el clic del ratón falla al usar cámara.
-- **Posible solución:** `graficos.pantalla_a_mundo(pos)`, un tipo `Temporizador` en `std/pincel/tiempo` y funciones `ventana.cursor`/`ventana.icono`.
-
-### Las rejillas no tienen capas ni animan tiles
-
-- **Observado:** `Rejilla.mover` resuelve colisiones contra celdas sólidas, pero no da la normal del choque ni el tipo de celda tocada, y un mapa con varias capas (suelo, objetos) son varias rejillas dibujadas a mano. Los tiles no se animan.
-- **Problema:** las pendientes, plataformas que se atraviesan desde abajo o suelos de hielo exigen más lógica propia.
-- **Posible solución:** un tipo `Capas` que agrupe rejillas y un ayudante de cuadros animados.
-
-### `datos` solo guarda texto y depende del nombre de la carpeta del proyecto
-
-- **Observado:** los valores son cadenas (hay que convertir con `cadena()`/`a_entero()`), y el archivo se identifica por `carpeta-del-proyecto`+`archivo`; si se renombra o se mueve el proyecto, la mejor marca «desaparece», y dos proyectos con el mismo par comparten datos.
-- **Problema:** puede sorprender y no hay forma de listar las claves guardadas.
-- **Posible solución:** aceptar un nombre de juego explícito (`datos.juego("mi_juego")`) y añadir `datos.claves()` y variantes numéricas.
+- **Observado:** un método del catálogo (`stdlib.Methods`) con un parámetro opcional genera llamadas inconsistentes: la ruta `flow` pasa banderas de presencia y la directa no. Por eso existe `Rejilla.mover_con_plataformas` en lugar de `mover(..., plataformas = [])`.
+- **Problema:** obliga a duplicar métodos con nombres más largos.
+- **Posible solución:** rellenar los valores por defecto de los métodos nativos en el sitio de la llamada, como ya hace `codegen/game.go` con las funciones.
 
 ### Los mandos solo admiten la distribución estándar
 
@@ -80,29 +68,17 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 - **Problema:** algunos mandos genéricos no aparecen.
 - **Posible solución:** exponer los botones y ejes sin procesar como respaldo y un evento de conexión.
 
-### Sin prueba automática del dibujo de hojas, rejillas y mandos
+### Sin prueba automática de los mandos
 
-- **Observado:** las pruebas cubren la lógica sin ventana (`rejilla`, `datos`, `azar`, `mate`) y que el resto compila, y se comprobó a mano con capturas, pero ninguna prueba compara píxeles de `graficos.cuadro`/`rejilla.dibujar` ni lee un mando.
-- **Problema:** un cambio en la orientación del espejo o del origen podría pasar inadvertido.
-- **Posible solución:** una prueba opcional con `cometa captura` que compare una imagen de referencia pequeña generada con `lienzo`.
+- **Observado:** `TestSpriteSheetAndGridPixels` ya compara píxeles de hojas, espejos, orígenes, rejillas y tiles animados, pero ninguna prueba lee un mando: Ebitengine no permite simular uno.
+- **Problema:** un cambio en la asignación de botones o ejes estándar pasaría inadvertido.
+- **Posible solución:** aislar la conversión de `BotonMando`/`EjeMando` en funciones puras y probarlas, o una prueba manual guiada con un mando conectado.
 
 ### `ui.campo_texto` no admite selección de texto ni portapapeles
 
 - **Observado:** el campo de texto de `std/pincel/ui` inserta y borra caracteres y mueve el cursor con las flechas/Inicio/Fin, pero no se puede seleccionar texto (arrastrar o Mayús+flecha), hacer clic para posicionar el cursor en medio del texto, ni pegar desde el portapapeles.
 - **Problema:** cubre el caso de un campo corto (nombre, valor numérico), pero cualquier edición más larga es incómoda: no hay forma de reemplazar todo el contenido de una vez ni de corregir un error a mitad de la palabra sin usar solo las flechas.
 - **Posible solución:** añadir un segundo índice de selección al nodo, resaltar el rango seleccionado al dibujar, calcular la posición de clic contra las líneas medidas, y usar las funciones de portapapeles de Ebitengine para copiar/pegar.
-
-### No se puede destellar un sprite en blanco ni recortar el dibujo
-
-- **Observado:** `tinte` multiplica el color, así que no sirve para el destello blanco al recibir un golpe; en `pesadilla` cada sprite se genera dos veces (con la paleta normal y con una paleta toda blanca). Tampoco hay una región de recorte: para deslizar una sala dentro de un marco hubo que tapar lo que sobresalía con rectángulos del color de fondo.
-- **Problema:** dos efectos muy comunes en juegos pixel art (destello y transiciones dentro de un recuadro) obligan a rodeos.
-- **Posible solución:** un parámetro `relleno color.Color?` en `graficos.imagen`/`cuadro` que pinte la silueta, y `graficos.recortar(rect)` / `graficos.quitar_recorte()`.
-
-### Las posiciones decimales desenfocan los sprites de pixel art
-
-- **Observado:** con `pixelado = verdadero`, `graficos.imagen(img, 10.5, 20.3)` dibuja el sprite en una posición fraccionaria y los píxeles salen de distinto grosor; `pesadilla` redondea con un ayudante (`mate.redondear`) en cada llamada.
-- **Problema:** es fácil olvidarlo y el resultado se ve mal sin explicación.
-- **Posible solución:** que `pixelado = verdadero` ajuste a píxel entero las posiciones de imagen (o un parámetro `ajustar = verdadero`), y documentarlo en `docs/juegos.md`.
 
 ## Plataforma de ejercicios
 

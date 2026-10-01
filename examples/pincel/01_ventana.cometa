@@ -10,7 +10,8 @@ tipo Ventana
 
 	pub fn pintar()
 		graficos.limpiar(.AzulNoche)
-		graficos.texto_depuracion("¡Hola desde Pincel!", 110, 80)
+		// fuente_predeterminada es una fuente incluida: no hace falta ningún .ttf.
+		graficos.texto("¡Hola desde Pincel!", graficos.fuente_predeterminada(), 90, 78, tamano = 16)
 
 fn inicio()
 	// pincel.ejecutar abre la ventana y espera hasta que se cierre.

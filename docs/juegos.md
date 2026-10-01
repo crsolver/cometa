@@ -18,7 +18,7 @@ Pincel es la familia de bibliotecas de juego incluida con Cometa. Se importa cad
 | `std/pincel/retro` | Texto bitmap e iconos incorporados de 8×8 |
 | `std/pincel/lienzo` | [Pixel art con código](lienzo.md): sprites desde texto, lienzos editables y PNG |
 | `std/pincel/rejilla` | Mapas de tiles: cuadrículas de enteros con dibujo y colisión |
-| `std/pincel/datos` | Guardar y leer pares clave-texto (mejor puntuación, opciones) |
+| `std/pincel/datos` | Guardar y leer texto y números por clave (mejor puntuación, opciones) |
 | `std/pincel/ui` | [Interfaz en modo inmediato](ui.md): botones, campos de texto, barras |
 
 El último segmento es el namespace; `usar std/pincel/graficos como g` permite `g.limpiar(.Negro)`. Cada archivo declara sus imports. No se importan automáticamente tipos ni otros módulos.
@@ -87,7 +87,7 @@ Las posiciones son píxeles de la esquina superior izquierda; cada celda ocupa `
 
 Iconos disponibles: `.Corazon`, `.CorazonVacio`, `.Espada`, `.Escudo`, `.Llave`, `.Calavera`, `.Arriba`, `.Abajo`, `.Izquierda`, `.Derecha`. `glifo` acepta índices de 0 a 255, calculados como `fila * 16 + columna`, y `.Dungeon` o `.ASCII` como atlas. Índices o escalas inválidos producen un error en ejecución.
 
-`pincel.ejecutar` acepta los parámetros finales `pixelado bool = falso` y `retro bool = falso`. Con `pixelado = verdadero` desactiva el filtro de presentación de Ebitengine; combínalo con una ventana fija a escala entera, como 4. El muestreo de los glifos siempre usa vecino más cercano. Traslaciones y zoom enteros de cámara sin rotación mantienen píxeles uniformes; transformaciones fraccionarias, rotaciones o escalas de ventana fraccionarias no lo garantizan. No se implementa letterboxing entero al redimensionar.
+`pincel.ejecutar` acepta los parámetros finales `pixelado bool = falso` y `retro bool = falso`. Con `pixelado = verdadero` desactiva el filtro de presentación de Ebitengine; combínalo con una ventana fija a escala entera, como 4. El muestreo de los glifos siempre usa vecino más cercano. Las posiciones decimales (de sprites o de la cámara) no desenfocan: las imágenes se dibujan con vecino más cercano, así que no hace falta redondearlas. Lo que da píxeles de distinto grosor son las escalas o el zoom no enteros, las rotaciones y las escalas de ventana fraccionarias. No se implementa letterboxing entero al redimensionar.
 
 `std/pincel/retro` también expone `retro.ejecutar(instancia Juego, ancho entero = 320, alto entero = 200, titulo cadena = "Cometa", escala decimal = 4, redimensionable bool = falso, pantalla_completa bool = falso, tps entero = 60, pixelado bool = verdadero, retro bool = falso) !`: los mismos parámetros que `pincel.ejecutar`, pero con defaults de consola de fantasía — 320×200 (40×25 celdas exactas de 8×8), escala entera 4 (ventana de 1280×800) y `pixelado = verdadero`. Úsalo en vez de `pincel.ejecutar` cuando el juego dibuja con la fuente Dungeon; los parámetros nombrados siguen sobrescribiendo cualquier default.
 
@@ -101,6 +101,38 @@ Ejemplo: [texto e iconos retro](../examples/pincel/06_retro.cometa). Hay más ej
 `graficos.Camara2D` tiene `pos mate.Vec2`, `origen mate.Vec2`, `zoom decimal` (1 por defecto) y
 `rotacion decimal`. Estos tipos se copian por valor.
 Las estructuras del usuario conservan referencias.
+
+Los métodos de la cámara devuelven una copia nueva, así que se asignan de vuelta:
+
+```cometa
+// en actualizar
+@camara = @camara.siguiendo(@jugador.pos, 0.1).limitada({pos: {0, 0}, tamano: {1280, 720}})
+var clic = @camara.a_mundo(entrada.posicion_raton())   // el ratón, en coordenadas del mundo
+// en pintar
+graficos.usar_camara(@camara.sacudida(@temblor))
+```
+
+`siguiendo` acerca la cámara al objetivo (1 = de golpe, 0.1 = con retraso),
+`limitada` evita mostrar lo que queda fuera del nivel (ignora la rotación),
+`sacudida` la desplaza al azar hasta la intensidad dada, `visible()` da el
+rectángulo del mundo que se ve y `a_mundo`/`a_pantalla` convierten puntos entre
+pantalla y mundo. `entrada.posicion_raton()` siempre está en coordenadas de pantalla.
+
+`tiempo.temporizador(duracion, bucle = falso)` cuenta segundos para enfriamientos
+o eventos periódicos. Se avanza una vez por cuadro:
+
+```cometa
+// campo: disparo tiempo.Temporizador = tiempo.temporizador(0.3)
+@disparo.avanzar(dt)
+si entrada.tecla_mantenida(.Espacio) && @disparo.terminado()
+	disparar()
+	@disparo.reiniciar()
+```
+
+`avanzar` devuelve `verdadero` en el paso en que llega a su duración; con
+`bucle = verdadero` vuelve a empezar solo y nunca queda `terminado()`.
+`terminar()` lo da por acabado (para que un enfriamiento empiece listo), y
+`restante()`/`progreso()` dan los segundos que faltan y la fracción de 0 a 1.
 
 X crece a la derecha, Y hacia abajo. Distancias en píxeles lógicos y ángulos en
 radianes. `mate.Vec2` admite suma/resta de vectores, negación, multiplicación por escalar
@@ -180,6 +212,14 @@ se incorporan al Go generado. Formatos: PNG/JPEG, TTF/OTF, WAV/Ogg Vorbis/MP3.
 WAV admite PCM de 8/16 bits, mono/estéreo. Audio se carga completo en memoria y se
 decodifica a PCM estéreo de 48 kHz. No se necesitan archivos externos al ejecutar.
 
+Para texto legible sin traer un `.ttf`, `graficos.fuente_predeterminada()` devuelve
+la fuente Go Regular incorporada (licencia BSD, con acentos y ñ). Se puede llamar
+en cualquier sitio, no solo en un global:
+
+```cometa
+graficos.texto("Puntos: 10", graficos.fuente_predeterminada(), 8, 8, tamano = 16)
+```
+
 ## API de los módulos
 
 Las firmas siguientes requieren importar sus respectivos módulos. Los parámetros después de `=`
@@ -238,25 +278,34 @@ graficos.circulo(x decimal, y decimal, radio decimal, color color.Color)
 graficos.circulo_v(centro mate.Vec2, radio decimal, color color.Color)
 graficos.linea(x1 decimal, y1 decimal, x2 decimal, y2 decimal, color color.Color, grosor decimal = 1)
 graficos.linea_v(a mate.Vec2, b mate.Vec2, color color.Color, grosor decimal = 1)
-graficos.imagen(imagen graficos.Imagen, x decimal, y decimal, origen mate.Vec2 = {}, escala mate.Vec2 = {x: 1, y: 1}, rotacion decimal = 0, tinte color.Color = .Blanco)
-graficos.imagen_v(imagen graficos.Imagen, pos mate.Vec2, origen mate.Vec2 = {}, escala mate.Vec2 = {x: 1, y: 1}, rotacion decimal = 0, tinte color.Color = .Blanco)
-graficos.imagen_rect(imagen graficos.Imagen, destino mate.Rect, origen mate.Vec2 = {}, rotacion decimal = 0, tinte color.Color = .Blanco)
-graficos.region(imagen graficos.Imagen, fuente mate.Rect, x decimal, y decimal, origen mate.Vec2 = {}, escala mate.Vec2 = {x: 1, y: 1}, rotacion decimal = 0, tinte color.Color = .Blanco)
-graficos.region_v(imagen graficos.Imagen, fuente mate.Rect, pos mate.Vec2, origen mate.Vec2 = {}, escala mate.Vec2 = {x: 1, y: 1}, rotacion decimal = 0, tinte color.Color = .Blanco)
-graficos.region_rect(imagen graficos.Imagen, fuente mate.Rect, destino mate.Rect, origen mate.Vec2 = {}, rotacion decimal = 0, tinte color.Color = .Blanco)
+graficos.imagen(imagen graficos.Imagen, x decimal, y decimal, origen mate.Vec2 = {}, escala mate.Vec2 = {x: 1, y: 1}, rotacion decimal = 0, tinte color.Color = .Blanco, relleno color.Color = .Transparente)
+graficos.imagen_v(imagen graficos.Imagen, pos mate.Vec2, origen mate.Vec2 = {}, escala mate.Vec2 = {x: 1, y: 1}, rotacion decimal = 0, tinte color.Color = .Blanco, relleno color.Color = .Transparente)
+graficos.imagen_rect(imagen graficos.Imagen, destino mate.Rect, origen mate.Vec2 = {}, rotacion decimal = 0, tinte color.Color = .Blanco, relleno color.Color = .Transparente)
+graficos.region(imagen graficos.Imagen, fuente mate.Rect, x decimal, y decimal, origen mate.Vec2 = {}, escala mate.Vec2 = {x: 1, y: 1}, rotacion decimal = 0, tinte color.Color = .Blanco, relleno color.Color = .Transparente)
+graficos.region_v(imagen graficos.Imagen, fuente mate.Rect, pos mate.Vec2, origen mate.Vec2 = {}, escala mate.Vec2 = {x: 1, y: 1}, rotacion decimal = 0, tinte color.Color = .Blanco, relleno color.Color = .Transparente)
+graficos.region_rect(imagen graficos.Imagen, fuente mate.Rect, destino mate.Rect, origen mate.Vec2 = {}, rotacion decimal = 0, tinte color.Color = .Blanco, relleno color.Color = .Transparente)
 graficos.texto(texto cadena, fuente graficos.Fuente, x decimal, y decimal, tamano decimal = 20, color color.Color = .Blanco, origen mate.Vec2 = {}, rotacion decimal = 0)
 graficos.texto_v(texto cadena, fuente graficos.Fuente, pos mate.Vec2, tamano decimal = 20, color color.Color = .Blanco, origen mate.Vec2 = {}, rotacion decimal = 0)
 graficos.medir_texto(texto cadena, fuente graficos.Fuente, tamano decimal = 20) mate.Vec2
+graficos.fuente_predeterminada() graficos.Fuente   // Go Regular incorporada
 graficos.hoja(imagen graficos.Imagen, ancho_cuadro entero, alto_cuadro entero) graficos.Hoja
 graficos.cuadros(hoja graficos.Hoja) entero
 graficos.tamano_cuadro(hoja graficos.Hoja) mate.Vec2
-graficos.cuadro(hoja graficos.Hoja, indice entero, x decimal, y decimal, origen mate.Vec2 = {}, escala mate.Vec2 = {x: 1, y: 1}, rotacion decimal = 0, tinte color.Color = .Blanco, espejo_h bool = falso, espejo_v bool = falso)
-graficos.cuadro_v(hoja graficos.Hoja, indice entero, pos mate.Vec2, origen mate.Vec2 = {}, escala mate.Vec2 = {x: 1, y: 1}, rotacion decimal = 0, tinte color.Color = .Blanco, espejo_h bool = falso, espejo_v bool = falso)
+graficos.cuadro(hoja graficos.Hoja, indice entero, x decimal, y decimal, origen mate.Vec2 = {}, escala mate.Vec2 = {x: 1, y: 1}, rotacion decimal = 0, tinte color.Color = .Blanco, espejo_h bool = falso, espejo_v bool = falso, relleno color.Color = .Transparente)
+graficos.cuadro_v(hoja graficos.Hoja, indice entero, pos mate.Vec2, origen mate.Vec2 = {}, escala mate.Vec2 = {x: 1, y: 1}, rotacion decimal = 0, tinte color.Color = .Blanco, espejo_h bool = falso, espejo_v bool = falso, relleno color.Color = .Transparente)
 graficos.texto_depuracion(texto cadena, x decimal = 0, y decimal = 0)
 graficos.texto_depuracion_v(texto cadena, pos mate.Vec2 = {})
 graficos.tamano() mate.Vec2
+graficos.recortar(rect mate.Rect)                 // solo dibuja dentro de rect (pantalla)
+graficos.quitar_recorte()
 graficos.usar_camara(camara graficos.Camara2D)
 graficos.restablecer_camara()
+graficos.Camara2D.a_mundo(punto mate.Vec2) mate.Vec2
+graficos.Camara2D.a_pantalla(punto mate.Vec2) mate.Vec2
+graficos.Camara2D.siguiendo(objetivo mate.Vec2, suavizado decimal) graficos.Camara2D
+graficos.Camara2D.limitada(mundo mate.Rect) graficos.Camara2D
+graficos.Camara2D.sacudida(intensidad decimal) graficos.Camara2D
+graficos.Camara2D.visible() mate.Rect
 
 entrada.tecla_mantenida(tecla entrada.Tecla) bool
 entrada.tecla_presionada(tecla entrada.Tecla) bool
@@ -274,10 +323,16 @@ entrada.mando_eje(mando entero, eje entrada.EjeMando, zona_muerta decimal = 0.15
 datos.guardar(clave cadena, valor cadena) !
 datos.leer(clave cadena) cadena?
 datos.borrar(clave cadena) !
+datos.juego(nombre cadena)
+datos.claves() [cadena]
+datos.guardar_entero(clave cadena, valor entero) !
+datos.leer_entero(clave cadena) entero?
+datos.guardar_decimal(clave cadena, valor decimal) !
+datos.leer_decimal(clave cadena) decimal?
 
 rejilla.nueva(columnas entero, filas entero, valor entero = 0) rejilla.Rejilla
 rejilla.desde_texto(filas [cadena], simbolos [cadena: entero]) rejilla.Rejilla
-rejilla.dibujar(mapa rejilla.Rejilla, hoja graficos.Hoja, pos mate.Vec2 = {}, escala mate.Vec2 = {x: 1, y: 1}, tinte color.Color = .Blanco)
+rejilla.dibujar(mapa rejilla.Rejilla, hoja graficos.Hoja, pos mate.Vec2 = {}, escala mate.Vec2 = {x: 1, y: 1}, tinte color.Color = .Blanco, animaciones [entero: [entero]] = [:], cuadros_por_segundo decimal = 8)
 rejilla.Rejilla.columnas() entero
 rejilla.Rejilla.filas() entero
 rejilla.Rejilla.obtener(x entero, y entero) entero?
@@ -285,6 +340,9 @@ rejilla.Rejilla.poner(x entero, y entero, valor entero) bool
 rejilla.Rejilla.rellenar(valor entero)
 rejilla.Rejilla.choca(area mate.Rect, tamano_celda mate.Vec2, solidos [entero]) bool
 rejilla.Rejilla.mover(area mate.Rect, tamano_celda mate.Vec2, delta mate.Vec2, solidos [entero]) mate.Vec2
+rejilla.Rejilla.mover_con_plataformas(area mate.Rect, tamano_celda mate.Vec2, delta mate.Vec2, solidos [entero], plataformas [entero]) mate.Vec2
+rejilla.Rejilla.celda_en(punto mate.Vec2, tamano_celda mate.Vec2) entero?
+rejilla.Rejilla.valores_en(area mate.Rect, tamano_celda mate.Vec2) [entero]
 
 audio.reproducir(sonido audio.Sonido, volumen decimal = 1, bucle bool = falso) audio.Reproduccion
 audio.pausar(reproduccion audio.Reproduccion)
@@ -294,8 +352,18 @@ audio.volumen(reproduccion audio.Reproduccion, valor decimal)
 ventana.titulo(titulo cadena)
 ventana.pantalla_completa(activa bool)
 ventana.tamano() mate.Vec2
+ventana.cursor(visible bool)
+ventana.icono(imagen graficos.Imagen)
+ventana.es_pantalla_completa() bool
 tiempo.fps() decimal
 tiempo.tps() decimal
+tiempo.temporizador(duracion decimal, bucle bool = falso) tiempo.Temporizador
+tiempo.Temporizador.avanzar(dt decimal) bool
+tiempo.Temporizador.terminado() bool
+tiempo.Temporizador.terminar()
+tiempo.Temporizador.reiniciar()
+tiempo.Temporizador.restante() decimal
+tiempo.Temporizador.progreso() decimal
 recursos.imagen(ruta cadena) graficos.Imagen
 recursos.fuente(ruta cadena) graficos.Fuente
 recursos.sonido(ruta cadena) audio.Sonido
@@ -313,6 +381,20 @@ por `origen`; su zoom debe ser positivo. Cada frame restablece la cámara.
 pantalla. Las imágenes con posición/escala aplican su origen antes de escala/rotación/posición.
 Las variantes `_rect` de imagen y región ajustan la imagen o recorte completo al
 rectángulo destino; su origen se mide en píxeles del destino, después de escalar.
+
+`tinte` multiplica los colores, así que no sirve para un destello blanco. Para eso
+está `relleno`: pinta la silueta (respetando la transparencia) del color dado, con la
+fuerza de su alfa. `.Transparente` (por defecto) no cambia nada, `.Blanco` da el
+destello de un golpe y `color.rgba(255, 255, 255, 128)` uno a medias, así que se puede
+apagar poco a poco:
+
+```cometa
+graficos.cuadro(@hoja, @cuadro, @pos.x, @pos.y, relleno = color.rgba(255, 255, 255, @destello))
+```
+
+`graficos.recortar(rect)` limita el dibujo a un rectángulo de la pantalla (no le
+afecta la cámara) hasta `graficos.quitar_recorte()` o el siguiente cuadro; sirve para
+deslizar una sala o un texto dentro de un marco sin tapar lo que sobresale.
 mate.Rectángulos y texto aplican origen, rotación y posición antes de la cámara.
 Todas las rotaciones son radianes y valen cero por defecto. Círculos, líneas y
 texto de depuración no tienen rotación. Los métodos de mate.Vec2 devuelven valores
@@ -373,17 +455,33 @@ celdas con una hoja y omite las que quedan fuera de la pantalla.
 celda cuyo valor está en `solidos`; lo que queda fuera de la rejilla nunca es sólido
 (rodéala de paredes si quieres que lo sea).
 `Rejilla.mover(area, tamano_celda, delta, solidos)` desplaza el rectángulo (primero en x y luego en y) y devuelve lo que realmente se movió: se detiene pegado a la pared, así que no queda hueco, y si el resultado de un eje es menor que el pedido, hubo un choque en ese eje (caer y chocar es tocar el suelo). Mantén `delta` menor que una celda por llamada. Ver [el plataformas](../examples/pincel/13_plataformas.cometa). Es un objeto compartido: dos variables pueden apuntar a la misma rejilla.
+La normal del choque se deduce del resultado: si `movido.x` es menor que `delta.x`, la pared está del lado hacia el que te movías (normal `-mate.signo(delta.x)`), y lo mismo en y.
+`Rejilla.mover_con_plataformas(..., plataformas)` añade celdas de un solo sentido: frenan al caer sobre ellas, pero se atraviesan saltando desde abajo o de lado.
+`Rejilla.valores_en(area, tamano_celda)` lista los valores que toca un rectángulo (por ejemplo una franja de 1 píxel bajo los pies para saber si pisas hielo) y `Rejilla.celda_en(punto, tamano_celda)` da el valor bajo un punto, como el ratón.
+
+Para animar tiles, `rejilla.dibujar` acepta `animaciones`: un mapa de valor de celda a lista de cuadros, que se recorre a `cuadros_por_segundo` (todas las celdas van a la vez):
+
+```cometa
+rejilla.dibujar(@mapa, @hoja, animaciones = [4: [4, 5, 6]], cuadros_por_segundo = 6)
+```
+
+Para varias capas (suelo, decoración, objetos) usa una rejilla por capa con la misma hoja y dibújalas en orden; colisiona solo contra la que tenga los sólidos.
 Ver [el ejemplo del laberinto](../examples/pincel/11_mapa.cometa).
 
 ## Guardar datos
 
 `std/pincel/datos` guarda pares clave-texto en un archivo dentro de la carpeta de
 configuración del usuario (`%AppData%` en Windows, `~/.config` en Linux, `~/Library/Application Support`
-en macOS), en una subcarpeta `cometa/<carpeta-del-proyecto>-<archivo>`. Se identifica por el
-proyecto y no por el título de la ventana, así que puede leerse antes de `pincel.ejecutar`.
-Para números usa `cadena(n)` al guardar y `a_entero()`/`a_decimal()` al leer:
-`var mejor = (datos.leer("mejor") o "0").a_entero() o 0`. `guardar` y `borrar` devuelven un
-resultado (`!`) porque el disco puede fallar.
+en macOS). Por defecto la subcarpeta es `cometa/<carpeta-del-proyecto>-<archivo>`, así que
+renombrar o mover el proyecto «pierde» los datos y dos proyectos con el mismo par los
+comparten. Para evitarlo, da un nombre fijo al principio de `inicio`, antes de leer nada:
+`datos.juego("mi_juego")` usa `cometa/mi_juego` (los caracteres raros se cambian por `_`).
+No depende del título de la ventana, así que puede leerse antes de `pincel.ejecutar`.
+
+Para números usa `guardar_entero`/`leer_entero` y `guardar_decimal`/`leer_decimal`:
+`var mejor = datos.leer_entero("mejor") o 0` (devuelven `Ninguno` si la clave falta o no
+contiene un número). `datos.claves()` lista las claves guardadas en orden alfabético.
+`guardar`, `guardar_*` y `borrar` devuelven un resultado (`!`) porque el disco puede fallar.
 
 ## Mandos
 

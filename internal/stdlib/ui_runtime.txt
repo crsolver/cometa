@@ -33,7 +33,7 @@ func _hguiPintar(c *_hgContexto) {
   fill:=t.Fondo
   if n.kind>=8 {fill=t.Normal;if n.id==c.hover {fill=t.Sobre};if n.id==c.active {fill=t.Presionado};if !n.enabled {fill=t.Deshabilitado}}
   if n.kind==2||n.kind>=8 {_hgrectangulo(r.Pos,r.Tamano,fill,_hgVec2{},0)}
-  if n.kind==4 {if r.Tamano.X>0&&r.Tamano.Y>0 {_hgimagenRect(n.img,r,_hgVec2{},0,n.tint)};continue}
+  if n.kind==4 {if r.Tamano.X>0&&r.Tamano.Y>0 {_hgimagenRect(n.img,r,_hgVec2{},0,n.tint,_hgColor{})};continue}
   if n.kind==10 {w:=math.Min(4,r.Tamano.X);_hgrectangulo(_hgVec2{r.Pos.X+(r.Tamano.X-w)*n.value,r.Pos.Y},_hgVec2{w,r.Tamano.Y},t.Texto,_hgVec2{},0)}
   if n.kind==6 {_hgrectangulo(r.Pos,r.Tamano,t.Fondo,_hgVec2{},0);_hgrectangulo(r.Pos,_hgVec2{r.Tamano.X*n.value,r.Tamano.Y},t.Sobre,_hgVec2{},0)}
   if n.kind==7 {_hgrectangulo(r.Pos,r.Tamano,t.Normal,_hgVec2{},0)}

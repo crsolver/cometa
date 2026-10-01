@@ -174,10 +174,10 @@ func (*lienzoCheck) Update() error {
  _hgscreen=ebiten.NewImage(4,4)
  white:=_hgColor{255,255,255,255}
  img:=_hglienzoNuevo(2,2,_hgColor{255,0,0,255})
- _hgimagenXY(img,0,0,_hgVec2{},_hgVec2{1,1},0,white)
+ _hgimagenXY(img,0,0,_hgVec2{},_hgVec2{1,1},0,white,_hgColor{})
  if r,_,b,_:=_hgscreen.At(1,1).RGBA();r>>8!=255||b!=0 {panic("initial upload missing")}
  _hglienzoPixel(img,1,1,_hgColor{0,0,255,128})
- _hgscreen.Clear();_hgimagenXY(img,0,0,_hgVec2{},_hgVec2{1,1},0,white)
+ _hgscreen.Clear();_hgimagenXY(img,0,0,_hgVec2{},_hgVec2{1,1},0,white,_hgColor{})
  if r,_,b,a:=_hgscreen.At(1,1).RGBA();r!=0||b>>8!=128||a>>8!=128 {panic(fmt.Sprint("edit not uploaded ",r,b,a))}
  if r,_,_,_:=_hgscreen.At(0,0).RGBA();r>>8!=255 {panic("unedited pixel changed")}
  fmt.Println("ok")

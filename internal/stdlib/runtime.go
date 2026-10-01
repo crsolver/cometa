@@ -56,8 +56,8 @@ var runtimeImports = map[string]string{
 	"mp3": "github.com/hajimehoshi/ebiten/v2/audio/mp3", "vorbis": "github.com/hajimehoshi/ebiten/v2/audio/vorbis",
 	"wav": "github.com/hajimehoshi/ebiten/v2/audio/wav", "ebitenutil": "github.com/hajimehoshi/ebiten/v2/ebitenutil",
 	"inpututil": "github.com/hajimehoshi/ebiten/v2/inpututil", "text": "github.com/hajimehoshi/ebiten/v2/text/v2",
-	"vector": "github.com/hajimehoshi/ebiten/v2/vector",
-	"strconv": "strconv", "os": "os", "png": "image/png", "json": "encoding/json", "filepath": "path/filepath", "sort": "sort",
+	"vector": "github.com/hajimehoshi/ebiten/v2/vector", "colorm": "github.com/hajimehoshi/ebiten/v2/colorm", "goregular": "golang.org/x/image/font/gofont/goregular",
+	"strconv": "strconv", "os": "os", "png": "image/png", "json": "encoding/json", "filepath": "path/filepath", "sort": "sort", "unicode": "unicode",
 }
 
 // Runtime selects the declarations reachable from imported library exports.

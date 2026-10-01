@@ -83,8 +83,8 @@ tipo Laberinto
 				@terminado = verdadero
 				si @mejor == 0 || @tiempo < @mejor
 					@mejor = @tiempo
-					// datos guarda texto en el disco; se conserva entre partidas.
-					datos.guardar("mejor_tiempo", cadena(@mejor)) atrapar |error|
+					// datos guarda en el disco; se conserva entre partidas.
+					datos.guardar_decimal("mejor_tiempo", @mejor) atrapar |error|
 						imprimir(error)
 
 	pub fn pintar()
@@ -113,8 +113,10 @@ fn inicio()
 		"####################",
 	], ["#": pared, ".": suelo, "*": meta])
 
+	// Un nombre fijo para los datos: no cambia aunque muevas o renombres la carpeta.
+	datos.juego("laberinto")
 	// Recupera la mejor marca guardada (0 si aún no hay ninguna).
-	var mejor = (datos.leer("mejor_tiempo") o "0").a_decimal() o 0.0
+	var mejor = datos.leer_decimal("mejor_tiempo") o 0.0
 
 	var laberinto = Laberinto {mapa: mapa, hoja: crear_hoja(), mejor: mejor}
 	laberinto.reiniciar()

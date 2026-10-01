@@ -33,7 +33,7 @@ func (g *_hgGame) Update() error {
  for r := range _hgplayers { if !r.paused && !r.player.IsPlaying() { r.player.Close(); r.player=nil; delete(_hgplayers,r) } }
  return nil
 }
-func (g *_hgGame) Draw(screen *ebiten.Image) { _hgscreen=screen; _hgrestablecerCamara(); defer func(){_hgscreen=nil}(); g.instancia.Pintar(); _hgcapturar(screen) }
+func (g *_hgGame) Draw(screen *ebiten.Image) { _hgscreen=screen; _hgsinRecorte=nil; _hgrestablecerCamara(); defer func(){_hgscreen=nil}(); g.instancia.Pintar(); _hgcapturar(screen) }
 func (*_hgGame) Layout(w,h int)(int,int) {return int(_hgconfig.Ancho),int(_hgconfig.Alto)}
 func _hgvalidarConfig(c _hgConfigJuego) error {
  for _, n:=range []float64{float64(c.Ancho),float64(c.Alto),c.Escala,float64(c.Tps),float64(c.Ancho)*c.Escala,float64(c.Alto)*c.Escala} { if math.IsNaN(n)||math.IsInf(n,0)||n<=0||n>32768 {return fmt.Errorf("configuración de juego inválida: dimensiones, escala y tps deben ser positivos y finitos (máximo 32768)")} }
@@ -91,9 +91,19 @@ func _hgrectangulo(p,s _hgVec2,c _hgColor,o _hgVec2,r float64){
 }
 func _hgcirculo(p _hgVec2,r float64,c _hgColor){_hgdraw();p=_hgpoint(p);vector.FillCircle(_hgscreen,float32(p.X),float32(p.Y),float32(r*_hgcamara.Zoom),c,true)}
 func _hglinea(a,b _hgVec2,c _hgColor,w float64){_hgdraw();a=_hgpoint(a);b=_hgpoint(b);vector.StrokeLine(_hgscreen,float32(a.X),float32(a.Y),float32(b.X),float32(b.Y),float32(w*_hgcamara.Zoom),c,true)}
-func _hgimageDraw(img *ebiten.Image,p,o,s _hgVec2,r float64,c _hgColor){_hgdraw();op:=&ebiten.DrawImageOptions{};op.GeoM=_hgtransform(p,o,s,r,false);op.ColorScale.ScaleWithColor(c);_hgscreen.DrawImage(img,op)}
-func _hgimagen(img *_hgImagen,p,o,s _hgVec2,r float64,c _hgColor){_hgimageDraw(img.gpu(),p,o,s,r,c)}
-func _hgregion(img *_hgImagen,region _hgRect,p,o,s _hgVec2,r float64,c _hgColor){_hgdraw();area:=image.Rect(int(region.Pos.X),int(region.Pos.Y),int(region.Pos.X+region.Tamano.X),int(region.Pos.Y+region.Tamano.Y));if area.Empty(){return};_hgimageDraw(img.gpu().SubImage(area).(*ebiten.Image),p,o,s,r,c)}
+// The fill color's alpha blends the tinted RGB toward the fill, keeping the sprite's own alpha: a white silhouette for hit flashes.
+func _hgpintarImagen(img *ebiten.Image,m ebiten.GeoM,c,f _hgColor){
+ if f.A==0{op:=&ebiten.DrawImageOptions{};op.GeoM=m;op.ColorScale.ScaleWithColor(c);_hgscreen.DrawImage(img,op);return}
+ var cm colorm.ColorM
+ cm.Scale(float64(c.R)/255,float64(c.G)/255,float64(c.B)/255,float64(c.A)/255)
+ k:=float64(f.A)/255
+ cm.Scale(1-k,1-k,1-k,1)
+ cm.Translate(k*float64(f.R)/255,k*float64(f.G)/255,k*float64(f.B)/255,0)
+ op:=&colorm.DrawImageOptions{};op.GeoM=m;colorm.DrawImage(_hgscreen,img,cm,op)
+}
+func _hgimageDraw(img *ebiten.Image,p,o,s _hgVec2,r float64,c,f _hgColor){_hgdraw();_hgpintarImagen(img,_hgtransform(p,o,s,r,false),c,f)}
+func _hgimagen(img *_hgImagen,p,o,s _hgVec2,r float64,c,f _hgColor){_hgimageDraw(img.gpu(),p,o,s,r,c,f)}
+func _hgregion(img *_hgImagen,region _hgRect,p,o,s _hgVec2,r float64,c,f _hgColor){_hgdraw();area:=image.Rect(int(region.Pos.X),int(region.Pos.Y),int(region.Pos.X+region.Tamano.X),int(region.Pos.Y+region.Tamano.Y));if area.Empty(){return};_hgimageDraw(img.gpu().SubImage(area).(*ebiten.Image),p,o,s,r,c,f)}
 func _hgtexto(value string,font *_hgFuente,p _hgVec2,size float64,c _hgColor,o _hgVec2,r float64){_hgdraw();op:=&text.DrawOptions{};op.GeoM=_hgtransform(p,o,_hgVec2{1,1},r,true);op.ColorScale.ScaleWithColor(c);op.LineSpacing=size*1.2;text.Draw(_hgscreen,value,&text.GoTextFace{Source:font.source,Size:size},op)}
 func _hgmedirTexto(value string,font *_hgFuente,size float64) _hgVec2{w,h:=text.Measure(value,&text.GoTextFace{Source:font.source,Size:size},size*1.2);return _hgVec2{w,h}}
 func _hgtextoDepuracion(value string,p _hgVec2){_hgdraw();ebitenutil.DebugPrintAt(_hgscreen,value,int(p.X),int(p.Y))}
@@ -139,6 +149,9 @@ func _hgfps() float64{return ebiten.ActualFPS()}
 func _hgtps() float64{return ebiten.ActualTPS()}
 func _hgbytes(encoded,path string) []byte{b,err:=base64.StdEncoding.DecodeString(encoded);if err!=nil{log.Fatalf("recurso %s: %v",path,err)};return b}
 func _hgcargarImagen(encoded,path string) *_hgImagen{img,_,err:=image.Decode(bytes.NewReader(_hgbytes(encoded,path)));if err!=nil{log.Fatalf("imagen %s: %v",path,err)};return &_hgImagen{pixels:_hgnrgba(img)}}
+// Go Regular (BSD license, bundled with golang.org/x/image) is parsed once on first use.
+var _hgfuenteGo *_hgFuente
+func _hgfuentePredeterminada() *_hgFuente{if _hgfuenteGo==nil{f,err:=text.NewGoTextFaceSource(bytes.NewReader(goregular.TTF));if err!=nil{log.Fatalf("fuente predeterminada: %v",err)};_hgfuenteGo=&_hgFuente{f}};return _hgfuenteGo}
 func _hgcargarFuente(encoded,path string) *_hgFuente{f,err:=text.NewGoTextFaceSource(bytes.NewReader(_hgbytes(encoded,path)));if err!=nil{log.Fatalf("fuente %s: %v",path,err)};return &_hgFuente{f}}
 func _hgcargarSonido(encoded,path string) *_hgSonido{
  b:=bytes.NewReader(_hgbytes(encoded,path));var stream io.Reader;var err error
@@ -166,25 +179,33 @@ func _hgrectanguloXY(x,y,w,h float64,c _hgColor,o _hgVec2,r float64){_hgrectangu
 func _hgrectanguloRect(rect _hgRect,c _hgColor,o _hgVec2,r float64){_hgrectangulo(rect.Pos,rect.Tamano,c,o,r)}
 func _hgcirculoXY(x,y,r float64,c _hgColor){_hgcirculo(_hgVec2{x,y},r,c)}
 func _hglineaXY(x1,y1,x2,y2 float64,c _hgColor,w float64){_hglinea(_hgVec2{x1,y1},_hgVec2{x2,y2},c,w)}
-func _hgimagenXY(img *_hgImagen,x,y float64,o,s _hgVec2,r float64,c _hgColor){_hgimagen(img,_hgVec2{x,y},o,s,r,c)}
-func _hgregionXY(img *_hgImagen,region _hgRect,x,y float64,o,s _hgVec2,r float64,c _hgColor){_hgregion(img,region,_hgVec2{x,y},o,s,r,c)}
+func _hgimagenXY(img *_hgImagen,x,y float64,o,s _hgVec2,r float64,c,f _hgColor){_hgimagen(img,_hgVec2{x,y},o,s,r,c,f)}
+func _hgregionXY(img *_hgImagen,region _hgRect,x,y float64,o,s _hgVec2,r float64,c,f _hgColor){_hgregion(img,region,_hgVec2{x,y},o,s,r,c,f)}
 func _hgtextoXY(v string,f *_hgFuente,x,y,size float64,c _hgColor,o _hgVec2,r float64){_hgtexto(v,f,_hgVec2{x,y},size,c,o,r)}
 func _hgtextoDepuracionXY(v string,x,y float64){_hgtextoDepuracion(v,_hgVec2{x,y})}
 // Destination origins are measured after sizing, before rotation and translation.
-func _hgimageRect(img *ebiten.Image,d _hgRect,o _hgVec2,r float64,c _hgColor){
+func _hgimageRect(img *ebiten.Image,d _hgRect,o _hgVec2,r float64,c,f _hgColor){
  _hgdraw()
  bounds:=img.Bounds();if bounds.Empty(){return}
- op:=&ebiten.DrawImageOptions{}
- op.GeoM=_hgtransform(d.Pos,o,_hgVec2{d.Tamano.X/float64(bounds.Dx()),d.Tamano.Y/float64(bounds.Dy())},r,true)
- op.ColorScale.ScaleWithColor(c);_hgscreen.DrawImage(img,op)
+ _hgpintarImagen(img,_hgtransform(d.Pos,o,_hgVec2{d.Tamano.X/float64(bounds.Dx()),d.Tamano.Y/float64(bounds.Dy())},r,true),c,f)
 }
-func _hgimagenRect(img *_hgImagen,d _hgRect,o _hgVec2,r float64,c _hgColor){_hgimageRect(img.gpu(),d,o,r,c)}
-func _hgregionRect(img *_hgImagen,source,d _hgRect,o _hgVec2,r float64,c _hgColor){
+func _hgimagenRect(img *_hgImagen,d _hgRect,o _hgVec2,r float64,c,f _hgColor){_hgimageRect(img.gpu(),d,o,r,c,f)}
+func _hgregionRect(img *_hgImagen,source,d _hgRect,o _hgVec2,r float64,c,f _hgColor){
  _hgdraw()
  area:=image.Rect(int(source.Pos.X),int(source.Pos.Y),int(source.Pos.X+source.Tamano.X),int(source.Pos.Y+source.Tamano.Y))
  if area.Empty(){return}
- _hgimageRect(img.gpu().SubImage(area).(*ebiten.Image),d,o,r,c)
+ _hgimageRect(img.gpu().SubImage(area).(*ebiten.Image),d,o,r,c,f)
 }
+
+// Clipping draws into a sub-image of the screen (screen coordinates, camera ignored); each frame starts unclipped.
+var _hgsinRecorte *ebiten.Image
+func _hgrecortar(r _hgRect){
+ _hgdraw()
+ if _hgsinRecorte==nil{_hgsinRecorte=_hgscreen}
+ area:=image.Rect(int(math.Floor(r.Pos.X)),int(math.Floor(r.Pos.Y)),int(math.Ceil(r.Pos.X+r.Tamano.X)),int(math.Ceil(r.Pos.Y+r.Tamano.Y))).Intersect(_hgsinRecorte.Bounds())
+ _hgscreen=_hgsinRecorte.SubImage(area).(*ebiten.Image)
+}
+func _hgquitarRecorte(){_hgdraw();if _hgsinRecorte!=nil{_hgscreen=_hgsinRecorte;_hgsinRecorte=nil}}
 
 // Transform local geometry before applying the active camera. Image origins use
 // source pixels; rectangle/destination origins use already-sized local pixels.

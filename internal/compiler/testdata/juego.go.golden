@@ -1,18 +1,22 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/audio"
+	"github.com/hajimehoshi/ebiten/v2/colorm"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
+	"golang.org/x/image/font/gofont/goregular"
 	"image"
 	"image/color"
 	_ "image/jpeg"
 	"image/png"
 	"log"
 	"math"
+	"math/rand/v2"
 	"os"
 	"reflect"
 	"sort"
@@ -91,6 +95,7 @@ func (g *_hgGame) Update() error {
 }
 func (g *_hgGame) Draw(screen *ebiten.Image) {
 	_hgscreen = screen
+	_hgsinRecorte = nil
 	_hgrestablecerCamara()
 	defer func() { _hgscreen = nil }()
 	g.instancia.Pintar()
@@ -190,6 +195,12 @@ func _hgdistanciaXY(x1, y1, x2, y2 float64) float64 { return math.Hypot(x2-x1, y
 func _hganguloXY(x1, y1, x2, y2 float64) float64    { return math.Atan2(y2-y1, x2-x1) }
 func _hgradianes(g float64) float64                 { return g * math.Pi / 180 }
 func _hggrados(r float64) float64                   { return r * 180 / math.Pi }
+func _hgazarReal(a, b float64) float64 {
+	if math.IsNaN(a) || math.IsNaN(b) || math.IsInf(a, 0) || math.IsInf(b, 0) || a > b || math.IsInf(b-a, 0) {
+		panic("rango aleatorio inválido")
+	}
+	return a + _hgazarGen.Float64()*(b-a)
+}
 func _hgdraw() {
 	if _hgscreen == nil {
 		panic("dibujar solo se permite desde pintar")
@@ -236,23 +247,37 @@ func _hglinea(a, b _hgVec2, c _hgColor, w float64) {
 	b = _hgpoint(b)
 	vector.StrokeLine(_hgscreen, float32(a.X), float32(a.Y), float32(b.X), float32(b.Y), float32(w*_hgcamara.Zoom), c, true)
 }
-func _hgimageDraw(img *ebiten.Image, p, o, s _hgVec2, r float64, c _hgColor) {
+func _hgpintarImagen(img *ebiten.Image, m ebiten.GeoM, c, f _hgColor) {
+	if f.A == 0 {
+		op := &ebiten.DrawImageOptions{}
+		op.GeoM = m
+		op.ColorScale.ScaleWithColor(c)
+		_hgscreen.DrawImage(img, op)
+		return
+	}
+	var cm colorm.ColorM
+	cm.Scale(float64(c.R)/255, float64(c.G)/255, float64(c.B)/255, float64(c.A)/255)
+	k := float64(f.A) / 255
+	cm.Scale(1-k, 1-k, 1-k, 1)
+	cm.Translate(k*float64(f.R)/255, k*float64(f.G)/255, k*float64(f.B)/255, 0)
+	op := &colorm.DrawImageOptions{}
+	op.GeoM = m
+	colorm.DrawImage(_hgscreen, img, cm, op)
+}
+func _hgimageDraw(img *ebiten.Image, p, o, s _hgVec2, r float64, c, f _hgColor) {
 	_hgdraw()
-	op := &ebiten.DrawImageOptions{}
-	op.GeoM = _hgtransform(p, o, s, r, false)
-	op.ColorScale.ScaleWithColor(c)
-	_hgscreen.DrawImage(img, op)
+	_hgpintarImagen(img, _hgtransform(p, o, s, r, false), c, f)
 }
-func _hgimagen(img *_hgImagen, p, o, s _hgVec2, r float64, c _hgColor) {
-	_hgimageDraw(img.gpu(), p, o, s, r, c)
+func _hgimagen(img *_hgImagen, p, o, s _hgVec2, r float64, c, f _hgColor) {
+	_hgimageDraw(img.gpu(), p, o, s, r, c, f)
 }
-func _hgregion(img *_hgImagen, region _hgRect, p, o, s _hgVec2, r float64, c _hgColor) {
+func _hgregion(img *_hgImagen, region _hgRect, p, o, s _hgVec2, r float64, c, f _hgColor) {
 	_hgdraw()
 	area := image.Rect(int(region.Pos.X), int(region.Pos.Y), int(region.Pos.X+region.Tamano.X), int(region.Pos.Y+region.Tamano.Y))
 	if area.Empty() {
 		return
 	}
-	_hgimageDraw(img.gpu().SubImage(area).(*ebiten.Image), p, o, s, r, c)
+	_hgimageDraw(img.gpu().SubImage(area).(*ebiten.Image), p, o, s, r, c, f)
 }
 func _hgtexto(value string, font *_hgFuente, p _hgVec2, size float64, c _hgColor, o _hgVec2, r float64) {
 	_hgdraw()
@@ -307,6 +332,19 @@ func _hgcirculoRect(r _hgRect, c _hgVec2, radio float64) bool {
 func _hgpuntoRectangulo(p _hgVec2, r _hgRect) bool {
 	return p.X >= r.Pos.X && p.Y >= r.Pos.Y && p.X < r.Pos.X+r.Tamano.X && p.Y < r.Pos.Y+r.Tamano.Y
 }
+
+var _hgfuenteGo *_hgFuente
+
+func _hgfuentePredeterminada() *_hgFuente {
+	if _hgfuenteGo == nil {
+		f, err := text.NewGoTextFaceSource(bytes.NewReader(goregular.TTF))
+		if err != nil {
+			log.Fatalf("fuente predeterminada: %v", err)
+		}
+		_hgfuenteGo = &_hgFuente{f}
+	}
+	return _hgfuenteGo
+}
 func (v _hgVec2) Longitud() float64                   { return _hglongitud(v) }
 func (v _hgVec2) Normalizado() _hgVec2                { return _hgnormalizar(v) }
 func (v _hgVec2) Distancia_a(otro _hgVec2) float64    { return _hgdistancia(v, otro) }
@@ -337,37 +375,52 @@ func _hgcirculoXY(x, y, r float64, c _hgColor) { _hgcirculo(_hgVec2{x, y}, r, c)
 func _hglineaXY(x1, y1, x2, y2 float64, c _hgColor, w float64) {
 	_hglinea(_hgVec2{x1, y1}, _hgVec2{x2, y2}, c, w)
 }
-func _hgimagenXY(img *_hgImagen, x, y float64, o, s _hgVec2, r float64, c _hgColor) {
-	_hgimagen(img, _hgVec2{x, y}, o, s, r, c)
+func _hgimagenXY(img *_hgImagen, x, y float64, o, s _hgVec2, r float64, c, f _hgColor) {
+	_hgimagen(img, _hgVec2{x, y}, o, s, r, c, f)
 }
-func _hgregionXY(img *_hgImagen, region _hgRect, x, y float64, o, s _hgVec2, r float64, c _hgColor) {
-	_hgregion(img, region, _hgVec2{x, y}, o, s, r, c)
+func _hgregionXY(img *_hgImagen, region _hgRect, x, y float64, o, s _hgVec2, r float64, c, f _hgColor) {
+	_hgregion(img, region, _hgVec2{x, y}, o, s, r, c, f)
 }
 func _hgtextoXY(v string, f *_hgFuente, x, y, size float64, c _hgColor, o _hgVec2, r float64) {
 	_hgtexto(v, f, _hgVec2{x, y}, size, c, o, r)
 }
 func _hgtextoDepuracionXY(v string, x, y float64) { _hgtextoDepuracion(v, _hgVec2{x, y}) }
-func _hgimageRect(img *ebiten.Image, d _hgRect, o _hgVec2, r float64, c _hgColor) {
+func _hgimageRect(img *ebiten.Image, d _hgRect, o _hgVec2, r float64, c, f _hgColor) {
 	_hgdraw()
 	bounds := img.Bounds()
 	if bounds.Empty() {
 		return
 	}
-	op := &ebiten.DrawImageOptions{}
-	op.GeoM = _hgtransform(d.Pos, o, _hgVec2{d.Tamano.X / float64(bounds.Dx()), d.Tamano.Y / float64(bounds.Dy())}, r, true)
-	op.ColorScale.ScaleWithColor(c)
-	_hgscreen.DrawImage(img, op)
+	_hgpintarImagen(img, _hgtransform(d.Pos, o, _hgVec2{d.Tamano.X / float64(bounds.Dx()), d.Tamano.Y / float64(bounds.Dy())}, r, true), c, f)
 }
-func _hgimagenRect(img *_hgImagen, d _hgRect, o _hgVec2, r float64, c _hgColor) {
-	_hgimageRect(img.gpu(), d, o, r, c)
+func _hgimagenRect(img *_hgImagen, d _hgRect, o _hgVec2, r float64, c, f _hgColor) {
+	_hgimageRect(img.gpu(), d, o, r, c, f)
 }
-func _hgregionRect(img *_hgImagen, source, d _hgRect, o _hgVec2, r float64, c _hgColor) {
+func _hgregionRect(img *_hgImagen, source, d _hgRect, o _hgVec2, r float64, c, f _hgColor) {
 	_hgdraw()
 	area := image.Rect(int(source.Pos.X), int(source.Pos.Y), int(source.Pos.X+source.Tamano.X), int(source.Pos.Y+source.Tamano.Y))
 	if area.Empty() {
 		return
 	}
-	_hgimageRect(img.gpu().SubImage(area).(*ebiten.Image), d, o, r, c)
+	_hgimageRect(img.gpu().SubImage(area).(*ebiten.Image), d, o, r, c, f)
+}
+
+var _hgsinRecorte *ebiten.Image
+
+func _hgrecortar(r _hgRect) {
+	_hgdraw()
+	if _hgsinRecorte == nil {
+		_hgsinRecorte = _hgscreen
+	}
+	area := image.Rect(int(math.Floor(r.Pos.X)), int(math.Floor(r.Pos.Y)), int(math.Ceil(r.Pos.X+r.Tamano.X)), int(math.Ceil(r.Pos.Y+r.Tamano.Y))).Intersect(_hgsinRecorte.Bounds())
+	_hgscreen = _hgsinRecorte.SubImage(area).(*ebiten.Image)
+}
+func _hgquitarRecorte() {
+	_hgdraw()
+	if _hgsinRecorte != nil {
+		_hgscreen = _hgsinRecorte
+		_hgsinRecorte = nil
+	}
 }
 func _hgtransform(p, o, s _hgVec2, r float64, destinationOrigin bool) ebiten.GeoM {
 	var m ebiten.GeoM
@@ -482,6 +535,8 @@ func _hgcapturar(screen *ebiten.Image) {
 	_hgcapturaHecha = true
 }
 
+var _hgazarGen = rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64()))
+
 type _hgHoja struct {
 	img                *_hgImagen
 	cw, ch, cols, rows int64
@@ -500,7 +555,7 @@ func _hghoja(img *_hgImagen, cw, ch int64) *_hgHoja {
 }
 func _hgcuadros(h *_hgHoja) int64        { return h.cols * h.rows }
 func _hgtamanoCuadro(h *_hgHoja) _hgVec2 { return _hgVec2{float64(h.cw), float64(h.ch)} }
-func _hgcuadro(h *_hgHoja, i int64, p, o, s _hgVec2, r float64, c _hgColor, espejoH, espejoV bool) {
+func _hgcuadro(h *_hgHoja, i int64, p, o, s _hgVec2, r float64, c _hgColor, espejoH, espejoV bool, f _hgColor) {
 	if i < 0 || i >= h.cols*h.rows {
 		return
 	}
@@ -513,10 +568,60 @@ func _hgcuadro(h *_hgHoja, i int64, p, o, s _hgVec2, r float64, c _hgColor, espe
 		o.Y = float64(h.ch) - o.Y
 	}
 	src := _hgRect{_hgVec2{float64((i % h.cols) * h.cw), float64((i / h.cols) * h.ch)}, _hgVec2{float64(h.cw), float64(h.ch)}}
-	_hgregion(h.img, src, p, o, s, r, c)
+	_hgregion(h.img, src, p, o, s, r, c, f)
 }
-func _hgcuadroXY(h *_hgHoja, i int64, x, y float64, o, s _hgVec2, r float64, c _hgColor, espejoH, espejoV bool) {
-	_hgcuadro(h, i, _hgVec2{x, y}, o, s, r, c, espejoH, espejoV)
+func _hgcuadroXY(h *_hgHoja, i int64, x, y float64, o, s _hgVec2, r float64, c _hgColor, espejoH, espejoV bool, f _hgColor) {
+	_hgcuadro(h, i, _hgVec2{x, y}, o, s, r, c, espejoH, espejoV, f)
+}
+func (c _hgCamara2D) zoom() float64 {
+	if !(c.Zoom > 0) || math.IsInf(c.Zoom, 0) {
+		panic("zoom debe ser positivo y finito")
+	}
+	return c.Zoom
+}
+func (c _hgCamara2D) A_mundo(p _hgVec2) _hgVec2 {
+	return _hgadd(_hgrotar(_hgscale(_hgsub(p, c.Origen), 1/c.zoom()), c.Rotacion), c.Pos)
+}
+func (c _hgCamara2D) A_pantalla(p _hgVec2) _hgVec2 {
+	return _hgadd(_hgscale(_hgrotar(_hgsub(p, c.Pos), -c.Rotacion), c.zoom()), c.Origen)
+}
+func (c _hgCamara2D) Siguiendo(objetivo _hgVec2, suavizado float64) _hgCamara2D {
+	if math.IsNaN(suavizado) {
+		panic("suavizado inválido")
+	}
+	c.Pos = _hgadd(c.Pos, _hgscale(_hgsub(objetivo, c.Pos), _hglimitar(suavizado, 0, 1)))
+	return c
+}
+func (c _hgCamara2D) Visible() _hgRect {
+	s := _hgtamano()
+	x0, y0, x1, y1 := math.Inf(1), math.Inf(1), math.Inf(-1), math.Inf(-1)
+	for _, q := range []_hgVec2{{0, 0}, {s.X, 0}, {0, s.Y}, {s.X, s.Y}} {
+		p := c.A_mundo(q)
+		x0, y0, x1, y1 = math.Min(x0, p.X), math.Min(y0, p.Y), math.Max(x1, p.X), math.Max(y1, p.Y)
+	}
+	return _hgRect{_hgVec2{x0, y0}, _hgVec2{x1 - x0, y1 - y0}}
+}
+func (c _hgCamara2D) Limitada(mundo _hgRect) _hgCamara2D {
+	z, s := c.zoom(), _hgtamano()
+	eje := func(pos, origen, pantalla, inicio, largo float64) float64 {
+		ancho := pantalla / z
+		izq := pos - origen/z
+		if ancho >= largo {
+			izq = inicio + (largo-ancho)/2
+		} else {
+			izq = _hglimitar(izq, inicio, inicio+largo-ancho)
+		}
+		return izq + origen/z
+	}
+	c.Pos = _hgVec2{eje(c.Pos.X, c.Origen.X, s.X, mundo.Pos.X, mundo.Tamano.X), eje(c.Pos.Y, c.Origen.Y, s.Y, mundo.Pos.Y, mundo.Tamano.Y)}
+	return c
+}
+func (c _hgCamara2D) Sacudida(intensidad float64) _hgCamara2D {
+	if !(intensidad > 0) || math.IsInf(intensidad, 0) {
+		return c
+	}
+	c.Pos = _hgadd(c.Pos, _hgVec2{_hgazarReal(-intensidad, intensidad), _hgazarReal(-intensidad, intensidad)})
+	return c
 }
 func _hgescribirPNG(src image.Image, ruta string, escala int64) error {
 	if escala <= 0 || escala > 64 {
@@ -582,6 +687,12 @@ func Fragment(dst vec4, src vec2, color vec4) vec4 {
 }
 `
 
+func (_hgCamara2D) _cometa_public_A_mundo()      {}
+func (_hgCamara2D) _cometa_public_A_pantalla()   {}
+func (_hgCamara2D) _cometa_public_Limitada()     {}
+func (_hgCamara2D) _cometa_public_Sacudida()     {}
+func (_hgCamara2D) _cometa_public_Siguiendo()    {}
+func (_hgCamara2D) _cometa_public_Visible()      {}
 func (_hgRect) _cometa_public_Centro()           {}
 func (_hgRect) _cometa_public_Colision_circulo() {}
 func (_hgRect) _cometa_public_Contiene()         {}
