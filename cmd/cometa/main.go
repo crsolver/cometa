@@ -55,10 +55,11 @@ func run(args []string) error {
 		return lspserver.Run(context.Background())
 	}
 	if len(args) == 0 || (args[0] != "compilar" && args[0] != "ejecutar" && args[0] != "construir" && args[0] != "captura") {
-		return fmt.Errorf("uso: cometa <comando> ...\n  nuevo     <nombre> [--juego] [--sin-agentes]  crea un proyecto de ejemplo (consola o juego)\n  ejecutar <archivo.cometa>              compila y ejecuta el programa\n  construir <archivo.cometa> [-o salida]  genera un ejecutable\n  compilar  <archivo.cometa> [-o salida.go]  genera el código Go\n  captura   <archivo.cometa> [-o captura.png] [--cuadros N] [--escala N]\n  probar    <pruebas.cometa> [--json] [--tiempo S] [--filtro x]  ejecuta las funciones prueba_*\n  biblioteca <std/módulo>                 muestra las declaraciones de un módulo estándar\n  lsp                                     servidor de lenguaje para editores\n  --version                               muestra la versión")
+		return fmt.Errorf("uso: cometa <comando> ...\n  nuevo     <nombre> [--juego] [--sin-agentes]  crea un proyecto de ejemplo (consola o juego)\n  ejecutar <archivo.cometa>              compila y ejecuta el programa\n  construir <archivo.cometa> [-o salida]  genera un ejecutable\n  compilar  <archivo.cometa> [-o salida.go]  genera el código Go\n  captura   <archivo.cometa> [-o captura.png] [--cuadros N,M,...] [--escala N] [--entrada guion.txt]\n  probar    <pruebas.cometa> [--json] [--tiempo S] [--filtro x]  ejecuta las funciones prueba_*\n  biblioteca <std/módulo>                 muestra las declaraciones de un módulo estándar\n  lsp                                     servidor de lenguaje para editores\n  --version                               muestra la versión")
 	}
-	var input, output string
-	frames, scale := 1, 1
+	var input, output, script string
+	var frames []int
+	scale := 1
 	for index := 1; index < len(args); index++ {
 		switch args[index] {
 		case "-o":
@@ -67,20 +68,26 @@ func run(args []string) error {
 				return fmt.Errorf("uso: cometa compilar <archivo.cometa> [-o <archivo.go>]")
 			}
 			output = args[index]
-		case "--cuadros", "--escala":
+		case "--cuadros", "--escala", "--entrada":
 			flag := args[index]
 			index++
-			value := 0
-			if args[0] == "captura" && index < len(args) {
-				value, _ = strconv.Atoi(args[index])
+			if args[0] != "captura" || index >= len(args) {
+				return errCaptureUsage
 			}
-			if value <= 0 || (flag == "--escala" && value > 64) {
-				return fmt.Errorf("uso: cometa captura <archivo.cometa> [-o captura.png] [--cuadros N] [--escala 1-64]")
-			}
-			if flag == "--cuadros" {
-				frames = value
-			} else {
+			switch flag {
+			case "--cuadros":
+				var err error
+				if frames, err = parseFrames(args[index]); err != nil {
+					return err
+				}
+			case "--escala":
+				value, _ := strconv.Atoi(args[index])
+				if value <= 0 || value > 64 {
+					return errCaptureUsage
+				}
 				scale = value
+			default:
+				script = args[index]
 			}
 		default:
 			if strings.HasPrefix(args[index], "-") || input != "" {
@@ -110,6 +117,13 @@ func run(args []string) error {
 			}
 		}
 	}
+	var events []scriptEvent
+	if script != "" {
+		var err error
+		if events, err = readScript(script); err != nil {
+			return err
+		}
+	}
 	compile := compiler.CompileProject
 	if args[0] != "compilar" {
 		compile = compiler.CompileProjectForRun
@@ -119,7 +133,7 @@ func run(args []string) error {
 		return err
 	}
 	if args[0] == "captura" {
-		return captureProgram(generated, output, frames, scale)
+		return captureProgram(generated, output, frames, scale, events)
 	}
 	if args[0] != "compilar" {
 		return buildProgram(generated, output, args[0] == "ejecutar")

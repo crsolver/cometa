@@ -62,4 +62,26 @@ cometa captura juego.cometa -o juego.png --escala 4 --cuadros 30
 
 `cometa captura` ejecuta el juego con la ventana oculta, guarda la pantalla lógica tras `--cuadros` actualizaciones (1 por defecto) y cierra el juego. `--escala` amplía el PNG sin suavizado. Sin `-o`, escribe `<archivo>.png` junto a la fuente. Requiere que el programa llame a `pincel.ejecutar`; la captura ocurre antes del efecto `retro`.
 
+Con varios cuadros separados por comas (`--cuadros 100,300,900`) se toman todas las capturas en una sola ejecución y se guardan como `juego_100.png`, `juego_300.png`, etc.
+
+### Simular la entrada
+
+Para llegar a otra sala, a un jefe o a la pantalla final sin tocar el código del juego, `--entrada` lee un guion de teclas por cuadro:
+
+```console
+cometa captura juego.cometa --entrada guion.txt --cuadros 100,300
+```
+
+```text
+# cuadro  acciones
+60  +D              mantiene D desde el cuadro 60
+90  -D              la suelta
+100 Enter           la pulsa durante un cuadro
+120 raton 160 90    mueve el ratón (píxeles de la pantalla lógica)
+121 RatonIzquierdo  clic
+150 +D +Espacio     varias acciones en la misma línea
+```
+
+Las teclas usan los nombres de `entrada.Tecla` (`D`, `Enter`, `Izquierda`, `Espacio`…) y los botones del ratón llevan delante `Raton` (`RatonIzquierdo`, `RatonDerecho`, `RatonMedio`). Mientras corre el guion, el teclado y el ratón reales se ignoran, así que la ejecución es siempre la misma; `std/pincel/ui` también responde al guion, salvo la escritura de texto. Sin `--cuadros`, la captura se toma un cuadro después de la última acción.
+
 Consulta [el ejemplo de sprites](../examples/pincel/07_sprites.cometa): un personaje de dos cuadros dibujado con texto y animado al caminar.

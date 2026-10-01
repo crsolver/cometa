@@ -135,24 +135,3 @@ func goBuild(dir string, source []byte, extra map[string]string, output string) 
 	}
 	return nil
 }
-
-// Capture runs the game with a hidden window and saves its logical screen.
-func captureProgram(source []byte, output string, frames, scale int) error {
-	if !strings.Contains(string(source), "func _hgcapturar(") {
-		return fmt.Errorf("captura requiere un juego iniciado con pincel.ejecutar")
-	}
-	output, err := filepath.Abs(output)
-	if err != nil {
-		return err
-	}
-	os.Remove(output)
-	source = append(source, fmt.Sprintf("\nfunc init() { _hgcapturaRuta = %q; _hgcapturaCuadros = %d; _hgcapturaEscala = %d }\n", output, frames, scale)...)
-	if err = buildProgram(source, "", true); err != nil {
-		return err
-	}
-	if _, err = os.Stat(output); err != nil {
-		return fmt.Errorf("el juego terminó antes de capturar %d cuadros", frames)
-	}
-	fmt.Println("captura guardada en", output)
-	return nil
-}

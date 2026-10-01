@@ -151,7 +151,7 @@ func TestHuertoRenderingRuntime(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := filepath.Join(t.TempDir(), "huerto.png")
-	source := string(generated) + fmt.Sprintf("\nfunc init() { _hgcapturaRuta = %q; _hgcapturaCuadros = 20; _hgcapturaEscala = 1 }\n", out)
+	source := string(generated) + fmt.Sprintf("\nfunc init() { _hgcapturaRutas = []string{%q}; _hgcapturaCuadros = []uint64{20}; _hgcapturaEscala = 1 }\n", out)
 	runGeneratedGo(t, []byte(source), "")
 	file, err := os.Open(out)
 	if err != nil {

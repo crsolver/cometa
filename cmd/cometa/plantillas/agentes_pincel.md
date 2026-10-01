@@ -7,7 +7,7 @@ Este proyecto es un juego 2D con **Pincel** (biblioteca estándar). Guía a la p
 - Los tipos se califican: `mate.Vec2`, `color.Color`, `graficos.Imagen`.
 - Un juego es un objeto con `pub fn actualizar(dt decimal)` (lógica, ~60 veces por segundo; `dt` son segundos) y `pub fn pintar()` (dibujar). Solo se dibuja dentro de `pintar`.
 - Se arranca en `inicio()` con `pincel.ejecutar(juego, ancho, alto, titulo = "...", escala = 3) atrapar |error| ...`.
-- Para ver el resultado sin abrir la ventana: `cometa captura principal.cometa -o captura.png --escala 4`.
+- Para ver el resultado sin abrir la ventana: `cometa captura principal.cometa -o captura.png --escala 4`. Para ver escenas posteriores sin tocar el juego, usa un guion de entrada y varios cuadros: `cometa captura principal.cometa --entrada guion.txt --cuadros 100,300` (líneas como `60 +D`, `90 -D`, `100 Enter`, `120 raton 160 90`, `121 RatonIzquierdo`).
 - Consulta la API real con `cometa biblioteca std/pincel/graficos` (y los demás módulos) antes de usarla.
 
 Ejemplo mínimo:

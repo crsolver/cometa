@@ -48,11 +48,11 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 - **Problema:** no hay punto de partida para un juego con varios archivos (el ejemplo `12_escenas` muestra las escenas, pero no hay plantilla).
 - **Posible solución:** más plantillas (`--plantilla plataformas`, `menu`) cuando existan esos ejemplos.
 
-### `cometa captura` no puede simular entrada ni avanzar por escenas
+### El guion de `cometa captura --entrada` no escribe texto ni usa mandos
 
-- **Observado:** para revisar un juego en salas, jefes o pantallas de fin hubo que meter en el propio juego un «bot» temporal (constante de prueba + entrada automática) y capturar tras N cuadros.
-- **Problema:** probar visualmente un juego con varias escenas obliga a modificar el código del juego; ya está anotado que `cometa probar` no tiene pruebas visuales.
-- **Posible solución:** `cometa captura --entrada guion.txt` con teclas por cuadro (`60 +D`, `90 -D`, `100 Enter`) o `--cuadros 100,300,900` para varias capturas en una sola ejecución.
+- **Observado:** el guion simula teclas, botones y posición del ratón, pero no la escritura de caracteres (`ui.campo_texto` recibe texto vacío) ni los mandos, y la rueda siempre vale cero.
+- **Problema:** no se puede capturar un formulario rellenado ni un juego que solo se controle con mando.
+- **Posible solución:** acciones `texto "hola"`, `rueda 0 -1` y `+MandoA`/`eje IzquierdoX 1` en el guion, leídas por los ayudantes de `entrada` igual que las teclas.
 
 ## Biblioteca estándar
 

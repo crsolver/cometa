@@ -77,7 +77,12 @@ func (g *_hgGame) Update() error {
 	if _hgcapturaHecha {
 		return ebiten.Termination
 	}
+
+	if len(_hgcapturaRutas) > 0 && _hgtick >= _hgcapturaCuadros[0] {
+		return nil
+	}
 	_hgtick++
+	_hgavanzarGuion()
 	_hgupdating = true
 	defer func() { _hgupdating = false }()
 	g.instancia.Actualizar(1 / float64(_hgconfig.Tps))
@@ -475,7 +480,7 @@ func _hgejecutar(instancia _hgJuego, w, h int64, title string, scale float64, re
 	}
 	ebiten.SetTPS(int(tps))
 	ebiten.SetScreenFilterEnabled(!(pixelado || retro))
-	if _hgcapturaRuta != "" {
+	if len(_hgcapturaRutas) > 0 {
 		ebiten.SetWindowVisible(false)
 		ebiten.SetRunnableOnUnfocused(true)
 	}
@@ -516,23 +521,74 @@ func _hgpremultiplicar(pix []byte) []byte {
 	return out
 }
 
-var _hgcapturaRuta string
-var _hgcapturaCuadros uint64 = 1
+var _hgcapturaRutas []string
+var _hgcapturaCuadros []uint64
 var _hgcapturaEscala int64 = 1
 var _hgcapturaHecha bool
 
 func _hgcapturar(screen *ebiten.Image) {
-	if _hgcapturaRuta == "" || _hgcapturaHecha || _hgtick < _hgcapturaCuadros {
+	if len(_hgcapturaRutas) == 0 || _hgtick < _hgcapturaCuadros[0] {
 		return
 	}
 	b := screen.Bounds()
 	pix := make([]byte, 4*b.Dx()*b.Dy())
 	screen.ReadPixels(pix)
 	shot := &image.RGBA{Pix: pix, Stride: 4 * b.Dx(), Rect: image.Rect(0, 0, b.Dx(), b.Dy())}
-	if err := _hgescribirPNG(shot, _hgcapturaRuta, _hgcapturaEscala); err != nil {
+	if err := _hgescribirPNG(shot, _hgcapturaRutas[0], _hgcapturaEscala); err != nil {
 		log.Fatalf("captura: %v", err)
 	}
-	_hgcapturaHecha = true
+	_hgcapturaRutas = _hgcapturaRutas[1:]
+	_hgcapturaCuadros = _hgcapturaCuadros[1:]
+	_hgcapturaHecha = len(_hgcapturaRutas) == 0
+}
+
+type _hgEventoGuion struct {
+	cuadro uint64
+	tipo   byte
+	codigo int
+	x, y   float64
+}
+
+const (
+	_hgguionMantener byte = iota
+	_hgguionSoltar
+	_hgguionPulsar
+	_hgguionMover
+)
+
+var _hgguion []_hgEventoGuion
+var _hgguionActivo bool
+var _hgsimAhora, _hgsimAntes = map[int]bool{}, map[int]bool{}
+var _hgsimSoltar []int
+var _hgsimCursor _hgVec2
+
+func _hgavanzarGuion() {
+	if !_hgguionActivo {
+		return
+	}
+	_hgsimAntes = map[int]bool{}
+	for c, v := range _hgsimAhora {
+		_hgsimAntes[c] = v
+	}
+	for _, c := range _hgsimSoltar {
+		delete(_hgsimAhora, c)
+	}
+	_hgsimSoltar = nil
+	for len(_hgguion) > 0 && _hgguion[0].cuadro <= _hgtick {
+		e := _hgguion[0]
+		_hgguion = _hgguion[1:]
+		switch e.tipo {
+		case _hgguionMantener:
+			_hgsimAhora[e.codigo] = true
+		case _hgguionSoltar:
+			delete(_hgsimAhora, e.codigo)
+		case _hgguionPulsar:
+			_hgsimAhora[e.codigo] = true
+			_hgsimSoltar = append(_hgsimSoltar, e.codigo)
+		case _hgguionMover:
+			_hgsimCursor = _hgVec2{e.x, e.y}
+		}
+	}
 }
 
 var _hgazarGen = rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64()))

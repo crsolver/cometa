@@ -27,7 +27,9 @@ var _hgtick uint64
 
 func (g *_hgGame) Update() error {
  if _hgcapturaHecha {return ebiten.Termination}
- _hgtick++; _hgupdating=true; defer func(){_hgupdating=false}()
+ // Wait for Draw to take a pending shot, so it shows exactly that tick.
+ if len(_hgcapturaRutas)>0 && _hgtick>=_hgcapturaCuadros[0] {return nil}
+ _hgtick++; _hgavanzarGuion(); _hgupdating=true; defer func(){_hgupdating=false}()
  g.instancia.Actualizar(1/float64(_hgconfig.Tps))
  if _hgsalirPedido {return ebiten.Termination}
  for r := range _hgplayers { if !r.paused && !r.player.IsPlaying() { r.player.Close(); r.player=nil; delete(_hgplayers,r) } }
@@ -110,14 +112,14 @@ func _hgtextoDepuracion(value string,p _hgVec2){_hgdraw();ebitenutil.DebugPrintA
 func _hgtamano() _hgVec2{return _hgVec2{float64(_hgconfig.Ancho),float64(_hgconfig.Alto)}}
 func _hgusarCamara(c _hgCamara2D){_hgdraw();if c.Zoom<=0||math.IsNaN(c.Zoom)||math.IsInf(c.Zoom,0){panic("zoom debe ser positivo y finito")};_hgcamara=c}
 func _hgrestablecerCamara(){_hgdraw();_hgcamara=_hgCamara2D{Zoom:1}}
-func _hgteclaMantenida(k _hgTecla) bool{return ebiten.IsKeyPressed(ebiten.Key(k))}
-func _hgteclaPresionada(k _hgTecla) bool{return inpututil.IsKeyJustPressed(ebiten.Key(k))}
-func _hgteclaSoltada(k _hgTecla) bool{return inpututil.IsKeyJustReleased(ebiten.Key(k))}
-func _hgratonMantenido(k _hgBotonRaton) bool{return ebiten.IsMouseButtonPressed(ebiten.MouseButton(k))}
-func _hgratonPresionado(k _hgBotonRaton) bool{return inpututil.IsMouseButtonJustPressed(ebiten.MouseButton(k))}
-func _hgratonSoltado(k _hgBotonRaton) bool{return inpututil.IsMouseButtonJustReleased(ebiten.MouseButton(k))}
-func _hgposicionRaton() _hgVec2{x,y:=ebiten.CursorPosition();return _hgVec2{float64(x),float64(y)}}
-func _hgrueda() _hgVec2{x,y:=ebiten.Wheel();return _hgVec2{x,y}}
+func _hgteclaMantenida(k _hgTecla) bool{if _hgguionActivo{return _hgsimMantenida(int(k))};return ebiten.IsKeyPressed(ebiten.Key(k))}
+func _hgteclaPresionada(k _hgTecla) bool{if _hgguionActivo{return _hgsimPresionada(int(k))};return inpututil.IsKeyJustPressed(ebiten.Key(k))}
+func _hgteclaSoltada(k _hgTecla) bool{if _hgguionActivo{return _hgsimSoltada(int(k))};return inpututil.IsKeyJustReleased(ebiten.Key(k))}
+func _hgratonMantenido(k _hgBotonRaton) bool{if _hgguionActivo{return _hgsimMantenida(-1-int(k))};return ebiten.IsMouseButtonPressed(ebiten.MouseButton(k))}
+func _hgratonPresionado(k _hgBotonRaton) bool{if _hgguionActivo{return _hgsimPresionada(-1-int(k))};return inpututil.IsMouseButtonJustPressed(ebiten.MouseButton(k))}
+func _hgratonSoltado(k _hgBotonRaton) bool{if _hgguionActivo{return _hgsimSoltada(-1-int(k))};return inpututil.IsMouseButtonJustReleased(ebiten.MouseButton(k))}
+func _hgposicionRaton() _hgVec2{if _hgguionActivo{return _hgsimCursor};x,y:=ebiten.CursorPosition();return _hgVec2{float64(x),float64(y)}}
+func _hgrueda() _hgVec2{if _hgguionActivo{return _hgVec2{}};x,y:=ebiten.Wheel();return _hgVec2{x,y}}
 func _hgreproducir(sound *_hgSonido,volume float64,loop bool) *_hgReproduccion{r:=&_hgReproduccion{sound:sound,loop:loop,volume:_hglimitar(volume,0,1)};_hgreanudar(r);return r}
 func _hgpausar(r *_hgReproduccion){if r.player!=nil{r.player.Pause();r.paused=true}}
 func _hgreanudar(r *_hgReproduccion){
@@ -238,7 +240,7 @@ func _hgejecutar(instancia _hgJuego,w,h int64,title string,scale float64,resize,
  if resize {ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)}
  ebiten.SetTPS(int(tps))
  ebiten.SetScreenFilterEnabled(!(pixelado||retro))
- if _hgcapturaRuta!="" {ebiten.SetWindowVisible(false);ebiten.SetRunnableOnUnfocused(true)}
+ if len(_hgcapturaRutas)>0 {ebiten.SetWindowVisible(false);ebiten.SetRunnableOnUnfocused(true)}
  if err:=ebiten.RunGame(game);err!=nil{return fail(err)}
  return struct{tag int;payload2 string}{1,""}
 }
@@ -260,15 +262,46 @@ func _hgnrgba(src image.Image) *image.NRGBA {
  return out
 }
 
-// Set by `cometa captura`; saves the logical screen after the requested ticks.
-var _hgcapturaRuta string
-var _hgcapturaCuadros uint64 = 1
+// Set by `cometa captura`; saves the logical screen once each requested tick
+// (ascending, paired with its path) has run, then ends the game.
+var _hgcapturaRutas []string
+var _hgcapturaCuadros []uint64
 var _hgcapturaEscala int64 = 1
 var _hgcapturaHecha bool
 func _hgcapturar(screen *ebiten.Image) {
- if _hgcapturaRuta=="" || _hgcapturaHecha || _hgtick<_hgcapturaCuadros {return}
+ if len(_hgcapturaRutas)==0 || _hgtick<_hgcapturaCuadros[0] {return}
  b:=screen.Bounds();pix:=make([]byte,4*b.Dx()*b.Dy());screen.ReadPixels(pix)
  shot:=&image.RGBA{Pix:pix,Stride:4*b.Dx(),Rect:image.Rect(0,0,b.Dx(),b.Dy())}
- if err:=_hgescribirPNG(shot,_hgcapturaRuta,_hgcapturaEscala);err!=nil{log.Fatalf("captura: %v",err)}
- _hgcapturaHecha=true
+ if err:=_hgescribirPNG(shot,_hgcapturaRutas[0],_hgcapturaEscala);err!=nil{log.Fatalf("captura: %v",err)}
+ _hgcapturaRutas=_hgcapturaRutas[1:];_hgcapturaCuadros=_hgcapturaCuadros[1:]
+ _hgcapturaHecha=len(_hgcapturaRutas)==0
 }
+
+// Set by `cometa captura --entrada`: scripted input replaces the real devices.
+// Codes are int(ebiten.Key) for keys and -1-int(ebiten.MouseButton) for mouse
+// buttons. Events (sorted by tick) apply at the start of their tick; a tap is
+// released on the next one.
+type _hgEventoGuion struct { cuadro uint64; tipo byte; codigo int; x, y float64 }
+const (_hgguionMantener byte = iota; _hgguionSoltar; _hgguionPulsar; _hgguionMover)
+var _hgguion []_hgEventoGuion
+var _hgguionActivo bool
+var _hgsimAhora, _hgsimAntes = map[int]bool{}, map[int]bool{}
+var _hgsimSoltar []int
+var _hgsimCursor _hgVec2
+func _hgavanzarGuion() {
+ if !_hgguionActivo {return}
+ _hgsimAntes=map[int]bool{};for c,v:=range _hgsimAhora{_hgsimAntes[c]=v}
+ for _,c:=range _hgsimSoltar{delete(_hgsimAhora,c)};_hgsimSoltar=nil
+ for len(_hgguion)>0 && _hgguion[0].cuadro<=_hgtick {
+  e:=_hgguion[0];_hgguion=_hgguion[1:]
+  switch e.tipo {
+  case _hgguionMantener: _hgsimAhora[e.codigo]=true
+  case _hgguionSoltar: delete(_hgsimAhora,e.codigo)
+  case _hgguionPulsar: _hgsimAhora[e.codigo]=true;_hgsimSoltar=append(_hgsimSoltar,e.codigo)
+  case _hgguionMover: _hgsimCursor=_hgVec2{e.x,e.y}
+  }
+ }
+}
+func _hgsimMantenida(c int) bool {return _hgsimAhora[c]}
+func _hgsimPresionada(c int) bool {return _hgsimAhora[c]&&!_hgsimAntes[c]}
+func _hgsimSoltada(c int) bool {return !_hgsimAhora[c]&&_hgsimAntes[c]}
