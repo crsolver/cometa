@@ -1,0 +1,35 @@
+// Leer lo que escribe la persona: un juego de adivinar el número.
+// std/consola lee la entrada estándar línea a línea.
+usar std/azar
+usar std/consola
+
+fn inicio()
+	var secreto = azar.entero(1, 101)
+	var intentos = 0
+
+	// escribir no salta de línea: la respuesta queda junto a la pregunta.
+	consola.escribir("¿Cómo te llamas? ")
+	// leer_linea devuelve cadena?: Ninguno si la entrada se acaba.
+	var nombre = consola.leer_linea() o "jugador"
+	imprimir("Hola, ${nombre}. Pensé un número del 1 al 100.")
+
+	mientras verdadero
+		consola.escribir("Tu número: ")
+		si consola.leer_linea() |linea|
+			// a_entero devuelve entero?: Ninguno si el texto no es un número.
+			si linea.recortar().a_entero() |numero|
+				intentos += 1
+				si numero < secreto
+					imprimir("Más alto.")
+				osi numero > secreto
+					imprimir("Más bajo.")
+				sino
+					imprimir("¡Correcto! Lo lograste en ${intentos} intentos.")
+					romper
+			sino
+				imprimir("Eso no es un número entero.")
+		sino
+			// Se cerró la entrada (Ctrl+Z en Windows, Ctrl+D en Linux y macOS).
+			imprimir("")
+			imprimir("Era el ${secreto}. ¡Hasta luego!")
+			romper

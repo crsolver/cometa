@@ -10,7 +10,7 @@ vscode-extension/bin/cometa ejecutar examples/basico/01_hola.cometa
 
 ## Básico
 
-Programas de consola: solo imprimen texto.
+Programas de consola: imprimen texto y, al final, leen lo que escribes.
 
 | Archivo | Aprenderás |
 | --- | --- |
@@ -27,6 +27,7 @@ Programas de consola: solo imprimen texto.
 | [11_interfaces](basico/11_interfaces.cometa) | Interfaces: tipos distintos con el mismo comportamiento |
 | [12_modulos](basico/12_modulos.cometa) | Repartir el código en archivos con `usar` y `pub` |
 | [13_dados](basico/13_dados.cometa) | Programa completo con números aleatorios |
+| [14_entrada](basico/14_entrada.cometa) | Leer lo que escribe la persona con `std/consola` |
 
 ## Pincel: juegos 2D
 

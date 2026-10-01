@@ -6,6 +6,7 @@ package stdlib
 var NamespaceDocs = map[string]string{
 	"mate":     "Funciones matemáticas de uso general: valores absolutos, redondeo, trigonometría y el tipo Vec2/Rect para trabajar con posiciones y áreas.",
 	"azar":     "Números aleatorios simples para juegos: un real o un entero dentro de un rango, y una semilla para que las partidas sean reproducibles.",
+	"consola":  "Entrada y salida de texto para programas de consola: leer línea a línea lo que escribe la persona y escribir sin saltar de línea.",
 	"color":    "El tipo Color y una forma de construir colores propios a partir de sus componentes r, g, b, a.",
 	"graficos": "Dibuja formas, imágenes, hojas de sprites y texto en pantalla, y controla la cámara 2D. Todo lo que ves en pantalla pasa por aquí.",
 	"entrada":  "Lee el teclado, el ratón y los mandos (gamepads): teclas mantenidas, presionadas o soltadas, botones del ratón y su posición, y botones y palancas de los mandos.",
@@ -34,6 +35,10 @@ var FunctionDocs = map[string]string{
 	"pruebas.igual":      "Falla la prueba si esperado y obtenido difieren. Acepta dos enteros, decimales, cadenas o bool del mismo tipo.",
 	"pruebas.casi_igual": "Falla la prueba si esperado y obtenido difieren en más que la tolerancia (útil para decimales).",
 	"pruebas.fallar":     "Falla la prueba de inmediato con el mensaje dado.",
+
+	// consola
+	"consola.leer_linea": "Espera una línea de la entrada estándar y la devuelve sin el salto de línea final. Devuelve Ninguno cuando la entrada se acaba (fin de archivo, Ctrl+Z o Ctrl+D). Para leer un número: (consola.leer_linea() o \"\").recortar().a_entero().",
+	"consola.escribir":   "Escribe el texto sin salto de línea al final, a diferencia de imprimir. Sirve para mostrar una pregunta y leer la respuesta en la misma línea.",
 
 	// ruido
 	"ruido.suave":   "Ruido 2D suave en (x, y), siempre en [0, 1] y reproducible: la misma semilla y coordenadas dan siempre el mismo resultado.",

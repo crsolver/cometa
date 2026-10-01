@@ -53,7 +53,7 @@ cometa biblioteca std/<módulo>        muestra las declaraciones reales de un m�
 - Opcionales y errores: `.Alguno(x)` / `.Ninguno`, `.Ok(x)` / `.Error("mensaje")`. Para extraer: `valor o defecto` (opcionales y resultados), `si opcional |x|`, `resultado atrapar |e|` (maneja el error; siempre con `|e|` si hay valor), `intentar resultado`.
 - `interfaz` estructural (implícita), genéricos `<T>` y `<T Interfaz>`.
 - Módulos: `usar std/mate`, `usar ./otro como o`. Cada archivo importa lo que usa.
-- `imprimir(valor)` escribe en consola.
+- `imprimir(valor)` escribe en consola. Para leer lo que escribe la persona: `usar std/consola` y `consola.leer_linea()` (`cadena?`, `Ninguno` al acabarse la entrada); `consola.escribir(texto)` escribe sin salto de línea.
 
 Errores frecuentes: usar espacios en vez de tabuladores; escribir `while`, `if`, `print`, `else` o `for` en lugar de `mientras`, `si`, `imprimir`, `sino`, `repetir`; olvidar `@` al usar un campo dentro de un método; usar un resultado `T!` sin extraerlo.
 

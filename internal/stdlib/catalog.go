@@ -83,6 +83,8 @@ var Functions = []Function{
 	{"azar", "real", "minimo decimal, maximo decimal) decimal", "azarReal", false, false},
 	{"azar", "entero", "minimo entero, maximo entero) entero", "azarEntero", false, false},
 	{"azar", "semilla", "valor entero)", "azarSemilla", false, false},
+	{"consola", "leer_linea", ") cadena?", "consolaLeerLinea", false, false},
+	{"consola", "escribir", "texto cadena)", "consolaEscribir", false, false},
 	{"datos", "guardar", "clave cadena, valor cadena) !", "datosGuardar", false, false},
 	{"datos", "leer", "clave cadena) cadena?", "datosLeer", false, false},
 	{"datos", "borrar", "clave cadena) !", "datosBorrar", false, false},

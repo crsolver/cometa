@@ -82,12 +82,6 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 
 ## Plataforma de ejercicios
 
-### Falta lectura de entrada estándar en programas de consola
-
-- **Observado:** `imprimir` es la única E/S de consola; no hay forma de leer `stdin`.
-- **Problema:** los ejercicios de consola no pueden recibir datos de entrada; hoy solo valen funciones/estructuras y juegos.
-- **Posible solución:** un módulo `std/consola` con `leer_linea() cadena?`.
-
 ### `cometa probar` aún no admite pruebas visuales
 
 - **Observado:** solo hay afirmaciones sobre valores; no hay forma de avanzar un `Juego` N cuadros y comprobar píxeles de la pantalla (ver paso 5 del plan).

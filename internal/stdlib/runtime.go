@@ -25,6 +25,9 @@ var ruidoRuntimeSource string
 //go:embed pruebas_runtime.txt
 var pruebasRuntimeSource string
 
+//go:embed consola_runtime.txt
+var consolaRuntimeSource string
+
 //go:embed crt_runtime.txt
 var crtRuntimeSource string
 
@@ -50,7 +53,7 @@ var dungeonAtlas []byte
 var asciiAtlas []byte
 
 var runtimeImports = map[string]string{
-	"bytes": "bytes", "base64": "encoding/base64", "fmt": "fmt", "image": "image",
+	"bufio": "bufio", "bytes": "bytes", "base64": "encoding/base64", "fmt": "fmt", "image": "image",
 	"color": "image/color", "io": "io", "log": "log", "math": "math", "rand": "math/rand/v2", "strings": "strings",
 	"ebiten": "github.com/hajimehoshi/ebiten/v2", "audio": "github.com/hajimehoshi/ebiten/v2/audio",
 	"mp3": "github.com/hajimehoshi/ebiten/v2/audio/mp3", "vorbis": "github.com/hajimehoshi/ebiten/v2/audio/vorbis",
@@ -67,7 +70,7 @@ func Runtime(modules []string) (string, []string, error) {
 		return "", nil, nil
 	}
 	fs := token.NewFileSet()
-	source := runtimeSource + "\n" + extraRuntimeSource + "\n" + lienzoRuntimeSource + "\n" + crtRuntimeSource + "\n" + curvasRuntimeSource + "\n" + ruidoRuntimeSource + "\n" + pruebasRuntimeSource
+	source := runtimeSource + "\n" + extraRuntimeSource + "\n" + lienzoRuntimeSource + "\n" + crtRuntimeSource + "\n" + curvasRuntimeSource + "\n" + ruidoRuntimeSource + "\n" + pruebasRuntimeSource + "\n" + consolaRuntimeSource
 	for _, module := range modules {
 		if module == "std/pincel/ui" { source += "\n" + uiCoreSource + "\n" + uiRuntimeSource; break }
 	}
