@@ -259,7 +259,7 @@ func compileFailure(err error, base string) testReport {
 			if file == "" {
 				file = pos.Filename
 			}
-			if abs, e := filepath.Abs(base); e == nil && !strings.HasPrefix(file, "cometa-std:") {
+			if abs, e := compiler.CanonicalPath(base); e == nil && !strings.HasPrefix(file, "cometa-std:") {
 				if rel, e := filepath.Rel(abs, file); e == nil {
 					file = filepath.ToSlash(rel)
 				}

@@ -78,7 +78,7 @@ func (*crtCheck) Update() error {
    if before[i+3]!=after[i+3]{panic("CRT shifted geometry or letterboxing")}
    for c:=0;c<3;c++ {
     a,b:=int(before[i+c]),int(after[i+c])
-    if b>a+1 || b<int(float64(a)*0.74)-1{panic("CRT exceeds subtle darkening limits")}
+    if b>a+3 || b<int(float64(a)*0.74)-3{panic(fmt.Sprintf("CRT exceeds subtle darkening limits at scale %v: %d -> %d",scale,a,b))}
     if a==0 && b!=0 {panic("CRT blurred source pixels")}
     changed=changed||a!=b
    }

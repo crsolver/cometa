@@ -1,0 +1,2 @@
+# Sources are stored and checked out with LF so golden files match on every OS.
+* text=auto eol=lf

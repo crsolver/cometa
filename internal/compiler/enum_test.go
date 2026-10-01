@@ -1,6 +1,7 @@
 package compiler
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"os/exec"
@@ -34,9 +35,12 @@ func runGeneratedGo(t *testing.T, generated []byte, want string) []byte {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, filepath.Join(runtime.GOROOT(), "bin", goName), "run", file)
-	out, err := cmd.CombinedOutput()
+	// Only stdout is compared: graphics drivers may print warnings to stderr.
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
 	if err != nil {
-		t.Fatalf("generated program failed: %v\n%s\n%s", err, out, generated)
+		t.Fatalf("generated program failed: %v\n%s%s\n%s", err, out, stderr.Bytes(), generated)
 	}
 	if got := strings.ReplaceAll(string(out), "\r\n", "\n"); got != want {
 		t.Fatalf("output = %q, want %q\n%s", got, want, generated)
