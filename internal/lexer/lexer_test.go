@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"cometa/internal/token"
+	"github.com/crsolver/cometa/internal/token"
 )
 
 func TestRangeAndDecimalTokens(t *testing.T) {
@@ -111,5 +111,15 @@ func TestIgnoresWhitespaceOnBlankAndCommentLines(t *testing.T) {
 	_, err := Lex("bien.cometa", "fn inicio()\n   \n  // comentario\n\timprimir(\"sí\")\n")
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestIgnoresLeadingBOM(t *testing.T) {
+	tokens, err := Lex("bom.cometa", "\ufeffusar std/mate\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tokens[0].Kind != token.Usar || tokens[0].Pos.Column != 1 {
+		t.Fatalf("first token = %v", tokens[0])
 	}
 }

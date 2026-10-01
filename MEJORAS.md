@@ -18,12 +18,6 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 
 ## Herramientas
 
-### El lexer rechaza archivos con BOM UTF-8
-
-- **Observado:** un `.cometa` guardado con BOM (`Set-Content -Encoding utf8` de Windows PowerShell 5.1, algunos editores de Windows) falla en 1:1 con «carácter inesperado '﻿'», y los errores siguientes son confusos (`módulo desconocido "mate"`, porque se pierde el `usar` de la primera línea).
-- **Problema:** el carácter es invisible, así que el mensaje no ayuda a un principiante a entender qué pasa.
-- **Posible solución:** ignorar un BOM inicial al leer el archivo (en el lexer o en el cargador de fuentes).
-
 ### Los errores en tiempo de ejecución no indican la columna
 
 - **Observado:** un pánico (índice fuera de rango, división entre cero) ahora muestra archivo, línea y el texto de la línea, pero no la columna ni qué expresión falló.

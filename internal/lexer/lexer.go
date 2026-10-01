@@ -5,9 +5,9 @@ import (
 	"strings"
 	"unicode"
 
-	"cometa/internal/ast"
-	"cometa/internal/diagnostic"
-	"cometa/internal/token"
+	"github.com/crsolver/cometa/internal/ast"
+	"github.com/crsolver/cometa/internal/diagnostic"
+	"github.com/crsolver/cometa/internal/token"
 )
 
 type Error struct {
@@ -41,6 +41,8 @@ var keywords = map[string]token.Kind{
 // Lex converts source text into tokens, including Python-style INDENT and DEDENT
 // markers. Tabs are the only permitted indentation characters.
 func Lex(filename, source string) ([]token.Token, error) {
+	// Some Windows editors and PowerShell save UTF-8 files with a BOM.
+	source = strings.TrimPrefix(source, "\ufeff")
 	source = strings.ReplaceAll(source, "\r\n", "\n")
 	source = strings.ReplaceAll(source, "\r", "\n")
 	lines := strings.Split(source, "\n")

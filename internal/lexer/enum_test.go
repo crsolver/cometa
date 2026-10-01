@@ -1,7 +1,7 @@
 package lexer
 
 import (
-	"cometa/internal/token"
+	"github.com/crsolver/cometa/internal/token"
 	"testing"
 )
 
