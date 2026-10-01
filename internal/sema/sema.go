@@ -1740,6 +1740,16 @@ func (c *checker) checkCall(call *ast.CallExpr) (Type, error) {
 		if !exists {
 			return Type{}, c.fail(callee.Pos, "el método %q no existe en %s%s", callee.Name, objectType.Name, diagnostic.Hint(callee.Name, sortedKeys(c.model.Members(objectType))))
 		}
+		// Catalog methods receive their defaults at the call site, like library functions.
+		if NativeMethod(signature.Decl) {
+			for i, p := range signature.Decl.Params {
+				if p.Default != nil {
+					if _, err := c.checkExprExpected(p.Default, &signature.Params[i]); err != nil {
+						return Type{}, err
+					}
+				}
+			}
+		}
 	default:
 		return Type{}, c.fail(call.Pos, "solo se pueden llamar funciones o métodos del receptor")
 	}

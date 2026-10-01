@@ -339,8 +339,7 @@ rejilla.Rejilla.obtener(x entero, y entero) entero?
 rejilla.Rejilla.poner(x entero, y entero, valor entero) bool
 rejilla.Rejilla.rellenar(valor entero)
 rejilla.Rejilla.choca(area mate.Rect, tamano_celda mate.Vec2, solidos [entero]) bool
-rejilla.Rejilla.mover(area mate.Rect, tamano_celda mate.Vec2, delta mate.Vec2, solidos [entero]) mate.Vec2
-rejilla.Rejilla.mover_con_plataformas(area mate.Rect, tamano_celda mate.Vec2, delta mate.Vec2, solidos [entero], plataformas [entero]) mate.Vec2
+rejilla.Rejilla.mover(area mate.Rect, tamano_celda mate.Vec2, delta mate.Vec2, solidos [entero], plataformas [entero] = []) mate.Vec2
 rejilla.Rejilla.celda_en(punto mate.Vec2, tamano_celda mate.Vec2) entero?
 rejilla.Rejilla.valores_en(area mate.Rect, tamano_celda mate.Vec2) [entero]
 
@@ -456,7 +455,7 @@ celda cuyo valor está en `solidos`; lo que queda fuera de la rejilla nunca es s
 (rodéala de paredes si quieres que lo sea).
 `Rejilla.mover(area, tamano_celda, delta, solidos)` desplaza el rectángulo (primero en x y luego en y) y devuelve lo que realmente se movió: se detiene pegado a la pared, así que no queda hueco, y si el resultado de un eje es menor que el pedido, hubo un choque en ese eje (caer y chocar es tocar el suelo). Mantén `delta` menor que una celda por llamada. Ver [el plataformas](../examples/pincel/13_plataformas.cometa). Es un objeto compartido: dos variables pueden apuntar a la misma rejilla.
 La normal del choque se deduce del resultado: si `movido.x` es menor que `delta.x`, la pared está del lado hacia el que te movías (normal `-mate.signo(delta.x)`), y lo mismo en y.
-`Rejilla.mover_con_plataformas(..., plataformas)` añade celdas de un solo sentido: frenan al caer sobre ellas, pero se atraviesan saltando desde abajo o de lado.
+`Rejilla.mover(..., plataformas = [2])` añade celdas de un solo sentido: frenan al caer sobre ellas, pero se atraviesan saltando desde abajo o de lado.
 `Rejilla.valores_en(area, tamano_celda)` lista los valores que toca un rectángulo (por ejemplo una franja de 1 píxel bajo los pies para saber si pisas hielo) y `Rejilla.celda_en(punto, tamano_celda)` da el valor bajo un punto, como el ratón.
 
 Para animar tiles, `rejilla.dibujar` acepta `animaciones`: un mapa de valor de celda a lista de cuadros, que se recorre a `cuadros_por_segundo` (todas las celdas van a la vez):

@@ -186,13 +186,9 @@ func (g *_hgRejilla) Valores_en(area _hgRect,celda _hgVec2) []int64{
  return out
 }
 // Mover slides area by delta (x first, then y) and returns the displacement actually applied: it stops flush against solid cells.
-func (g *_hgRejilla) Mover(area _hgRect,celda,delta _hgVec2,solidos []int64) _hgVec2{
- _hgrejillaCelda("mover",celda)
- return g.Mover_con_plataformas(area,celda,delta,solidos,nil)
-}
 // Platform cells only stop downward movement that starts above their top edge, so they can be crossed from below.
-func (g *_hgRejilla) Mover_con_plataformas(area _hgRect,celda,delta _hgVec2,solidos,plataformas []int64) _hgVec2{
- _hgrejillaCelda("mover_con_plataformas",celda)
+func (g *_hgRejilla) Mover(area _hgRect,celda,delta _hgVec2,solidos,plataformas []int64) _hgVec2{
+ _hgrejillaCelda("mover",celda)
  var out _hgVec2
  out.X=g.moverEje(area,celda,delta.X,true,solidos,nil)
  area.Pos.X+=out.X

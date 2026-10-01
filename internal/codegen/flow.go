@@ -548,9 +548,10 @@ func (g *generator) flowCall(call *ast.CallExpr, indent int) string {
 	if info.Signature.Decl == nil {
 		return fn + "(" + strings.Join(args, ", ") + ")"
 	}
+	native := sema.NativeMethod(info.Signature.Decl)
 	var ordered []string
 	for p, param := range info.Signature.Decl.Params {
-		if param.Default == nil {
+		if param.Default == nil || native {
 			continue
 		}
 		missing := true
@@ -569,7 +570,9 @@ func (g *generator) flowCall(call *ast.CallExpr, indent int) string {
 				found = true
 			}
 		}
-		if !found && param.Default != nil {
+		if !found && native {
+			ordered = append(ordered, g.flowExpr(param.Default, indent))
+		} else if !found && param.Default != nil {
 			name := g.freshName()
 			g.line(indent, "var %s %s", name, goType(info.Signature.Params[p]))
 			ordered = append(ordered, name)

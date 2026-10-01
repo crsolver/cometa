@@ -14,7 +14,8 @@ func (g *generator) call(call *ast.CallExpr, callee string) string {
 	}
 	callee += typeArguments(info.Signature.TypeArgs)
 	hasDefaults := len(g.defaultFlags[info.Signature.Decl]) > 0
-	capture := info.Named || hasDefaults
+	native := sema.NativeMethod(info.Signature.Decl)
+	capture := info.Named || hasDefaults || (native && len(call.Args) < len(info.Signature.Params))
 	args := make([]string, len(call.Args))
 	var setup strings.Builder
 	if capture {
@@ -41,7 +42,7 @@ func (g *generator) call(call *ast.CallExpr, callee string) string {
 	var ordered []string
 	// Presence flags distinguish omitted arguments from explicit zero values.
 	for parameter, param := range info.Signature.Decl.Params {
-		if param.Default == nil {
+		if param.Default == nil || native {
 			continue
 		}
 		missing := "true"
@@ -61,7 +62,9 @@ func (g *generator) call(call *ast.CallExpr, callee string) string {
 				ordered = append(ordered, args[i])
 			}
 		}
-		if !found && info.Signature.Decl.Params[parameter].Default != nil {
+		if !found && native {
+			ordered = append(ordered, g.expr(info.Signature.Decl.Params[parameter].Default))
+		} else if !found && info.Signature.Decl.Params[parameter].Default != nil {
 			name := g.freshName()
 			setup.WriteString("var " + name + " " + goType(info.Signature.Params[parameter]) + "; ")
 			ordered = append(ordered, name)

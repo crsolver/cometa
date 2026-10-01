@@ -57,6 +57,12 @@ func (c *checker) installGameAPI() error {
 	return nil
 }
 
+// NativeMethod reports whether d is a catalog method. Its Go method takes every
+// parameter, so omitted arguments are filled with their defaults at each call.
+func NativeMethod(d *ast.FuncDecl) bool {
+	return d != nil && d.Receiver != "" && stdlib.IsType(d.Receiver)
+}
+
 func (c *checker) gameCall(call *ast.CallExpr) (Type, bool, error) {
 	id, ok := call.Callee.(*ast.IdentExpr)
 	if !ok {

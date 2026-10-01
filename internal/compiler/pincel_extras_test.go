@@ -224,22 +224,32 @@ fn inicio()
 	// Row 1 holds one-way platforms (2): they stop a fall from above but not a jump from below.
 	var nubes = rejilla.desde_texto(["....", "=...", "...."], ["=": 2, ".": 0])
 	var encima = mate.Rect {pos: {2, 0}, tamano: {10, 10}}
-	imprimir(nubes.mover_con_plataformas(encima, {16, 16}, {0, 20}, [1], plataformas = [2]).y.formato(2))
+	imprimir(nubes.mover(encima, {16, 16}, {0, 20}, [1], plataformas = [2]).y.formato(2))
 	imprimir(nubes.mover(encima, {16, 16}, {0, 20}, [1]).y.formato(2))
 	var debajo = mate.Rect {pos: {2, 36}, tamano: {10, 10}}
-	imprimir(nubes.mover_con_plataformas(debajo, {16, 16}, {0, -20}, [1], [2]).y.formato(2))
+	imprimir(nubes.mover(debajo, {16, 16}, {0, -20}, [1], [2]).y.formato(2))
 	var dentro = mate.Rect {pos: {2, 12}, tamano: {10, 10}}
-	imprimir(nubes.mover_con_plataformas(dentro, {16, 16}, {0, 5}, [1], [2]).y.formato(2))
+	imprimir(nubes.mover(dentro, {16, 16}, {0, 5}, [1], [2]).y.formato(2))
+	// Omitted and named native defaults also work where wrappers force flow lowering.
+	imprimir(((nubes.celda_en({3, 17}, {16, 16}) o 0) + nubes.mover(encima, {16, 16}, {0, 20}, [1]).y).formato(2))
+	imprimir(((nubes.celda_en({3, 17}, {16, 16}) o 0) + nubes.mover(encima, solidos = [1], delta = {0, 20}, tamano_celda = {16, 16}, plataformas = [2]).y).formato(2))
 	imprimir(nubes.celda_en({3, 17}, {16, 16}))
 	imprimir(nubes.celda_en({-1, 17}, {16, 16}))
 	imprimir(nubes.valores_en(mate.Rect {pos: {10, 10}, tamano: {10, 10}}, {16, 16}))
+	imprimir(caida.y.formato(2))
+	imprimir(apoyo.y.formato(2))
+
+// Native defaults also fill omitted arguments in global initializers.
+var cielo = rejilla.desde_texto(["....", "=...", "...."], ["=": 2, ".": 0])
+var caida = cielo.mover(mate.Rect {pos: {2, 0}, tamano: {10, 10}}, {16, 16}, {0, 20}, [1])
+var apoyo = cielo.mover(mate.Rect {pos: {2, 0}, tamano: {10, 10}}, plataformas = [2], tamano_celda = {16, 16}, delta = {0, 20}, solidos = [1])
 `})
 	generated, err := CompileProject(entry, loader)
 	if err != nil {
 		t.Fatal(err)
 	}
 	// The wall (column 4) starts at x=64 and the floor (row 2) at y=32; the body spans 10..20 on both axes.
-	runGeneratedGo(t, generated, "5\n44.00\n0\n12.00\n44.00\n12.00\n0\n6.00\n20.00\n-20.00\n5.00\nAlguno(2)\nNinguno\n[0, 2]\n")
+	runGeneratedGo(t, generated, "5\n44.00\n0\n12.00\n44.00\n12.00\n0\n6.00\n20.00\n-20.00\n5.00\n22.00\n8.00\nAlguno(2)\nNinguno\n[0, 2]\n20.00\n6.00\n")
 }
 
 // Camera helpers invert the drawing transform and use the default 320x180 logical screen; timers need no window.

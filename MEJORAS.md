@@ -18,6 +18,12 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 
 ## Herramientas
 
+### El lexer rechaza archivos con BOM UTF-8
+
+- **Observado:** un `.cometa` guardado con BOM (`Set-Content -Encoding utf8` de Windows PowerShell 5.1, algunos editores de Windows) falla en 1:1 con «carácter inesperado '﻿'», y los errores siguientes son confusos (`módulo desconocido "mate"`, porque se pierde el `usar` de la primera línea).
+- **Problema:** el carácter es invisible, así que el mensaje no ayuda a un principiante a entender qué pasa.
+- **Posible solución:** ignorar un BOM inicial al leer el archivo (en el lexer o en el cargador de fuentes).
+
 ### Los errores en tiempo de ejecución no indican la columna
 
 - **Observado:** un pánico (índice fuera de rango, división entre cero) ahora muestra archivo, línea y el texto de la línea, pero no la columna ni qué expresión falló.
@@ -52,15 +58,9 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 
 ### Las rejillas no admiten pendientes
 
-- **Observado:** ya hay plataformas de un solo sentido (`mover_con_plataformas`), consulta de celdas (`celda_en`, `valores_en`) y tiles animados, pero las celdas son siempre cuadradas y sólidas por completo.
+- **Observado:** ya hay plataformas de un solo sentido (`mover(..., plataformas = [...])`), consulta de celdas (`celda_en`, `valores_en`) y tiles animados, pero las celdas son siempre cuadradas y sólidas por completo.
 - **Problema:** un plataformas con rampas exige calcular la altura del suelo a mano.
 - **Posible solución:** un valor de celda con forma (rampa a 45°/22,5°) que `mover` resuelva ajustando y.
-
-### Los métodos nativos no admiten parámetros por defecto
-
-- **Observado:** un método del catálogo (`stdlib.Methods`) con un parámetro opcional genera llamadas inconsistentes: la ruta `flow` pasa banderas de presencia y la directa no. Por eso existe `Rejilla.mover_con_plataformas` en lugar de `mover(..., plataformas = [])`.
-- **Problema:** obliga a duplicar métodos con nombres más largos.
-- **Posible solución:** rellenar los valores por defecto de los métodos nativos en el sitio de la llamada, como ya hace `codegen/game.go` con las funciones.
 
 ### Los mandos solo admiten la distribución estándar
 
