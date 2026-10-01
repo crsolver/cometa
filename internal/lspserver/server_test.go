@@ -10,9 +10,9 @@ import (
 	"github.com/owenrumney/go-lsp/server"
 	"github.com/owenrumney/go-lsp/servertest"
 
-	"cometa/internal/ast"
-	"cometa/internal/compiler"
-	"cometa/internal/sema"
+	"github.com/crsolver/cometa/internal/ast"
+	"github.com/crsolver/cometa/internal/compiler"
+	"github.com/crsolver/cometa/internal/sema"
 )
 
 var (

@@ -6,10 +6,10 @@ import (
 	"strings"
 	"unicode"
 
-	"cometa/internal/ast"
-	"cometa/internal/diagnostic"
-	"cometa/internal/lexer"
-	"cometa/internal/token"
+	"github.com/crsolver/cometa/internal/ast"
+	"github.com/crsolver/cometa/internal/diagnostic"
+	"github.com/crsolver/cometa/internal/lexer"
+	"github.com/crsolver/cometa/internal/token"
 )
 
 type Error struct {

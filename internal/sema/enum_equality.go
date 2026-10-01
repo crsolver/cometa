@@ -1,6 +1,6 @@
 package sema
 
-import "cometa/internal/ast"
+import "github.com/crsolver/cometa/internal/ast"
 
 // EnumCompare records `valor == Enum.Variante`: the generated code compares
 // the value's variant tag with Tag and never looks at payloads.

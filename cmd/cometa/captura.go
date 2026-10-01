@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"strings"
 
-	"cometa/internal/diagnostic"
-	"cometa/internal/stdlib"
+	"github.com/crsolver/cometa/internal/diagnostic"
+	"github.com/crsolver/cometa/internal/stdlib"
 )
 
 var errCaptureUsage = errors.New("uso: cometa captura <archivo.cometa> [-o captura.png] [--cuadros N,M,...] [--escala 1-64] [--entrada guion.txt]")

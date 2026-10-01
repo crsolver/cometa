@@ -3,8 +3,8 @@ package lspserver
 import (
 	"testing"
 
-	"cometa/internal/ast"
-	"cometa/internal/compiler"
+	"github.com/crsolver/cometa/internal/ast"
+	"github.com/crsolver/cometa/internal/compiler"
 )
 
 func TestDefaultParameterSignatureAndHover(t *testing.T) {

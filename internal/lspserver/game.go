@@ -2,9 +2,9 @@ package lspserver
 
 import (
 	"github.com/owenrumney/go-lsp/lsp"
-	"cometa/internal/ast"
-	"cometa/internal/sema"
-	"cometa/internal/stdlib"
+	"github.com/crsolver/cometa/internal/ast"
+	"github.com/crsolver/cometa/internal/sema"
+	"github.com/crsolver/cometa/internal/stdlib"
 	"sort"
 	"strings"
 )

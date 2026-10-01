@@ -3,7 +3,7 @@ package lspserver
 import (
 	"context"
 	"github.com/owenrumney/go-lsp/lsp"
-	"cometa/internal/stdlib"
+	"github.com/crsolver/cometa/internal/stdlib"
 	"strings"
 	"testing"
 )

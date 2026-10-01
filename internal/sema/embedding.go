@@ -1,6 +1,6 @@
 package sema
 
-import "cometa/internal/ast"
+import "github.com/crsolver/cometa/internal/ast"
 
 // MemberInfo describes a selector after promotion. Ambiguous members are kept
 // so callers can distinguish a collision from a missing member.

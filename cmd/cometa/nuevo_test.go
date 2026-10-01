@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"cometa/internal/compiler"
+	"github.com/crsolver/cometa/internal/compiler"
 )
 
 // Both starter templates must compile, or `cometa nuevo` would hand beginners a broken first file.

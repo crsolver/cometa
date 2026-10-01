@@ -1,7 +1,7 @@
 package parser
 
 import (
-	"cometa/internal/lexer"
+	"github.com/crsolver/cometa/internal/lexer"
 	"testing"
 )
 

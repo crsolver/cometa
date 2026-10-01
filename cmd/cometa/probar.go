@@ -16,10 +16,10 @@ import (
 	"time"
 	"unicode"
 
-	"cometa/internal/codegen"
-	"cometa/internal/compiler"
-	"cometa/internal/diagnostic"
-	"cometa/internal/ast"
+	"github.com/crsolver/cometa/internal/codegen"
+	"github.com/crsolver/cometa/internal/compiler"
+	"github.com/crsolver/cometa/internal/diagnostic"
+	"github.com/crsolver/cometa/internal/ast"
 )
 
 // exitCode is returned from run to choose the process exit status.

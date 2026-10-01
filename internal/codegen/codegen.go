@@ -13,9 +13,9 @@ import (
 	"strings"
 	"unicode"
 
-	"cometa/internal/ast"
-	"cometa/internal/sema"
-	"cometa/internal/stdlib"
+	"github.com/crsolver/cometa/internal/ast"
+	"github.com/crsolver/cometa/internal/sema"
+	"github.com/crsolver/cometa/internal/stdlib"
 )
 
 type generator struct {

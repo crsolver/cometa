@@ -2,8 +2,8 @@ package compiler
 
 import (
 	"bytes"
-	"cometa/internal/ast"
-	"cometa/internal/stdlib"
+	"github.com/crsolver/cometa/internal/ast"
+	"github.com/crsolver/cometa/internal/stdlib"
 	"image"
 	"image/png"
 	"os"

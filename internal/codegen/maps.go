@@ -1,8 +1,8 @@
 package codegen
 
 import (
-	"cometa/internal/ast"
-	"cometa/internal/sema"
+	"github.com/crsolver/cometa/internal/ast"
+	"github.com/crsolver/cometa/internal/sema"
 )
 
 func (g *generator) mapLookup(object, key string, resultType sema.Type, indent int) string {

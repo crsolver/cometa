@@ -12,7 +12,7 @@ import (
 	"sync"
 	"testing"
 
-	"cometa/pkg/cometa"
+	"github.com/crsolver/cometa/pkg/cometa"
 )
 
 func project(files map[string]string) map[string][]byte {

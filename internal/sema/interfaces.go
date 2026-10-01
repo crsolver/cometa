@@ -1,6 +1,6 @@
 package sema
 
-import "cometa/internal/ast"
+import "github.com/crsolver/cometa/internal/ast"
 
 func (c *checker) assertionTarget(source Type, ref ast.TypeRef) (Type, error) {
 	target, err := c.resolveType(ref)

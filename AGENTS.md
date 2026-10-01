@@ -97,7 +97,7 @@ The machine has two Go installations. `C:\msys64\mingw64\bin\go.exe` reports Go 
 
 - `cmd/cometa/nuevo.go`: `cometa nuevo` also writes `AGENTS.md` (embedded from `cmd/cometa/plantillas/agentes_base.md`, plus `agentes_pincel.md` for `--juego`) and a `CLAUDE.md` importing it; `--sin-agentes` skips both. The guide sets the teacher-not-coder persona and summarises the language; keep it in sync with language changes (`TestAgentGuideExamplesCompile` compiles its ```cometa blocks).
 - `cmd/cometa/main.go`: CLI dispatch. Supports `compilar`, `lsp`, and `lsp --stdio`.
-- `internal/lexer`: line-aware lexer with `INDENT`/`DEDENT` tokens and positioned errors.
+- `internal/lexer`: line-aware lexer with `INDENT`/`DEDENT` tokens and positioned errors. A leading UTF-8 BOM is skipped.
 - `internal/parser`: handwritten parser producing the AST.
 - `internal/ast`: declarations, statements, expressions, types, and source positions.
 - `internal/sema`: symbol collection, type checking, receiver checks, call validation, and implicit-return validation. `generics.go`, `interfaces.go` and `recursion.go` handle substitution, structural assignability, constraints, safe inspection and expanding-instantiation rejection.
@@ -105,6 +105,7 @@ The machine has two Go installations. `C:\msys64\mingw64\bin\go.exe` reports Go 
 - `internal/codegen/generics.go`: native Go interfaces/generics, exact method bridges for defaults, and interface type switches.
 - `internal/codegen/flow.go`: statement-level lowering for wrappers and explicit exits; preserves evaluation order and laziness without returning from generated expression helper functions.
 - `internal/compiler`: standalone `Analyze`/`Compile` retain single-source behavior. `AnalyzeProject`/`CompileProject` accept a canonical-path source loader, load the import graph, bind unique declaration identities on a separate AST and check/generate one program. Original module ASTs and declaration links support tooling.
+- The Go module path is `github.com/crsolver/cometa`.
 - `pkg/cometa`: the only stable Go API for other modules (`Check`, `Compile`, `Options{Files, Loader, LineDirectives}`, `*Error{Diagnostics}`). It wraps `AnalyzeProject`/`CompileProject` and returns plain values only; never expose `internal` types through it. `Files` maps in-memory projects onto a fixed virtual directory (`<tmp>/cometa-memoria/proyecto`, never read) and rewrites diagnostics and //line paths back to the caller's keys. Asset embedding reads through the project's `SourceLoader`, so in-memory projects can supply images, fonts and sounds.
 - `internal/lspserver/modules.go`: filesystem URI conversion, unsaved source overlays, dependency diagnostics, watched-file changes, qualified completion/hover and definition navigation.
 - `internal/lspserver`: go-lsp handler, incremental document store, live diagnostics, UTF-16 position conversion, and hierarchical document symbols.

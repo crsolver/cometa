@@ -15,8 +15,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"cometa/internal/compiler"
-	"cometa/internal/diagnostic"
+	"github.com/crsolver/cometa/internal/compiler"
+	"github.com/crsolver/cometa/internal/diagnostic"
 )
 
 // Diagnostic is one problem found in a Cometa program. File is empty for

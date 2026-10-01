@@ -2,8 +2,8 @@ package compiler
 
 import (
 	"errors"
-	"cometa/internal/diagnostic"
-	"cometa/internal/sema"
+	"github.com/crsolver/cometa/internal/diagnostic"
+	"github.com/crsolver/cometa/internal/sema"
 	"path/filepath"
 	"strings"
 	"testing"

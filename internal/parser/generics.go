@@ -1,8 +1,8 @@
 package parser
 
 import (
-	"cometa/internal/ast"
-	"cometa/internal/token"
+	"github.com/crsolver/cometa/internal/ast"
+	"github.com/crsolver/cometa/internal/token"
 )
 
 func (p *parser) startsNamedResult() bool {

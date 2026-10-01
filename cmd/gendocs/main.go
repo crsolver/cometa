@@ -3,7 +3,7 @@
 package main
 
 import (
-	"cometa/internal/stdlib"
+	"github.com/crsolver/cometa/internal/stdlib"
 	"encoding/json"
 	"fmt"
 	"os"

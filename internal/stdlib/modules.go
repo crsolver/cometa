@@ -1,7 +1,7 @@
 package stdlib
 
 import (
-	"cometa/internal/ast"
+	"github.com/crsolver/cometa/internal/ast"
 	"reflect"
 	"regexp"
 	"sort"

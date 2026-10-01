@@ -1,8 +1,8 @@
 package sema
 
 import (
-	"cometa/internal/ast"
-	"cometa/internal/diagnostic"
+	"github.com/crsolver/cometa/internal/ast"
+	"github.com/crsolver/cometa/internal/diagnostic"
 )
 
 // NumberMethods lists the built-in methods of entero and decimal values.

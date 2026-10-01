@@ -3,8 +3,8 @@ package parser
 import (
 	"testing"
 
-	"cometa/internal/ast"
-	"cometa/internal/lexer"
+	"github.com/crsolver/cometa/internal/ast"
+	"github.com/crsolver/cometa/internal/lexer"
 )
 
 func TestMapSyntax(t *testing.T) {

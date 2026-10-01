@@ -4,7 +4,7 @@ import (
 	"context"
 	"github.com/owenrumney/go-lsp/lsp"
 	"github.com/owenrumney/go-lsp/servertest"
-	"cometa/internal/stdlib"
+	"github.com/crsolver/cometa/internal/stdlib"
 	"net/url"
 	"os"
 	"path/filepath"

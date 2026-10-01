@@ -3,7 +3,7 @@ package diagnostic
 
 import (
 	"fmt"
-	"cometa/internal/ast"
+	"github.com/crsolver/cometa/internal/ast"
 	"sort"
 	"strings"
 )

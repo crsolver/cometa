@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"strings"
 
-	"cometa/internal/ast"
+	"github.com/crsolver/cometa/internal/ast"
 )
 
 // scalarLiteralKey identifies a literal arm value, or reports why the

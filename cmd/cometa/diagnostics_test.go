@@ -1,7 +1,7 @@
 package main
 
 import (
-	"cometa/internal/diagnostic"
+	"github.com/crsolver/cometa/internal/diagnostic"
 	"os"
 	"path/filepath"
 	"testing"

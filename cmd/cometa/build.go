@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"go/parser"
 	"go/token"
-	"cometa/internal/stdlib"
+	"github.com/crsolver/cometa/internal/stdlib"
 	"os"
 	"os/exec"
 	"path/filepath"

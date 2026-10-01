@@ -2,10 +2,10 @@ package diagnostic_test
 
 import (
 	"errors"
-	"cometa/internal/ast"
-	"cometa/internal/diagnostic"
-	"cometa/internal/lexer"
-	"cometa/internal/sema"
+	"github.com/crsolver/cometa/internal/ast"
+	"github.com/crsolver/cometa/internal/diagnostic"
+	"github.com/crsolver/cometa/internal/lexer"
+	"github.com/crsolver/cometa/internal/sema"
 	"testing"
 )
 

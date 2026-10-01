@@ -1,9 +1,9 @@
 package sema
 
 import (
-	"cometa/internal/ast"
-	"cometa/internal/diagnostic"
-	"cometa/internal/stdlib"
+	"github.com/crsolver/cometa/internal/ast"
+	"github.com/crsolver/cometa/internal/diagnostic"
+	"github.com/crsolver/cometa/internal/stdlib"
 	"strings"
 )
 

@@ -6,8 +6,8 @@ import (
 	"strings"
 	"unicode"
 
-	"cometa/internal/ast"
-	"cometa/internal/sema"
+	"github.com/crsolver/cometa/internal/ast"
+	"github.com/crsolver/cometa/internal/sema"
 )
 
 func (g *generator) freshName() string {

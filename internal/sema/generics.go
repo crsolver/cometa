@@ -1,8 +1,8 @@
 package sema
 
 import (
-	"cometa/internal/ast"
-	"cometa/internal/stdlib"
+	"github.com/crsolver/cometa/internal/ast"
+	"github.com/crsolver/cometa/internal/stdlib"
 	"fmt"
 	"sort"
 )

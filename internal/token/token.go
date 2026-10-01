@@ -1,6 +1,6 @@
 package token
 
-import "cometa/internal/ast"
+import "github.com/crsolver/cometa/internal/ast"
 
 type Kind string
 

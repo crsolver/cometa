@@ -1,8 +1,8 @@
 package sema
 
 import (
-	"cometa/internal/ast"
-	"cometa/internal/diagnostic"
+	"github.com/crsolver/cometa/internal/ast"
+	"github.com/crsolver/cometa/internal/diagnostic"
 )
 
 func mapKeyAllowed(t Type) bool { return t.Kind == String || t.Kind == Integer || t.Kind == Boolean }

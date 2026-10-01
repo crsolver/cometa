@@ -1,6 +1,6 @@
 package sema
 
-import "cometa/internal/ast"
+import "github.com/crsolver/cometa/internal/ast"
 
 // An edge tracks how a declaration's type parameter flows into another's.
 // A cycle containing a constructor would require infinitely many Go instances.

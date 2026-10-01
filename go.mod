@@ -1,4 +1,4 @@
-module cometa
+module github.com/crsolver/cometa
 
 go 1.25.0
 

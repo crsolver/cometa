@@ -1,6 +1,6 @@
 package sema
 
-import "cometa/internal/ast"
+import "github.com/crsolver/cometa/internal/ast"
 
 func (t Type) Numeric() bool { return t.Kind == Integer || t.Kind == Decimal }
 

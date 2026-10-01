@@ -3,12 +3,12 @@ package compiler
 import (
 	"fmt"
 	"os"
-	"cometa/internal/ast"
-	"cometa/internal/codegen"
-	"cometa/internal/diagnostic"
-	"cometa/internal/lexer"
-	"cometa/internal/parser"
-	"cometa/internal/sema"
+	"github.com/crsolver/cometa/internal/ast"
+	"github.com/crsolver/cometa/internal/codegen"
+	"github.com/crsolver/cometa/internal/diagnostic"
+	"github.com/crsolver/cometa/internal/lexer"
+	"github.com/crsolver/cometa/internal/parser"
+	"github.com/crsolver/cometa/internal/sema"
 )
 
 // Analyze runs the source-language frontend without generating Go. It is used

@@ -1,6 +1,6 @@
 package sema
 
-import "cometa/internal/ast"
+import "github.com/crsolver/cometa/internal/ast"
 
 // CallInfo maps source arguments to parameters without mutating the syntax tree.
 type CallInfo struct {

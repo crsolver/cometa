@@ -10,12 +10,12 @@ import (
 	"github.com/owenrumney/go-lsp/lsp"
 	"github.com/owenrumney/go-lsp/server"
 
-	"cometa/internal/ast"
-	"cometa/internal/compiler"
-	"cometa/internal/lexer"
-	"cometa/internal/parser"
-	"cometa/internal/sema"
-	"cometa/internal/token"
+	"github.com/crsolver/cometa/internal/ast"
+	"github.com/crsolver/cometa/internal/compiler"
+	"github.com/crsolver/cometa/internal/lexer"
+	"github.com/crsolver/cometa/internal/parser"
+	"github.com/crsolver/cometa/internal/sema"
+	"github.com/crsolver/cometa/internal/token"
 )
 
 const serverVersion = "0.1.0"

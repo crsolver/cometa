@@ -107,7 +107,7 @@ npm run build
 
 ### Usar el compilador desde Go
 
-El paquete `cometa/pkg/cometa` es la API estable para otros programas Go (por ejemplo, un servidor que compila proyectos de sus usuarios) y no requiere lanzar el ejecutable. Acepta un archivo en disco o un proyecto en memoria, y devuelve el Go generado o un `*cometa.Error` con diagnósticos (archivo, línea, columna, etapa y mensaje; mismos nombres JSON que `cometa probar --json`):
+El paquete `github.com/crsolver/cometa/pkg/cometa` es la API estable para otros programas Go (por ejemplo, un servidor que compila proyectos de sus usuarios) y no requiere lanzar el ejecutable. Acepta un archivo en disco o un proyecto en memoria, y devuelve el Go generado o un `*cometa.Error` con diagnósticos (archivo, línea, columna, etapa y mensaje; mismos nombres JSON que `cometa probar --json`):
 
 ```go
 archivos := map[string][]byte{
@@ -123,7 +123,7 @@ if errors.As(err, &e) {
 }
 ```
 
-`cometa.Check` hace el mismo análisis sin generar código. Como la ruta del módulo es `cometa`, el otro módulo lo importa con `require cometa v0.0.0` y `replace cometa => ../ruta/a/cometa` en su `go.mod`. Todo lo que está bajo `internal/` puede cambiar sin aviso.
+`cometa.Check` hace el mismo análisis sin generar código. Añádelo a tu módulo con `go get github.com/crsolver/cometa@latest`. Todo lo que está bajo `internal/` puede cambiar sin aviso.
 
 Licencia: [MIT](LICENSE).
 

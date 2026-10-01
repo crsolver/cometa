@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"cometa/internal/lexer"
-	"cometa/internal/parser"
+	"github.com/crsolver/cometa/internal/lexer"
+	"github.com/crsolver/cometa/internal/parser"
 )
 
 func checkSource(source string) error {

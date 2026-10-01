@@ -5,8 +5,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/owenrumney/go-lsp/lsp"
-	"cometa/internal/ast"
-	"cometa/internal/sema"
+	"github.com/crsolver/cometa/internal/ast"
+	"github.com/crsolver/cometa/internal/sema"
 )
 
 // Ignore dots in strings and comments, including escaped quotes.

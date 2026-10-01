@@ -10,9 +10,9 @@ import (
 	"strconv"
 	"strings"
 
-	"cometa/internal/compiler"
-	"cometa/internal/lspserver"
-	"cometa/internal/stdlib"
+	"github.com/crsolver/cometa/internal/compiler"
+	"github.com/crsolver/cometa/internal/lspserver"
+	"github.com/crsolver/cometa/internal/stdlib"
 )
 
 func main() {
