@@ -26,10 +26,26 @@ jobs:
         run: go vet ./...
       - name: Test (Linux, virtual display)
         if: runner.os == 'Linux'
-        run: xvfb-run -a go test ./...
+        shell: bash
+        run: |
+          set -o pipefail
+          xvfb-run -a go test ./... 2>&1 | tee test.log
       - name: Test
         if: runner.os != 'Linux'
-        run: go test ./...
+        shell: bash
+        run: |
+          set -o pipefail
+          go test ./... 2>&1 | tee test.log
+      # Shows the failing tests on the run's summary page, without opening the log.
+      - name: Summarize failures
+        if: failure()
+        shell: bash
+        run: |
+          msg="$(grep -E -A6 -e '--- FAIL' -e '^FAIL' -e '^panic:' test.log | cut -c1-300 | head -n 120 || true)"
+          msg="${msg//'%'/'%25'}"
+          msg="${msg//$'\r'/}"
+          msg="${msg//$'\n'/'%0A'}"
+          echo "::error title=Pruebas fallidas (${{ matrix.os }})::${msg}"
 
   extension:
     runs-on: ubuntu-latest
