@@ -3,7 +3,9 @@ package compiler
 import (
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -96,11 +98,32 @@ func TestRejillaErrorsAreClear(t *testing.T) {
 }
 
 // datos keeps values between runs in the user's config folder, which the test redirects.
-func TestDatosStoresValues(t *testing.T) {
+// configDir points os.UserConfigDir at a temporary folder. The go tool derives
+// its caches from HOME on Linux and macOS, so they are pinned to their real
+// locations first; otherwise `go run` starts from an empty cache inside the
+// temporary folder.
+func configDir(t *testing.T) string {
+	t.Helper()
+	goName := "go"
+	if runtime.GOOS == "windows" {
+		goName += ".exe"
+	}
+	for _, name := range []string{"GOCACHE", "GOMODCACHE", "GOPATH"} {
+		out, err := exec.Command(filepath.Join(runtime.GOROOT(), "bin", goName), "env", name).Output()
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv(name, strings.TrimSpace(string(out)))
+	}
 	config := t.TempDir()
 	for _, name := range []string{"APPDATA", "XDG_CONFIG_HOME", "HOME"} {
 		t.Setenv(name, config)
 	}
+	return config
+}
+
+func TestDatosStoresValues(t *testing.T) {
+	config := configDir(t)
 	entry, loader := memoryProject(t, map[string]string{"main.cometa": `usar std/pincel/datos
 
 fn inicio()
@@ -134,10 +157,7 @@ fn inicio()
 
 // datos.juego picks a stable folder; numeric helpers round-trip and reject text that is not a number.
 func TestDatosJuegoYNumeros(t *testing.T) {
-	config := t.TempDir()
-	for _, name := range []string{"APPDATA", "XDG_CONFIG_HOME", "HOME"} {
-		t.Setenv(name, config)
-	}
+	config := configDir(t)
 	entry, loader := memoryProject(t, map[string]string{"main.cometa": `usar std/pincel/datos
 
 fn inicio()
