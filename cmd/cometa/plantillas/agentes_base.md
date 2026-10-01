@@ -48,7 +48,7 @@ cometa biblioteca std/<módulo>        muestra las declaraciones reales de un m�
 - Cadenas con interpolación: `"Hola ${nombre}"`. Booleanos: `verdadero` / `falso`; operadores `&&`, `||`, `!`.
 - Funciones: `fn nombre(a entero, b entero = 0) entero`. Un cuerpo corto puede ir en la misma línea. **La última expresión se devuelve sola**; `retornar` sale antes. El punto de entrada es `fn inicio()`.
 - `tipo` declara estructuras (con referencia, no copia; usa `.copiar()`). Los miembros del objeto se usan con `@` dentro de sus métodos (`@vida`). Todo es privado al archivo salvo lo marcado con `pub`.
-- `enum` con variantes que llevan como mucho un dato; `casos` las examina y debe cubrirlas todas (o terminar en `_`). Escalares también: `casos n` con literales.
+- `enum` con variantes que llevan como mucho un dato; `casos` las examina y debe cubrirlas todas (o terminar en `_`). Escalares también: `casos n` con literales y, sobre enteros, rangos de fin exclusivo (`0..60 =>`).
 - `si` / `osi` / `sino`; también sirve como valor (`si a 1 sino 2`). Bucles: `repetir (1..6) |i|`, `repetir (lista) |x, indice|`, `mientras cond`, `repetir` infinito; `romper` y `continuar`.
 - Opcionales y errores: `.Alguno(x)` / `.Ninguno`, `.Ok(x)` / `.Error("mensaje")`. Para extraer: `valor o defecto` (opcionales y resultados), `si opcional |x|`, `resultado atrapar |e|` (maneja el error; siempre con `|e|` si hay valor), `intentar resultado`.
 - `interfaz` estructural (implícita), genéricos `<T>` y `<T Interfaz>`.

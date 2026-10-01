@@ -10,11 +10,11 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 - **Problema:** obliga a usar una variable o paréntesis para un caso poco común, con un mensaje que no lo explica.
 - **Posible solución:** que el lexer no consuma el punto si le sigue una letra, o mejorar el mensaje para sugerir `(7).formato(2)`.
 
-### `casos` sobre valores no admite rangos
+### `repetir` no recorre cadenas
 
-- **Observado:** las ramas de `casos` sobre `entero` aceptan literales y listas (`2, 3 =>`), pero no rangos como `1..5 =>` ni comparaciones.
-- **Problema:** clasificar una puntuación o una edad obliga a usar una cadena de `si`/`osi`.
-- **Posible solución:** admitir rangos enteros de fin exclusivo, como en `repetir`.
+- **Observado:** `repetir (texto) |letra|` falla con «repetir requiere una lista o mapa, no cadena» (`internal/sema/sema.go`). Hay que escribir `repetir (texto.dividir("")) |letra|`.
+- **Problema:** recorrer las letras de un texto es un ejercicio típico de principiantes, y el truco de `dividir("")` no es evidente.
+- **Posible solución:** aceptar `cadena` en `repetir`, ligando cada punto de código como `cadena` (y el índice opcional como `entero`), igual que `dividir("")`; o al menos sugerir `dividir("")` en el mensaje de error.
 
 ## Herramientas
 

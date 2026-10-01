@@ -147,6 +147,7 @@ func (c *checker) checkMatch(m *ast.MatchExpr, value bool, expected *Type) (Type
 		}
 	}
 	seen := map[string]bool{}
+	var ranges [][2]int64
 	wildcard := false
 	result := Type{Kind: Void}
 	broken := false
@@ -160,7 +161,7 @@ func (c *checker) checkMatch(m *ast.MatchExpr, value bool, expected *Type) (Type
 			c.bindings = cloneBindings(outerBindings)
 			c.constantLabel(arm)
 			if scalar || len(arm.Literals) > 0 {
-				if err := c.checkScalarArm(arm, t, seen, &wildcard); err != nil {
+				if err := c.checkScalarArm(arm, t, seen, &ranges, &wildcard); err != nil {
 					return err
 				}
 				c.vars = cloneVars(outer)

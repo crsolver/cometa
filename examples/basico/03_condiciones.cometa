@@ -29,3 +29,12 @@ fn inicio()
 	casos dia
 		6, 7 => imprimir("Fin de semana")
 		_ => imprimir("Día laborable")
+
+	// Con números enteros, una rama puede ser un rango. El final no se
+	// incluye: 60..90 va de 60 a 89.
+	var puntos = 75
+	casos puntos
+		0..60 => imprimir("Suspenso")
+		60..90 => imprimir("Aprobado")
+		90..101 => imprimir("Sobresaliente")
+		_ => imprimir("Puntuación inválida")

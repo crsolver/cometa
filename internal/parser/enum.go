@@ -103,7 +103,7 @@ func (p *parser) parseMatch() (*ast.MatchExpr, error) {
 				pattern := p.advance()
 				arm.Pattern, arm.NamePos = "_", pattern.Pos
 			} else if p.at(token.Number) || p.at(token.String) || p.at(token.True) || p.at(token.False) || p.at(token.Minus) {
-				// Literal arms over entero, cadena or bool: `1 =>`, `2, 3 =>`, `"a" =>`, `verdadero =>`.
+				// Literal arms over entero, cadena or bool: `1 =>`, `2, 3 =>`, `1..5 =>`, `"a" =>`, `verdadero =>`.
 				arm.NamePos = p.current().Pos
 				for {
 					literal, err := p.parseLabel()
@@ -130,10 +130,14 @@ func (p *parser) parseMatch() (*ast.MatchExpr, error) {
 						return p.error(pattern, "el comodín debe escribirse '_'")
 					}
 					arm.Pattern, arm.NamePos = pattern.Lexeme, pattern.Pos
-				} else if p.at(token.Comma) && simpleName(ref) {
-					// `moneda, pinchos =>`: a list of constant names over entero, cadena or bool.
+				} else if (p.at(token.Comma) || p.at(token.Range)) && simpleName(ref) {
+					// `moneda, pinchos =>` or `minimo..maximo =>`: constant names over entero, cadena or bool.
 					arm.NamePos = ref.Pos
-					arm.Literals = append(arm.Literals, &ast.IdentExpr{Pos: ref.Pos, Name: ref.Name})
+					first, err := p.parseLabelRange(&ast.IdentExpr{Pos: ref.Pos, Name: ref.Name})
+					if err != nil {
+						return err
+					}
+					arm.Literals = append(arm.Literals, first)
 					for p.match(token.Comma) {
 						literal, err := p.parseLabel()
 						if err != nil {
@@ -175,11 +179,35 @@ func simpleName(t ast.TypeRef) bool {
 	return t.Name != "" && !strings.Contains(t.Name, ".") && t.Wrapper == "" && t.Element == nil && t.Key == nil && t.Payload == nil && t.ErrorType == nil && len(t.Args) == 0
 }
 
-// parseLabel parses one value of a scalar `casos` arm: a literal or the name of a constant.
+// parseLabel parses one value of a scalar `casos` arm: a literal, the name of
+// a constant, or a range between two of those (`1..5`).
 func (p *parser) parseLabel() (ast.Expr, error) {
+	start, err := p.parseLabelValue()
+	if err != nil {
+		return nil, err
+	}
+	return p.parseLabelRange(start)
+}
+
+func (p *parser) parseLabelValue() (ast.Expr, error) {
 	if p.at(token.Ident) {
 		name := p.advance()
 		return &ast.IdentExpr{Pos: name.Pos, Name: name.Lexeme}, nil
 	}
 	return p.parsePrefix()
+}
+
+// parseLabelRange turns an already parsed label into a range when `..` follows.
+func (p *parser) parseLabelRange(start ast.Expr) (ast.Expr, error) {
+	if !p.match(token.Range) {
+		return start, nil
+	}
+	if p.at(token.Arrow) || p.at(token.Comma) {
+		return nil, p.error(p.current(), "se esperaba el fin del rango después de '..'")
+	}
+	end, err := p.parseLabelValue()
+	if err != nil {
+		return nil, err
+	}
+	return &ast.RangeLabel{Pos: start.Position(), Start: start, End: end}, nil
 }

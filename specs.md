@@ -531,13 +531,23 @@ Dentro de un `casos` usado como sentencia, `romper` y `continuar` siguen control
 
 ### `casos` sobre valores simples
 
-Con un `entero`, una `cadena` o un `bool`, las ramas usan literales (`1`, `-1`, `"a"`, `verdadero`) o nombres de constantes de este archivo declaradas con `const` y un valor literal (`moneda =>`); una rama puede listar varios separados por comas. No se admiten expresiones, interpolación, decimales, rangos ni el nombre `|x|`. Cada valor puede aparecer una sola vez, también si se escribe una vez como literal y otra como constante. Las constantes de otros módulos (`mod.nombre`) todavía no se admiten como ramas.
+Con un `entero`, una `cadena` o un `bool`, las ramas usan literales (`1`, `-1`, `"a"`, `verdadero`) o nombres de constantes de este archivo declaradas con `const` y un valor literal (`moneda =>`); una rama puede listar varios separados por comas. No se admiten expresiones, interpolación, decimales ni el nombre `|x|`. Cada valor puede aparecer una sola vez, también si se escribe una vez como literal y otra como constante. Las constantes de otros módulos (`mod.nombre`) todavía no se admiten como ramas.
 
 ```cometa
 casos tecla
 	1 => imprimir("uno")
 	2, 3 => imprimir("dos o tres")
 	_ => imprimir("otro")
+```
+
+Sobre un `entero`, una rama también puede ser un rango `inicio..fin`. Como en `repetir`, el fin no se incluye: `60..90` cubre de 60 a 89. Los extremos son enteros literales o constantes con valor entero, el inicio debe ser menor que el fin, y un rango puede combinarse con valores sueltos en la misma rama (`90..100, 100 =>`). Los rangos no pueden solaparse entre sí ni incluir un valor que ya aparece en otra rama. No hay rangos abiertos ni comparaciones (`>= 90`): lo que queda fuera lo recoge `_`.
+
+```cometa
+casos puntos
+	0..60 => imprimir("suspenso")
+	60..90 => imprimir("aprobado")
+	90..101 => imprimir("sobresaliente")
+	_ => imprimir("puntuación inválida")
 ```
 
 Como en los enums, `casos` debe ser exhaustivo: un `entero` o una `cadena` requieren una rama final `_`; un `bool` que cubre `verdadero` y `falso` no la necesita. Funciona como sentencia y como valor, con las mismas reglas de `romper`/`continuar`. El valor se evalúa una sola vez.

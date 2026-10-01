@@ -81,6 +81,102 @@ func TestCasosOverScalarsErrors(t *testing.T) {
 	}
 }
 
+func TestCasosWithRanges(t *testing.T) {
+	source := `const mayoria entero = 18
+const jubilacion = 65
+
+fn nota(puntos entero) cadena
+	casos puntos
+		-5..0 => "negativa"
+		0..60 => "suspenso"
+		60..90 => "aprobado"
+		90..100, 100 => "sobresaliente"
+		_ => "fuera de rango"
+
+fn etapa(edad entero) cadena
+	casos edad
+		0..mayoria => "menor"
+		mayoria..jubilacion => "adulto"
+		_ => "jubilado"
+
+fn siguiente() entero
+	llamadas += 1
+	llamadas
+
+var llamadas = 0
+
+fn inicio()
+	imprimir(nota(-5))
+	imprimir(nota(-1))
+	imprimir(nota(0))
+	imprimir(nota(59))
+	imprimir(nota(60))
+	imprimir(nota(99))
+	imprimir(nota(100))
+	imprimir(nota(101))
+	imprimir(nota(-6))
+	imprimir(etapa(17))
+	imprimir(etapa(18))
+	imprimir(etapa(65))
+	var total = 0
+	repetir (0..8) |i|
+		casos i
+			0..3 => total += 1
+			3, 5..7 =>
+				si i == 6
+					continuar
+				total += 10
+			7 => romper
+			_ => total += 100
+	imprimir(total)
+	casos siguiente()
+		0..1 => imprimir("cero")
+		1..2 => imprimir("una vez")
+		_ => imprimir("varias")
+	imprimir(llamadas)
+	var texto = casos siguiente() + total
+		100..200 => "cien y pico"
+		_ => "otro"
+	imprimir(texto)
+	imprimir(llamadas)
+`
+	got, err := Compile("rangos.cometa", []byte(source))
+	if err != nil {
+		t.Fatal(err)
+	}
+	runGeneratedGo(t, got, "negativa\nnegativa\nsuspenso\nsuspenso\naprobado\nsobresaliente\nsobresaliente\nfuera de rango\nfuera de rango\nmenor\nadulto\njubilado\n123\nuna vez\n1\ncien y pico\n2\n")
+}
+
+func TestCasosWithRangeErrors(t *testing.T) {
+	arms := func(body string) string {
+		return "const a entero = 3\nconst s cadena = \"x\"\nfn inicio()\n\tvar n = 1\n\tcasos n\n" + body + "\t\t_ => imprimir(0)\n"
+	}
+	cases := []struct{ name, source, want string }{
+		{"empty", arms("\t\t5..5 => imprimir(1)\n"), "está vacío"},
+		{"reversed", arms("\t\t5..1 => imprimir(1)\n"), "está vacío"},
+		{"overlap", arms("\t\t1..5 => imprimir(1)\n\t\t4..8 => imprimir(2)\n"), "se solapa con el rango 1..5"},
+		{"overlap in list", arms("\t\t1..5, 0..2 => imprimir(1)\n"), "se solapa"},
+		{"value then range", arms("\t\t3 => imprimir(1)\n\t\t1..5 => imprimir(2)\n"), "incluye el valor 3"},
+		{"range then value", arms("\t\t1..5 => imprimir(1)\n\t\t3 => imprimir(2)\n"), "cubierto por un rango"},
+		{"range then constant", arms("\t\t1..5 => imprimir(1)\n\t\ta => imprimir(2)\n"), "cubierto por un rango"},
+		{"decimal bound", arms("\t\t1..2.5 => imprimir(1)\n"), "extremos de un rango"},
+		{"string bound", arms("\t\t1..s => imprimir(1)\n"), "extremos de un rango"},
+		{"variable bound", arms("\t\t1..n => imprimir(1)\n"), "extremos de un rango"},
+		{"missing end", arms("\t\t1.. => imprimir(1)\n"), "se esperaba el fin del rango"},
+		{"on string", "fn inicio()\n\tvar s = \"a\"\n\tcasos s\n\t\t1..5 => imprimir(1)\n\t\t_ => imprimir(2)\n", "los rangos en casos solo sirven para entero, no cadena"},
+		{"on enum", "enum E\n\tA\nfn inicio()\n\tvar e = E.A\n\tcasos e\n\t\t1..5 => imprimir(1)\n\t\t_ => imprimir(2)\n", "solo sirven para entero, cadena o bool"},
+		{"missing wildcard", "fn inicio()\n\tvar n = 1\n\tcasos n\n\t\t1..5 => imprimir(1)\n", "requiere una rama final '_'"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := Compile("caso.cometa", []byte(tc.source))
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Errorf("se esperaba %q, se obtuvo %v", tc.want, err)
+			}
+		})
+	}
+}
+
 func TestCasosWithConstantLabels(t *testing.T) {
 	source := `const aire entero = 0
 const ladrillo entero = 1

@@ -69,15 +69,46 @@ func (g *generator) scalarMatch(m *ast.MatchExpr) bool {
 	return false
 }
 
-// scalarCase writes the `case`/`default` line of a literal arm.
-func (g *generator) scalarCase(arm *ast.MatchArm, indent int) {
+// rangeMatch reports whether a scalar casos has a range label (`1..5 =>`).
+// Go's switch has no ranges, so such a match becomes a tagless switch whose
+// cases compare the value themselves.
+func rangeMatch(m *ast.MatchExpr) bool {
+	for _, arm := range m.Arms {
+		for _, literal := range arm.Literals {
+			if _, ok := literal.(*ast.RangeLabel); ok {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// scalarSwitch writes the opening line of a scalar casos over the variable name.
+func (g *generator) scalarSwitch(m *ast.MatchExpr, name string, indent int) (subject string) {
+	if rangeMatch(m) {
+		g.line(indent, "switch {")
+		return name
+	}
+	g.line(indent, "switch %s {", name)
+	return ""
+}
+
+// scalarCase writes the `case`/`default` line of a literal arm. A non-empty
+// subject is the matched variable of a tagless switch (see rangeMatch).
+func (g *generator) scalarCase(arm *ast.MatchArm, indent int, subject string) {
 	if arm.Pattern == "_" {
 		g.line(indent, "default:")
 		return
 	}
 	literals := make([]string, len(arm.Literals))
 	for i, literal := range arm.Literals {
-		literals[i] = g.expr(literal)
+		if r, ok := literal.(*ast.RangeLabel); ok {
+			literals[i] = fmt.Sprintf("%s >= %s && %s < %s", subject, g.expr(r.Start), subject, g.expr(r.End))
+		} else if subject != "" {
+			literals[i] = fmt.Sprintf("%s == %s", subject, g.expr(literal))
+		} else {
+			literals[i] = g.expr(literal)
+		}
 	}
 	g.line(indent, "case %s:", strings.Join(literals, ", "))
 }
@@ -86,10 +117,10 @@ func (g *generator) emitScalarMatch(m *ast.MatchExpr, indent int, returnValue bo
 	name := g.freshName()
 	g.line(indent, "{")
 	g.line(indent+1, "%s := %s", name, g.expr(m.Value))
-	g.line(indent+1, "switch %s {", name)
+	subject := g.scalarSwitch(m, name, indent+1)
 	wildcard := false
 	for _, arm := range m.Arms {
-		g.scalarCase(arm, indent+1)
+		g.scalarCase(arm, indent+1, subject)
 		wildcard = wildcard || arm.Pattern == "_"
 		g.emitBlock(arm.Body, indent+2, returnValue)
 	}

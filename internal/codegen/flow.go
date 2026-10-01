@@ -155,10 +155,18 @@ func (g *generator) flowMatch(m *ast.MatchExpr, indent int, target string) {
 	}
 	if g.scalarMatch(m) {
 		value := g.flowExpr(m.Value, indent)
-		g.line(indent, "switch %s {", value)
+		ranged := rangeMatch(m)
+		if ranged {
+			// The cases mention the value several times; hold it in a variable.
+			name := g.freshName()
+			g.line(indent, "{")
+			g.line(indent, "%s := %s", name, value)
+			value = name
+		}
+		subject := g.scalarSwitch(m, value, indent)
 		wildcard := false
 		for _, arm := range m.Arms {
-			g.scalarCase(arm, indent)
+			g.scalarCase(arm, indent, subject)
 			wildcard = wildcard || arm.Pattern == "_"
 			g.flowBlock(arm.Body, indent+1, target)
 		}
@@ -166,6 +174,9 @@ func (g *generator) flowMatch(m *ast.MatchExpr, indent int, target string) {
 			g.line(indent, "default: panic(\"valor de casos inválido\")")
 		}
 		g.line(indent, "}")
+		if ranged {
+			g.line(indent, "}")
+		}
 		return
 	}
 	value := g.flowExpr(m.Value, indent)

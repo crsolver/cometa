@@ -76,6 +76,7 @@ type MatchArm struct {
 	Pattern       string
 	// Literals holds the values of a `casos` arm over entero, cadena or bool
 	// (`2, 3 =>`); such arms have no Pattern unless they are the `_` wildcard.
+	// Integer ranges (`1..5 =>`) are RangeLabel values.
 	Literals []Expr
 	Body     []Stmt
 }
@@ -302,6 +303,17 @@ type LiteralExpr struct {
 
 func (*LiteralExpr) exprNode()       {}
 func (e *LiteralExpr) Position() Pos { return e.Pos }
+
+// RangeLabel is an integer range used as a `casos` label (`1..5 =>`). Like
+// the range of `repetir`, End is exclusive. It only appears in MatchArm.Literals.
+type RangeLabel struct {
+	Pos   Pos
+	Start Expr
+	End   Expr
+}
+
+func (*RangeLabel) exprNode()       {}
+func (e *RangeLabel) Position() Pos { return e.Pos }
 
 // InterpolatedStringExpr is a string whose Parts alternate between decoded
 // literal text and embedded expressions. Literal parts are represented by
