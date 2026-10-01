@@ -15,6 +15,11 @@ Comprueba la instalación:
 cometa --version
 ```
 
+El ejecutable no está firmado, así que el sistema puede desconfiar de él la primera vez:
+
+- **Windows:** si aparece «Windows protegió su PC», pulsa **Más información** y luego **Ejecutar de todas formas**.
+- **macOS:** si dice que no se puede abrir porque no se puede verificar al desarrollador, ejecuta `xattr -d com.apple.quarantine cometa` en la carpeta donde lo pusiste.
+
 ## Extensión de VS Code
 
 La extensión da colores, errores mientras escribes, autocompletado, ir a la definición y sangría con tabuladores. Todavía no está en el Marketplace de VS Code, así que se instala a mano. Necesitas VS Code 1.106 o superior.
