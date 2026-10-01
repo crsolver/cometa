@@ -67,3 +67,62 @@ func TestProbarTimeoutAndCompileError(t *testing.T) {
 		t.Fatalf("unexpected report %+v code %d", report, code)
 	}
 }
+
+// Visual tests step a game in a hidden window and compare screen pixels.
+func TestProbarVisual(t *testing.T) {
+	if testing.Short() {
+		t.Skip("desktop rendering")
+	}
+	entry := writeProject(t, map[string]string{
+		"juego.cometa": `usar std/pincel/graficos
+
+pub tipo Caja
+	pub x decimal
+
+	pub fn actualizar(dt decimal)
+		@x += 60 * dt
+
+	pub fn pintar()
+		graficos.limpiar(.Azul)
+		graficos.rectangulo(@x, 10, 10, 10, .Rojo)
+`,
+		"pruebas.cometa": `usar juego
+usar std/pruebas
+usar std/pincel/lienzo
+
+fn prueba_se_mueve()
+	var caja = juego.Caja {}
+	pruebas.avanzar(caja, 0)
+	pruebas.pixel(5, 15, .Rojo)
+	pruebas.avanzar(caja, 30)
+	pruebas.casi_igual(30.0, caja.x)
+	pruebas.pixel(5, 15, .Azul)
+	pruebas.pixel(35, 15, .Rojo)
+	var pantalla = pruebas.pantalla()
+	pruebas.igual(320, lienzo.ancho(pantalla))
+	pruebas.igual(180, lienzo.alto(pantalla))
+
+fn prueba_color_equivocado()
+	pruebas.avanzar(juego.Caja {}, ancho = 64, alto = 32)
+	pruebas.pixel(60, 30, .Verde, mensaje = "fondo")
+
+fn prueba_sin_avanzar()
+	pruebas.pixel(0, 0, .Negro)
+`,
+	})
+	report, code := probar(entry, "", 5*time.Minute, true)
+	status := map[string]testResult{}
+	for _, r := range report.Tests {
+		status[r.Name] = r
+	}
+	if code != exitTestsFailed || report.Passed != 1 || status["prueba_se_mueve"].Status != "ok" {
+		t.Fatalf("unexpected report %+v code %d", report, code)
+	}
+	if r := status["prueba_color_equivocado"]; r.Status != "fallo" || r.Message != "fondo: en el píxel (60, 30) se esperaba rgba(0, 255, 0, 255) pero se obtuvo rgba(0, 0, 255, 255)" || r.Line != 19 {
+		t.Fatalf("prueba_color_equivocado: %+v", r)
+	}
+	// The screen of an earlier test is not visible to the next one.
+	if r := status["prueba_sin_avanzar"]; r.Status != "error" || r.Line != 22 {
+		t.Fatalf("prueba_sin_avanzar: %+v", r)
+	}
+}

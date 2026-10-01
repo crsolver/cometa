@@ -18,7 +18,7 @@ var NamespaceDocs = map[string]string{
 	"pincel":   "El núcleo del motor de juegos: pincel.ejecutar arranca el bucle de juego a partir de un valor que implemente pincel.Juego.",
 	"retro":    "Sprites y texto de estilo retro (DUNGEON.mode), listos para usar sin cargar ningún archivo. Ver examples/pincel/06_retro.cometa.",
 	"curvas":   "31 funciones de easing puras (sin estado) para animar valores de forma más natural que una interpolación lineal. Ver docs/curvas.md.",
-	"pruebas":  "Afirmaciones para escribir pruebas: cada fn prueba_* falla en la primera afirmación incumplida. Se ejecutan con `cometa probar`.",
+	"pruebas":  "Afirmaciones para escribir pruebas: cada fn prueba_* falla en la primera afirmación incumplida. Se ejecutan con `cometa probar`. Para juegos, pruebas.avanzar y pruebas.pixel comprueban lo que se pinta en pantalla.",
 	"ruido":    "Ruido 2D pseudoaleatorio pero reproducible, útil para generar terrenos, texturas o variación orgánica a partir de una semilla.",
 	"datos":    "Guarda y lee pequeños datos de tu juego (mejor puntuación, opciones) como texto o números asociados a una clave; se conservan entre partidas en la carpeta de configuración del usuario.",
 	"rejilla":  "Una cuadrícula de números para mapas de tiles: crearla, leer y escribir celdas, dibujarla con una hoja de sprites y comprobar colisiones con celdas sólidas.",
@@ -35,6 +35,9 @@ var FunctionDocs = map[string]string{
 	"pruebas.igual":      "Falla la prueba si esperado y obtenido difieren. Acepta dos enteros, decimales, cadenas o bool del mismo tipo.",
 	"pruebas.casi_igual": "Falla la prueba si esperado y obtenido difieren en más que la tolerancia (útil para decimales).",
 	"pruebas.fallar":     "Falla la prueba de inmediato con el mensaje dado.",
+	"pruebas.avanzar":    "Prueba visual: llama a actualizar del juego `cuadros` veces (con dt = 1/tps) y luego a pintar una vez sobre una pantalla oculta de ancho×alto. No lee el teclado ni el ratón reales. Solo funciona con `cometa probar`.",
+	"pruebas.pantalla":   "Copia de la pantalla pintada por el último pruebas.avanzar, como graficos.Imagen (léela con lienzo.leer_pixel o guárdala con lienzo.guardar).",
+	"pruebas.pixel":      "Falla la prueba si el píxel (x, y) de la pantalla pintada por el último pruebas.avanzar no tiene el color esperado. `tolerancia` admite esa diferencia por canal (útil en bordes suavizados).",
 
 	// consola
 	"consola.leer_linea": "Espera una línea de la entrada estándar y la devuelve sin el salto de línea final. Devuelve Ninguno cuando la entrada se acaba (fin de archivo, Ctrl+Z o Ctrl+D). Para leer un número: (consola.leer_linea() o \"\").recortar().a_entero().",

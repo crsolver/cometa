@@ -82,7 +82,8 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 
 ## Plataforma de ejercicios
 
-### `cometa probar` aún no admite pruebas visuales
+### Las pruebas visuales no pueden simular teclado ni ratón
 
-- **Observado:** solo hay afirmaciones sobre valores; no hay forma de avanzar un `Juego` N cuadros y comprobar píxeles de la pantalla (ver paso 5 del plan).
-- **Posible solución:** `pruebas.avanzar(juego, cuadros)` y `pruebas.pantalla()` apoyados en el modo `captura`.
+- **Observado:** `pruebas.avanzar` ignora los dispositivos reales, pero no hay forma de pulsar una tecla o mover el ratón desde una prueba; el guion de `cometa captura --entrada` no está expuesto en `std/pruebas`.
+- **Problema:** un ejercicio del tipo «al pulsar D el jugador se mueve» solo se puede comprobar llamando a los métodos del juego, no a través de `entrada`.
+- **Posible solución:** `pruebas.mantener(tecla)`, `pruebas.soltar(tecla)`, `pruebas.pulsar(tecla)` y `pruebas.raton(x, y)` que escriban en el estado simulado (`_hgsimAhora`, `_hgsimCursor`) que ya leen los ayudantes de `entrada`.

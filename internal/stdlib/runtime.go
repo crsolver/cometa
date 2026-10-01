@@ -141,6 +141,13 @@ func Runtime(modules []string) (string, []string, error) {
 		}
 		for _, f := range Functions {
 			if f.Namespace == ns {
+				if VisualTest(f) {
+					if !UsesPincel(modules) {
+						continue
+					}
+					visit("_hgpruebasBucle")
+					visit("_hgpruebasReiniciar")
+				}
 				visit("_hg" + f.GoName)
 				visit("_hg" + f.GoName + "Entero")
 				if ns == "pruebas" {

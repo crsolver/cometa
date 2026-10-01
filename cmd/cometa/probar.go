@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -152,7 +153,7 @@ func probar(input, filter string, limit time.Duration, asJSON bool) (report test
 	if runtime.GOOS == "windows" {
 		exe += ".exe"
 	}
-	if err = goBuild(dir, generated, map[string]string{"harness.go": harnessSource(names)}, exe); err != nil {
+	if err = goBuild(dir, generated, map[string]string{"harness.go": harnessSource(names, bytes.Contains(generated, []byte("func _hgpruebasBucle(")))}, exe); err != nil {
 		return testReport{Status: "error", Message: err.Error()}, exitInternal
 	}
 	resultsPath := filepath.Join(dir, "resultados.jsonl")
@@ -183,6 +184,10 @@ func probar(input, filter string, limit time.Duration, asJSON bool) (report test
 	switch {
 	case timedOut:
 		report.Status, code = "tiempo_agotado", exitTimeout
+	case runErr != nil && report.Failed == 0:
+		// The harness died outside any test, e.g. no display for visual tests.
+		report.Status, code = "error", exitInternal
+		report.Message = "las pruebas no pudieron ejecutarse: " + runErr.Error()
 	case report.Failed > 0:
 		report.Status, code = "fallo", exitTestsFailed
 	default:
@@ -306,12 +311,22 @@ func printReport(report testReport) {
 // harnessSource returns the Go file that runs each test in isolation and logs
 // its outcome. It has no dependency on the standard-library runtime: failed
 // assertions are recognised through the PruebaFallo method on their panic value.
-func harnessSource(names []string) string {
+// With visual tests (pruebas.avanzar) the tests run inside a hidden game loop,
+// which Ebitengine needs before it can paint and read pixels.
+func harnessSource(names []string, visual bool) string {
+	reset, start := "", "run()"
+	if visual {
+		reset = "_hgpruebasReiniciar()"
+		start = `if err := _hgpruebasBucle(run); err != nil {
+		fmt.Fprintln(os.Stderr, "no se pudieron iniciar las pruebas visuales:", err)
+		os.Exit(4)
+	}`
+	}
 	var list strings.Builder
 	for _, name := range names {
 		runes := []rune(name)
 		runes[0] = unicode.ToUpper(runes[0])
-		fmt.Fprintf(&list, "\t\t{%q, %s},\n", name, string(runes))
+		fmt.Fprintf(&list, "\t\t\t{%q, %s},\n", name, string(runes))
 	}
 	return `package main
 
@@ -334,16 +349,20 @@ func main() {
 		out.Write(append(line, '\n'))
 		out.Sync()
 	}
-	for _, t := range []struct {
-		name string
-		run  func()
-	}{
-` + list.String() + `	} {
-		emit(map[string]any{"nombre": t.name, "estado": "inicio"})
-		start := time.Now()
-		status, message, trace := _hpRun(t.run)
-		emit(map[string]any{"nombre": t.name, "estado": status, "mensaje": message, "traza": trace, "ms": time.Since(start).Milliseconds()})
+	run := func() {
+		for _, t := range []struct {
+			name string
+			run  func()
+		}{
+` + list.String() + `		} {
+			emit(map[string]any{"nombre": t.name, "estado": "inicio"})
+			` + reset + `
+			start := time.Now()
+			status, message, trace := _hpRun(t.run)
+			emit(map[string]any{"nombre": t.name, "estado": status, "mensaje": message, "traza": trace, "ms": time.Since(start).Milliseconds()})
+		}
 	}
+	` + start + `
 }
 
 func _hpRun(f func()) (status, message, trace string) {

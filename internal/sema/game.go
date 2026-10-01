@@ -74,6 +74,9 @@ func (c *checker) gameCall(call *ast.CallExpr) (Type, bool, error) {
 	}
 	c.model.Game.Used = true
 	c.model.Game.Calls[call] = f
+	if stdlib.VisualTest(f) && !stdlib.UsesPincel(c.model.Game.Modules) {
+		return Type{}, true, c.fail(call.Pos, "pruebas.%s comprueba un juego de Pincel: el proyecto debe importar std/pincel o alguno de sus módulos", f.Name)
+	}
 	sig, err := c.signature(f.Declaration())
 	if err != nil {
 		return Type{}, true, err

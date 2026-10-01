@@ -21,6 +21,9 @@ var Functions = []Function{
 	{"pruebas", "igual", `esperado cadena, obtenido cadena, mensaje cadena = "")`, "pruebasIgual", false, false},
 	{"pruebas", "casi_igual", `esperado decimal, obtenido decimal, tolerancia decimal = 0.000001, mensaje cadena = "")`, "pruebasCasiIgual", false, false},
 	{"pruebas", "fallar", "mensaje cadena)", "pruebasFallar", false, false},
+	{"pruebas", "avanzar", "juego Juego, cuadros entero = 1, ancho entero = 320, alto entero = 180, tps entero = 60)", "pruebasAvanzar", false, false},
+	{"pruebas", "pantalla", ") Imagen", "pruebasPantalla", false, false},
+	{"pruebas", "pixel", `x entero, y entero, esperado Color, tolerancia entero = 0, mensaje cadena = "")`, "pruebasPixel", false, false},
 	{"ruido", "suave", "x decimal, y decimal, semilla entero = 0) decimal", "ruidoSuave", false, false},
 	{"ruido", "fractal", "x decimal, y decimal, semilla entero = 0, octavas entero = 4, persistencia decimal = 0.5, lacunaridad decimal = 2.0) decimal", "ruidoFractal", false, false},
 	{"curvas", "lineal", "progreso decimal) decimal", "curva_lineal", false, false},
@@ -239,6 +242,22 @@ func IsValue(name string) bool {
 		return true
 	}
 	return name == Symbol("Vec2") || name == Symbol("Rect") || name == Symbol("Camara2D") || name == Symbol("Color") || name == Symbol("Tecla") || name == Symbol("BotonRaton") || name == Symbol("BotonMando") || name == Symbol("EjeMando")
+}
+// VisualTest reports whether f is one of the std/pruebas functions that step
+// and paint a game. Only they need Ebitengine, so their runtime is emitted
+// only for projects that also import a std/pincel module.
+func VisualTest(f Function) bool {
+	return f.Namespace == "pruebas" && (f.Name == "avanzar" || f.Name == "pantalla" || f.Name == "pixel")
+}
+
+// UsesPincel reports whether any imported native module belongs to Pincel.
+func UsesPincel(modules []string) bool {
+	for _, module := range modules {
+		if module == "std/pincel" || strings.HasPrefix(module, "std/pincel/") {
+			return true
+		}
+	}
+	return false
 }
 func IsNamespace(name string) bool {
 	for _, f := range Functions {

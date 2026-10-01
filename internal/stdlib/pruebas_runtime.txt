@@ -41,3 +41,99 @@ func _hgpruebasCasiIgual(esperado, obtenido, tolerancia float64, mensaje string)
 		_hgpruebaFalla(mensaje, fmt.Sprintf("se esperaba %v (±%v) pero se obtuvo %v", esperado, tolerancia, obtenido))
 	}
 }
+
+// Visual tests. `cometa probar` runs the harness inside a hidden Ebitengine loop
+// (_hgpruebasBucle) so a Juego can be stepped and painted onto an off-screen
+// image whose pixels are then read back. Real input devices are ignored.
+var _hgpruebasActivo bool
+var _hgpruebasLienzo *ebiten.Image
+var _hgpruebasCaptura *image.NRGBA
+
+type _hgpruebasJuego struct {
+	correr func()
+	hecho  bool
+}
+
+func (g *_hgpruebasJuego) Update() error {
+	if !g.hecho {
+		g.hecho = true
+		g.correr()
+	}
+	return ebiten.Termination
+}
+func (*_hgpruebasJuego) Draw(*ebiten.Image)         {}
+func (*_hgpruebasJuego) Layout(w, h int) (int, int) { return 16, 16 }
+func _hgpruebasBucle(correr func()) error {
+	_hgrunStarted, _hgguionActivo, _hgpruebasActivo = true, true, true
+	ebiten.SetWindowVisible(false)
+	ebiten.SetRunnableOnUnfocused(true)
+	return ebiten.RunGame(&_hgpruebasJuego{correr: correr})
+}
+
+// Called before each test so one test's screen never leaks into the next.
+func _hgpruebasReiniciar() { _hgpruebasCaptura = nil; _hgsalirPedido = false }
+func _hgpruebasAvanzar(juego _hgJuego, cuadros, ancho, alto, tps int64) {
+	if !_hgpruebasActivo {
+		panic("pruebas.avanzar solo funciona en pruebas ejecutadas con cometa probar")
+	}
+	if cuadros < 0 {
+		panic("pruebas.avanzar: cuadros no puede ser negativo")
+	}
+	if err := _hgvalidarConfig(_hgConfigJuego{ancho, alto, "", 1, false, false, tps}); err != nil {
+		panic("pruebas.avanzar: " + err.Error())
+	}
+	_hgconfig.Ancho, _hgconfig.Alto, _hgconfig.Tps = ancho, alto, tps
+	for i := int64(0); i < cuadros; i++ {
+		_hgtick++
+		_hgavanzarGuion()
+		func() {
+			_hgupdating = true
+			defer func() { _hgupdating = false }()
+			juego.Actualizar(1 / float64(tps))
+		}()
+	}
+	w, h := int(ancho), int(alto)
+	if _hgpruebasLienzo == nil || _hgpruebasLienzo.Bounds().Dx() != w || _hgpruebasLienzo.Bounds().Dy() != h {
+		if _hgpruebasLienzo != nil {
+			_hgpruebasLienzo.Deallocate()
+		}
+		_hgpruebasLienzo = ebiten.NewImage(w, h)
+	}
+	// A window shows black wherever the game paints nothing.
+	_hgpruebasLienzo.Fill(color.Black)
+	func() {
+		_hgscreen = _hgpruebasLienzo
+		_hgsinRecorte = nil
+		_hgrestablecerCamara()
+		defer func() { _hgscreen = nil }()
+		juego.Pintar()
+	}()
+	pix := make([]byte, 4*w*h)
+	_hgpruebasLienzo.ReadPixels(pix)
+	_hgpruebasCaptura = _hgnrgba(&image.RGBA{Pix: pix, Stride: 4 * w, Rect: image.Rect(0, 0, w, h)})
+}
+func _hgpruebasPantalla() *_hgImagen {
+	if _hgpruebasCaptura == nil {
+		panic("pruebas.pantalla y pruebas.pixel requieren llamar antes a pruebas.avanzar")
+	}
+	pixels := image.NewNRGBA(_hgpruebasCaptura.Rect)
+	copy(pixels.Pix, _hgpruebasCaptura.Pix)
+	return &_hgImagen{pixels: pixels}
+}
+func _hgpruebasPixel(x, y int64, esperado _hgColor, tolerancia int64, mensaje string) {
+	pantalla := _hgpruebasPantalla().pixels
+	if x < 0 || y < 0 || x >= int64(pantalla.Rect.Dx()) || y >= int64(pantalla.Rect.Dy()) {
+		_hgpruebaFalla(mensaje, fmt.Sprintf("el píxel (%d, %d) está fuera de la pantalla de %d×%d", x, y, pantalla.Rect.Dx(), pantalla.Rect.Dy()))
+	}
+	o := pantalla.NRGBAAt(int(x), int(y))
+	lejos := func(a, b uint8) bool {
+		d := int64(a) - int64(b)
+		if d < 0 {
+			d = -d
+		}
+		return d > tolerancia
+	}
+	if lejos(esperado.R, o.R) || lejos(esperado.G, o.G) || lejos(esperado.B, o.B) || lejos(esperado.A, o.A) {
+		_hgpruebaFalla(mensaje, fmt.Sprintf("en el píxel (%d, %d) se esperaba rgba(%d, %d, %d, %d) pero se obtuvo rgba(%d, %d, %d, %d)", x, y, esperado.R, esperado.G, esperado.B, esperado.A, o.R, o.G, o.B, o.A))
+	}
+}
