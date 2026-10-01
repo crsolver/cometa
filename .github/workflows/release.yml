@@ -31,6 +31,9 @@ jobs:
           args: release --clean --release-notes ${{ runner.temp }}/notas.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # When a commit carries several tags (v0.1.0-rc2 and v0.1.0),
+          # release the one that was pushed.
+          GORELEASER_CURRENT_TAG: ${{ github.ref_name }}
 
   vsix:
     needs: archives
