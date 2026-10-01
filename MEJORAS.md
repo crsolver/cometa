@@ -88,12 +88,6 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 - **Problema:** los ejercicios de consola no pueden recibir datos de entrada; hoy solo valen funciones/estructuras y juegos.
 - **Posible solución:** un módulo `std/consola` con `leer_linea() cadena?`.
 
-### La API del compilador está bajo `internal/`
-
-- **Observado:** `compiler.AnalyzeProject`/`CompileProject` no se pueden importar desde otro módulo Go.
-- **Problema:** un servidor de plataforma tiene que invocar el binario `cometa` como proceso.
-- **Posible solución:** publicar un paquete estable (p. ej. `pkg/cometa`) o mantener la CLI con `--json` como contrato.
-
 ### `cometa probar` aún no admite pruebas visuales
 
 - **Observado:** solo hay afirmaciones sobre valores; no hay forma de avanzar un `Juego` N cuadros y comprobar píxeles de la pantalla (ver paso 5 del plan).

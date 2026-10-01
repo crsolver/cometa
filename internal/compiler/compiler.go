@@ -2,6 +2,7 @@ package compiler
 
 import (
 	"fmt"
+	"os"
 	"cometa/internal/ast"
 	"cometa/internal/codegen"
 	"cometa/internal/diagnostic"
@@ -36,7 +37,7 @@ func Analyze(filename string, source []byte) (*ast.Program, *sema.Model, error) 
 	if err := errors.Err(); err != nil {
 		return program, model, err
 	}
-	if err = loadAssets(filename, model); err != nil {
+	if err = loadAssets(filename, model, os.ReadFile); err != nil {
 		return program, model, err
 	}
 	return program, model, nil

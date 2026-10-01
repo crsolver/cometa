@@ -265,7 +265,7 @@ func AnalyzeProject(entry string, loader SourceLoader) (*Project, error) {
 	if err := errors.Err(); err != nil {
 		return p, p.displayError(err)
 	}
-	if err = loadAssets(root, p.Model); err != nil {
+	if err = loadAssets(root, p.Model, loader); err != nil {
 		return p, err
 	}
 	return p, nil

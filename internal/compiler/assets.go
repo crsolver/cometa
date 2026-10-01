@@ -10,7 +10,6 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 	"io"
-	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -23,7 +22,9 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/audio/wav"
 )
 
-func loadAssets(filename string, model *sema.Model) error {
+// loadAssets reads embedded resources through loader, so in-memory projects
+// can provide them as well as source files.
+func loadAssets(filename string, model *sema.Model, loader SourceLoader) error {
 	model.Assets = map[*ast.CallExpr]sema.Asset{}
 	var calls []*ast.CallExpr
 	for call, f := range model.Game.Calls {
@@ -48,8 +49,11 @@ func loadAssets(filename string, model *sema.Model) error {
 		if source == "" {
 			source = filename
 		}
-		resolved := filepath.Join(filepath.Dir(source), filepath.FromSlash(path))
-		data, err := os.ReadFile(resolved)
+		resolved, err := CanonicalPath(filepath.Join(filepath.Dir(source), filepath.FromSlash(path)))
+		var data []byte
+		if err == nil {
+			data, err = loader(resolved)
+		}
 		if err == nil {
 			err = validateAsset(f.Name, path, data)
 		}

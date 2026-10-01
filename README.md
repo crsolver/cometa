@@ -105,6 +105,26 @@ npm run build
 
 `npm run build` compila el cliente y deja el ejecutable en `vscode-extension/bin/`. Para probar la extensión, abre el repositorio en VS Code, pulsa `F5` y elige **Run Cometa Extension**. Si el servidor está en otra ruta, configura `cometa.server.path`; los fallos de arranque aparecen en **Salida → Cometa Language Server**.
 
+### Usar el compilador desde Go
+
+El paquete `cometa/pkg/cometa` es la API estable para otros programas Go (por ejemplo, un servidor que compila proyectos de sus usuarios) y no requiere lanzar el ejecutable. Acepta un archivo en disco o un proyecto en memoria, y devuelve el Go generado o un `*cometa.Error` con diagnósticos (archivo, línea, columna, etapa y mensaje; mismos nombres JSON que `cometa probar --json`):
+
+```go
+archivos := map[string][]byte{
+	"principal.cometa":  []byte("usar mundo/mapa\nfn inicio()\n\timprimir(mapa.ancho())\n"),
+	"mundo/mapa.cometa": []byte("pub fn ancho() entero 16\n"),
+}
+codigoGo, err := cometa.Compile("principal.cometa", cometa.Options{Files: archivos})
+var e *cometa.Error
+if errors.As(err, &e) {
+	for _, d := range e.Diagnostics {
+		fmt.Println(d.File, d.Line, d.Column, d.Message)
+	}
+}
+```
+
+`cometa.Check` hace el mismo análisis sin generar código. Como la ruta del módulo es `cometa`, el otro módulo lo importa con `require cometa v0.0.0` y `replace cometa => ../ruta/a/cometa` en su `go.mod`. Todo lo que está bajo `internal/` puede cambiar sin aviso.
+
 Licencia: [MIT](LICENSE).
 
 ## Pendiente
