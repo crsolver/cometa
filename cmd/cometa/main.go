@@ -37,6 +37,7 @@ func run(args []string) error {
 		fmt.Println("cometa", version)
 		return nil
 	}
+	locateGoroot()
 	if len(args) > 0 && args[0] == "probar" {
 		return runProbar(args[1:])
 	}

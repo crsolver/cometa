@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"go/build"
 	"go/parser"
 	"go/token"
 	"github.com/crsolver/cometa/internal/stdlib"
@@ -134,4 +135,31 @@ func goBuild(dir string, source []byte, extra map[string]string, output string) 
 		return buildFailure(buildErrors.String(), err)
 	}
 	return nil
+}
+
+// locateGoroot points Go's type importer (used to validate generated code) at
+// the user's Go installation. A released cometa carries the GOROOT of the
+// machine that built it, which does not exist anywhere else.
+func locateGoroot() {
+	if root := os.Getenv("GOROOT"); root != "" {
+		build.Default.GOROOT = root
+		return
+	}
+	if root := build.Default.GOROOT; root != "" {
+		if _, err := os.Stat(filepath.Join(root, "src", "fmt")); err == nil {
+			return
+		}
+	}
+	goEx, err := goExecutable()
+	if err != nil {
+		return // reported later, when the program is built
+	}
+	out, err := exec.Command(goEx, "env", "GOROOT").Output()
+	if err != nil {
+		return
+	}
+	if root := strings.TrimSpace(string(out)); root != "" {
+		os.Setenv("GOROOT", root)
+		build.Default.GOROOT = root
+	}
 }
