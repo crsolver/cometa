@@ -35,8 +35,8 @@ archives:
 checksum:
   name_template: checksums.txt
 
-changelog:
-  disable: true
+# The release text comes from CHANGELOG.md through --release-notes (see
+# .github/workflows/release.yml); disabling the changelog would drop it.
 
 # Tags such as v0.1.0-rc1 are published as pre-releases.
 release:
