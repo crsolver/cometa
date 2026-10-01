@@ -78,8 +78,16 @@ func (*crtCheck) Update() error {
    if before[i+3]!=after[i+3]{panic("CRT shifted geometry or letterboxing")}
    for c:=0;c<3;c++ {
     a,b:=int(before[i+c]),int(after[i+c])
-    if b>a+3 || b<int(float64(a)*0.74)-3{panic(fmt.Sprintf("CRT exceeds subtle darkening limits at scale %v: %d -> %d",scale,a,b))}
-    if a==0 && b!=0 {panic("CRT blurred source pixels")}
+    within:=func(a int)bool{return b<=a+1 && b>=int(float64(a)*0.74)-1 && (a!=0 || b==0)}
+    ok:=within(a)
+    // At fractional scales a pixel center can fall exactly on a texel boundary,
+    // where graphics backends round to different neighbors.
+    if !ok && math.Floor(scale)!=scale {
+     for _,d:=range []int{-4,4,-w*4,w*4} {
+      if j:=i+c+d;j>=0 && j<len(before) && within(int(before[j])) {ok=true}
+     }
+    }
+    if !ok {panic(fmt.Sprintf("CRT exceeds subtle darkening limits or blurs at scale %v: %d -> %d",scale,a,b))}
     changed=changed||a!=b
    }
    if scale==1 && before[i]==255 && before[i+1]==255 && before[i+2]==255 {
