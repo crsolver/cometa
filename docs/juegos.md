@@ -476,7 +476,7 @@ Ver [el ejemplo del laberinto](../examples/pincel/11_mapa.cometa).
 
 ### Editor de mapas
 
-`tools/mapa-editor/index.html` es un editor de mapas que se abre en el navegador, sin instalar nada. La paleta es el atlas dungeon de `std/pincel/retro`: eliges un icono (por su dibujo o buscando su nombre, como `Llave`) y lo pintas en la rejilla. Cada celda lleva su propio color, elegido de la paleta de `color.Color`. Tiene pintar, borrar, rellenar, rectángulo y cuentagotas, capas con nombre, deshacer y rehacer, y conserva el mapa en el navegador entre sesiones.
+`cometa mapa` abre el editor de mapas en el navegador, sin instalar nada (en el repositorio es `tools/mapa-editor/index.html`). La paleta es el atlas dungeon de `std/pincel/retro`: eliges un icono (por su dibujo o buscando su nombre, como `Llave`) y lo pintas en la rejilla. Cada celda lleva su propio color, elegido de la paleta de `color.Color`. Tiene pintar, borrar, rellenar, rectángulo y cuentagotas, capas con nombre, deshacer y rehacer, y conserva el mapa en el navegador entre sesiones.
 
 **Guardar .mapa.txt** escribe un archivo de texto: una fila por línea, los índices del atlas separados por comas (`-1` es una celda vacía), una línea `# nombre` antes de cada capa y `//` para comentarios. Los colores de la capa `suelo` van en otra capa, `suelo.color`, con un número `0xRRGGBB` por celda. Se puede editar a mano y volver a abrir.
 

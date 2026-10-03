@@ -64,6 +64,7 @@ Para un juego, usa `cometa nuevo mi_juego --juego`. La primera vez se descargan 
 | `cometa ejecutar <archivo>` | Compila y ejecuta. |
 | `cometa construir <archivo> -o <salida>` | Genera un ejecutable con todos los recursos incluidos. |
 | `cometa captura <juego> -o <png>` | Ejecuta un juego con la ventana oculta y guarda una captura. |
+| `cometa mapa` | Abre el editor de mapas en el navegador. |
 | `cometa compilar <archivo> -o <salida.go>` | Genera el código Go. |
 | `cometa lsp` | Inicia el servidor de lenguaje para el editor. |
 

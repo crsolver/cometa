@@ -44,6 +44,9 @@ func run(args []string) error {
 	if len(args) > 0 && args[0] == "nuevo" {
 		return runNew(args[1:])
 	}
+	if len(args) > 0 && args[0] == "mapa" {
+		return runMapa(args[1:])
+	}
 	if len(args) == 2 && args[0] == "biblioteca" {
 		source, ok := stdlib.Source(args[1])
 		if !ok {
@@ -56,7 +59,7 @@ func run(args []string) error {
 		return lspserver.Run(context.Background())
 	}
 	if len(args) == 0 || (args[0] != "compilar" && args[0] != "ejecutar" && args[0] != "construir" && args[0] != "captura") {
-		return fmt.Errorf("uso: cometa <comando> ...\n  nuevo     <nombre> [--juego] [--sin-agentes]  crea un proyecto de ejemplo (consola o juego)\n  ejecutar <archivo.cometa>              compila y ejecuta el programa\n  construir <archivo.cometa> [-o salida]  genera un ejecutable\n  compilar  <archivo.cometa> [-o salida.go]  genera el código Go\n  captura   <archivo.cometa> [-o captura.png] [--cuadros N,M,...] [--escala N] [--entrada guion.txt]\n  probar    <pruebas.cometa> [--json] [--tiempo S] [--filtro x]  ejecuta las funciones prueba_*\n  biblioteca <std/módulo>                 muestra las declaraciones de un módulo estándar\n  lsp                                     servidor de lenguaje para editores\n  --version                               muestra la versión")
+		return fmt.Errorf("uso: cometa <comando> ...\n  nuevo     <nombre> [--juego] [--sin-agentes]  crea un proyecto de ejemplo (consola o juego)\n  ejecutar <archivo.cometa>              compila y ejecuta el programa\n  construir <archivo.cometa> [-o salida]  genera un ejecutable\n  compilar  <archivo.cometa> [-o salida.go]  genera el código Go\n  captura   <archivo.cometa> [-o captura.png] [--cuadros N,M,...] [--escala N] [--entrada guion.txt]\n  probar    <pruebas.cometa> [--json] [--tiempo S] [--filtro x]  ejecuta las funciones prueba_*\n  mapa                                    abre el editor de mapas en el navegador\n  biblioteca <std/módulo>                 muestra las declaraciones de un módulo estándar\n  lsp                                     servidor de lenguaje para editores\n  --version                               muestra la versión")
 	}
 	var input, output, script string
 	var frames []int

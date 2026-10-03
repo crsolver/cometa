@@ -11,7 +11,7 @@ Las notas de cada versión. La sección de la etiqueta publicada se usa como tex
 
 ### Editor de mapas
 
-- **`tools/mapa-editor`:** un editor de mapas de tiles en un solo archivo HTML, con el atlas dungeon como paleta, un color por celda, capas, pintar, borrar, rellenar y rectángulo. Guarda y abre archivos `.mapa.txt` y exporta un módulo `.cometa` con los iconos y los colores de cada capa.
+- **`cometa mapa`:** abre un editor de mapas de tiles en el navegador (`tools/mapa-editor`, un solo archivo HTML), con el atlas dungeon como paleta, un color por celda, capas, pintar, borrar, rellenar y rectángulo. Guarda y abre archivos `.mapa.txt` y exporta un módulo `.cometa` con los iconos y los colores de cada capa.
 - **`rejilla.dibujar(..., colores = otra_rejilla)`:** una rejilla de colores (`0xRRGGBB` por celda) pinta cada celda de su color; sin ella se usa `tinte`, como antes.
 - **`retro.cargar_mapa(ruta)` y `retro.mapa(mapa)`:** cargan un `.mapa.txt` y lo dibujan como se ve en el editor. `mapa.capa("suelo")` da la rejilla de una capa para consultar celdas, colisionar o cambiar el mapa mientras se juega.
 - **`retro.hoja(atlas = .Dungeon)`:** el atlas retro como `graficos.Hoja`, para dibujar una rejilla con los iconos dungeon: `rejilla.dibujar(mapa, retro.hoja(), tinte = .Gris)`.
