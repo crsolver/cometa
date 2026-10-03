@@ -86,3 +86,14 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 - **Observado:** `retro.icono` dibuja la celda del atlas tal cual (`_hgretroIcono` llama a `_hgretroGlifo` sin más opciones); no hay forma de espejarla.
 - **Problema:** para tener un icono mirando a la izquierda y a la derecha, o boca arriba y boca abajo, hay que añadir al atlas una copia espejada de cada uno.
 - **Posible solución:** parámetros opcionales `voltear_h` y `voltear_v` (bool) en `retro.icono` (y quizá en `glifo`) que inviertan los ejes al dibujar, como ya hace `lienzo.pegar` con los espejos.
+
+
+### Falta un editor de mapas con el atlas dungeon y una forma de importarlos
+
+- **Observado:** `rejilla.dibujar` pide una `Hoja`, y el atlas de `retro` está embebido y solo lo usan `retro.icono`/`retro.glifo`; para pintar una rejilla con iconos dungeon hay que copiar `dungeon-mode.png` junto al juego o recorrer las celdas con `retro.glifo` a mano. Tampoco hay forma de crear un mapa visualmente: `rejilla.desde_texto` exige escribir las filas y el diccionario de símbolos, y un símbolo de un carácter no alcanza para los 256 índices del atlas.
+- **Problema:** quien escribe un ejercicio con un mapa tiene que dibujarlo en texto, y el alumno no puede cambiarlo ni verlo mientras lo edita. Hay una herramienta para ver el atlas (`tools/atlas-viewer`), pero no para componer mapas.
+- **Posible solución:** tres piezas pequeñas.
+  1. **Editor** en `tools/mapa-editor/` (un solo HTML, como el visor): paleta con el atlas, pintar/borrar/rellenar con el ratón, tamaño de rejilla, capas (suelo y objetos) y nombres de iconos de `retro`. Guarda y abre un archivo `.mapa.txt`.
+  2. **Formato de texto plano**: una fila por línea, índices del atlas separados por comas, una sección por capa (`# suelo`, `# objetos`). Es legible, se puede escribir a mano, y cabe en un archivo de ejercicio o en `pkg/cometa` con `Files` en memoria.
+  3. **Importación**: el editor exporta también un módulo `.cometa` con `pub fn mapa() Rejilla` listo para `usar ./mapa`, que no necesita biblioteca nueva. Y en la biblioteca, `rejilla.desde_csv(texto)` para el formato de texto y `retro.hoja(atlas)` que devuelva el atlas como `Hoja`, de modo que `rejilla.dibujar(mapa, retro.hoja(.Dungeon))` funcione tal cual, con animaciones, tinte y recorte, y que el índice de la celda sea el mismo que usan `retro.glifo` y `.Icono`.
+- **Orden sugerido:** primero `retro.hoja` y `rejilla.desde_csv` (útiles aunque no exista el editor), luego el editor con exportación a `.cometa`; las capas y las entidades (puntos de inicio, enemigos) pueden esperar.
