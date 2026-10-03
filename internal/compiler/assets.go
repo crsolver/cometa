@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/go-text/typesetting/font"
 	"github.com/go-text/typesetting/font/opentype"
@@ -106,6 +107,11 @@ func validateAsset(kind, path string, data []byte) error {
 			return fmt.Errorf("sonido vacío")
 		}
 		return err
+	case "texto", "cargar_mapa":
+		if !utf8.Valid(data) {
+			return fmt.Errorf("se requiere texto en UTF-8")
+		}
+		return nil
 	}
 	return fmt.Errorf("tipo de recurso desconocido")
 }

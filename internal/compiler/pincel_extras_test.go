@@ -71,8 +71,84 @@ fn inicio()
 	runGeneratedGo(t, generated, want)
 }
 
+// A map file saved by tools/mapa-editor is embedded with recursos.texto and
+// read one layer at a time with rejilla.desde_csv.
+func TestRejillaDesdeCsvRuns(t *testing.T) {
+	entry, loader := memoryProject(t, map[string]string{
+		"niveles/uno.mapa.txt": "\xEF\xBB\xBF// Mapa de prueba\r\n# suelo\r\n// color: Gris\r\n1, 1, 1\r\n1,-1,1\r\n\r\n# objetos\r\n-1,-1,175\r\n-1,3,-1\r\n",
+		"main.cometa": `usar std/pincel/recursos
+usar std/pincel/rejilla
+
+var nivel = recursos.texto("niveles/uno.mapa.txt")
+
+fn inicio()
+	var suelo = rejilla.desde_csv(nivel)
+	imprimir(suelo.columnas())
+	imprimir(suelo.filas())
+	imprimir(suelo.obtener(1, 1))
+	var objetos = rejilla.desde_csv(nivel, capa = "objetos")
+	imprimir(objetos.obtener(2, 0))
+	imprimir(objetos.obtener(1, 1))
+	var suelta = rejilla.desde_csv("7,8\n9,0x0A\n# otra\n1,2\n")
+	imprimir(suelta.filas())
+	imprimir(suelta.obtener(1, 1))
+`})
+	generated, err := CompileProject(entry, loader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runGeneratedGo(t, generated, strings.Join([]string{"3", "2", "Alguno(-1)", "Alguno(175)", "Alguno(3)", "2", "Alguno(10)"}, "\n")+"\n")
+
+	entry, loader = memoryProject(t, map[string]string{
+		"roto.txt":    "\xff\xfe",
+		"main.cometa": "usar std/pincel/recursos\nvar nivel = recursos.texto(\"roto.txt\")\nfn inicio()\n\timprimir(nivel)\n",
+	})
+	if _, err := CompileProject(entry, loader); err == nil || !strings.Contains(err.Error(), "UTF-8") {
+		t.Fatalf("falta el diagnóstico de texto inválido: %v", err)
+	}
+}
+
+// retro.cargar_mapa loads every layer of an editor file at once; its layers are live grids.
+func TestRetroMapaRuns(t *testing.T) {
+	entry, loader := memoryProject(t, map[string]string{
+		"uno.mapa.txt": "# suelo\n1,1,1\n1,-1,1\n\n# suelo.color\n0xFF0000,-1,-1\n-1,-1,255\n\n# objetos\n-1,-1,175\n-1,3,-1\n",
+		"main.cometa": `usar std/pincel/retro
+
+var nivel = retro.cargar_mapa("uno.mapa.txt")
+
+fn inicio()
+	imprimir(nivel.columnas())
+	imprimir(nivel.filas())
+	imprimir(nivel.capas())
+	imprimir(nivel.capa("objetos").obtener(2, 0))
+	imprimir(nivel.colores("suelo").obtener(0, 0))
+	imprimir(nivel.colores("objetos").obtener(2, 0))
+	nivel.capa("objetos").poner(2, 0, -1)
+	imprimir(nivel.capa("objetos").obtener(2, 0))
+	imprimir(nivel.capa("techo").filas())
+`})
+	generated, err := CompileProject(entry, loader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "main.go"), generated, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	out := runGoExpectingFailure(t, filepath.Join(dir, "main.go"))
+	for _, want := range []string{"3\n2\n[\"suelo\", \"objetos\"]\nAlguno(175)\nAlguno(16711680)\nAlguno(-1)\nAlguno(-1)\n", `el mapa no tiene una capa "techo" (capas: suelo, objetos)`} {
+		if !strings.Contains(out, want) {
+			t.Errorf("falta %q en la salida:\n%s", want, out)
+		}
+	}
+}
+
 func TestRejillaErrorsAreClear(t *testing.T) {
 	cases := []struct{ name, body, want string }{
+		{"csv not a number", `rejilla.desde_csv("1,2\n3,x")`, `"x" (línea 2, columna 2)`},
+		{"csv ragged rows", `rejilla.desde_csv("1,2\n3")`, "la línea 2 tiene 1 valores"},
+		{"csv missing layer", `rejilla.desde_csv("# suelo\n1,2", capa = "objetos")`, `no hay una capa "objetos" con filas (capas del texto: suelo)`},
+		{"csv empty", `rejilla.desde_csv("// nada\n")`, "no tiene ninguna fila"},
 		{"unknown symbol", `rejilla.desde_texto(["#?"], ["#": 1])`, `el símbolo "?"`},
 		{"ragged rows", `rejilla.desde_texto(["##", "#"], ["#": 1])`, "la fila 2 mide 1"},
 		{"bad size", `rejilla.nueva(0, 2)`, "deben ser positivas"},

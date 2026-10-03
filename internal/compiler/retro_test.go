@@ -51,7 +51,7 @@ func TestRetroRenderingRuntime(t *testing.T) {
 	if testing.Short() {
 		t.Skip("desktop rendering")
 	}
-	generated, err := Compile("retro.cometa", []byte("usar std/pincel/retro\nfn pintar() retro.texto(\"hola\", 0, 0)\n"))
+	generated, err := Compile("retro.cometa", []byte("usar std/pincel/retro\nusar std/pincel/rejilla\nfn pintar()\n\tretro.texto(\"hola\", 0, 0)\n\trejilla.dibujar(rejilla.nueva(1, 1), retro.hoja())\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,6 +98,18 @@ func (*retroCheck) Update() error {
    }
   }
  }
+ // retro.hoja exposes the same cells as a sheet: a tinted grid drawn with it matches retro.glifo.
+ for atlas:=_hgAtlas(0);atlas<2;atlas++ {
+  for _,index:=range []int64{3,65,175,255} {
+   red:=_hgColor{255,0,0,255}
+   _hgscreen.Clear();_hgretroGlifo(index,8,8,2,red,atlas)
+   glyph:=make([]byte,48*48*4);_hgscreen.ReadPixels(glyph)
+   _hgscreen.Clear();_hgrejillaDibujar(_hgrejillaNueva(1,1,index),_hgretroHoja(atlas),_hgVec2{8,8},_hgVec2{2,2},red,nil,0,struct { tag int; payload1 *_hgRejilla }{})
+   sheet:=make([]byte,48*48*4);_hgscreen.ReadPixels(sheet)
+   if !bytes.Equal(glyph,sheet)||!bytes.Contains(sheet,[]byte{255,0,0,255}) {panic(fmt.Sprintf("sheet mismatch atlas %d glyph %d",atlas,index))}
+  }
+ }
+ if h:=_hgretroHoja(0);h.cols*h.rows!=256 {panic("retro sheet must have 256 frames")}
  for _,index:=range []int64{-1,256}{mustPanic(func(){_hgretroGlifo(index,0,0,1,white,0)})}
  for _,scale:=range []int64{0,-1}{mustPanic(func(){_hgretroTexto("",0,0,scale,white)})}
  mustPanic(func(){_hgretroGlifo(0,0,0,1,white,2)})

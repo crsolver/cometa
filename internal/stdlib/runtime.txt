@@ -151,6 +151,7 @@ func _hgfps() float64{return ebiten.ActualFPS()}
 func _hgtps() float64{return ebiten.ActualTPS()}
 func _hgbytes(encoded,path string) []byte{b,err:=base64.StdEncoding.DecodeString(encoded);if err!=nil{log.Fatalf("recurso %s: %v",path,err)};return b}
 func _hgcargarImagen(encoded,path string) *_hgImagen{img,_,err:=image.Decode(bytes.NewReader(_hgbytes(encoded,path)));if err!=nil{log.Fatalf("imagen %s: %v",path,err)};return &_hgImagen{pixels:_hgnrgba(img)}}
+func _hgcargarTexto(encoded,path string) string{return strings.TrimPrefix(string(_hgbytes(encoded,path)),"\xEF\xBB\xBF")}
 // Go Regular (BSD license, bundled with golang.org/x/image) is parsed once on first use.
 var _hgfuenteGo *_hgFuente
 func _hgfuentePredeterminada() *_hgFuente{if _hgfuenteGo==nil{f,err:=text.NewGoTextFaceSource(bytes.NewReader(goregular.TTF));if err!=nil{log.Fatalf("fuente predeterminada: %v",err)};_hgfuenteGo=&_hgFuente{f}};return _hgfuenteGo}

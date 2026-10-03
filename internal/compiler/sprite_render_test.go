@@ -42,6 +42,7 @@ var (
  rojo=_hgColor{255,0,0,255};azul=_hgColor{0,0,255,255};verde=_hgColor{0,255,0,255}
  amarillo=_hgColor{255,255,0,255};magenta=_hgColor{255,0,255,255};nada=_hgColor{}
 )
+var sinColores struct { tag int; payload1 *_hgRejilla }
 type expect struct{x,y int;c _hgColor}
 func check(name string,draw func(),want ...expect){
  _hgscreen.Clear();_hgrestablecerCamara();draw();_hgquitarRecorte()
@@ -88,18 +89,22 @@ func (*spriteCheck) Update() error {
  check("clip removed",func(){_hgrecortar(_hgRect{_hgVec2{0,0},_hgVec2{1,1}});_hgquitarRecorte();_hgcuadro(h,0,at,zero,one,0,blanco,false,false,nada)},expect{10,10,rojo},expect{13,13,amarillo})
  check("clip outside",func(){_hgrecortar(_hgRect{_hgVec2{100,100},_hgVec2{5,5}});_hgcuadro(h,0,at,zero,one,0,blanco,false,false,nada);_hgquitarRecorte()},expect{10,10,nada})
  grid:=_hgVec2{20,30}
- check("grid",func(){_hgrejillaDibujar(m,h,grid,one,_hgColor{255,255,255,255},nil,8)},
+ check("grid",func(){_hgrejillaDibujar(m,h,grid,one,_hgColor{255,255,255,255},nil,8,sinColores)},
   expect{20,30,magenta},expect{23,33,magenta},expect{24,30,rojo},expect{27,33,amarillo},expect{28,30,nada},expect{19,30,nada})
- check("grid scaled",func(){_hgrejillaDibujar(m,h,_hgVec2{0,0},_hgVec2{2,2},_hgColor{255,255,255,255},nil,8)},
+ check("grid scaled",func(){_hgrejillaDibujar(m,h,_hgVec2{0,0},_hgVec2{2,2},_hgColor{255,255,255,255},nil,8,sinColores)},
   expect{7,7,magenta},expect{8,0,rojo},expect{15,7,amarillo},expect{16,0,nada})
+ // A color grid tints each cell with its own 0xRRGGBB; negative cells keep the tint.
+ colores:=_hgrejillaNueva(3,1,-1);colores.Poner(0,0,0x0000FF)
+ conColores:=struct { tag int; payload1 *_hgRejilla }{1,colores}
+ check("cell colors",func(){_hgrejillaDibujar(m,h,grid,one,_hgColor{255,255,255,255},nil,8,conColores)},expect{20,30,azul},expect{24,30,rojo},expect{27,33,amarillo})
  // Animated cells: value 1 cycles frames [0, 1] at 8 per second (60 TPS).
  anim:=map[int64][]int64{1:{0,1}}
  _hgtick=0
- check("animated first",func(){_hgrejillaDibujar(m,h,grid,one,_hgColor{255,255,255,255},anim,8)},expect{20,30,rojo},expect{24,30,rojo})
+ check("animated first",func(){_hgrejillaDibujar(m,h,grid,one,_hgColor{255,255,255,255},anim,8,sinColores)},expect{20,30,rojo},expect{24,30,rojo})
  _hgtick=8
- check("animated second",func(){_hgrejillaDibujar(m,h,grid,one,_hgColor{255,255,255,255},anim,8)},expect{20,30,magenta},expect{24,30,rojo})
+ check("animated second",func(){_hgrejillaDibujar(m,h,grid,one,_hgColor{255,255,255,255},anim,8,sinColores)},expect{20,30,magenta},expect{24,30,rojo})
  _hgtick=15
- check("animated wraps",func(){_hgrejillaDibujar(m,h,grid,one,_hgColor{255,255,255,255},anim,8)},expect{20,30,rojo})
+ check("animated wraps",func(){_hgrejillaDibujar(m,h,grid,one,_hgColor{255,255,255,255},anim,8,sinColores)},expect{20,30,rojo})
  // Nearest sampling keeps fractional positions crisp: every source pixel still covers whole screen pixels,
  // so pixel art needs no manual rounding (including exact halves and fractional camera offsets).
  check("fractional down",func(){_hgcuadro(h,0,_hgVec2{10.4,10.4},zero,one,0,blanco,false,false,nada)},expect{10,10,rojo},expect{13,13,amarillo},expect{14,14,nada})
@@ -109,7 +114,7 @@ func (*spriteCheck) Update() error {
  // The camera moves sprites and grids alike.
  cam:=_hgCamara2D{Pos:_hgVec2{-5,0},Zoom:1}
  check("camera sprite",func(){_hgusarCamara(cam);_hgcuadro(h,0,at,zero,one,0,_hgColor{255,255,255,255},false,false,nada)},expect{15,10,rojo},expect{10,10,nada})
- check("camera grid",func(){_hgusarCamara(cam);_hgrejillaDibujar(m,h,grid,one,_hgColor{255,255,255,255},nil,8)},expect{25,30,magenta},expect{29,30,rojo},expect{20,30,nada})
+ check("camera grid",func(){_hgusarCamara(cam);_hgrejillaDibujar(m,h,grid,one,_hgColor{255,255,255,255},nil,8,sinColores)},expect{25,30,magenta},expect{29,30,rojo},expect{20,30,nada})
  fmt.Println("ok")
  return ebiten.Termination
 }

@@ -79,7 +79,10 @@ Firmas (todos los dibujos requieren la fase `pintar`):
 retro.texto(texto cadena, x entero, y entero, escala entero = 1, color color.Color = .Blanco)
 retro.icono(icono retro.Icono, x entero, y entero, escala entero = 1, color color.Color = .Blanco)
 retro.glifo(indice entero, x entero, y entero, escala entero = 1, color color.Color = .Blanco, atlas retro.Atlas = .Dungeon)
+retro.hoja(atlas retro.Atlas = .Dungeon) graficos.Hoja
 ```
+
+`retro.hoja` devuelve el atlas como hoja de cuadros de 8×8: el cuadro `i` es el glifo que dibuja `retro.glifo(i)`, así que una rejilla de índices se pinta con `rejilla.dibujar(mapa, retro.hoja(), tinte = .Gris)`, o con un color por celda mediante `colores`. No requiere la fase `pintar`; ver [el editor de mapas](#editor-de-mapas).
 
 Las posiciones son píxeles de la esquina superior izquierda; cada celda ocupa `8 * escala` píxeles. La escala debe ser un entero positivo. Los píxeles negros del atlas se vuelven transparentes; los blancos toman el color indicado. Para fondos, dibuja antes un rectángulo.
 
@@ -204,11 +207,13 @@ usar std/pincel/recursos
 var sprite = recursos.imagen("assets/jugador.png")
 var fuente = recursos.fuente("assets/texto.ttf")
 var sonido = recursos.sonido("assets/recoger.wav")
+var nivel = recursos.texto("assets/nivel.mapa.txt")
 ```
 
 Las llamadas de recursos solo se aceptan como inicializadores globales directos,
 con rutas literales relativas al módulo que las declara. Se validan los datos y
 se incorporan al Go generado. Formatos: PNG/JPEG, TTF/OTF, WAV/Ogg Vorbis/MP3.
+`recursos.texto` acepta cualquier archivo de texto en UTF-8 y devuelve una `cadena`.
 WAV admite PCM de 8/16 bits, mono/estéreo. Audio se carga completo en memoria y se
 decodifica a PCM estéreo de 48 kHz. No se necesitan archivos externos al ejecutar.
 
@@ -332,7 +337,8 @@ datos.leer_decimal(clave cadena) decimal?
 
 rejilla.nueva(columnas entero, filas entero, valor entero = 0) rejilla.Rejilla
 rejilla.desde_texto(filas [cadena], simbolos [cadena: entero]) rejilla.Rejilla
-rejilla.dibujar(mapa rejilla.Rejilla, hoja graficos.Hoja, pos mate.Vec2 = {}, escala mate.Vec2 = {x: 1, y: 1}, tinte color.Color = .Blanco, animaciones [entero: [entero]] = [:], cuadros_por_segundo decimal = 8)
+rejilla.desde_csv(texto cadena, capa cadena = "") rejilla.Rejilla
+rejilla.dibujar(mapa rejilla.Rejilla, hoja graficos.Hoja, pos mate.Vec2 = {}, escala mate.Vec2 = {x: 1, y: 1}, tinte color.Color = .Blanco, animaciones [entero: [entero]] = [:], cuadros_por_segundo decimal = 8, colores rejilla.Rejilla? = .Ninguno)
 rejilla.Rejilla.columnas() entero
 rejilla.Rejilla.filas() entero
 rejilla.Rejilla.obtener(x entero, y entero) entero?
@@ -366,6 +372,7 @@ tiempo.Temporizador.progreso() decimal
 recursos.imagen(ruta cadena) graficos.Imagen
 recursos.fuente(ruta cadena) graficos.Fuente
 recursos.sonido(ruta cadena) audio.Sonido
+recursos.texto(ruta cadena) cadena
 ```
 
 `azar` incluye el mínimo y excluye el máximo cuando son distintos; límites iguales
@@ -466,6 +473,53 @@ rejilla.dibujar(@mapa, @hoja, animaciones = [4: [4, 5, 6]], cuadros_por_segundo 
 
 Para varias capas (suelo, decoración, objetos) usa una rejilla por capa con la misma hoja y dibújalas en orden; colisiona solo contra la que tenga los sólidos.
 Ver [el ejemplo del laberinto](../examples/pincel/11_mapa.cometa).
+
+### Editor de mapas
+
+`tools/mapa-editor/index.html` es un editor de mapas que se abre en el navegador, sin instalar nada. La paleta es el atlas dungeon de `std/pincel/retro`: eliges un icono (por su dibujo o buscando su nombre, como `Llave`) y lo pintas en la rejilla. Cada celda lleva su propio color, elegido de la paleta de `color.Color`. Tiene pintar, borrar, rellenar, rectángulo y cuentagotas, capas con nombre, deshacer y rehacer, y conserva el mapa en el navegador entre sesiones.
+
+**Guardar .mapa.txt** escribe un archivo de texto: una fila por línea, los índices del atlas separados por comas (`-1` es una celda vacía), una línea `# nombre` antes de cada capa y `//` para comentarios. Los colores de la capa `suelo` van en otra capa, `suelo.color`, con un número `0xRRGGBB` por celda. Se puede editar a mano y volver a abrir.
+
+```text
+# suelo
+209,209,209,209
+209,7,7,209
+209,209,209,209
+
+# suelo.color
+0x52524C,0x52524C,0x52524C,0x52524C
+0x52524C,0x443F41,0x443F41,0x4772BF
+0x4772BF,0x4772BF,0x4772BF,0x4772BF
+```
+
+En el juego, `retro.cargar_mapa` carga el archivo (como los demás recursos, en una variable global con la ruta literal) y `retro.mapa` lo dibuja con sus iconos y colores, tal como se ve en el editor:
+
+```cometa
+usar std/pincel/retro
+
+var nivel = retro.cargar_mapa("nivel.mapa.txt")
+
+// En pintar():
+retro.mapa(nivel)
+```
+
+```cometa
+retro.cargar_mapa(ruta cadena) retro.Mapa
+retro.mapa(mapa retro.Mapa, x entero = 0, y entero = 0, escala entero = 1, capa cadena = "", tinte color.Color = .Blanco)
+retro.Mapa.columnas() entero
+retro.Mapa.filas() entero
+retro.Mapa.capas() [cadena]
+retro.Mapa.capa(nombre cadena) rejilla.Rejilla
+retro.Mapa.colores(nombre cadena) rejilla.Rejilla
+```
+
+`retro.mapa` pinta todas las capas, de abajo arriba; con `capa = "suelo"` pinta solo esa, para dibujar algo entre dos capas. `Mapa.capa(nombre)` devuelve la rejilla de iconos de una capa, la misma que se dibuja: sirve para consultar celdas y colisiones (`obtener`, `choca`, `mover`) y para cambiar el mapa mientras se juega (`nivel.capa("objetos").poner(x, y, -1)` borra un objeto). El valor de cada celda es el índice del atlas, el mismo que usan `retro.glifo` y los iconos con nombre. Una capa que no existe detiene el programa con la lista de capas.
+
+`Mapa.colores(nombre)` devuelve la rejilla de colores de la capa, con un número `rojo * 65536 + verde * 256 + azul` por celda; las celdas con `-1` usan `tinte`.
+
+Las piezas de abajo también están disponibles por separado: `recursos.texto` incorpora cualquier archivo de texto, `rejilla.desde_csv(texto, capa = "suelo")` lee una capa como `Rejilla`, `retro.hoja()` da el atlas como hoja y el parámetro `colores` de `rejilla.dibujar` recibe una rejilla de colores.
+
+**Exportar .cometa** escribe en su lugar un módulo con `pub const columnas`, `pub const filas` y dos funciones por capa (`pub fn suelo() rejilla.Rejilla` y `pub fn suelo_color() rejilla.Rejilla`) con los números a la vista, que se importa con `usar nivel` y no necesita el archivo de texto. Ver [el ejemplo de la cripta](../examples/pincel/16_editor_mapas.cometa).
 
 ## Guardar datos
 

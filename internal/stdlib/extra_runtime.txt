@@ -143,6 +143,39 @@ func _hgrejillaDesdeTexto(filas []string,simbolos map[string]int64) *_hgRejilla{
  }
  return g
 }
+// One row per line, integers separated by commas. A line starting with "#" names the layer that follows and
+// "//" starts a comment. An empty capa selects the first layer (or the whole text when it has no headers).
+func _hgrejillaDesdeCsv(texto,capa string) *_hgRejilla{
+ var cells []int64
+ var capas []string
+ width,rows,actual:=0,0,""
+ for n,linea:=range strings.Split(strings.TrimPrefix(texto,"\xEF\xBB\xBF"),"\n"){
+  linea=strings.TrimSpace(linea)
+  if linea==""||strings.HasPrefix(linea,"//"){continue}
+  if strings.HasPrefix(linea,"#"){
+   if capa==""&&rows>0{break}
+   actual=strings.TrimSpace(linea[1:]);capas=append(capas,actual)
+   continue
+  }
+  if capa!=""&&actual!=capa{continue}
+  valores:=strings.Split(linea,",")
+  if rows==0{width=len(valores)}
+  if len(valores)!=width{panic(fmt.Sprintf("rejilla.desde_csv: la línea %d tiene %d valores y la primera fila %d",n+1,len(valores),width))}
+  for x,s:=range valores{
+   s=strings.TrimSpace(s)
+   v,err:=strconv.ParseInt(s,10,64)
+   if strings.HasPrefix(s,"0x"){v,err=strconv.ParseInt(s[2:],16,64)}
+   if err!=nil{panic(fmt.Sprintf("rejilla.desde_csv: %q (línea %d, columna %d) no es un número entero",s,n+1,x+1))}
+   cells=append(cells,v)
+  }
+  rows++
+ }
+ if rows==0{
+  if capa!=""{panic(fmt.Sprintf("rejilla.desde_csv: no hay una capa %q con filas (capas del texto: %s)",capa,strings.Join(capas,", ")))}
+  panic("rejilla.desde_csv: el texto no tiene ninguna fila")
+ }
+ return &_hgRejilla{int64(width),int64(rows),cells}
+}
 func (g *_hgRejilla) Columnas() int64{return g.cols}
 func (g *_hgRejilla) Filas() int64{return g.rows}
 func (g *_hgRejilla) dentro(x,y int64) bool{return x>=0&&y>=0&&x<g.cols&&y<g.rows}
@@ -225,7 +258,8 @@ func (g *_hgRejilla) moverEje(area _hgRect,celda _hgVec2,d float64,horizontal bo
  return d
 }
 // Animated values are replaced by one of their frames, chosen from the update counter so every tile stays in step.
-func _hgrejillaDibujar(g *_hgRejilla,h *_hgHoja,pos,escala _hgVec2,tinte _hgColor,animaciones map[int64][]int64,fps float64){
+// A color grid holds 0xRRGGBB per cell; negative cells and cells outside it keep the tint.
+func _hgrejillaDibujar(g *_hgRejilla,h *_hgHoja,pos,escala _hgVec2,tinte _hgColor,animaciones map[int64][]int64,fps float64,colores struct { tag int; payload1 *_hgRejilla }){
  _hgdraw()
  w,hh:=_hgtamano().X,_hgtamano().Y
  dx,dy:=float64(h.cw)*escala.X,float64(h.ch)*escala.Y
@@ -241,7 +275,11 @@ func _hgrejillaDibujar(g *_hgRejilla,h *_hgHoja,pos,escala _hgVec2,tinte _hgColo
     p:=_hgpoint(dest)
     if p.X+math.Abs(dx)*_hgcamara.Zoom<0||p.Y+math.Abs(dy)*_hgcamara.Zoom<0||p.X>w||p.Y>hh{continue}
    }
-   _hgcuadro(h,v,dest,_hgVec2{},escala,0,tinte,false,false,_hgColor{})
+   c:=tinte
+   if colores.tag==1&&colores.payload1.dentro(x,y){
+    if rgb:=colores.payload1.cells[y*colores.payload1.cols+x];rgb>=0{c=_hgColor{uint8(rgb>>16),uint8(rgb>>8),uint8(rgb),255}}
+   }
+   _hgcuadro(h,v,dest,_hgVec2{},escala,0,c,false,false,_hgColor{})
   }
  }
 }

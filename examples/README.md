@@ -50,6 +50,7 @@ Cada ejemplo abre una ventana. La primera compilación descarga las dependencias
 | [13_plataformas](pincel/13_plataformas.cometa) | Plataformas con gravedad, salto, colisiones contra tiles, monedas y pinchos |
 | [14_ladrillos](pincel/14_ladrillos.cometa) | Rompe-ladrillos: rebotes bola-rectángulo, lista de ladrillos y estados con `enum` |
 | [15_mazmorra](pincel/15_mazmorra.cometa) | Roguelike por turnos en dos archivos: generador de mazmorras con semilla (`mazmorra/nivel.cometa`), enemigos y escenas |
+| [16_editor_mapas](pincel/16_editor_mapas.cometa) | Un mapa hecho con el editor (`tools/mapa-editor`): `retro.cargar_mapa`, `retro.mapa` y capas como rejillas para moverse y recoger objetos |
 
 Para guardar una captura de un juego sin abrir la ventana:
 

@@ -1,0 +1,70 @@
+// Pincel: un mapa hecho con el editor de mapas.
+// Aprenderás a cargar un archivo .mapa.txt (creado con tools/mapa-editor), a
+// dibujarlo tal como se ve en el editor y a consultar sus capas para mover al
+// héroe y recoger objetos.
+//
+// Mueve al héroe con las flechas o WASD y recoge las llaves. Escape sale.
+usar std/pincel
+usar std/pincel/graficos
+usar std/pincel/entrada
+usar std/pincel/retro
+
+// El mapa se incorpora al programa al compilar. Ábrelo con el editor
+// (tools/mapa-editor/index.html) para cambiar la cripta sin tocar el código.
+var cripta = retro.cargar_mapa("assets/cripta.mapa.txt")
+
+const celda entero = 8
+// Cada celda guarda un índice del atlas dungeon; el editor lo muestra al
+// pasar el ratón por un icono. -1 es una celda vacía.
+const muro entero = 209
+const llave entero = 175
+
+tipo Partida
+	x entero
+	y entero
+	llaves entero
+	total entero
+
+	// Avanza una celda si no hay un muro; al pisar una llave, la recoge.
+	fn mover(dx entero, dy entero)
+		si (cripta.capa("suelo").obtener(@x + dx, @y + dy) o muro) == muro
+			retornar
+		@x += dx
+		@y += dy
+		// Una capa es una rejilla: poner -1 borra la llave del mapa.
+		var objetos = cripta.capa("objetos")
+		si (objetos.obtener(@x, @y) o -1) == llave
+			objetos.poner(@x, @y, -1)
+			@llaves += 1
+
+	pub fn actualizar(dt decimal)
+		si entrada.tecla_presionada(.Escape)
+			pincel.salir()
+		si entrada.tecla_presionada(.Derecha) || entrada.tecla_presionada(.D)
+			@mover(1, 0)
+		si entrada.tecla_presionada(.Izquierda) || entrada.tecla_presionada(.A)
+			@mover(-1, 0)
+		si entrada.tecla_presionada(.Abajo) || entrada.tecla_presionada(.S)
+			@mover(0, 1)
+		si entrada.tecla_presionada(.Arriba) || entrada.tecla_presionada(.W)
+			@mover(0, -1)
+
+	pub fn pintar()
+		graficos.limpiar(.Negro)
+		// Dibuja todas las capas con los iconos y colores del editor.
+		retro.mapa(cripta)
+		retro.icono(.Cara, @x * celda, @y * celda, color = .Celeste)
+		retro.texto("Llaves: ${@llaves}/${@total}", 8, 188)
+		si @llaves == @total
+			retro.texto("¡Las tienes todas!", 168, 188, color = .Amarillo)
+
+fn inicio()
+	var partida = Partida {x: 2, y: 2}
+	// Cuenta las llaves que se pusieron en el editor.
+	var objetos = cripta.capa("objetos")
+	repetir (0..cripta.filas()) |y|
+		repetir (0..cripta.columnas()) |x|
+			si (objetos.obtener(x, y) o -1) == llave
+				partida.total += 1
+	retro.ejecutar(partida, titulo = "Cripta") atrapar |error|
+		imprimir(error)

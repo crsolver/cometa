@@ -1,0 +1,626 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Editor de mapas de Cometa</title>
+<style>
+  :root{color-scheme:dark}
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:#1b1b22;color:#ddd;font:14px/1.4 system-ui,sans-serif;display:flex;flex-direction:column}
+  header{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 12px;background:#24242e;border-bottom:1px solid #3a3a48}
+  header h1{font-size:15px;margin:0 8px 0 0;color:#ffd23f}
+  header .sep{width:1px;align-self:stretch;background:#3a3a48}
+  main{flex:1;display:flex;min-height:0}
+  aside{flex:none;width:320px;padding:12px;overflow:auto;background:#20202a}
+  #left{width:auto;border-right:1px solid #3a3a48}
+  #right{border-left:1px solid #3a3a48}
+  #center{flex:1;display:flex;flex-direction:column;min-width:0}
+  #scroll{flex:1;overflow:auto;padding:16px;background:#14141a}
+  canvas{image-rendering:pixelated;display:block}
+  #map{cursor:crosshair;outline:1px solid #555;touch-action:none}
+  #palette{cursor:pointer;background:#000;outline:1px solid #444}
+  #status{padding:6px 12px;background:#24242e;border-top:1px solid #3a3a48;min-height:32px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #notice{color:#ffd23f}
+  #notice.error{color:#ff7b7b}
+  h2{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:#9a9ab0;margin:16px 0 6px}
+  h2:first-child{margin-top:0}
+  h2 span{text-transform:none;letter-spacing:0;color:#ffd23f}
+  button,select,input[type=text],input[type=number],input[list]{background:#2a2a35;color:#eee;border:1px solid #555;border-radius:3px;padding:3px 8px;font:inherit}
+  button{cursor:pointer}
+  button:hover{background:#353545}
+  button[aria-pressed=true]{background:#3f5f7a;border-color:#3fd2ff}
+  button:disabled{opacity:.4;cursor:default}
+  input[type=number]{width:64px}
+  #name{width:120px}
+  .tools{display:flex;flex-wrap:wrap;gap:4px}
+  .row{display:flex;gap:6px;align-items:center;margin:6px 0;flex-wrap:wrap}
+  #preview{width:48px;height:48px;background:#000;outline:1px solid #444}
+  #tileinfo b{color:#ffd23f}
+  #colors{display:grid;grid-template-columns:repeat(16,24px);width:384px}
+  #colors button{height:24px;padding:0;border:1px solid #20202a;border-radius:0}
+  #colors button[aria-pressed=true]{border:2px solid #fff;outline:1px solid #000;z-index:1}
+  #layers{list-style:none;margin:0;padding:0}
+  #layers li{display:flex;gap:4px;align-items:center;padding:4px;border:1px solid transparent;border-radius:3px}
+  #layers li.active{border-color:#3fd2ff;background:#26303a}
+  #layers input[type=text]{flex:1;min-width:0;padding:3px 5px}
+  #layers button{padding:1px 6px}
+  details{margin-top:16px}
+  summary{cursor:pointer;color:#9a9ab0}
+  pre{background:#14141a;padding:8px;overflow:auto;font:12px/1.4 ui-monospace,Consolas,monospace;tab-size:2}
+  kbd{background:#2a2a35;border:1px solid #555;border-radius:3px;padding:0 4px;font:12px ui-monospace,Consolas,monospace}
+  small{color:#9a9ab0}
+</style>
+<body>
+<header>
+  <h1>Editor de mapas</h1>
+  <label>Nombre <input id="name" type="text" value="nivel" spellcheck="false"></label>
+  <button id="new">Nuevo</button>
+  <button id="open">Abrir…</button>
+  <button id="save" title="Ctrl+S">Guardar .mapa.txt</button>
+  <button id="export">Exportar .cometa</button>
+  <span class="sep"></span>
+  <button id="copytxt">Copiar texto</button>
+  <button id="copycometa">Copiar módulo</button>
+  <span class="sep"></span>
+  <button id="undo" title="Ctrl+Z">Deshacer</button>
+  <button id="redo" title="Ctrl+Y">Rehacer</button>
+  <input id="file" type="file" accept=".txt,.csv,text/plain" hidden>
+</header>
+<main>
+  <aside id="left">
+    <h2>Atlas dungeon</h2>
+    <canvas id="palette" width="384" height="384"></canvas>
+    <div class="row">
+      <canvas id="preview" width="8" height="8"></canvas>
+      <div id="tileinfo">—</div>
+    </div>
+    <div class="row">
+      <input id="search" list="icons" placeholder="Buscar icono: Llave, Corazon…" spellcheck="false" style="flex:1">
+      <datalist id="icons"></datalist>
+    </div>
+    <h2>Color <span id="colorname"></span></h2>
+    <div id="colors"></div>
+    <h2>Herramientas</h2>
+    <div class="tools" id="tools">
+      <button data-tool="paint" title="Pintar (B)">Pintar</button>
+      <button data-tool="erase" title="Borrar (E)">Borrar</button>
+      <button data-tool="fill" title="Rellenar (G)">Rellenar</button>
+      <button data-tool="rect" title="Rectángulo (R)">Rectángulo</button>
+      <button data-tool="pick" title="Cuentagotas (I)">Cuentagotas</button>
+    </div>
+    <div class="row"><small>Clic derecho borra · Alt+clic toma el icono y el color de la celda</small></div>
+  </aside>
+  <section id="center">
+    <div id="scroll"><canvas id="map"></canvas></div>
+    <div id="status"><span id="cellinfo"></span> <span id="notice"></span></div>
+  </section>
+  <aside id="right">
+    <h2>Capas</h2>
+    <ul id="layers"></ul>
+    <div class="row"><button id="addlayer">+ Capa</button> <small>La de arriba se dibuja encima.</small></div>
+    <h2>Tamaño</h2>
+    <div class="row">
+      <input id="cols" type="number" min="1" max="256"> ×
+      <input id="rows" type="number" min="1" max="256">
+      <button id="resize">Aplicar</button>
+    </div>
+    <div class="row"><small id="pixels"></small></div>
+    <h2>Vista</h2>
+    <div class="row"><label>Zoom <input id="zoom" type="range" min="1" max="8" value="3"> <span id="zoomv"></span>×</label></div>
+    <div class="row"><label><input id="showgrid" type="checkbox" checked> Mostrar rejilla</label></div>
+    <div class="row"><label><input id="dim" type="checkbox"> Atenuar las otras capas</label></div>
+    <details>
+      <summary>Cómo usar el mapa en Cometa</summary>
+      <p>Guarda el <b>.mapa.txt</b> junto a tu juego y cárgalo con <code>retro.cargar_mapa</code>. Se dibuja igual que aquí, y cada capa es una rejilla que el juego puede consultar y cambiar.</p>
+<pre id="usage"></pre>
+      <p>O exporta el <b>.cometa</b>: es un módulo con dos funciones por capa, que el alumno puede leer y cambiar a mano.</p>
+      <p><small>Atajos: <kbd>B</kbd> pintar, <kbd>E</kbd> borrar, <kbd>G</kbd> rellenar, <kbd>R</kbd> rectángulo, <kbd>I</kbd> cuentagotas, <kbd>Ctrl</kbd>+<kbd>Z</kbd>/<kbd>Y</kbd> deshacer y rehacer, <kbd>Ctrl</kbd>+<kbd>S</kbd> guardar. El mapa se conserva en el navegador entre sesiones.</small></p>
+    </details>
+  </aside>
+</main>
+
+<script id="format">
+// Formato .mapa.txt y exportación a Cometa. No toca la página: se puede probar por separado.
+// Es el mismo formato que lee rejilla.desde_csv: una fila por línea, valores separados por
+// comas, «# nombre» antes de cada capa y «//» para comentarios. Los colores de la capa
+// «suelo» van en otra capa, «suelo.color», con un número 0xRRGGBB por celda.
+const EMPTY = -1;
+const COLOR_SUFFIX = '.color';
+const RESERVED = new Set(['pub', 'con', 'usar', 'interfaz', 'como', 'o', 'atrapar', 'intentar', 'retornar', 'enum', 'casos', 'tipo', 'fn', 'si', 'osi', 'var', 'const', 'sino', 'entero', 'decimal', 'cadena', 'bool', 'repetir', 'mientras', 'continuar', 'romper', 'verdadero', 'falso', 'imprimir', 'inicio', 'columnas', 'filas', 'desde_filas', 'rejilla']);
+
+// Convierte un nombre libre («Suelo 2», «decoración») en un identificador de Cometa sin repetir.
+function identifier(name, used) {
+  let id = name.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_+|_+$/g, '');
+  if (!id) id = 'capa';
+  if (/^[0-9]/.test(id)) id = 'capa_' + id;
+  while (RESERVED.has(id) || used.has(id)) id += '_';
+  used.add(id);
+  return id;
+}
+
+// Cada capa guarda, por celda, el índice del icono y su color (0xRRGGBB); -1 es «vacío».
+function newLayer(name, cols, rows) {
+  return { name, visible: true, cells: new Array(cols * rows).fill(EMPTY), colors: new Array(cols * rows).fill(EMPTY) };
+}
+function newMap(cols, rows, names) {
+  return { cols, rows, layers: names.map(name => newLayer(name, cols, rows)) };
+}
+
+const hex = v => v < 0 ? String(v) : '0x' + v.toString(16).toUpperCase().padStart(6, '0');
+
+function writeMap(map) {
+  const out = ['// Mapa de Cometa (tools/mapa-editor): una fila por línea, valores separados por comas.', '// Cada capa tiene los índices del atlas dungeon (-1 es una celda vacía) y, en la capa', '// «.color», el color 0xRRGGBB de cada celda. Se carga con retro.cargar_mapa.'];
+  const rows = (values, text) => { for (let y = 0; y < map.rows; y++) out.push(values.slice(y * map.cols, (y + 1) * map.cols).map(text).join(',')); };
+  for (const layer of map.layers) {
+    out.push('', '# ' + layer.name); rows(layer.cells, String);
+    out.push('', '# ' + layer.name + COLOR_SUFFIX); rows(layer.colors, hex);
+  }
+  return out.join('\n') + '\n';
+}
+
+// Lanza un Error con la línea y la columna si un valor no es un entero. Las capas más
+// pequeñas que la mayor se completan con celdas vacías. legacyColor(nombre) da el color
+// de las capas de archivos antiguos, que solo anotaban «// color: Nombre».
+function readMap(text, legacyColor) {
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+  const sections = [];
+  let current = null;
+  text.split('\n').forEach((raw, n) => {
+    const line = raw.trim();
+    if (!line) return;
+    if (line.startsWith('//')) {
+      const m = /^\/\/\s*color:\s*(\S+)/.exec(line);
+      if (m && current && !current.rows.length) current.legacy = m[1];
+      return;
+    }
+    if (line.startsWith('#')) {
+      current = { name: line.slice(1).trim() || 'capa', legacy: null, rows: [] };
+      sections.push(current);
+      return;
+    }
+    if (!current) { current = { name: 'mapa', legacy: null, rows: [] }; sections.push(current); }
+    current.rows.push(line.split(',').map((s, x) => {
+      const value = s.trim();
+      if (/^-?\d+$/.test(value)) return Number(value);
+      if (/^0x[0-9a-fA-F]+$/.test(value)) return parseInt(value.slice(2), 16);
+      throw new Error(`Línea ${n + 1}, columna ${x + 1}: «${value}» no es un número entero.`);
+    }));
+  });
+  const layers = [];
+  for (const s of sections) {
+    const owner = s.name.endsWith(COLOR_SUFFIX) && layers.find(l => l.name + COLOR_SUFFIX === s.name && !l.colors);
+    if (owner) owner.colors = s.rows; else layers.push(s);
+  }
+  const rows = Math.max(0, ...layers.map(l => l.rows.length));
+  const cols = Math.max(0, ...layers.flatMap(l => l.rows.map(r => r.length)));
+  if (!rows || !cols) throw new Error('El archivo no tiene ninguna fila.');
+  const map = newMap(cols, rows, layers.map(l => l.name));
+  layers.forEach((l, i) => {
+    const target = map.layers[i], fallback = legacyColor(l.legacy);
+    l.rows.forEach((row, y) => row.forEach((v, x) => {
+      target.cells[y * cols + x] = v;
+      if (v !== EMPTY) target.colors[y * cols + x] = l.colors?.[y]?.[x] ?? fallback;
+    }));
+  });
+  return map;
+}
+
+// Un módulo con dos funciones públicas por capa (iconos y colores). Solo usa rejilla.nueva
+// y poner, y deja los números a la vista para que se puedan editar a mano.
+function exportCometa(map, name) {
+  const module = identifier(name || 'nivel', new Set());
+  const used = new Set();
+  const layers = map.layers.map(l => ({ ...l, fn: identifier(l.name, used) }));
+  for (const l of layers) l.colorFn = identifier(l.fn + '_color', used);
+  const first = layers[0];
+  const out = [
+    '// Mapa creado con el editor de mapas de Cometa (tools/mapa-editor).',
+    '// Cada capa tiene dos funciones que devuelven una Rejilla nueva: los iconos (índices',
+    '// del atlas dungeon; -1 es una celda vacía) y sus colores (rojo * 65536 + verde * 256',
+    '// + azul; -1 usa el tinte). Llámalas una vez y guarda el resultado.',
+    '//',
+    '//\tusar ' + module,
+    '//\tusar std/pincel/rejilla',
+    '//\tusar std/pincel/retro',
+    '//',
+    `//\tvar ${first.fn} = ${module}.${first.fn}()`,
+    `//\tvar ${first.colorFn} = ${module}.${first.colorFn}()`,
+    `//\trejilla.dibujar(${first.fn}, retro.hoja(), colores = ${first.colorFn})`,
+    'usar std/pincel/rejilla',
+    '',
+    `pub const columnas entero = ${map.cols}`,
+    `pub const filas entero = ${map.rows}`,
+  ];
+  const grid = (comment, fn, values) => {
+    out.push('', comment, `pub fn ${fn}() rejilla.Rejilla`, '\tdesde_filas([');
+    for (let y = 0; y < map.rows; y++) out.push('\t\t[' + values.slice(y * map.cols, (y + 1) * map.cols).join(', ') + '],');
+    out.push('\t])');
+  };
+  for (const layer of layers) {
+    grid(`// Capa «${layer.name}»: iconos.`, layer.fn, layer.cells);
+    grid(`// Capa «${layer.name}»: colores.`, layer.colorFn, layer.colors);
+  }
+  out.push('', 'fn desde_filas(valores [[entero]]) rejilla.Rejilla', '\tvar resultado = rejilla.nueva(columnas, filas, -1)', '\trepetir (valores) |fila, y|', '\t\trepetir (fila) |valor, x|', '\t\t\tresultado.poner(x, y, valor)', '\tresultado');
+  return out.join('\n') + '\n';
+}
+
+// Rellena la zona conectada (en cruz) que comparte el icono y el color de la celda inicial.
+function floodFill(layer, cols, rows, x, y, value, color) {
+  const fromValue = layer.cells[y * cols + x], fromColor = layer.colors[y * cols + x];
+  if (fromValue === value && fromColor === color) return;
+  const stack = [[x, y]];
+  while (stack.length) {
+    const [cx, cy] = stack.pop(), i = cy * cols + cx;
+    if (cx < 0 || cy < 0 || cx >= cols || cy >= rows || layer.cells[i] !== fromValue || layer.colors[i] !== fromColor) continue;
+    layer.cells[i] = value; layer.colors[i] = color;
+    stack.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
+  }
+}
+</script>
+
+<script id="data">
+// Datos copiados de internal/stdlib. Los mantiene al día la prueba TestMapEditorData:
+//   COMETA_ACTUALIZAR_EDITOR=1 go test ./internal/stdlib -run TestMapEditorData
+const ATLAS = "data:image/png;base64,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";
+const ICONOS = {"Abajo":15,"Anillo":18,"Armadura":238,"Arriba":14,"Baculo":158,"Bloque":16,"Bolsa":159,"Calavera":237,"Candado":141,"Cara":1,"Casa":138,"Castillo":139,"Cerrar":162,"CirculoPunteado":10,"CirculoRelleno":2,"Corazon":3,"CorazonVacio":19,"Craneo":221,"Damero":209,"Demonio":222,"Derecha":12,"Diana":190,"Equis":17,"Escudo":157,"Espada":156,"Esquinas":26,"Estadisticas":142,"Estrella":188,"Femenino":9,"Gato":220,"Hoja":22,"Hueso":191,"Izquierda":13,"Libro":172,"Llave":175,"Mano":143,"Manzana":239,"Marco":140,"Mas":180,"Masculino":8,"Mesa":173,"Monstruo":223,"Nivel":127,"Nota":24,"Notas":25,"Objetivo":174,"Oro":126,"Puntero":11,"Punto":7,"SelectorH":30,"SelectorV":28,"Sombrero":236};
+const COLORES = {"Amarillo":[255,255,0],"Ambar":[255,185,21],"Azul":[0,0,255],"AzulIndigo":[67,62,166],"AzulNoche":[24,30,42],"Blanco":[255,255,255],"Caqui":[119,120,91],"Carbon":[68,63,65],"Carmesi":[181,59,89],"Celeste":[153,215,229],"Cian":[0,255,255],"Cobalto":[71,114,191],"Crema":[255,224,119],"Gris":[82,82,76],"Hierba":[87,176,103],"Indigo":[25,17,74],"Magenta":[255,0,255],"Malva":[94,82,107],"Marfil":[255,249,228],"Marron":[115,97,80],"Negro":[0,0,0],"Ocre":[130,91,49],"Oliva":[84,106,0],"Petroleo":[8,66,72],"Rojo":[255,0,0],"Rosa":[255,87,119],"Verde":[0,255,0],"VerdeBosque":[40,84,72],"VerdePino":[0,43,36],"Violeta":[150,102,238],"VioletaOscuro":[47,42,76]};
+</script>
+
+<script>
+const T = 8, PALETTE_ZOOM = 3, KEY = 'cometa-mapa-editor', WHITE = 0xFFFFFF;
+const $ = id => document.getElementById(id);
+const mapCanvas = $('map'), ctx = mapCanvas.getContext('2d');
+const palette = $('palette'), pctx = palette.getContext('2d');
+const iconNames = {}, colorNames = {};
+for (const [name, index] of Object.entries(ICONOS)) (iconNames[index] ||= []).push(name);
+const rgbOf = name => { const c = COLORES[name]; return c ? c[0] << 16 | c[1] << 8 | c[2] : WHITE; };
+for (const name of Object.keys(COLORES)) colorNames[rgbOf(name)] ||= name;
+
+let map, layer = 0, tile = ICONOS.Bloque ?? 1, color = rgbOf('Gris'), tool = 'paint', zoom = 3;
+let hover = null, paletteHover = null, stroke = null, pending = false;
+const undoStack = [], redoStack = [];
+
+const css = rgb => '#' + (rgb < 0 ? WHITE : rgb).toString(16).padStart(6, '0');
+const colorName = rgb => colorNames[rgb] || hex(rgb);
+const tileName = (v, rgb) => v === EMPTY ? 'vacío' : v + ' (' + (iconNames[v] ? '.' + iconNames[v].join(', .') + ', ' : '') + colorName(rgb) + ')';
+function notice(text, error) { $('notice').textContent = text; $('notice').className = error ? 'error' : ''; }
+
+// El PNG es blanco sobre negro: el rojo de cada píxel pasa a ser su opacidad, como en retro.
+let mask;
+const tinted = new Map();
+function tintedAtlas(rgb) {
+  let c = tinted.get(rgb);
+  if (!c) {
+    c = document.createElement('canvas'); c.width = mask.width; c.height = mask.height;
+    const g = c.getContext('2d');
+    g.drawImage(mask, 0, 0);
+    g.globalCompositeOperation = 'source-in';
+    g.fillStyle = css(rgb); g.fillRect(0, 0, c.width, c.height);
+    tinted.set(rgb, c);
+  }
+  return c;
+}
+function drawTile(g, rgb, v, x, y, size) {
+  if (v < 0) return;
+  if (v > 255) { g.fillStyle = '#ff7b7b'; g.fillRect(x + size / 4, y + size / 4, size / 2, size / 2); return; }
+  g.drawImage(tintedAtlas(rgb), (v % 16) * T, (v >> 4) * T, T, T, x, y, size, size);
+}
+
+// --- Dibujo
+function requestDraw() { if (!pending) { pending = true; requestAnimationFrame(draw); } }
+function draw() {
+  pending = false;
+  const s = T * zoom;
+  ctx.imageSmoothingEnabled = false;
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, mapCanvas.width, mapCanvas.height);
+  map.layers.forEach((l, i) => {
+    if (!l.visible) return;
+    ctx.globalAlpha = $('dim').checked && i !== layer ? 0.35 : 1;
+    for (let y = 0; y < map.rows; y++) for (let x = 0; x < map.cols; x++) drawTile(ctx, l.colors[y * map.cols + x], l.cells[y * map.cols + x], x * s, y * s, s);
+  });
+  ctx.globalAlpha = 1;
+  if ($('showgrid').checked && zoom > 1) {
+    ctx.strokeStyle = 'rgba(255,255,255,.12)'; ctx.lineWidth = 1; ctx.beginPath();
+    for (let x = 0; x <= map.cols; x++) { ctx.moveTo(x * s + .5, 0); ctx.lineTo(x * s + .5, mapCanvas.height); }
+    for (let y = 0; y <= map.rows; y++) { ctx.moveTo(0, y * s + .5); ctx.lineTo(mapCanvas.width, y * s + .5); }
+    ctx.stroke();
+  }
+  if (stroke?.rect) {
+    const r = rectOf(stroke.rect);
+    ctx.fillStyle = 'rgba(63,210,255,.25)'; ctx.fillRect(r.x * s, r.y * s, r.w * s, r.h * s);
+    ctx.strokeStyle = '#3fd2ff'; ctx.strokeRect(r.x * s + .5, r.y * s + .5, r.w * s - 1, r.h * s - 1);
+  } else if (hover) {
+    if (!stroke && (tool === 'paint' || tool === 'fill' || tool === 'rect')) { ctx.globalAlpha = .6; drawTile(ctx, color, tile, hover.x * s, hover.y * s, s); ctx.globalAlpha = 1; }
+    ctx.strokeStyle = '#ffd23f'; ctx.strokeRect(hover.x * s + .5, hover.y * s + .5, s - 1, s - 1);
+  }
+}
+function drawPalette() {
+  const s = T * PALETTE_ZOOM;
+  pctx.imageSmoothingEnabled = false;
+  pctx.fillStyle = '#000'; pctx.fillRect(0, 0, palette.width, palette.height);
+  pctx.drawImage(tintedAtlas(color), 0, 0, palette.width, palette.height);
+  pctx.lineWidth = 2;
+  if (paletteHover !== null) { pctx.strokeStyle = '#ffd23f'; pctx.strokeRect((paletteHover % 16) * s + 1, (paletteHover >> 4) * s + 1, s - 2, s - 2); }
+  if (tile >= 0 && tile < 256) { pctx.strokeStyle = '#3fd2ff'; pctx.strokeRect((tile % 16) * s + 1, (tile >> 4) * s + 1, s - 2, s - 2); }
+  const shown = paletteHover ?? tile;
+  const g = $('preview').getContext('2d');
+  g.clearRect(0, 0, T, T); drawTile(g, color, shown, 0, 0, T);
+  $('tileinfo').innerHTML = `Índice <b>${shown}</b> · columna ${shown % 16}, fila ${shown >> 4}` + (iconNames[shown] ? `<br><b>.${iconNames[shown].join('</b>, <b>.')}</b>` : '');
+  $('colorname').textContent = '.' + colorName(color);
+  document.querySelectorAll('#colors button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.rgb === color));
+}
+function layoutMap() {
+  mapCanvas.width = map.cols * T * zoom; mapCanvas.height = map.rows * T * zoom;
+  $('zoom').value = zoom; $('zoomv').textContent = zoom;
+  $('cols').value = map.cols; $('rows').value = map.rows;
+  $('pixels').textContent = `${map.cols * T} × ${map.rows * T} píxeles a escala 1`;
+  requestDraw();
+}
+function setColor(rgb) { color = rgb; if (tool === 'erase' || tool === 'pick') setTool('paint'); drawPalette(); requestDraw(); }
+// Del más oscuro al más claro, para que la paleta se lea de un vistazo.
+const luma = name => { const c = COLORES[name]; return c[0] * 3 + c[1] * 6 + c[2]; };
+for (const name of Object.keys(COLORES).sort((a, b) => luma(a) - luma(b))) {
+  if (rgbOf(name) === 0) continue; // negro sobre negro no se vería
+  const b = document.createElement('button');
+  b.title = '.' + name; b.dataset.rgb = rgbOf(name); b.style.background = css(rgbOf(name));
+  b.addEventListener('click', () => setColor(rgbOf(name)));
+  $('colors').appendChild(b);
+}
+
+// --- Capas
+function drawLayers() {
+  const list = $('layers'); list.innerHTML = '';
+  // La lista va de arriba abajo; el mapa guarda las capas de abajo arriba.
+  for (let i = map.layers.length - 1; i >= 0; i--) {
+    const l = map.layers[i], li = document.createElement('li');
+    if (i === layer) li.className = 'active';
+    li.innerHTML = `<input type="checkbox" title="Visible"><input type="text" spellcheck="false" title="Nombre de la capa"><button title="Subir">↑</button><button title="Bajar">↓</button><button title="Eliminar">×</button>`;
+    const [visible, text] = li.querySelectorAll('input'), [up, down, remove] = li.querySelectorAll('button');
+    visible.checked = l.visible; text.value = l.name;
+    li.addEventListener('pointerdown', () => { if (layer !== i) { layer = i; list.querySelectorAll('li').forEach(n => n.classList.toggle('active', n === li)); requestDraw(); persist(); } });
+    visible.addEventListener('change', () => { l.visible = visible.checked; requestDraw(); persist(); });
+    text.addEventListener('change', () => {
+      remember();
+      let name = text.value.replace(/^#+/, '').trim() || 'capa';
+      if (name.endsWith(COLOR_SUFFIX)) name = name.slice(0, -COLOR_SUFFIX.length) || 'capa';
+      l.name = text.value = name; changed();
+    });
+    up.disabled = i === map.layers.length - 1; down.disabled = i === 0; remove.disabled = map.layers.length === 1;
+    up.addEventListener('click', () => moveLayer(i, i + 1));
+    down.addEventListener('click', () => moveLayer(i, i - 1));
+    remove.addEventListener('click', () => {
+      if (l.cells.some(v => v !== EMPTY) && !confirm(`¿Eliminar la capa «${l.name}» con su contenido?`)) return;
+      remember(); map.layers.splice(i, 1); layer = Math.min(layer, map.layers.length - 1); refresh(); changed();
+    });
+    list.appendChild(li);
+  }
+}
+function moveLayer(from, to) {
+  remember();
+  map.layers.splice(to, 0, ...map.layers.splice(from, 1));
+  layer = to; refresh(); changed();
+}
+
+// --- Historial y guardado local
+function remember() { undoStack.push(JSON.stringify(map)); if (undoStack.length > 200) undoStack.shift(); redoStack.length = 0; updateHistory(); }
+function restore(from, to) {
+  if (!from.length) return;
+  to.push(JSON.stringify(map)); map = JSON.parse(from.pop());
+  layer = Math.min(layer, map.layers.length - 1);
+  refresh(); persist(); updateHistory();
+}
+function updateHistory() { $('undo').disabled = !undoStack.length; $('redo').disabled = !redoStack.length; }
+function persist() { try { localStorage.setItem(KEY, JSON.stringify({ name: $('name').value, map, layer, zoom })); } catch (e) {} }
+function changed() { requestDraw(); persist(); updateUsage(); }
+function refresh() { layoutMap(); drawLayers(); drawPalette(); updateUsage(); }
+function load(next, name) {
+  if (map) remember();
+  map = next; layer = 0;
+  if (name) $('name').value = name;
+  refresh(); persist();
+}
+function updateUsage() {
+  const first = map.layers[0], id = identifier(first.name, new Set()), file = fileName() + '.mapa.txt';
+  $('usage').textContent = `usar std/pincel/retro\n\nvar nivel = retro.cargar_mapa("${file}")\n\n// en pintar():\nretro.mapa(nivel)\n\n// para saber qué hay en una celda:\nvar ${id} = nivel.capa("${first.name}")\nsi (${id}.obtener(x, y) o -1) == ${tile}\n\t...`;
+}
+const fileName = () => identifier($('name').value || 'nivel', new Set());
+
+// --- Edición
+const rectOf = r => ({ x: Math.min(r.from.x, r.to.x), y: Math.min(r.from.y, r.to.y), w: Math.abs(r.from.x - r.to.x) + 1, h: Math.abs(r.from.y - r.to.y) + 1 });
+function cellAt(e) {
+  const r = mapCanvas.getBoundingClientRect();
+  const x = Math.floor((e.clientX - r.left) / (T * zoom)), y = Math.floor((e.clientY - r.top) / (T * zoom));
+  return x < 0 || y < 0 || x >= map.cols || y >= map.rows ? null : { x, y };
+}
+function put(x, y, v) {
+  if (x < 0 || y < 0 || x >= map.cols || y >= map.rows) return;
+  map.layers[layer].cells[y * map.cols + x] = v;
+  map.layers[layer].colors[y * map.cols + x] = v === EMPTY ? EMPTY : color;
+}
+// Une la celda anterior con la actual para que un trazo rápido no deje huecos.
+function line(a, b, v) {
+  let { x, y } = a;
+  const dx = Math.abs(b.x - x), dy = -Math.abs(b.y - y), sx = x < b.x ? 1 : -1, sy = y < b.y ? 1 : -1;
+  let err = dx + dy;
+  for (;;) {
+    put(x, y, v);
+    if (x === b.x && y === b.y) return;
+    const e2 = 2 * err;
+    if (e2 >= dy) { err += dy; x += sx; }
+    if (e2 <= dx) { err += dx; y += sy; }
+  }
+}
+// Toma el icono y el color de la capa visible más alta que tenga algo en esa celda, y la activa.
+function pick(c) {
+  for (let i = map.layers.length - 1; i >= 0; i--) {
+    const l = map.layers[i], at = c.y * map.cols + c.x;
+    if (l.visible && l.cells[at] !== EMPTY) {
+      tile = l.cells[at]; if (l.colors[at] >= 0) color = l.colors[at];
+      layer = i; setTool('paint'); drawLayers(); drawPalette(); requestDraw(); return;
+    }
+  }
+}
+function showCell(c) {
+  $('cellinfo').textContent = c ? `Celda (${c.x}, ${c.y}) · ` + map.layers.map(l => `${l.name}: ${tileName(l.cells[c.y * map.cols + c.x], l.colors[c.y * map.cols + c.x])}`).join(' · ') : '';
+}
+mapCanvas.addEventListener('contextmenu', e => e.preventDefault());
+mapCanvas.addEventListener('pointerdown', e => {
+  const c = cellAt(e);
+  if (!c || (e.button !== 0 && e.button !== 2)) return;
+  e.preventDefault();
+  if (e.button === 0 && (e.altKey || tool === 'pick')) { pick(c); return; }
+  mapCanvas.setPointerCapture(e.pointerId);
+  remember();
+  const value = e.button === 2 || tool === 'erase' ? EMPTY : tile;
+  if (tool === 'fill' && e.button === 0) { floodFill(map.layers[layer], map.cols, map.rows, c.x, c.y, value, color); changed(); return; }
+  stroke = { value, last: c, rect: tool === 'rect' ? { from: c, to: c } : null };
+  if (!stroke.rect) put(c.x, c.y, value);
+  requestDraw();
+});
+mapCanvas.addEventListener('pointermove', e => {
+  const c = cellAt(e);
+  hover = c; showCell(c);
+  if (stroke && c) {
+    if (stroke.rect) stroke.rect.to = c; else { line(stroke.last, c, stroke.value); stroke.last = c; }
+  }
+  requestDraw();
+});
+function endStroke() {
+  if (!stroke) return;
+  if (stroke.rect) { const r = rectOf(stroke.rect); for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) put(x, y, stroke.value); }
+  stroke = null; changed();
+}
+mapCanvas.addEventListener('pointerup', endStroke);
+mapCanvas.addEventListener('pointercancel', endStroke);
+mapCanvas.addEventListener('pointerleave', () => { if (!stroke) { hover = null; showCell(null); requestDraw(); } });
+
+function paletteAt(e) {
+  const r = palette.getBoundingClientRect(), s = r.width / 16;
+  const x = Math.floor((e.clientX - r.left) / s), y = Math.floor((e.clientY - r.top) / s);
+  return x < 0 || y < 0 || x > 15 || y > 15 ? null : y * 16 + x;
+}
+palette.addEventListener('pointermove', e => { paletteHover = paletteAt(e); drawPalette(); });
+palette.addEventListener('pointerleave', () => { paletteHover = null; drawPalette(); });
+palette.addEventListener('pointerdown', e => { const i = paletteAt(e); if (i === null) return; tile = i; if (tool === 'erase' || tool === 'pick') setTool('paint'); drawPalette(); });
+
+function setTool(name) {
+  tool = name;
+  document.querySelectorAll('#tools button').forEach(b => b.setAttribute('aria-pressed', b.dataset.tool === name));
+  requestDraw();
+}
+document.querySelectorAll('#tools button').forEach(b => b.addEventListener('click', () => setTool(b.dataset.tool)));
+for (const name of Object.keys(ICONOS).sort()) $('icons').appendChild(new Option(name));
+$('search').addEventListener('input', () => {
+  const wanted = $('search').value.trim().replace(/^\./, '').toLowerCase();
+  const name = Object.keys(ICONOS).find(n => n.toLowerCase() === wanted);
+  if (name) { tile = ICONOS[name]; if (tool === 'erase' || tool === 'pick') setTool('paint'); drawPalette(); }
+});
+
+// --- Tamaño y vista
+$('resize').addEventListener('click', () => {
+  const cols = Math.round(+$('cols').value), rows = Math.round(+$('rows').value);
+  if (!(cols >= 1 && cols <= 256 && rows >= 1 && rows <= 256)) { notice('El tamaño debe estar entre 1 y 256 celdas por lado.', true); layoutMap(); return; }
+  if (cols === map.cols && rows === map.rows) return;
+  const lost = map.layers.some(l => l.cells.some((v, i) => v !== EMPTY && (i % map.cols >= cols || Math.floor(i / map.cols) >= rows)));
+  if (lost && !confirm('El tamaño nuevo recorta celdas pintadas. ¿Continuar?')) { layoutMap(); return; }
+  remember();
+  for (const l of map.layers) {
+    const next = newLayer(l.name, cols, rows);
+    for (let y = 0; y < Math.min(rows, map.rows); y++) for (let x = 0; x < Math.min(cols, map.cols); x++) {
+      next.cells[y * cols + x] = l.cells[y * map.cols + x]; next.colors[y * cols + x] = l.colors[y * map.cols + x];
+    }
+    l.cells = next.cells; l.colors = next.colors;
+  }
+  map.cols = cols; map.rows = rows;
+  notice(''); layoutMap(); changed();
+});
+$('zoom').addEventListener('input', e => { zoom = +e.target.value; layoutMap(); persist(); });
+$('showgrid').addEventListener('change', requestDraw);
+$('dim').addEventListener('change', requestDraw);
+$('addlayer').addEventListener('click', () => {
+  remember();
+  const names = new Set(map.layers.map(l => l.name));
+  let n = map.layers.length + 1;
+  while (names.has('capa' + n)) n++;
+  map.layers.push(newLayer('capa' + n, map.cols, map.rows));
+  layer = map.layers.length - 1; refresh(); changed();
+});
+
+// --- Archivos
+function download(name, text) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
+  a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+function copy(text, what) {
+  if (!navigator.clipboard) { notice('El navegador no permite copiar desde esta página; usa el botón de guardar.', true); return; }
+  navigator.clipboard.writeText(text).then(() => notice(what + ' copiado al portapapeles.'), () => notice('No se pudo copiar al portapapeles.', true));
+}
+function openText(text, name) {
+  try { load(readMap(text, rgbOf), name); notice(`Abierto: ${map.cols} × ${map.rows}, ${map.layers.length} capa(s).`); }
+  catch (e) { notice(e.message, true); }
+}
+function openFile(file) {
+  if (!file) return;
+  file.text().then(text => openText(text, file.name.replace(/(\.mapa)?\.[^.]*$/, '')));
+}
+$('new').addEventListener('click', () => {
+  if (map.layers.some(l => l.cells.some(v => v !== EMPTY)) && !confirm('¿Empezar un mapa vacío? (Se puede deshacer.)')) return;
+  load(newMap(map.cols, map.rows, ['suelo', 'objetos'])); notice('');
+});
+$('open').addEventListener('click', () => $('file').click());
+$('file').addEventListener('change', e => { openFile(e.target.files[0]); e.target.value = ''; });
+$('save').addEventListener('click', () => { download(fileName() + '.mapa.txt', writeMap(map)); notice(`Guardado ${fileName()}.mapa.txt`); });
+$('export').addEventListener('click', () => { download(fileName() + '.cometa', exportCometa(map, $('name').value)); notice(`Exportado ${fileName()}.cometa`); });
+$('copytxt').addEventListener('click', () => copy(writeMap(map), 'Texto del mapa'));
+$('copycometa').addEventListener('click', () => copy(exportCometa(map, $('name').value), 'Módulo de Cometa'));
+$('undo').addEventListener('click', () => restore(undoStack, redoStack));
+$('redo').addEventListener('click', () => restore(redoStack, undoStack));
+$('name').addEventListener('change', () => { persist(); updateUsage(); });
+window.addEventListener('dragover', e => e.preventDefault());
+window.addEventListener('drop', e => { e.preventDefault(); openFile(e.dataTransfer.files[0]); });
+window.addEventListener('keydown', e => {
+  if (e.target.matches('input[type=text], input[type=number], input[list], select')) return;
+  const key = e.key.toLowerCase();
+  if (e.ctrlKey || e.metaKey) {
+    if (key === 'z' && !e.shiftKey) { e.preventDefault(); restore(undoStack, redoStack); }
+    else if (key === 'y' || (key === 'z' && e.shiftKey)) { e.preventDefault(); restore(redoStack, undoStack); }
+    else if (key === 's') { e.preventDefault(); $('save').click(); }
+    return;
+  }
+  const shortcut = { b: 'paint', e: 'erase', g: 'fill', r: 'rect', i: 'pick' }[key];
+  if (shortcut) setTool(shortcut);
+});
+
+// --- Arranque
+function start() {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) {}
+  if (saved?.map?.layers?.length) {
+    map = saved.map; layer = Math.min(saved.layer || 0, map.layers.length - 1); zoom = saved.zoom || zoom;
+    // Los mapas guardados por la primera versión tenían un color por capa.
+    for (const l of map.layers) l.colors ||= l.cells.map(v => v === EMPTY ? EMPTY : rgbOf(l.color));
+    $('name').value = saved.name || 'nivel';
+  } else {
+    // 40 × 25 celdas llenan la ventana de retro.ejecutar (320 × 200).
+    map = newMap(40, 25, ['suelo', 'objetos']);
+  }
+  setTool('paint'); refresh(); updateHistory();
+}
+const atlas = new Image();
+atlas.onload = () => {
+  mask = document.createElement('canvas'); mask.width = atlas.naturalWidth; mask.height = atlas.naturalHeight;
+  const g = mask.getContext('2d');
+  g.drawImage(atlas, 0, 0);
+  const data = g.getImageData(0, 0, mask.width, mask.height);
+  for (let i = 0; i < data.data.length; i += 4) { data.data[i + 3] = data.data[i]; data.data[i] = data.data[i + 1] = data.data[i + 2] = 255; }
+  g.putImageData(data, 0, 0);
+  start();
+};
+atlas.src = ATLAS;
+</script>
+</body>
+</html>

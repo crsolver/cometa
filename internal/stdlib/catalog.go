@@ -76,6 +76,9 @@ var Functions = []Function{
 	{"retro", "ancho_texto", "texto cadena, escala entero = 1) entero", "retroAnchoTexto", false, false},
 	{"retro", "icono", "icono Icono, x entero, y entero, escala entero = 1, color Color = .Blanco)", "retroIcono", true, false},
 	{"retro", "glifo", "indice entero, x entero, y entero, escala entero = 1, color Color = .Blanco, atlas Atlas = .Dungeon)", "retroGlifo", true, false},
+	{"retro", "hoja", "atlas Atlas = .Dungeon) Hoja", "retroHoja", false, false},
+	{"retro", "cargar_mapa", "ruta cadena) Mapa", "retroCargarMapa", false, true},
+	{"retro", "mapa", `mapa Mapa, x entero = 0, y entero = 0, escala entero = 1, capa cadena = "", tinte Color = .Blanco)`, "retroMapa", true, false},
 	{"retro", "ejecutar", `instancia Juego, ancho entero = 320, alto entero = 200, titulo cadena = "Cometa", escala decimal = 4, redimensionable bool = falso, pantalla_completa bool = falso, tps entero = 60, pixelado bool = verdadero, retro bool = falso) !`, "retroEjecutar", false, false},
 	{"mate", "absoluto", "valor decimal) decimal", "abs", false, false},
 	{"mate", "minimo", "a decimal, b decimal) decimal", "min", false, false},
@@ -112,7 +115,8 @@ var Functions = []Function{
 	{"datos", "leer_decimal", "clave cadena) decimal?", "datosLeerDecimal", false, false},
 	{"rejilla", "nueva", "columnas entero, filas entero, valor entero = 0) Rejilla", "rejillaNueva", false, false},
 	{"rejilla", "desde_texto", "filas [cadena], simbolos [cadena: entero]) Rejilla", "rejillaDesdeTexto", false, false},
-	{"rejilla", "dibujar", "mapa Rejilla, hoja Hoja, pos Vec2 = {}, escala Vec2 = {x: 1, y: 1}, tinte Color = .Blanco, animaciones [entero: [entero]] = [:], cuadros_por_segundo decimal = 8)", "rejillaDibujar", true, false},
+	{"rejilla", "desde_csv", `texto cadena, capa cadena = "") Rejilla`, "rejillaDesdeCsv", false, false},
+	{"rejilla", "dibujar", "mapa Rejilla, hoja Hoja, pos Vec2 = {}, escala Vec2 = {x: 1, y: 1}, tinte Color = .Blanco, animaciones [entero: [entero]] = [:], cuadros_por_segundo decimal = 8, colores Rejilla? = .Ninguno)", "rejillaDibujar", true, false},
 	{"color", "rgba", "r entero, g entero, b entero, a entero = 255) Color", "rgba", false, false},
 	{"graficos", "limpiar", "color Color)", "limpiar", true, false},
 	{"graficos", "rectangulo", "x decimal, y decimal, ancho decimal, alto decimal, color Color, origen Vec2 = {}, rotacion decimal = 0)", "rectanguloXY", true, false},
@@ -188,6 +192,7 @@ var Functions = []Function{
 	{"recursos", "imagen", "ruta cadena) Imagen", "cargarImagen", false, true},
 	{"recursos", "fuente", "ruta cadena) Fuente", "cargarFuente", false, true},
 	{"recursos", "sonido", "ruta cadena) Sonido", "cargarSonido", false, true},
+	{"recursos", "texto", "ruta cadena) cadena", "cargarTexto", false, true},
 }
 
 // Methods use Namespace as the receiver type, never as a callable namespace.
@@ -217,6 +222,11 @@ var Methods = []Function{
 	{"Rejilla", "mover", "area Rect, tamano_celda Vec2, delta Vec2, solidos [entero], plataformas [entero] = []) Vec2", "mover", false, false},
 	{"Rejilla", "celda_en", "punto Vec2, tamano_celda Vec2) entero?", "celdaEn", false, false},
 	{"Rejilla", "valores_en", "area Rect, tamano_celda Vec2) [entero]", "valoresEn", false, false},
+	{"Mapa", "columnas", ") entero", "columnas", false, false},
+	{"Mapa", "filas", ") entero", "filas", false, false},
+	{"Mapa", "capas", ") [cadena]", "capas", false, false},
+	{"Mapa", "capa", "nombre cadena) Rejilla", "capa", false, false},
+	{"Mapa", "colores", "nombre cadena) Rejilla", "colores", false, false},
 	{"Camara2D", "a_mundo", "punto Vec2) Vec2", "aMundo", false, false},
 	{"Camara2D", "a_pantalla", "punto Vec2) Vec2", "aPantalla", false, false},
 	{"Camara2D", "siguiendo", "objetivo Vec2, suavizado decimal) Camara2D", "siguiendo", false, false},
@@ -232,7 +242,7 @@ var Methods = []Function{
 }
 
 var Fields = map[string]string{
-	"Icono": "", "Atlas": "",
+	"Icono": "", "Atlas": "", "Mapa": "",
 	"Vec2": "x decimal\ny decimal", "Rect": "pos Vec2\ntamano Vec2",
 	"Camara2D": "pos Vec2\norigen Vec2\nzoom decimal\nrotacion decimal",
 	"Color":    "", "Imagen": "", "Fuente": "", "Sonido": "", "Reproduccion": "", "Tecla": "", "BotonRaton": "",

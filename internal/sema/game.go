@@ -195,7 +195,7 @@ func (c *checker) checkGame(program *ast.Program) error {
 	for call, f := range c.model.Game.Calls {
 		if f.Resource {
 			if !allowed[call] || len(call.Args) != 1 {
-				return c.fail(call.Pos, "recursos.%s requiere un inicializador global directo con ruta literal", f.Name)
+				return c.fail(call.Pos, "%s.%s requiere un inicializador global directo con ruta literal", f.Namespace, f.Name)
 			}
 			if lit, ok := call.Args[0].(*ast.LiteralExpr); !ok || lit.Kind != "cadena" {
 				return c.fail(call.Pos, "la ruta del recurso debe ser una cadena literal")
