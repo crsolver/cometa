@@ -9,7 +9,7 @@ func _hgUIBegin(c *_hgContexto) {
  tecla:=func(k ebiten.Key) bool {return _hgteclaPresionada(_hgTecla(k))}
  izquierdo:=_hgBotonRaton(ebiten.MouseButtonLeft)
  var chars []rune
- if !_hgguionActivo {chars=ebiten.AppendInputChars(nil)}
+ if _hgguionActivo {chars=_hgsimTexto} else {chars=ebiten.AppendInputChars(nil)}
  c.begin(_hgtamano(),_hgUIInput{pointer:_hgposicionRaton(),wheel:_hgrueda(),press:_hgratonPresionado(izquierdo),release:_hgratonSoltado(izquierdo),down:_hgratonMantenido(izquierdo),tab:tecla(ebiten.KeyTab),shift:_hgteclaMantenida(_hgTecla(ebiten.KeyShift)),activate:tecla(ebiten.KeyEnter)||tecla(ebiten.KeySpace),left:tecla(ebiten.KeyArrowLeft)||tecla(ebiten.KeyArrowDown),right:tecla(ebiten.KeyArrowRight)||tecla(ebiten.KeyArrowUp),chars:chars,backspace:tecla(ebiten.KeyBackspace),delete:tecla(ebiten.KeyDelete),home:tecla(ebiten.KeyHome),end:tecla(ebiten.KeyEnd)},_hgUIMeasure)
 }
 func _hguiFuente(font *_hgFuente,size float64) *_hgTema {

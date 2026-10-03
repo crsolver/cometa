@@ -56,8 +56,36 @@ fn prueba_la_caja_se_mueve()
 
 - El juego es cualquier valor que implemente `pincel.Juego`; no se llama a `pincel.ejecutar`, así que `ancho`, `alto` y `tps` deben coincidir con los que use el juego.
 - `pruebas.pixel` y `pruebas.pantalla` leen lo pintado por el último `pruebas.avanzar` de esa misma prueba.
-- Durante las pruebas no se leen el teclado, el ratón ni los mandos reales: `entrada` responde como si nada estuviera pulsado.
+- Durante las pruebas no se leen el teclado, el ratón ni los mandos reales: `entrada` responde como si nada estuviera pulsado, salvo lo que la prueba simule (abajo).
 - El proyecto debe importar `std/pincel` o alguno de sus módulos. Los archivos de pruebas que no usan estas funciones no dependen de Ebitengine ni necesitan pantalla.
+
+### Simular la entrada
+
+Una prueba puede pulsar teclas, mover el puntero, girar la rueda, teclear texto y usar un mando. Cada llamada se aplica en el **próximo** `pruebas.avanzar`, y `entrada` (y `std/pincel/ui`) la ven igual que la entrada real:
+
+```cometa
+fn prueba_el_jugador_se_mueve_con_d()
+	var juego = partida.Partida {}
+	pruebas.mantener(.D)
+	pruebas.avanzar(juego, 10)
+	pruebas.afirmar(juego.jugador.x > 0, "debería haberse movido")
+	pruebas.soltar(.D)
+	pruebas.pulsar(.Espacio)
+	pruebas.avanzar(juego, 1)
+```
+
+| Función | Qué simula |
+| --- | --- |
+| `pruebas.mantener(tecla)` / `pruebas.soltar(tecla)` | la tecla se mantiene pulsada hasta que se suelta |
+| `pruebas.pulsar(tecla)` | una pulsación de un cuadro: `entrada.tecla_presionada` es verdadero una vez y la tecla se suelta al cuadro siguiente |
+| `pruebas.mantener_raton(boton)`, `soltar_raton`, `pulsar_raton` | lo mismo con un botón del ratón |
+| `pruebas.raton(x, y)` | posición del puntero, en píxeles de la pantalla lógica |
+| `pruebas.rueda(x, y)` | movimiento de la rueda durante un cuadro |
+| `pruebas.texto(texto)` | caracteres tecleados durante un cuadro (los recibe `ui.campo_texto` si tiene el foco) |
+| `pruebas.mantener_mando(boton)`, `soltar_mando`, `pulsar_mando` | botones del mando 0; mientras la prueba corre, `entrada.mandos()` vale 1 una vez simulado algo |
+| `pruebas.eje_mando(eje, valor)` | valor de una palanca del mando 0, entre -1 y 1, hasta que se fije otro |
+
+La entrada simulada se borra al empezar cada prueba, así que una tecla mantenida no pasa a la siguiente. Estas funciones solo existen con `cometa probar`.
 
 ## Códigos de salida
 

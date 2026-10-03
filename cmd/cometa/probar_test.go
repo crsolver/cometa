@@ -126,3 +126,111 @@ fn prueba_sin_avanzar()
 		t.Fatalf("prueba_sin_avanzar: %+v", r)
 	}
 }
+
+// Tests can press keys, move the pointer, wheel, type and use a gamepad through
+// the same entrada and ui helpers the game reads.
+func TestProbarEntradaSimulada(t *testing.T) {
+	if testing.Short() {
+		t.Skip("desktop rendering")
+	}
+	entry := writeProject(t, map[string]string{
+		"juego.cometa": `usar std/pincel/graficos
+usar std/pincel/entrada
+usar std/pincel/ui
+
+pub tipo Juego
+	pub contexto ui.Contexto
+	pub nombre cadena
+	pub x entero
+	pub pulsaciones entero
+	pub soltadas entero
+	pub clic decimal = -1
+	pub rueda decimal
+	pub mandos entero
+	pub boton_a bool
+	pub palanca decimal
+
+	pub fn actualizar(dt decimal)
+		si entrada.tecla_mantenida(.D)
+			@x += 1
+		si entrada.tecla_presionada(.Espacio)
+			@pulsaciones += 1
+		si entrada.tecla_soltada(.Espacio)
+			@soltadas += 1
+		si entrada.raton_presionado(.Izquierdo)
+			@clic = entrada.posicion_raton().x
+		@rueda += entrada.rueda().y
+		@mandos = entrada.mandos()
+		@boton_a = entrada.mando_boton(0, .A)
+		@palanca = entrada.mando_eje(0, .IzquierdoX)
+		con ui.cuadro(@contexto)
+			@nombre = ui.campo_texto("nombre", @nombre)
+
+	pub fn pintar()
+		graficos.limpiar(.Negro)
+		ui.pintar(@contexto)
+`,
+		"pruebas.cometa": `usar juego
+usar std/pruebas
+usar std/pincel/ui
+
+fn prueba_teclas()
+	var j = juego.Juego {contexto: ui.crear()}
+	pruebas.avanzar(j, 2)
+	pruebas.igual(0, j.x)
+	pruebas.mantener(.D)
+	pruebas.avanzar(j, 3)
+	pruebas.igual(3, j.x)
+	pruebas.soltar(.D)
+	pruebas.avanzar(j, 2)
+	pruebas.igual(3, j.x)
+	pruebas.pulsar(.Espacio)
+	pruebas.avanzar(j, 3)
+	pruebas.igual(1, j.pulsaciones)
+	pruebas.igual(1, j.soltadas)
+
+fn prueba_la_entrada_no_pasa_a_la_siguiente_prueba()
+	var j = juego.Juego {contexto: ui.crear()}
+	pruebas.avanzar(j, 2)
+	pruebas.igual(0, j.x)
+
+fn prueba_raton_y_rueda()
+	var j = juego.Juego {contexto: ui.crear()}
+	pruebas.raton(40, 5)
+	pruebas.pulsar_raton(.Izquierdo)
+	pruebas.rueda(0, -2)
+	pruebas.avanzar(j, 1)
+	pruebas.igual(40, j.clic)
+	pruebas.casi_igual(-2.0, j.rueda)
+	pruebas.avanzar(j, 2)
+	pruebas.casi_igual(-2.0, j.rueda, mensaje = "la rueda dura un cuadro")
+
+fn prueba_mando()
+	var j = juego.Juego {contexto: ui.crear()}
+	pruebas.avanzar(j, 1)
+	pruebas.igual(0, j.mandos)
+	pruebas.mantener_mando(.A)
+	pruebas.eje_mando(.IzquierdoX, 0.5)
+	pruebas.avanzar(j, 1)
+	pruebas.igual(1, j.mandos)
+	pruebas.afirmar(j.boton_a, "botón A")
+	pruebas.casi_igual(0.5, j.palanca)
+
+fn prueba_texto()
+	var j = juego.Juego {contexto: ui.crear()}
+	pruebas.avanzar(j, 1)
+	pruebas.pulsar(.Tab)
+	pruebas.avanzar(j, 2)
+	pruebas.texto("hola")
+	pruebas.avanzar(j, 1)
+	pruebas.igual("hola", j.nombre)
+`,
+	})
+	report, code := probar(entry, "", 5*time.Minute, true)
+	if code != 0 {
+		t.Fatalf("unexpected report %+v code %d", report, code)
+	}
+	if report.Passed != 5 {
+		t.Fatalf("unexpected report %+v", report)
+	}
+}

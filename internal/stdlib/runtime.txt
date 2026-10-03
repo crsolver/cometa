@@ -119,7 +119,7 @@ func _hgratonMantenido(k _hgBotonRaton) bool{if _hgguionActivo{return _hgsimMant
 func _hgratonPresionado(k _hgBotonRaton) bool{if _hgguionActivo{return _hgsimPresionada(-1-int(k))};return inpututil.IsMouseButtonJustPressed(ebiten.MouseButton(k))}
 func _hgratonSoltado(k _hgBotonRaton) bool{if _hgguionActivo{return _hgsimSoltada(-1-int(k))};return inpututil.IsMouseButtonJustReleased(ebiten.MouseButton(k))}
 func _hgposicionRaton() _hgVec2{if _hgguionActivo{return _hgsimCursor};x,y:=ebiten.CursorPosition();return _hgVec2{float64(x),float64(y)}}
-func _hgrueda() _hgVec2{if _hgguionActivo{return _hgVec2{}};x,y:=ebiten.Wheel();return _hgVec2{x,y}}
+func _hgrueda() _hgVec2{if _hgguionActivo{return _hgsimRueda};x,y:=ebiten.Wheel();return _hgVec2{x,y}}
 func _hgreproducir(sound *_hgSonido,volume float64,loop bool) *_hgReproduccion{r:=&_hgReproduccion{sound:sound,loop:loop,volume:_hglimitar(volume,0,1)};_hgreanudar(r);return r}
 func _hgpausar(r *_hgReproduccion){if r.player!=nil{r.player.Pause();r.paused=true}}
 func _hgreanudar(r *_hgReproduccion){
@@ -277,31 +277,44 @@ func _hgcapturar(screen *ebiten.Image) {
  _hgcapturaHecha=len(_hgcapturaRutas)==0
 }
 
-// Set by `cometa captura --entrada`: scripted input replaces the real devices.
-// Codes are int(ebiten.Key) for keys and -1-int(ebiten.MouseButton) for mouse
-// buttons. Events (sorted by tick) apply at the start of their tick; a tap is
-// released on the next one.
-type _hgEventoGuion struct { cuadro uint64; tipo byte; codigo int; x, y float64 }
-const (_hgguionMantener byte = iota; _hgguionSoltar; _hgguionPulsar; _hgguionMover)
+// Set by `cometa captura --entrada` and by the pruebas input functions: scripted
+// input replaces the real devices. Codes are int(ebiten.Key) for keys,
+// -1-int(ebiten.MouseButton) for mouse buttons and -100-int(button) for the
+// standard gamepad 0. Events (sorted by tick) apply at the start of their tick;
+// a tap is released on the next one. Wheel movement and typed text last one tick.
+type _hgEventoGuion struct { cuadro uint64; tipo byte; codigo int; x, y float64; texto string }
+const (_hgguionMantener byte = iota; _hgguionSoltar; _hgguionPulsar; _hgguionMover; _hgguionTexto; _hgguionRueda; _hgguionEje)
 var _hgguion []_hgEventoGuion
 var _hgguionActivo bool
 var _hgsimAhora, _hgsimAntes = map[int]bool{}, map[int]bool{}
 var _hgsimSoltar []int
-var _hgsimCursor _hgVec2
+var _hgsimCursor, _hgsimRueda _hgVec2
+var _hgsimTexto []rune
+var _hgsimEjes = map[int]float64{}
+var _hgsimMando bool
 func _hgavanzarGuion() {
  if !_hgguionActivo {return}
  _hgsimAntes=map[int]bool{};for c,v:=range _hgsimAhora{_hgsimAntes[c]=v}
  for _,c:=range _hgsimSoltar{delete(_hgsimAhora,c)};_hgsimSoltar=nil
+ _hgsimRueda=_hgVec2{};_hgsimTexto=nil
  for len(_hgguion)>0 && _hgguion[0].cuadro<=_hgtick {
   e:=_hgguion[0];_hgguion=_hgguion[1:]
+  if e.codigo<=-100 || e.tipo==_hgguionEje {_hgsimMando=true}
   switch e.tipo {
   case _hgguionMantener: _hgsimAhora[e.codigo]=true
   case _hgguionSoltar: delete(_hgsimAhora,e.codigo)
   case _hgguionPulsar: _hgsimAhora[e.codigo]=true;_hgsimSoltar=append(_hgsimSoltar,e.codigo)
   case _hgguionMover: _hgsimCursor=_hgVec2{e.x,e.y}
+  case _hgguionTexto: _hgsimTexto=append(_hgsimTexto,[]rune(e.texto)...)
+  case _hgguionRueda: _hgsimRueda=_hgVec2{_hgsimRueda.X+e.x,_hgsimRueda.Y+e.y}
+  case _hgguionEje: _hgsimEjes[e.codigo]=e.x
   }
  }
 }
 func _hgsimMantenida(c int) bool {return _hgsimAhora[c]}
 func _hgsimPresionada(c int) bool {return _hgsimAhora[c]&&!_hgsimAntes[c]}
 func _hgsimSoltada(c int) bool {return !_hgsimAhora[c]&&_hgsimAntes[c]}
+func _hgsimReiniciar() {
+ _hgguion=nil;_hgsimAhora,_hgsimAntes=map[int]bool{},map[int]bool{};_hgsimSoltar=nil
+ _hgsimCursor,_hgsimRueda=_hgVec2{},_hgVec2{};_hgsimTexto=nil;_hgsimEjes=map[int]float64{};_hgsimMando=false
+}

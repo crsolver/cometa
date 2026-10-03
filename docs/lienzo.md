@@ -80,8 +80,13 @@ cometa captura juego.cometa --entrada guion.txt --cuadros 100,300
 120 raton 160 90    mueve el ratón (píxeles de la pantalla lógica)
 121 RatonIzquierdo  clic
 150 +D +Espacio     varias acciones en la misma línea
+160 texto "hola"    teclea esas letras (las recibe ui.campo_texto con el foco)
+170 rueda 0 -1      mueve la rueda del ratón durante un cuadro
+180 +MandoA         mantiene un botón del mando 0 (-MandoA lo suelta, MandoA lo pulsa)
+190 eje IzquierdoX 1  fija una palanca del mando 0, entre -1 y 1
 ```
 
-Las teclas usan los nombres de `entrada.Tecla` (`D`, `Enter`, `Izquierda`, `Espacio`…) y los botones del ratón llevan delante `Raton` (`RatonIzquierdo`, `RatonDerecho`, `RatonMedio`). Mientras corre el guion, el teclado y el ratón reales se ignoran, así que la ejecución es siempre la misma; `std/pincel/ui` también responde al guion, salvo la escritura de texto. Sin `--cuadros`, la captura se toma un cuadro después de la última acción.
+Las teclas usan los nombres de `entrada.Tecla` (`D`, `Enter`, `Izquierda`, `Espacio`…) y los botones del ratón llevan delante `Raton` (`RatonIzquierdo`, `RatonDerecho`, `RatonMedio`). Los botones del mando 0 llevan delante `Mando` y usan los nombres de `entrada.BotonMando` (`MandoA`, `MandoInicio`…); las palancas usan los de `entrada.EjeMando` (`IzquierdoX`, `DerechoY`…) y conservan su valor hasta que se fija otro. `texto` necesita comillas (admiten escapes como `
+`) y la rueda y el texto duran un cuadro. Mientras corre el guion, el teclado, el ratón, la rueda y los mandos reales se ignoran, así que la ejecución es siempre la misma; `std/pincel/ui` también responde al guion. Sin `--cuadros`, la captura se toma un cuadro después de la última acción.
 
 Consulta [el ejemplo de sprites](../examples/pincel/07_sprites.cometa): un personaje de dos cuadros dibujado con texto y animado al caminar.

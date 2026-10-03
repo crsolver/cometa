@@ -547,6 +547,7 @@ type _hgEventoGuion struct {
 	tipo   byte
 	codigo int
 	x, y   float64
+	texto  string
 }
 
 const (
@@ -554,13 +555,19 @@ const (
 	_hgguionSoltar
 	_hgguionPulsar
 	_hgguionMover
+	_hgguionTexto
+	_hgguionRueda
+	_hgguionEje
 )
 
 var _hgguion []_hgEventoGuion
 var _hgguionActivo bool
 var _hgsimAhora, _hgsimAntes = map[int]bool{}, map[int]bool{}
 var _hgsimSoltar []int
-var _hgsimCursor _hgVec2
+var _hgsimCursor, _hgsimRueda _hgVec2
+var _hgsimTexto []rune
+var _hgsimEjes = map[int]float64{}
+var _hgsimMando bool
 
 func _hgavanzarGuion() {
 	if !_hgguionActivo {
@@ -574,9 +581,14 @@ func _hgavanzarGuion() {
 		delete(_hgsimAhora, c)
 	}
 	_hgsimSoltar = nil
+	_hgsimRueda = _hgVec2{}
+	_hgsimTexto = nil
 	for len(_hgguion) > 0 && _hgguion[0].cuadro <= _hgtick {
 		e := _hgguion[0]
 		_hgguion = _hgguion[1:]
+		if e.codigo <= -100 || e.tipo == _hgguionEje {
+			_hgsimMando = true
+		}
 		switch e.tipo {
 		case _hgguionMantener:
 			_hgsimAhora[e.codigo] = true
@@ -587,6 +599,12 @@ func _hgavanzarGuion() {
 			_hgsimSoltar = append(_hgsimSoltar, e.codigo)
 		case _hgguionMover:
 			_hgsimCursor = _hgVec2{e.x, e.y}
+		case _hgguionTexto:
+			_hgsimTexto = append(_hgsimTexto, []rune(e.texto)...)
+		case _hgguionRueda:
+			_hgsimRueda = _hgVec2{_hgsimRueda.X + e.x, _hgsimRueda.Y + e.y}
+		case _hgguionEje:
+			_hgsimEjes[e.codigo] = e.x
 		}
 	}
 }

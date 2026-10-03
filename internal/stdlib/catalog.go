@@ -24,6 +24,19 @@ var Functions = []Function{
 	{"pruebas", "avanzar", "juego Juego, cuadros entero = 1, ancho entero = 320, alto entero = 180, tps entero = 60)", "pruebasAvanzar", false, false},
 	{"pruebas", "pantalla", ") Imagen", "pruebasPantalla", false, false},
 	{"pruebas", "pixel", `x entero, y entero, esperado Color, tolerancia entero = 0, mensaje cadena = "")`, "pruebasPixel", false, false},
+	{"pruebas", "mantener", "tecla Tecla)", "pruebasMantener", false, false},
+	{"pruebas", "soltar", "tecla Tecla)", "pruebasSoltar", false, false},
+	{"pruebas", "pulsar", "tecla Tecla)", "pruebasPulsar", false, false},
+	{"pruebas", "mantener_raton", "boton BotonRaton)", "pruebasMantenerRaton", false, false},
+	{"pruebas", "soltar_raton", "boton BotonRaton)", "pruebasSoltarRaton", false, false},
+	{"pruebas", "pulsar_raton", "boton BotonRaton)", "pruebasPulsarRaton", false, false},
+	{"pruebas", "raton", "x decimal, y decimal)", "pruebasRaton", false, false},
+	{"pruebas", "rueda", "x decimal, y decimal)", "pruebasRueda", false, false},
+	{"pruebas", "texto", "texto cadena)", "pruebasTexto", false, false},
+	{"pruebas", "mantener_mando", "boton BotonMando)", "pruebasMantenerMando", false, false},
+	{"pruebas", "soltar_mando", "boton BotonMando)", "pruebasSoltarMando", false, false},
+	{"pruebas", "pulsar_mando", "boton BotonMando)", "pruebasPulsarMando", false, false},
+	{"pruebas", "eje_mando", "eje EjeMando, valor decimal)", "pruebasEjeMando", false, false},
 	{"ruido", "suave", "x decimal, y decimal, semilla entero = 0) decimal", "ruidoSuave", false, false},
 	{"ruido", "fractal", "x decimal, y decimal, semilla entero = 0, octavas entero = 4, persistencia decimal = 0.5, lacunaridad decimal = 2.0) decimal", "ruidoFractal", false, false},
 	{"curvas", "lineal", "progreso decimal) decimal", "curva_lineal", false, false},
@@ -243,11 +256,12 @@ func IsValue(name string) bool {
 	}
 	return name == Symbol("Vec2") || name == Symbol("Rect") || name == Symbol("Camara2D") || name == Symbol("Color") || name == Symbol("Tecla") || name == Symbol("BotonRaton") || name == Symbol("BotonMando") || name == Symbol("EjeMando")
 }
+
 // VisualTest reports whether f is one of the std/pruebas functions that step
 // and paint a game. Only they need Ebitengine, so their runtime is emitted
 // only for projects that also import a std/pincel module.
 func VisualTest(f Function) bool {
-	return f.Namespace == "pruebas" && (f.Name == "avanzar" || f.Name == "pantalla" || f.Name == "pixel")
+	return f.Namespace == "pruebas" && !(f.Name == "afirmar" || f.Name == "igual" || f.Name == "casi_igual" || f.Name == "fallar")
 }
 
 // UsesPincel reports whether any imported native module belongs to Pincel.
@@ -373,7 +387,7 @@ var Constants = map[string]map[string]string{
 		"Blanco":        "_hgColor{255,255,255,255}",
 		"Transparente":  "_hgColor{}",
 	},
-	"Tecla":      {"Izquierda": "_hgTecla(ebiten.KeyArrowLeft)", "Derecha": "_hgTecla(ebiten.KeyArrowRight)", "Arriba": "_hgTecla(ebiten.KeyArrowUp)", "Abajo": "_hgTecla(ebiten.KeyArrowDown)", "Espacio": "_hgTecla(ebiten.KeySpace)", "Escape": "_hgTecla(ebiten.KeyEscape)", "Enter": "_hgTecla(ebiten.KeyEnter)", "Tab": "_hgTecla(ebiten.KeyTab)", "Retroceso": "_hgTecla(ebiten.KeyBackspace)", "Shift": "_hgTecla(ebiten.KeyShift)", "Control": "_hgTecla(ebiten.KeyControl)"},
+	"Tecla": {"Izquierda": "_hgTecla(ebiten.KeyArrowLeft)", "Derecha": "_hgTecla(ebiten.KeyArrowRight)", "Arriba": "_hgTecla(ebiten.KeyArrowUp)", "Abajo": "_hgTecla(ebiten.KeyArrowDown)", "Espacio": "_hgTecla(ebiten.KeySpace)", "Escape": "_hgTecla(ebiten.KeyEscape)", "Enter": "_hgTecla(ebiten.KeyEnter)", "Tab": "_hgTecla(ebiten.KeyTab)", "Retroceso": "_hgTecla(ebiten.KeyBackspace)", "Shift": "_hgTecla(ebiten.KeyShift)", "Control": "_hgTecla(ebiten.KeyControl)"},
 	"BotonMando": {
 		"A": "_hgBotonMando(ebiten.StandardGamepadButtonRightBottom)", "B": "_hgBotonMando(ebiten.StandardGamepadButtonRightRight)",
 		"X": "_hgBotonMando(ebiten.StandardGamepadButtonRightLeft)", "Y": "_hgBotonMando(ebiten.StandardGamepadButtonRightTop)",

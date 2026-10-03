@@ -86,13 +86,15 @@ func _hgmandoIds() []ebiten.GamepadID{
  sort.Slice(ids,func(i,j int)bool{return ids[i]<ids[j]})
  return ids
 }
-func _hgmandos() int64{return int64(len(_hgmandoIds()))}
+func _hgmandos() int64{if _hgguionActivo{if _hgsimMando{return 1};return 0};return int64(len(_hgmandoIds()))}
 func _hgmandoId(m int64) (ebiten.GamepadID,bool){ids:=_hgmandoIds();if m<0||m>=int64(len(ids)){return 0,false};return ids[m],true}
-func _hgmandoBoton(m int64,b _hgBotonMando) bool{id,ok:=_hgmandoId(m);return ok&&ebiten.IsStandardGamepadButtonPressed(id,ebiten.StandardGamepadButton(b))}
-func _hgmandoBotonPresionado(m int64,b _hgBotonMando) bool{id,ok:=_hgmandoId(m);return ok&&inpututil.IsStandardGamepadButtonJustPressed(id,ebiten.StandardGamepadButton(b))}
+func _hgmandoBoton(m int64,b _hgBotonMando) bool{if _hgguionActivo{return m==0&&_hgsimMantenida(-100-int(b))};id,ok:=_hgmandoId(m);return ok&&ebiten.IsStandardGamepadButtonPressed(id,ebiten.StandardGamepadButton(b))}
+func _hgmandoBotonPresionado(m int64,b _hgBotonMando) bool{if _hgguionActivo{return m==0&&_hgsimPresionada(-100-int(b))};id,ok:=_hgmandoId(m);return ok&&inpututil.IsStandardGamepadButtonJustPressed(id,ebiten.StandardGamepadButton(b))}
 func _hgmandoEje(m int64,e _hgEjeMando,zonaMuerta float64) float64{
+ var v float64
+ if _hgguionActivo{if m!=0{return 0};v=_hgsimEjes[int(e)]}else{
  id,ok:=_hgmandoId(m);if !ok{return 0}
- v:=ebiten.StandardGamepadAxisValue(id,ebiten.StandardGamepadAxis(e))
+ v=ebiten.StandardGamepadAxisValue(id,ebiten.StandardGamepadAxis(e))}
  if math.Abs(v)<zonaMuerta{return 0}
  return v
 }

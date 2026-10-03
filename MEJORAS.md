@@ -16,6 +16,12 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 - **Problema:** recorrer las letras de un texto es un ejercicio típico de principiantes, y el truco de `dividir("")` no es evidente.
 - **Posible solución:** aceptar `cadena` en `repetir`, ligando cada punto de código como `cadena` (y el índice opcional como `entero`), igual que `dividir("")`; o al menos sugerir `dividir("")` en el mensaje de error.
 
+### Las constantes de tipos de la biblioteca no se pueden escribir con su tipo (`retro.Icono.Arriba`)
+
+- **Observado:** en una rama de `casos` que debe producir un ícono, `retro.Icono.Arriba` falla con «el nombre "retro.Icono" no existe». Solo funciona la forma contextual `.Arriba`, y para eso hay que anotar el tipo de la variable (`var flecha retro.Icono = casos ...`). Con los enums propios, `Semaforo.Rojo` sí funciona.
+- **Problema:** cuando no hay un tipo esperado (un `var` sin anotar, un valor de `casos`), no hay forma directa de nombrar un ícono, color o tecla, y el mensaje no sugiere la anotación.
+- **Posible solución:** aceptar `modulo.Tipo.Constante` para los tipos de la biblioteca con constantes (`Icono`, `Color`, `Tecla`…), igual que con los enums propios; o que el error sugiera anotar el tipo.
+
 ## Herramientas
 
 ### Los errores en tiempo de ejecución no indican la columna
@@ -42,11 +48,11 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 - **Problema:** no hay punto de partida para un juego con varios archivos (el ejemplo `12_escenas` muestra las escenas, pero no hay plantilla).
 - **Posible solución:** más plantillas (`--plantilla plataformas`, `menu`) cuando existan esos ejemplos.
 
-### El guion de `cometa captura --entrada` no escribe texto ni usa mandos
+### La entrada simulada solo controla el mando 0
 
-- **Observado:** el guion simula teclas, botones y posición del ratón, pero no la escritura de caracteres (`ui.campo_texto` recibe texto vacío) ni los mandos, y la rueda siempre vale cero.
-- **Problema:** no se puede capturar un formulario rellenado ni un juego que solo se controle con mando.
-- **Posible solución:** acciones `texto "hola"`, `rueda 0 -1` y `+MandoA`/`eje IzquierdoX 1` en el guion, leídas por los ayudantes de `entrada` igual que las teclas.
+- **Observado:** `pruebas.mantener_mando`, `pruebas.eje_mando` y el guion de `cometa captura --entrada` (`+MandoA`, `eje IzquierdoX 1`) afectan solo al mando 0; `entrada.mandos()` vale 0 o 1 mientras se simula.
+- **Problema:** un juego de dos jugadores con un mando cada uno no se puede probar ni capturar.
+- **Posible solución:** un parámetro `mando` opcional en las funciones de `pruebas` y un prefijo en el guion (`+Mando1A`), con los códigos de botón desplazados por mando.
 
 ## Biblioteca estándar
 
@@ -74,10 +80,9 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 - **Problema:** cubre el caso de un campo corto (nombre, valor numérico), pero cualquier edición más larga es incómoda: no hay forma de reemplazar todo el contenido de una vez ni de corregir un error a mitad de la palabra sin usar solo las flechas.
 - **Posible solución:** añadir un segundo índice de selección al nodo, resaltar el rango seleccionado al dibujar, calcular la posición de clic contra las líneas medidas, y usar las funciones de portapapeles de Ebitengine para copiar/pegar.
 
-## Plataforma de ejercicios
 
-### Las pruebas visuales no pueden simular teclado ni ratón
+### `retro.icono` no se puede voltear
 
-- **Observado:** `pruebas.avanzar` ignora los dispositivos reales, pero no hay forma de pulsar una tecla o mover el ratón desde una prueba; el guion de `cometa captura --entrada` no está expuesto en `std/pruebas`.
-- **Problema:** un ejercicio del tipo «al pulsar D el jugador se mueve» solo se puede comprobar llamando a los métodos del juego, no a través de `entrada`.
-- **Posible solución:** `pruebas.mantener(tecla)`, `pruebas.soltar(tecla)`, `pruebas.pulsar(tecla)` y `pruebas.raton(x, y)` que escriban en el estado simulado (`_hgsimAhora`, `_hgsimCursor`) que ya leen los ayudantes de `entrada`.
+- **Observado:** `retro.icono` dibuja la celda del atlas tal cual (`_hgretroIcono` llama a `_hgretroGlifo` sin más opciones); no hay forma de espejarla.
+- **Problema:** para tener un icono mirando a la izquierda y a la derecha, o boca arriba y boca abajo, hay que añadir al atlas una copia espejada de cada uno.
+- **Posible solución:** parámetros opcionales `voltear_h` y `voltear_v` (bool) en `retro.icono` (y quizá en `glifo`) que inviertan los ejes al dibujar, como ya hace `lienzo.pegar` con los espejos.

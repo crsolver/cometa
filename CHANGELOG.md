@@ -2,6 +2,13 @@
 
 Las notas de cada versión. La sección de la etiqueta publicada se usa como texto de la página de versiones.
 
+## v0.1.1
+
+### Entrada simulada
+
+- **Pruebas:** `std/pruebas` puede simular la entrada: `pruebas.mantener`, `soltar` y `pulsar` (teclas), sus variantes `_raton` y `_mando`, `pruebas.raton(x, y)`, `pruebas.rueda(x, y)`, `pruebas.texto("...")` y `pruebas.eje_mando(eje, valor)`. Un ejercicio como «al pulsar D el jugador se mueve» ya se comprueba a través de `entrada`.
+- **`cometa captura --entrada`:** el guion admite `texto "hola"`, `rueda x y`, botones del mando 0 (`+MandoA`) y palancas (`eje IzquierdoX 1`), y `std/pincel/ui` recibe el texto escrito.
+
 ## v0.1.0
 
 Primera versión pública de Cometa: un lenguaje de programación con sintaxis en español, pensado para aprender y para hacer juegos 2D por diversión. Los programas se traducen a Go.

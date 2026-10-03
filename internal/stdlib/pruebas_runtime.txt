@@ -71,7 +71,7 @@ func _hgpruebasBucle(correr func()) error {
 }
 
 // Called before each test so one test's screen never leaks into the next.
-func _hgpruebasReiniciar() { _hgpruebasCaptura = nil; _hgsalirPedido = false }
+func _hgpruebasReiniciar() { _hgpruebasCaptura = nil; _hgsalirPedido = false; _hgsimReiniciar() }
 func _hgpruebasAvanzar(juego _hgJuego, cuadros, ancho, alto, tps int64) {
 	if !_hgpruebasActivo {
 		panic("pruebas.avanzar solo funciona en pruebas ejecutadas con cometa probar")
@@ -136,4 +136,43 @@ func _hgpruebasPixel(x, y int64, esperado _hgColor, tolerancia int64, mensaje st
 	if lejos(esperado.R, o.R) || lejos(esperado.G, o.G) || lejos(esperado.B, o.B) || lejos(esperado.A, o.A) {
 		_hgpruebaFalla(mensaje, fmt.Sprintf("en el píxel (%d, %d) se esperaba rgba(%d, %d, %d, %d) pero se obtuvo rgba(%d, %d, %d, %d)", x, y, esperado.R, esperado.G, esperado.B, esperado.A, o.R, o.G, o.B, o.A))
 	}
+}
+
+// Simulated input: each call queues an event for the next tick that
+// pruebas.avanzar runs, so a pulsar is seen by entrada.tecla_presionada exactly once.
+func _hgpruebasEntrada(nombre string, tipo byte, codigo int, x, y float64, texto string) {
+	if !_hgpruebasActivo {
+		panic("pruebas." + nombre + " solo funciona en pruebas ejecutadas con cometa probar")
+	}
+	_hgguion = append(_hgguion, _hgEventoGuion{_hgtick + 1, tipo, codigo, x, y, texto})
+}
+func _hgpruebasMantener(tecla _hgTecla) { _hgpruebasEntrada("mantener", _hgguionMantener, int(tecla), 0, 0, "") }
+func _hgpruebasSoltar(tecla _hgTecla)   { _hgpruebasEntrada("soltar", _hgguionSoltar, int(tecla), 0, 0, "") }
+func _hgpruebasPulsar(tecla _hgTecla)   { _hgpruebasEntrada("pulsar", _hgguionPulsar, int(tecla), 0, 0, "") }
+func _hgpruebasMantenerRaton(boton _hgBotonRaton) {
+	_hgpruebasEntrada("mantener_raton", _hgguionMantener, -1-int(boton), 0, 0, "")
+}
+func _hgpruebasSoltarRaton(boton _hgBotonRaton) {
+	_hgpruebasEntrada("soltar_raton", _hgguionSoltar, -1-int(boton), 0, 0, "")
+}
+func _hgpruebasPulsarRaton(boton _hgBotonRaton) {
+	_hgpruebasEntrada("pulsar_raton", _hgguionPulsar, -1-int(boton), 0, 0, "")
+}
+func _hgpruebasRaton(x, y float64) { _hgpruebasEntrada("raton", _hgguionMover, 0, x, y, "") }
+func _hgpruebasRueda(x, y float64) { _hgpruebasEntrada("rueda", _hgguionRueda, 0, x, y, "") }
+func _hgpruebasTexto(texto string) { _hgpruebasEntrada("texto", _hgguionTexto, 0, 0, 0, texto) }
+func _hgpruebasMantenerMando(boton _hgBotonMando) {
+	_hgpruebasEntrada("mantener_mando", _hgguionMantener, -100-int(boton), 0, 0, "")
+}
+func _hgpruebasSoltarMando(boton _hgBotonMando) {
+	_hgpruebasEntrada("soltar_mando", _hgguionSoltar, -100-int(boton), 0, 0, "")
+}
+func _hgpruebasPulsarMando(boton _hgBotonMando) {
+	_hgpruebasEntrada("pulsar_mando", _hgguionPulsar, -100-int(boton), 0, 0, "")
+}
+func _hgpruebasEjeMando(eje _hgEjeMando, valor float64) {
+	if valor < -1 || valor > 1 {
+		panic("pruebas.eje_mando: el valor debe estar entre -1 y 1")
+	}
+	_hgpruebasEntrada("eje_mando", _hgguionEje, int(eje), valor, 0, "")
 }
