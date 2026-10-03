@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<title>Visor de atlas dungeon-mode</title>
+<style>
+  body{margin:0;background:#1b1b22;color:#ddd;font:14px/1.4 system-ui,sans-serif;display:flex;gap:16px;padding:16px}
+  #wrap{position:relative;flex:none;line-height:0;cursor:crosshair}
+  #wrap img{image-rendering:pixelated;display:block;background:#000}
+  #hover,#sel{position:absolute;pointer-events:none;box-sizing:border-box}
+  #hover{border:2px solid #ffd23f}
+  #sel{border:2px solid #3fd2ff}
+  #grid{position:absolute;inset:0;pointer-events:none}
+  #info{min-width:220px}
+  #info b{color:#ffd23f}
+  #preview{image-rendering:pixelated;border:1px solid #444;background:#000;width:96px;height:96px}
+  .row{margin:6px 0}
+  label{display:block;margin-top:12px}
+  ul{padding:0;margin:4px 0;list-style:none}
+  li{display:flex;gap:6px;align-items:center;margin:3px 0}
+  li input{width:130px;background:#2a2a35;color:#eee;border:1px solid #555;padding:2px 4px}
+  li .n{color:#3fd2ff;min-width:34px}
+  li button{padding:0 6px}
+</style>
+<div id="wrap">
+  <img id="atlas" src="dungeon-mode.png" alt="dungeon-mode">
+  <canvas id="grid"></canvas>
+  <div id="hover" hidden></div>
+  <div id="sel" hidden></div>
+</div>
+<div id="info">
+  <canvas id="preview" width="8" height="8"></canvas>
+  <div class="row">Celda: <b id="pos">—</b></div>
+  <div class="row">Índice: <b id="idx">—</b></div>
+  <div class="row">Píxeles: <span id="px">—</span></div>
+  <label>Zoom <input id="zoom" type="range" min="2" max="12" value="6"> <span id="zv"></span>×</label>
+  <label><input id="showgrid" type="checkbox" checked> Mostrar rejilla</label>
+  <div class="row"><small>Clic = añadir/quitar celda y ponerle nombre (se guarda en el navegador).<br>Índice = fila×16 + columna.</small></div>
+  <div class="row">Seleccionadas: <ul id="list"></ul>
+    <button id="copy">Copiar lista</button> <button id="clear">Limpiar</button></div>
+</div>
+<script>
+const CELL = 8;
+const img = document.getElementById('atlas'), wrap = document.getElementById('wrap');
+const hover = document.getElementById('hover'), grid = document.getElementById('grid');
+const pv = document.getElementById('preview').getContext('2d');
+const $ = id => document.getElementById(id);
+let cols = 16, rows = 16, zoom = 6;
+const selected = new Map(); // idx -> {c,r,name}
+const KEY = 'atlas-viewer-names';
+function save() { try { localStorage.setItem(KEY, JSON.stringify([...selected])); } catch (e) {} }
+function load() { try { for (const [i, v] of JSON.parse(localStorage.getItem(KEY) || '[]')) selected.set(i, v); } catch (e) {} }
+
+function layout() {
+  cols = Math.floor(img.naturalWidth / CELL); rows = Math.floor(img.naturalHeight / CELL);
+  img.style.width = img.naturalWidth * zoom + 'px';
+  img.style.height = img.naturalHeight * zoom + 'px';
+  grid.width = img.naturalWidth * zoom; grid.height = img.naturalHeight * zoom;
+  $('zv').textContent = zoom;
+  drawGrid(); drawSel();
+  for (const el of [hover]) { el.style.width = el.style.height = CELL * zoom + 'px'; }
+}
+function drawGrid() {
+  const g = grid.getContext('2d'); g.clearRect(0, 0, grid.width, grid.height);
+  if (!$('showgrid').checked) return;
+  g.strokeStyle = 'rgba(255,255,255,.18)'; g.lineWidth = 1; g.beginPath();
+  for (let i = 0; i <= cols; i++) { g.moveTo(i * CELL * zoom + .5, 0); g.lineTo(i * CELL * zoom + .5, grid.height); }
+  for (let j = 0; j <= rows; j++) { g.moveTo(0, j * CELL * zoom + .5); g.lineTo(grid.width, j * CELL * zoom + .5); }
+  g.stroke();
+}
+function cellAt(e) {
+  const r = img.getBoundingClientRect();
+  const c = Math.floor((e.clientX - r.left) / (CELL * zoom)), ro = Math.floor((e.clientY - r.top) / (CELL * zoom));
+  return (c < 0 || ro < 0 || c >= cols || ro >= rows) ? null : { c, r: ro };
+}
+function show(cell) {
+  if (!cell) { hover.hidden = true; return; }
+  hover.hidden = false;
+  hover.style.left = cell.c * CELL * zoom + 'px'; hover.style.top = cell.r * CELL * zoom + 'px';
+  const idx = cell.r * cols + cell.c;
+  const nm = selected.get(cell.r * cols + cell.c)?.name;
+  $('pos').textContent = `columna ${cell.c}, fila ${cell.r}` + (nm ? ` — «${nm}»` : '');
+  $('idx').textContent = `${idx} (0x${idx.toString(16).toUpperCase().padStart(2, '0')})`;
+  $('px').textContent = `x ${cell.c * CELL}, y ${cell.r * CELL}`;
+  pv.clearRect(0, 0, 8, 8);
+  pv.drawImage(img, cell.c * CELL, cell.r * CELL, CELL, CELL, 0, 0, 8, 8);
+}
+function drawSel() {
+  wrap.querySelectorAll('.pin').forEach(n => n.remove());
+  for (const [idx, {c, r}] of selected) {
+    const d = document.createElement('div'); d.className = 'pin';
+    d.style.cssText = `position:absolute;pointer-events:none;box-sizing:border-box;border:2px solid #3fd2ff;background:rgba(63,210,255,.2);left:${c*CELL*zoom}px;top:${r*CELL*zoom}px;width:${CELL*zoom}px;height:${CELL*zoom}px`;
+    wrap.appendChild(d);
+  }
+  const list = $('list'); list.innerHTML = '';
+  for (const [i, v] of [...selected].sort((a, b) => a[0] - b[0])) {
+    const li = document.createElement('li');
+    li.innerHTML = `<span class="n">${i}</span><input placeholder="nombre" spellcheck="false"><button title="Quitar">×</button>`;
+    const inp = li.querySelector('input'); inp.value = v.name || '';
+    inp.addEventListener('input', () => { v.name = inp.value; save(); });
+    li.querySelector('button').addEventListener('click', () => { selected.delete(i); drawSel(); });
+    list.appendChild(li);
+  }
+  save();
+}
+wrap.addEventListener('mousemove', e => show(cellAt(e)));
+wrap.addEventListener('mouseleave', () => hover.hidden = true);
+wrap.addEventListener('click', e => {
+  const cell = cellAt(e); if (!cell) return;
+  const idx = cell.r * cols + cell.c;
+  const wasNew = !selected.has(idx);
+  wasNew ? selected.set(idx, { c: cell.c, r: cell.r, name: '' }) : selected.delete(idx);
+  drawSel();
+  if (wasNew) $('list').querySelectorAll('input').forEach(i => { if (i.previousSibling.textContent == idx) i.focus(); });
+});
+$('zoom').addEventListener('input', e => { zoom = +e.target.value; layout(); });
+$('showgrid').addEventListener('change', drawGrid);
+$('clear').addEventListener('click', () => { selected.clear(); drawSel(); });
+$('copy').addEventListener('click', () => navigator.clipboard?.writeText(
+  [...selected].sort((a, b) => a[0] - b[0]).map(([i, {c, r, name}]) => `${name || '(sin nombre)'}: índice ${i} (col ${c}, fila ${r})`).join('\n')));
+load(); drawSel();
+if (img.complete) layout(); else img.onload = layout;
+</script>
+</html>

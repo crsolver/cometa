@@ -22,6 +22,8 @@ func TestRetroAtlasesAndIcons(t *testing.T) {
 		"Llave": "_hgIcono(175)", "Calavera": "_hgIcono(237)",
 		"Derecha": "_hgIcono(12)", "Izquierda": "_hgIcono(13)",
 		"Arriba": "_hgIcono(14)", "Abajo": "_hgIcono(15)",
+		"Cara": "_hgIcono(1)", "Oro": "_hgIcono(126)", "Craneo": "_hgIcono(221)",
+		"Manzana": "_hgIcono(239)",
 	} {
 		if got := Constants[Symbol("Icono")][name]; got != want {
 			t.Errorf("%s = %s, want %s", name, got, want)
