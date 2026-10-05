@@ -99,3 +99,9 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 - **Observado:** la rejilla de colores de un mapa (`Mapa.colores`, o el parámetro `colores` de `rejilla.dibujar`) guarda cada color como `rojo * 65536 + verde * 256 + azul`. No hay forma de obtener ese número de un `color.Color`, ni de escribirlo en hexadecimal (Cometa no tiene literales `0x…`).
 - **Problema:** recolorear una celda al jugar obliga a calcular el número a mano (`colores.poner(x, y, 255 * 65536)`) en vez de escribir `.Rojo`.
 - **Posible solución:** `color.a_entero(c Color) entero` y `color.desde_entero(n entero) Color`, y literales hexadecimales en el lexer.
+
+### `retro.texto` no dibuja las mayúsculas acentuadas
+
+- **Observado:** `retro.texto("LA PIRÁMIDE", ...)` dibuja «LA PIR?MIDE»; las minúsculas (`á`, `ó`) y `¡` sí salen. Visto con el `cometa` que acompaña a `learn/bin` (cometa dev); falta confirmarlo con la versión actual.
+- **Problema:** los títulos de los juegos suelen ir en mayúsculas, y en español obliga a escribirlos en minúsculas o sin tilde. El «?» aparece sin ningún aviso.
+- **Posible solución:** añadir `Á É Í Ó Ú Ü` a la fuente de `retro` (o dibujarlas con la letra base y la tilde encima).
