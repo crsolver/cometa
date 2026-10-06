@@ -73,6 +73,9 @@ func gameHover(program *ast.Program, model *sema.Model, pos ast.Pos) (hoverInfo,
 			}
 		case *ast.MemberExpr:
 			if e.NamePos == pos {
+				if owner, ok := e.Object.(*ast.IdentExpr); ok && stdlib.Constants[owner.Name] != nil {
+					return hoverInfo{detail: model.ExprTypes[e].String() + "." + e.Name}, true
+				}
 				return hoverInfo{detail: "const mate.pi decimal"}, true
 			}
 		}

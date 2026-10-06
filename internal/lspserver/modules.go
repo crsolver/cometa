@@ -533,6 +533,9 @@ func (h *Handler) moduleCompletion(params *lsp.CompletionParams, text string) *l
 			}
 		}
 		if selected != nil {
+			if id, ok := selected.(*ast.IdentExpr); ok && stdlib.Constants[id.Name] != nil {
+				return displayItems(p, gameConstantCompletion(resolved))
+			}
 			if resolved.Numeric() {
 				return displayItems(p, memberItems(p.Model, resolved))
 			}

@@ -87,6 +87,36 @@ func TestGameErrors(t *testing.T) {
 	}
 }
 
+func TestQualifiedLibraryConstants(t *testing.T) {
+	source := "usar std/pincel/retro\n" + pincelImports + `
+fn flecha(arriba bool) retro.Icono
+	casos arriba
+		verdadero => retro.Icono.Arriba
+		falso => retro.Icono.Abajo
+
+fn inicio()
+	var tecla = entrada.Tecla.Espacio
+	var rojo = color.Color.Rojo
+	var elegido = si rojo == color.Color.Rojo color.Color.Azul sino rojo
+	imprimir(tecla == entrada.Tecla.Espacio)
+	imprimir(elegido == color.Color.Azul)
+	imprimir(flecha(verdadero) == retro.Icono.Arriba)
+`
+	got, err := Compile("constantes.cometa", []byte(source))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"_hgTecla(ebiten.KeySpace)", "_hgColor{255, 0, 0, 255}"} {
+		if !strings.Contains(string(got), want) {
+			t.Fatalf("falta %s en el Go generado", want)
+		}
+	}
+	_, err = Compile("constantes.cometa", []byte("usar std/pincel/retro\nfn inicio()\n\tvar flecha = retro.Icono.Arribaa\n"))
+	if err == nil || !strings.Contains(err.Error(), `la constante "Arribaa" no existe en retro.Icono; ¿quisiste decir "Arriba"?`) {
+		t.Fatalf("error inesperado: %v", err)
+	}
+}
+
 func TestAllGameSignatures(t *testing.T) {
 	const imports = "usar std/mate/curvas\nusar std/mate/ruido\nusar std/pincel/retro\nusar std/pincel/ui\nusar std/pincel/lienzo\nusar std/pincel/rejilla\nusar std/pincel/datos\nusar std/pruebas\nusar std/consola\n" + pincelImports
 	var all strings.Builder

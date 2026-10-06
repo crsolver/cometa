@@ -4,11 +4,11 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 
 ## Lenguaje
 
-### Las constantes de tipos de la biblioteca no se pueden escribir con su tipo (`retro.Icono.Arriba`)
+### Una constante de la biblioteca no se puede comparar en forma corta (`tecla == .Espacio`)
 
-- **Observado:** en una rama de `casos` que debe producir un ícono, `retro.Icono.Arriba` falla con «el nombre "retro.Icono" no existe». Solo funciona la forma contextual `.Arriba`, y para eso hay que anotar el tipo de la variable (`var flecha retro.Icono = casos ...`). Con los enums propios, `Semaforo.Rojo` sí funciona.
-- **Problema:** cuando no hay un tipo esperado (un `var` sin anotar, un valor de `casos`), no hay forma directa de nombrar un ícono, color o tecla, y el mensaje no sugiere la anotación.
-- **Posible solución:** aceptar `modulo.Tipo.Constante` para los tipos de la biblioteca con constantes (`Icono`, `Color`, `Tecla`…), igual que con los enums propios; o que el error sugiera anotar el tipo.
+- **Observado:** `si rojo == .Rojo` o `tecla == .Espacio` fallan con «no se puede inferir el enum de .Rojo; se requiere un tipo enum, opcional o resultado esperado». Con los enums propios, `estado == .Jugando` sí funciona. Hay que escribir `rojo == color.Color.Rojo`.
+- **Problema:** el otro operando ya dice el tipo, y el mensaje habla de enums aunque `Color` o `Tecla` no lo son.
+- **Posible solución:** en `==` y `!=`, usar el tipo del otro operando como tipo esperado cuando es un tipo de la biblioteca con constantes, igual que se hace con las variantes sin payload.
 
 ### Una función con resultado no puede terminar en un `repetir` infinito
 

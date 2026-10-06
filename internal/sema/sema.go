@@ -1198,6 +1198,24 @@ func (c *checker) checkExpression(expr ast.Expr, expected *Type) (Type, error) {
 			c.model.Game.Used = true
 			break
 		}
+		// retro.Icono.Arriba: una constante de un tipo de la biblioteca escrita con
+		// su tipo, equivalente a .Arriba con ese tipo esperado.
+		if id, ok := expression.Object.(*ast.IdentExpr); ok && stdlib.Constants[id.Name] != nil {
+			owner, typeErr := c.resolveType(ast.TypeRef{Pos: id.Pos, Name: id.Name})
+			if typeErr != nil {
+				err = typeErr
+				break
+			}
+			c.model.ExprTypes[id] = owner
+			value, exists := stdlib.Constants[id.Name][expression.Name]
+			if !exists {
+				err = c.fail(expression.NamePos, "la constante %q no existe en %s%s", expression.Name, owner.String(), diagnostic.Hint(expression.Name, sortedKeys(stdlib.Constants[id.Name])))
+				break
+			}
+			result = owner
+			c.model.Game.Constants[expression] = value
+			break
+		}
 		if info, variant, found, enumErr := c.enumMember(expression); found {
 			err = enumErr
 			if err == nil {

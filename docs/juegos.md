@@ -141,7 +141,9 @@ X crece a la derecha, Y hacia abajo. Distancias en píxeles lógicos y ángulos 
 radianes. `mate.Vec2` admite suma/resta de vectores, negación, multiplicación por escalar
 en ambos órdenes y división por escalar. Normalizar cero devuelve cero. Se admiten literales nombrados y posicionales, además de `{2, 3}` cuando se conoce el tipo esperado.
 
-`color.Color`, `entrada.Tecla`, `entrada.BotonRaton`, `entrada.BotonMando` y `entrada.EjeMando` son valores opacos con constantes contextuales:
+`color.Color`, `entrada.Tecla`, `entrada.BotonRaton`, `entrada.BotonMando` y `entrada.EjeMando` son valores opacos con constantes contextuales (`.Rojo`). Cuando no hay un tipo esperado, por ejemplo en `var fondo = color.Color.Rojo` o en una rama de `casos`, la constante se escribe con su tipo: `color.Color.Rojo`, `entrada.Tecla.Espacio`, `retro.Icono.Arriba`.
+
+Las constantes de cada tipo:
 
 - color.Color: los 24 tonos de la paleta siguiente y `.Transparente` (RGBA 0, 0, 0, 0).
   `color.rgba` permite colores personalizados y limita los canales a 0–255.
