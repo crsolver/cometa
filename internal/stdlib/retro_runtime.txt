@@ -23,6 +23,10 @@ const _hgretroCharacters = " ☺☻♥♦♣♠•◘○◙♂♀♪♫☼" +
 var _hgretroCodes = func() map[rune]int64 {
  codes:=map[rune]int64{}
  for i,r:=range []rune(_hgretroCharacters){codes[r]=int64(i)}
+ // The font has no glyph for these accented letters: draw the plain letter instead of "?".
+ for base,accented:=range map[rune]string{'A':"ÁÀÂÃ",'E':"ÈÊË",'I':"ÍÌÎÏ",'O':"ÓÒÔÕ",'U':"ÚÙÛ",'Y':"Ý",'a':"ã",'o':"õ",'y':"ý"} {
+  for _,r:=range accented {if _,ok:=codes[r];!ok{codes[r]=codes[base]}}
+ }
  return codes
 }()
 func _hgretroImage(atlas _hgAtlas) *ebiten.Image {return _hgretroImagen(atlas).gpu()}

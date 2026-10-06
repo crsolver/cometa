@@ -70,7 +70,7 @@ func (*retroCheck) Update() error {
  _hgcamara=_hgCamara2D{Zoom:1}
  white:=_hgColor{255,255,255,255}
  if len([]rune(_hgretroCharacters))!=256 {panic("invalid mapping length")}
- for r,want:=range map[rune]int64{'ñ':164,'Ñ':165,'á':160,'é':130,'í':161,'ó':162,'ú':163,'ü':129,'¿':168,'¡':173,'"':34,92:92,'?':63} {
+ for r,want:=range map[rune]int64{'ñ':164,'Ñ':165,'á':160,'é':130,'í':161,'ó':162,'ú':163,'ü':129,'¿':168,'¡':173,'"':34,92:92,'?':63,'É':144,'Ü':154,'Á':65,'Í':73,'Ó':79,'Ú':85,'À':65,'õ':111} {
   if _hgretroCodes[r]!=want {panic(fmt.Sprintf("bad character mapping %c",r))}
  }
  var layout [][3]int64

@@ -74,9 +74,3 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 - **Observado:** `Rejilla.buscar(valor)` ya devuelve las celdas de un icono (el inicio del jugador, las llaves), pero el editor (`tools/mapa-editor`) solo guarda el icono y el color de cada celda: una entidad sigue siendo un índice «mágico» del atlas.
 - **Problema:** para colocar enemigos, puntos de inicio o puertas hay que reservar un icono por cada clase de entidad y recordar su número.
 - **Posible solución:** en el editor, una capa de marcas con nombre exportada como lista, y `Mapa.marcas(nombre) [mate.Vec2]`.
-
-### `retro.texto` no dibuja las mayúsculas acentuadas
-
-- **Observado:** `retro.texto("LA PIRÁMIDE", ...)` dibuja «LA PIR?MIDE»; las minúsculas (`á`, `ó`) y `¡` sí salen. Visto con el `cometa` que acompaña a `learn/bin` (cometa dev); falta confirmarlo con la versión actual.
-- **Problema:** los títulos de los juegos suelen ir en mayúsculas, y en español obliga a escribirlos en minúsculas o sin tilde. El «?» aparece sin ningún aviso.
-- **Posible solución:** añadir `Á É Í Ó Ú Ü` a la fuente de `retro` (o dibujarlas con la letra base y la tilde encima).

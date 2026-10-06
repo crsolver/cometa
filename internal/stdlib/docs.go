@@ -97,7 +97,7 @@ var FunctionDocs = map[string]string{
 	"pincel.ejecutar":   "Arranca el bucle de juego con `instancia` (que debe implementar pincel.Juego) y abre la ventana con la configuración dada. No retorna hasta que el juego se cierra.",
 	"retro.ancho_texto": "Ancho en píxeles que ocupa `texto` con retro.texto a esa escala (8 píxeles por carácter); sirve para centrarlo.",
 	"pincel.salir":      "Pide cerrar el juego: la ventana se cierra al terminar el cuadro actual y pincel.ejecutar retorna.",
-	"retro.texto":       "Dibuja `texto` en la fuente DUNGEON-437 (soporta acentos y ñ), en la posición (x, y) con el tamaño de escala entero dado.",
+	"retro.texto":       "Dibuja `texto` en la fuente DUNGEON-437 (soporta acentos y ñ; las mayúsculas Á, Í, Ó y Ú se dibujan sin tilde), en la posición (x, y) con el tamaño de escala entero dado.",
 	"retro.icono":       "Dibuja un ícono con nombre del atlas DUNGEON-mode (por ejemplo .Corazon o .Llave) en (x, y). `voltear_h` y `voltear_v` lo dibujan espejado sin moverlo de su celda, así una flecha o un personaje sirven para los dos lados.",
 	"retro.glifo":       "Dibuja el glifo `indice` del atlas retro indicado (por defecto .Dungeon) en (x, y); útil para tilesets propios sobre el mismo atlas. `voltear_h` y `voltear_v` lo dibujan espejado.",
 	"retro.hoja":        "El atlas retro como Hoja de cuadros de 8×8: el cuadro `i` es el mismo glifo que dibuja retro.glifo(i), así que sirve para pintar una rejilla con rejilla.dibujar(mapa, retro.hoja(), tinte = .Gris) o un cuadro con graficos.cuadro.",
