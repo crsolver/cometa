@@ -50,7 +50,7 @@ func Generate(filename string, program *ast.Program, model *sema.Model) ([]byte,
 func GenerateWithOptions(filename string, program *ast.Program, model *sema.Model, options Options) ([]byte, error) {
 
 	g := &generator{model: model, defaultFlags: map[*ast.FuncDecl][]string{}, lineDirectives: options.LineDirectives}
-	g.printing = usesPrint(program)
+	g.printing = usesPrint(program) || model.FormatsValues
 	g.flow = model.HasScopes
 	if model.Game.Used {
 		g.flow = true
@@ -113,7 +113,7 @@ func GenerateWithOptions(filename string, program *ast.Program, model *sema.Mode
 	for _, path := range runtimeImports {
 		imports[path] = true
 	}
-	if usesPrint(program) {
+	if g.printing {
 		for _, path := range []string{"fmt", "reflect", "sort", "strconv", "strings", "unicode"} {
 			imports[`"`+path+`"`] = true
 		}
@@ -173,7 +173,7 @@ func GenerateWithOptions(filename string, program *ast.Program, model *sema.Mode
 	if stringFeatures {
 		g.write("%s\n", stringRuntime)
 	}
-	if usesPrint(program) {
+	if g.printing {
 		g.write("%s\n", printRuntime)
 	}
 	if len(model.NumericCalls) > 0 || model.Game.Used {
@@ -658,6 +658,9 @@ func (g *generator) interpolated(expression *ast.InterpolatedStringExpr, emit fu
 			value = "strconv.FormatInt(" + value + ", 10)"
 		case sema.Boolean:
 			value = "_hsbool(" + value + ")"
+		case sema.String, sema.Never:
+		default:
+			value = "_hsformato(reflect.ValueOf(" + value + "), false, 0)"
 		}
 		parts = append(parts, value)
 	}

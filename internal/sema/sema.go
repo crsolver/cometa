@@ -143,7 +143,10 @@ type GlobalInfo struct {
 }
 
 type Model struct {
-	HasScopes        bool
+	HasScopes bool
+	// FormatsValues is set when an interpolation holds a value that only the
+	// imprimir runtime can spell (a list, a structure, an enum...).
+	FormatsValues    bool
 	NumericCoercions map[ast.Expr]Type
 	NumericCalls     map[*ast.CallExpr]Type
 	Assets           map[*ast.CallExpr]Asset
@@ -1136,9 +1139,14 @@ func (c *checker) checkExpression(expr ast.Expr, expected *Type) (Type, error) {
 				err = checkErr
 				break
 			}
-			if t.Kind != String && !t.Numeric() && t.Kind != Boolean && t.Kind != Never {
-				err = c.fail(part.Expr.Position(), "la interpolación requiere cadena, entero, decimal o bool, no %s", t.String())
+			if t.Kind == Void {
+				err = c.fail(part.Expr.Position(), "la interpolación requiere un valor, pero esta expresión no produce ninguno")
 				break
+			}
+			if t.Kind != String && !t.Numeric() && t.Kind != Boolean && t.Kind != Never {
+				// Lists, maps, structures, enums and wrappers are written as
+				// imprimir writes them, which needs its formatting runtime.
+				c.model.FormatsValues = true
 			}
 		}
 		if err == nil {

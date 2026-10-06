@@ -4,12 +4,6 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 
 ## Lenguaje
 
-### Una lista no se puede interpolar en una cadena
-
-- **Observado:** `imprimir("Notas: ${notas}")` falla con «la interpolación requiere cadena, entero, decimal o bool, no [entero]», y `cadena(notas)` tampoco existe. `imprimir(notas)` sí la escribe (`[7, 9, 6]`).
-- **Problema:** para mostrar una lista junto a un texto hay que usar dos `imprimir` o construir la cadena con un bucle; lo mismo ocurre con mapas, estructuras y enums.
-- **Posible solución:** aceptar en la interpolación (y en `cadena(x)`) cualquier valor que `imprimir` sepa escribir, con el mismo formato.
-
 ## Herramientas
 
 ### El manejo de fallos de juegos Ebitengine no está probado de extremo a extremo

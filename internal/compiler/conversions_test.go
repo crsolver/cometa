@@ -64,7 +64,7 @@ func TestConversionErrors(t *testing.T) {
 		{"formato needs arg", "fn inicio()\n\timprimir(1.5.formato())\n", "decimales"},
 		{"formato typo", "fn inicio()\n\timprimir(1.5.formatos(1))\n", `¿quisiste decir "formato"?`},
 		{"formato decimal arg", "fn inicio()\n\timprimir(1.5.formato(1.5))\n", "entero"},
-		{"cadena of list", "fn inicio()\n\timprimir(cadena([1]))\n", "requiere"},
+		{"cadena sin valor", "fn nada()\n\tvar x = 1\nfn inicio()\n\timprimir(cadena(nada()))\n", "requiere un valor"},
 		{"cadena bare", "fn inicio()\n\tvar x = cadena\n", "se esperaba una expresión"},
 	}
 	for _, tc := range cases {

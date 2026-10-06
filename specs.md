@@ -160,7 +160,7 @@ La promoción a `decimal` usa redondeo IEEE-754: por encima de `2^53` algunos en
 
 ### Cadenas
 
-`+` concatena dos valores `cadena`; no convierte otros tipos automáticamente. Una cadena puede incluir expresiones con `${expresión}`. La interpolación acepta `cadena`, `entero`, `decimal` y `bool`, evalúa cada expresión una sola vez de izquierda a derecha y representa booleanos como `verdadero` o `falso`. `\${` escribe los caracteres `${` literalmente. Las cadenas interpoladas son expresiones de ejecución y no se admiten en `const`.
+`+` concatena dos valores `cadena`; no convierte otros tipos automáticamente. Una cadena puede incluir expresiones con `${expresión}`. La interpolación acepta cualquier valor, evalúa cada expresión una sola vez de izquierda a derecha y representa booleanos como `verdadero` o `falso`. Las listas, mapas, estructuras, enums, opcionales y resultados se escriben igual que con `imprimir`: `"Notas: ${notas}"` produce `Notas: [7, 9, 6]`, y `cadena(valor)` hace lo mismo. Solo se rechaza una expresión que no produce ningún valor. `\${` escribe los caracteres `${` literalmente. Las cadenas interpoladas son expresiones de ejecución y no se admiten en `const`.
 
 ```cometa
 var nombre = "Ana"

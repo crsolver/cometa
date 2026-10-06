@@ -901,7 +901,7 @@ func _hsformato(v reflect.Value, nested bool, depth int) string {
 			}
 			return "Alguno(" + _hsformato(v.Field(1), true, depth+1) + ")"
 		}
-		if t.Name() != "" && t.Field(0).Name != "tag" {
+		if t.Name() != "" && (t.NumField() == 0 || t.Field(0).Name != "tag") {
 			items := make([]string, 0, t.NumField())
 			for i := 0; i < t.NumField(); i++ {
 				name := []rune(t.Field(i).Name)
