@@ -16,12 +16,6 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 - **Problema:** es un error interno, no un diagnóstico de Cometa, y no dice qué línea lo causa.
 - **Posible solución:** generar `(&Luz{...}).Tono()` (los tipos declarados ya son punteros en el resto del código generado).
 
-### Una función de una línea no puede empezar su cuerpo con `!` (`fn en_suelo() bool !@cabe(...)`)
-
-- **Observado:** `fn en_suelo() bool !@cabe(@giro, @px, @py + 1)` compila la declaración sin queja, pero el tipo de resultado se lee como `bool!` (un resultado) y el cuerpo como `@cabe(...)`. El error aparece lejos, en cada uso: `si @en_suelo()` da «la condición debe ser bool, no bool!». Visto en `experiments/tetris`.
-- **Problema:** negar una condición es un cuerpo de una línea muy natural, y el mensaje señala la llamada y no la declaración, así que cuesta relacionarlo con el `!`.
-- **Posible solución:** exigir que el `!` de un tipo de resultado vaya pegado al tipo y el de la negación pegado a su operando (aquí hay un espacio antes del `!`, que ya los distingue); o avisar en la declaración cuando el tipo `T!` va seguido de un espacio y una expresión en la misma línea.
-
 ### El error de `.Alguno |valor| =>` no dice dónde va la ligadura
 
 - **Observado:** en un `casos` sobre un opcional, escribir la ligadura en la rama (`.Alguno |pista| => ...`) falla con «se esperaba '=>' después del patrón, pero se encontró '|'». La forma correcta la pone en la cabecera: `casos opcional |pista|`.

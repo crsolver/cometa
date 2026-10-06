@@ -38,6 +38,9 @@ type parser struct {
 	// spacing rule (see parseCondition); conditionStart is its first token.
 	spacedCondition bool
 	conditionStart  int
+	// headerResult marks the result type of a function header, where a spaced
+	// `!` attached to an expression starts the body (see parseTypeRef).
+	headerResult bool
 }
 
 func Parse(filename string, tokens []token.Token) (*ast.Program, error) {
@@ -314,7 +317,9 @@ func (p *parser) parseFuncDecl(receiver string) (*ast.FuncDecl, error) {
 
 	var returnType *ast.TypeRef
 	if p.startsDefiniteType() || p.startsNamedResult() {
+		p.headerResult = true
 		parsed, parseErr := p.parseTypeRef()
+		p.headerResult = false
 		if parseErr != nil {
 			return nil, parseErr
 		}
@@ -342,8 +347,11 @@ func (p *parser) parseFuncDecl(receiver string) (*ast.FuncDecl, error) {
 func (p *parser) parseTypeRef() (ast.TypeRef, error) {
 	var base ast.TypeRef
 	var err error
+	header := p.headerResult
+	p.headerResult = false
 	if p.at(token.Bang) {
 		base = ast.TypeRef{Pos: p.current().Pos, Name: "$unidad"}
+		header = false
 	} else {
 		base, err = p.parseTypeAtom()
 		if err != nil {
@@ -351,6 +359,17 @@ func (p *parser) parseTypeRef() (ast.TypeRef, error) {
 		}
 	}
 	for p.at(token.Question) || p.at(token.Bang) {
+		// `fn en_suelo() bool !@cabe()`: the result mark is written against its
+		// type (`bool!`), so a `!` after a space and attached to what follows
+		// negates the one-line body.
+		if header && p.at(token.Bang) && p.index+1 < len(p.tokens) {
+			bang, before, after := p.current(), p.previous(), p.tokens[p.index+1]
+			spaced := before.Pos.Column+len([]rune(before.Lexeme)) < bang.Pos.Column
+			attached := after.Kind != token.Newline && after.Pos.Line == bang.Pos.Line && after.Pos.Column == bang.Pos.Column+1
+			if spaced && attached {
+				break
+			}
+		}
 		op := p.advance()
 		payload := base
 		base = ast.TypeRef{Pos: payload.Pos, Wrapper: op.Lexeme, Payload: &payload}
