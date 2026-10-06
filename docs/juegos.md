@@ -272,6 +272,12 @@ mate.distancia(x1 decimal, y1 decimal, x2 decimal, y2 decimal) decimal
 mate.angulo(x1 decimal, y1 decimal, x2 decimal, y2 decimal) decimal
 mate.radianes(grados decimal) decimal
 mate.grados(radianes decimal) decimal
+mate.bit_y(a entero, b entero) entero             // bits encendidos en ambos: leer una máscara
+mate.bit_o(a entero, b entero) entero             // bits encendidos en alguno: encender una bandera
+mate.bit_xor(a entero, b entero) entero           // bits que difieren
+mate.bit_no(valor entero) entero                  // invierte los bits: bit_y(banderas, bit_no(mascara)) apaga
+mate.desplazar_izquierda(valor entero, bits entero) entero
+mate.desplazar_derecha(valor entero, bits entero) entero // conserva el signo
 azar.real(minimo decimal, maximo decimal) decimal
 azar.entero(minimo entero, maximo entero) entero  // incluye minimo, excluye maximo: un dado es azar.entero(1, 7)
 azar.semilla(valor entero)                          // partidas reproducibles

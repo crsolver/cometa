@@ -78,6 +78,12 @@ func _hgdistanciaXY(x1,y1,x2,y2 float64) float64{return math.Hypot(x2-x1,y2-y1)}
 func _hganguloXY(x1,y1,x2,y2 float64) float64{return math.Atan2(y2-y1,x2-x1)}
 func _hgradianes(g float64) float64{return g*math.Pi/180}
 func _hggrados(r float64) float64{return r*180/math.Pi}
+func _hgbitY(a,b int64) int64{return a&b}
+func _hgbitO(a,b int64) int64{return a|b}
+func _hgbitXor(a,b int64) int64{return a^b}
+func _hgbitNo(v int64) int64{return ^v}
+func _hgdesplazarIzquierda(v,n int64) int64{if n<0{panic("no se puede desplazar una cantidad negativa de bits")};return v<<uint64(n)}
+func _hgdesplazarDerecha(v,n int64) int64{if n<0{panic("no se puede desplazar una cantidad negativa de bits")};return v>>uint64(n)}
 func _hgazarReal(a,b float64) float64 {if math.IsNaN(a)||math.IsNaN(b)||math.IsInf(a,0)||math.IsInf(b,0)||a>b||math.IsInf(b-a,0){panic("rango aleatorio inválido")};return a+_hgazarGen.Float64()*(b-a)}
 func _hgazarEntero(a,b int64) int64 {if a>b{panic("rango entero inválido")};if a==b{return a};return int64(uint64(a)+_hgazarGen.Uint64N(uint64(b)-uint64(a)))}
 func _hgrgba(r,g,b,a int64) _hgColor{return _hgColor{uint8(_hglimitarEntero(r,0,255)),uint8(_hglimitarEntero(g,0,255)),uint8(_hglimitarEntero(b,0,255)),uint8(_hglimitarEntero(a,0,255))}}

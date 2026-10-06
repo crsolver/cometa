@@ -101,8 +101,8 @@ var FunctionDocs = map[string]string{
 	"retro.icono":       "Dibuja un ícono con nombre del atlas DUNGEON-mode (por ejemplo .Corazon o .Llave) en (x, y).",
 	"retro.glifo":       "Dibuja el glifo `indice` del atlas retro indicado (por defecto .Dungeon) en (x, y); útil para tilesets propios sobre el mismo atlas.",
 	"retro.hoja":        "El atlas retro como Hoja de cuadros de 8×8: el cuadro `i` es el mismo glifo que dibuja retro.glifo(i), así que sirve para pintar una rejilla con rejilla.dibujar(mapa, retro.hoja(), tinte = .Gris) o un cuadro con graficos.cuadro.",
-	"retro.cargar_mapa":        "Carga un mapa creado con el editor (tools/mapa-editor) desde `ruta`, relativa al archivo que llama a esta función. Como los demás recursos, se usa en una variable global: `var nivel = retro.cargar_mapa(\"nivel.mapa.txt\")`.",
-	"retro.mapa": "Dibuja el mapa con sus iconos y colores, tal como se ve en el editor, con la esquina superior izquierda en (x, y). Con `capa` dibuja solo esa capa (por ejemplo para pintar al jugador entre el suelo y los objetos). `tinte` colorea las celdas que no tienen color propio.",
+	"retro.cargar_mapa": "Carga un mapa creado con el editor (tools/mapa-editor) desde `ruta`, relativa al archivo que llama a esta función. Como los demás recursos, se usa en una variable global: `var nivel = retro.cargar_mapa(\"nivel.mapa.txt\")`.",
+	"retro.mapa":        "Dibuja el mapa con sus iconos y colores, tal como se ve en el editor, con la esquina superior izquierda en (x, y). Con `capa` dibuja solo esa capa (por ejemplo para pintar al jugador entre el suelo y los objetos). `tinte` colorea las celdas que no tienen color propio.",
 	"retro.ejecutar":    "Como pincel.ejecutar pero con valores por defecto pensados para juegos retro: ventana más pequeña, escala x4 y píxeles nítidos.",
 
 	// mate
@@ -143,6 +143,12 @@ var FunctionDocs = map[string]string{
 	"mate.tangente":                  "Tangente del ángulo en radianes.",
 	"mate.potencia":                  "`base` elevada a `exponente`; por ejemplo potencia(2, 10) es 1024.",
 	"mate.signo":                     "-1 si el valor es negativo, 1 si es positivo y 0 si es cero; con enteros devuelve un entero.",
+	"mate.bit_y":                     "Y bit a bit: quedan los bits encendidos en los dos números. Sirve para leer una máscara. Ejemplo: bit_y(0b1100, 0b1010) → 0b1000",
+	"mate.bit_o":                     "O bit a bit: quedan los bits encendidos en cualquiera de los dos. Sirve para encender una bandera. Ejemplo: bit_o(0b1100, 0b1010) → 0b1110",
+	"mate.bit_xor":                   "O exclusivo bit a bit: quedan los bits que difieren. Ejemplo: bit_xor(0b1100, 0b1010) → 0b0110",
+	"mate.bit_no":                    "Invierte todos los bits del número. Con `bit_y` apaga una bandera: bit_y(banderas, bit_no(0b0100)).",
+	"mate.desplazar_izquierda":       "Mueve los bits hacia la izquierda; cada posición multiplica por 2. `bits` no puede ser negativo y con 64 o más el resultado es 0. Ejemplo: desplazar_izquierda(1, 4) → 16",
+	"mate.desplazar_derecha":         "Mueve los bits hacia la derecha conservando el signo; cada posición divide entre 2 redondeando hacia abajo. `bits` no puede ser negativo. Ejemplo: desplazar_derecha(0xFF00, 8) → 0xFF",
 	"mate.distancia":                 "Distancia entre los puntos (x1, y1) y (x2, y2).",
 	"mate.angulo":                    "Ángulo en radianes de la dirección que va del punto (x1, y1) al punto (x2, y2); útil para apuntar.",
 	"mate.radianes":                  "Convierte grados a radianes.",

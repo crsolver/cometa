@@ -137,6 +137,23 @@ func lexLine(filename string, lineNo, start int, runes []rune) ([]token.Token, e
 			i = j
 			continue
 		}
+		if ch == '0' && i+1 < len(runes) && (runes[i+1] == 'x' || runes[i+1] == 'b') {
+			// 0xFF y 0b1010: enteros escritos en hexadecimal o en binario.
+			digits, name := "0123456789abcdefABCDEF", "hexadecimal"
+			if runes[i+1] == 'b' {
+				digits, name = "01", "binario"
+			}
+			j := i + 2
+			for j < len(runes) && strings.ContainsRune(digits, runes[j]) {
+				j++
+			}
+			if j == i+2 || j < len(runes) && (unicode.IsLetter(runes[j]) || unicode.IsDigit(runes[j]) || runes[j] == '_') {
+				return nil, lexError(filename, lineNo, j+1, "se esperaba un dígito "+name+" después de '"+string(runes[i:i+2])+"'")
+			}
+			out = append(out, token.Token{Kind: token.Number, Lexeme: string(runes[i:j]), Pos: pos})
+			i = j
+			continue
+		}
 		if unicode.IsDigit(ch) {
 			j := i + 1
 			for j < len(runes) && unicode.IsDigit(runes[j]) {

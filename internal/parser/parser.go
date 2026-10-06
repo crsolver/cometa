@@ -978,6 +978,14 @@ func (p *parser) parsePrefix() (ast.Expr, error) {
 		if strings.Contains(current.Lexeme, ".") {
 			kind = "decimal"
 		}
+		if base := map[string]int{"0x": 16, "0b": 2}[current.Lexeme[:min(2, len(current.Lexeme))]]; base != 0 {
+			// The rest of the compiler only sees the decimal spelling.
+			value, err := strconv.ParseInt(current.Lexeme[2:], base, 64)
+			if err != nil {
+				return nil, p.error(current, "literal entero fuera del rango de entero (el máximo es 9223372036854775807)")
+			}
+			return &ast.LiteralExpr{Pos: current.Pos, Kind: kind, Value: strconv.FormatInt(value, 10)}, nil
+		}
 		return &ast.LiteralExpr{Pos: current.Pos, Kind: kind, Value: current.Lexeme}, nil
 	case token.String:
 		p.advance()

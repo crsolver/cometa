@@ -16,12 +16,6 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 - **Problema:** es un error interno, no un diagnóstico de Cometa, y no dice qué línea lo causa.
 - **Posible solución:** generar `(&Luz{...}).Tono()` (los tipos declarados ya son punteros en el resto del código generado).
 
-### No hay operadores de bits (`&`, `|`, `^`, `<<`, `>>`)
-
-- **Observado:** en `experiments/ajedrez/motor.cometa` una jugada se guarda en un entero (casilla de salida, de llegada, coronación y clase). Sin desplazamientos ni máscaras hay que empaquetar con `d + h * 64 + corona * 4096` y leer con `m / 64 % 64`; los cuatro derechos de enroque acabaron en cuatro campos `entero` porque no se puede apagar un bit, y la clave de la posición suma números al azar en vez de combinarlos con XOR (Zobrist).
-- **Problema:** banderas, máscaras, colores `0xRRGGBB` y claves de dispersión son habituales en juegos; la aritmética los imita, pero es más frágil (con negativos `%` da restos negativos) y oculta la intención.
-- **Posible solución:** operadores `&`, `|`, `^`, `<<` y `>>` sobre `entero`, o funciones `mate.bit_y`, `mate.bit_o`, `mate.bit_xor`, `mate.desplazar` si no se quieren más símbolos; junto con los literales `0x…` que ya pide otra entrada.
-
 ## Herramientas
 
 ### `cometa captura` escribe en los datos guardados reales del juego
@@ -132,9 +126,9 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 
 ### Un color de rejilla es un entero sin conversión desde `Color`
 
-- **Observado:** la rejilla de colores de un mapa (`Mapa.colores`, o el parámetro `colores` de `rejilla.dibujar`) guarda cada color como `rojo * 65536 + verde * 256 + azul`. No hay forma de obtener ese número de un `color.Color`, ni de escribirlo en hexadecimal (Cometa no tiene literales `0x…`).
+- **Observado:** la rejilla de colores de un mapa (`Mapa.colores`, o el parámetro `colores` de `rejilla.dibujar`) guarda cada color como `rojo * 65536 + verde * 256 + azul`. No hay forma de obtener ese número de un `color.Color`, aunque ya se puede escribir en hexadecimal (`0xFF0000`).
 - **Problema:** recolorear una celda al jugar obliga a calcular el número a mano (`colores.poner(x, y, 255 * 65536)`) en vez de escribir `.Rojo`.
-- **Posible solución:** `color.a_entero(c Color) entero` y `color.desde_entero(n entero) Color`, y literales hexadecimales en el lexer.
+- **Posible solución:** `color.a_entero(c Color) entero` y `color.desde_entero(n entero) Color`.
 
 ### `retro.texto` no dibuja las mayúsculas acentuadas
 

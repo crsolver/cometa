@@ -152,6 +152,8 @@ b.arma.dano = 50     // a.arma.dano sí cambia: el arma se comparte
 
 Listas y ramas numéricas sin tipo explícito infieren `decimal` si contienen algún resultado decimal. Los contenedores ya construidos conservan su tipo: `[entero]` no se convierte a `[decimal]`, ni `entero?` a `decimal?`. Un valor entero individual sí puede promoverse antes de envolverse una vez en `decimal?` o `decimal!`. Las interfaces conservan la identidad dinámica de `entero` y `decimal`; las firmas de métodos y los argumentos genéricos siguen siendo exactos.
 
+Un literal `entero` también puede escribirse en hexadecimal (`0xFF`, `0xff0000`) o en binario (`0b1010`); es el mismo valor que su forma decimal. No hay operadores de bits: `std/mate` ofrece `bit_y`, `bit_o`, `bit_xor`, `bit_no`, `desplazar_izquierda` y `desplazar_derecha` sobre `entero`.
+
 `decimal(valor)` hace explícita la promoción opcional. `entero(valor)` trunca hacia cero y produce un error de ejecución en español ante NaN, infinito o valores fuera de `int64`. `mate.piso`, `mate.techo` y `mate.redondear` devuelven `entero`, con la misma validación después de redondear; los empates de `redondear` se alejan de cero. `mate.absoluto`, `minimo`, `maximo` y `limitar` conservan enteros si todos sus argumentos son enteros, y producen decimal si alguno es decimal.
 
 La promoción a `decimal` usa redondeo IEEE-754: por encima de `2^53` algunos enteros pierden precisión. La aritmética entera en ejecución sigue las reglas de `int64` de Go, incluido desbordamiento; la división entera por cero falla. Las expresiones constantes no representables son errores de compilación. La aritmética decimal admite NaN e infinitos en ejecución.
