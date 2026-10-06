@@ -155,6 +155,9 @@ func _hgpantallaCompleta(v bool){ebiten.SetFullscreen(v)}
 func _hgventanaTamano() _hgVec2{x,y:=ebiten.WindowSize();return _hgVec2{float64(x),float64(y)}}
 func _hgfps() float64{return ebiten.ActualFPS()}
 func _hgtps() float64{return ebiten.ActualTPS()}
+// The monotonic reading of time.Now makes ahora immune to clock changes.
+var _hgtiempoInicio = time.Now()
+func _hgahora() float64{return time.Since(_hgtiempoInicio).Seconds()}
 func _hgbytes(encoded,path string) []byte{b,err:=base64.StdEncoding.DecodeString(encoded);if err!=nil{log.Fatalf("recurso %s: %v",path,err)};return b}
 func _hgcargarImagen(encoded,path string) *_hgImagen{img,_,err:=image.Decode(bytes.NewReader(_hgbytes(encoded,path)));if err!=nil{log.Fatalf("imagen %s: %v",path,err)};return &_hgImagen{pixels:_hgnrgba(img)}}
 func _hgcargarTexto(encoded,path string) string{return strings.TrimPrefix(string(_hgbytes(encoded,path)),"\xEF\xBB\xBF")}

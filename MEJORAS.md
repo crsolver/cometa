@@ -44,12 +44,6 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 - **Problema:** `retro` y `lienzo` permiten un juego completo sin recursos, salvo el sonido: el principiante tiene que buscar o fabricar archivos fuera de Cometa. Sin control de tono tampoco se puede variar un efecto (un pitido más agudo por cada fila de un combo) ni acelerar la música con el nivel.
 - **Posible solución:** un sintetizador mínimo, por ejemplo `audio.tono(frecuencia, duracion, onda = .Cuadrada, hasta = frecuencia, volumen = 1) Sonido` y `audio.ruido(duracion)`, que devuelvan un `Sonido` creado en memoria (como `lienzo.nuevo` con las imágenes); y un parámetro `tono decimal = 1` en `audio.reproducir`.
 
-### No se puede medir el tiempo real
-
-- **Observado:** `std/pincel/tiempo` da `fps()`, `tps()` y temporizadores que avanzan con `dt`, pero no un reloj. El motor de `experiments/ajedrez` reparte su búsqueda entre cuadros contando nodos (`presupuesto = 14000` por cuadro), un número ajustado a mano midiendo con `cometa probar`.
-- **Problema:** un cálculo largo (búsqueda, generación de un nivel, camino más corto) no puede decir «trabaja 8 ms y sigue en el próximo cuadro», así que en una máquina lenta la pantalla se traba y en una rápida se desaprovecha. Tampoco se puede mostrar la hora ni cronometrar un trozo de código.
-- **Posible solución:** `tiempo.ahora() decimal` (segundos desde que empezó el programa, con reloj monótono), sin depender de Ebitengine para poder usarlo también en pruebas.
-
 ### `color.Color` no se puede mezclar ni descomponer
 
 - **Observado:** no hay forma de interpolar dos colores, leer sus canales ni cambiarles el alfa. En `experiments/tetris` la rampa ámbar (`rampa(nivel, alfa)`) repite a mano los números de la paleta e interpola cada canal con `mate.interpolar` y `mate.redondear`.

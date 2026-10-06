@@ -370,6 +370,7 @@ ventana.icono(imagen graficos.Imagen)
 ventana.es_pantalla_completa() bool
 tiempo.fps() decimal
 tiempo.tps() decimal
+tiempo.ahora() decimal                              // segundos desde que empezó el programa
 tiempo.temporizador(duracion decimal, bucle bool = falso) tiempo.Temporizador
 tiempo.Temporizador.avanzar(dt decimal) bool
 tiempo.Temporizador.terminado() bool

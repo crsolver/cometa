@@ -60,12 +60,20 @@ var runtimeImports = map[string]string{
 	"wav": "github.com/hajimehoshi/ebiten/v2/audio/wav", "ebitenutil": "github.com/hajimehoshi/ebiten/v2/ebitenutil",
 	"inpututil": "github.com/hajimehoshi/ebiten/v2/inpututil", "text": "github.com/hajimehoshi/ebiten/v2/text/v2",
 	"vector": "github.com/hajimehoshi/ebiten/v2/vector", "colorm": "github.com/hajimehoshi/ebiten/v2/colorm", "goregular": "golang.org/x/image/font/gofont/goregular",
-	"strconv": "strconv", "os": "os", "png": "image/png", "json": "encoding/json", "filepath": "path/filepath", "sort": "sort", "unicode": "unicode",
+	"strconv": "strconv", "os": "os", "png": "image/png", "json": "encoding/json", "filepath": "path/filepath", "sort": "sort", "unicode": "unicode", "time": "time",
 }
 
 // Runtime selects the declarations reachable from imported library exports.
 // Go syntax supplies dependencies, so helpers and imports cannot drift apart.
 func Runtime(modules []string) (string, []string, error) {
+	return RuntimeFor(modules, nil)
+}
+
+// RuntimeFor is Runtime for a program whose library calls are known: called
+// holds "namespace.name" for each one. std/pincel/tiempo mixes a clock and
+// timers that need no window with fps/tps, which need Ebitengine, so only its
+// called functions are emitted and a console program stays window-free.
+func RuntimeFor(modules []string, called map[string]bool) (string, []string, error) {
 	if len(modules) == 0 {
 		return "", nil, nil
 	}
@@ -141,6 +149,9 @@ func Runtime(modules []string) (string, []string, error) {
 		}
 		for _, f := range Functions {
 			if f.Namespace == ns {
+				if ns == "tiempo" && called != nil && !called[ns+"."+f.Name] {
+					continue
+				}
 				if VisualTest(f) {
 					if !UsesPincel(modules) {
 						continue

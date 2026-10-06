@@ -101,7 +101,11 @@ func GenerateWithOptions(filename string, program *ast.Program, model *sema.Mode
 	}
 	g.line(0, "package main")
 	g.line(0, "")
-	runtimeSource, runtimeImports, err := stdlib.Runtime(model.Game.Modules)
+	called := map[string]bool{}
+	for _, f := range model.Game.Calls {
+		called[f.Namespace+"."+f.Name] = true
+	}
+	runtimeSource, runtimeImports, err := stdlib.RuntimeFor(model.Game.Modules, called)
 	if err != nil {
 		return nil, err
 	}

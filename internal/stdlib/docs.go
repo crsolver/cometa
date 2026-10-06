@@ -217,6 +217,7 @@ var FunctionDocs = map[string]string{
 	// tiempo
 	"tiempo.fps":          "Cuadros por segundo reales que se están dibujando (varía con el rendimiento).",
 	"tiempo.tps":          "Actualizaciones por segundo reales que se están ejecutando (compáralo con el `tps` configurado en pincel.ejecutar).",
+	"tiempo.ahora":        "Segundos transcurridos desde que empezó el programa, con decimales. Sirve para cronometrar o para repartir un cálculo largo entre cuadros: `var limite = tiempo.ahora() + 0.008`. No depende de `dt` ni del reloj del sistema.",
 	"tiempo.temporizador": "Crea un Temporizador que dura `duracion` segundos. Con `bucle = verdadero` vuelve a empezar solo cada vez que termina (eventos periódicos); si no, se queda terminado hasta que lo reinicies (enfriamientos).",
 
 	// lienzo

@@ -397,3 +397,36 @@ fn inicio()
 	}, "\n") + "\n"
 	runGeneratedGo(t, generated, want)
 }
+
+// tiempo.ahora and the timers need no window: a program that calls neither
+// fps nor tps stays free of Ebitengine and runs as a plain console program.
+func TestTiempoAhoraRunsWithoutWindow(t *testing.T) {
+	entry, loader := memoryProject(t, map[string]string{"main.cometa": `usar std/pincel/tiempo
+
+fn inicio()
+	var antes = tiempo.ahora()
+	var suma = 0
+	repetir (0..2000000) |i| suma += i % 7
+	var despues = tiempo.ahora()
+	imprimir(antes >= 0.0)
+	imprimir(despues > antes)
+	imprimir(despues - antes < 30.0)
+	imprimir(tiempo.temporizador(1).avanzar(2))
+`})
+	generated, err := CompileProject(entry, loader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(generated), "ebiten") {
+		t.Fatal("tiempo.ahora no debe arrastrar Ebitengine")
+	}
+	runGeneratedGo(t, generated, "verdadero\nverdadero\nverdadero\nverdadero\n")
+
+	entry, loader = memoryProject(t, map[string]string{"main.cometa": "usar std/pincel/tiempo\n\nfn inicio()\n\timprimir(tiempo.fps())\n"})
+	if generated, err = CompileProject(entry, loader); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(generated), "ebiten.ActualFPS") {
+		t.Fatal("tiempo.fps debe seguir usando Ebitengine")
+	}
+}

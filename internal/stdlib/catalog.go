@@ -179,6 +179,7 @@ var Functions = []Function{
 	{"ventana", "es_pantalla_completa", ") bool", "esPantallaCompleta", false, false},
 	{"tiempo", "fps", ") decimal", "fps", false, false},
 	{"tiempo", "tps", ") decimal", "tps", false, false},
+	{"tiempo", "ahora", ") decimal", "ahora", false, false},
 	{"tiempo", "temporizador", "duracion decimal, bucle bool = falso) Temporizador", "temporizador", false, false},
 	{"lienzo", "nuevo", "ancho entero, alto entero, color Color = .Transparente) Imagen", "lienzoNuevo", false, false},
 	{"lienzo", "desde_texto", "filas [cadena], colores [cadena: Color]) Imagen", "lienzoDesdeTexto", false, false},
