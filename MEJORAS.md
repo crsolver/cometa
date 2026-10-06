@@ -44,12 +44,6 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 - **Problema:** `retro` y `lienzo` permiten un juego completo sin recursos, salvo el sonido: el principiante tiene que buscar o fabricar archivos fuera de Cometa. Sin control de tono tampoco se puede variar un efecto (un pitido más agudo por cada fila de un combo) ni acelerar la música con el nivel.
 - **Posible solución:** un sintetizador mínimo, por ejemplo `audio.tono(frecuencia, duracion, onda = .Cuadrada, hasta = frecuencia, volumen = 1) Sonido` y `audio.ruido(duracion)`, que devuelvan un `Sonido` creado en memoria (como `lienzo.nuevo` con las imágenes); y un parámetro `tono decimal = 1` en `audio.reproducir`.
 
-### No hay forma directa de rellenar un número con ceros o repetir una cadena
-
-- **Observado:** para pintar `0000208` o `03:07` hay que construir los ceros con un bucle (`repetir (texto.longitud()..cifras) ceros += "0"`) o una función propia (`dos_cifras`). `formato(n)` solo fija los decimales.
-- **Problema:** marcadores y relojes aparecen en casi todos los juegos.
-- **Posible solución:** `cadena.rellenar_izquierda(ancho entero, relleno cadena = " ")` (y `rellenar_derecha`), `cadena.repetir(veces entero)`, o un segundo parámetro en `formato(decimales, ancho = 0)`.
-
 ### Las rejillas no admiten pendientes
 
 - **Observado:** ya hay plataformas de un solo sentido (`mover(..., plataformas = [...])`), consulta de celdas (`celda_en`, `valores_en`) y tiles animados, pero las celdas son siempre cuadradas y sólidas por completo.

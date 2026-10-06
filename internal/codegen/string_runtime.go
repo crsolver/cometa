@@ -8,6 +8,18 @@ func _hsformatoNumero(v float64, decimales int64) string {
 	return strconv.FormatFloat(v, 'f', int(decimales), 64)
 }
 func _hsbool(v bool) string { if v { return "verdadero" }; return "falso" }
+func _hsrepetir(s string, veces int64) string {
+	if veces <= 0 { return "" }
+	return strings.Repeat(s, int(veces))
+}
+func _hsrellenar(s string, ancho int64, relleno string, izquierda bool) string {
+	falta, piezas := ancho-int64(len([]rune(s))), []rune(relleno)
+	if falta <= 0 || len(piezas) == 0 { return s }
+	extra := make([]rune, falta)
+	for i := range extra { extra[i] = piezas[i%len(piezas)] }
+	if izquierda { return string(extra) + s }
+	return s + string(extra)
+}
 func _hsindice(s, buscar string) int {
 	i := strings.Index(s, buscar)
 	if i < 0 { return -1 }

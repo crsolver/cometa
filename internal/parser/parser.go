@@ -910,6 +910,10 @@ func (p *parser) parseExpression(minPrecedence int) (ast.Expr, error) {
 		}
 		if p.match(token.Dot) {
 			dot := p.previous()
+			// `texto.repetir(3)`: the loop keyword names a string method.
+			if p.at(token.Repetir) && p.peekAt(1, token.LParen) {
+				p.tokens[p.index].Kind = token.Ident
+			}
 			name, memberErr := p.expect(token.Ident, "se esperaba un miembro después de '.'")
 			if memberErr != nil {
 				return nil, memberErr

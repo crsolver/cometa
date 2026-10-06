@@ -802,6 +802,14 @@ func (g *generator) flowStringCall(call *ast.CallExpr, operation string, indent 
 		return "strings.ReplaceAll(" + receiver + ", " + ordered[0] + ", " + ordered[1] + ")"
 	case "dividir":
 		return "strings.Split(" + receiver + ", " + ordered[0] + ")"
+	case "repetir":
+		return "_hsrepetir(" + receiver + ", " + ordered[0] + ")"
+	case "rellenar_izquierda", "rellenar_derecha":
+		fill := ordered[1]
+		if fill == "" {
+			fill = `" "`
+		}
+		return "_hsrellenar(" + receiver + ", " + ordered[0] + ", " + fill + ", " + fmt.Sprint(operation == "rellenar_izquierda") + ")"
 	case "buscar_indice":
 		result, index := g.freshName(), g.freshName()
 		g.line(indent, "var %s %s", result, goType(info.Signature.Return))

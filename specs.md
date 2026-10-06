@@ -187,6 +187,11 @@ Los índices y longitudes cuentan puntos de código Unicode. Los índices deben 
 | `subcadena(inicio entero, fin entero)` | `cadena?` |
 | `a_entero()` | `entero?` |
 | `a_decimal()` | `decimal?` |
+| `rellenar_izquierda(ancho entero, relleno cadena = " ")` | `cadena` |
+| `rellenar_derecha(ancho entero, relleno cadena = " ")` | `cadena` |
+| `repetir(veces entero)` | `cadena` |
+
+`rellenar_izquierda` y `rellenar_derecha` añaden `relleno` (repetido y cortado si hace falta) hasta que la cadena mide `ancho` puntos de código; una cadena que ya los tiene, o un relleno vacío, la dejan igual. Un marcador con ceros es `cadena(puntos).rellenar_izquierda(7, "0")`. `repetir(veces)` devuelve la cadena repetida, o la cadena vacía con `veces` menor que 1; es el único uso de la palabra `repetir` como nombre de método.
 
 `a_entero()` y `a_decimal()` convierten texto a número y devuelven `.Ninguno` si no es válido: no aceptan espacios (usa `recortar()` antes), `a_decimal` usa el punto como separador (`"3.5"`) y rechaza `inf`, `nan` y valores fuera de rango, y `a_entero` rechaza los valores que no caben en 64 bits. Para la conversión contraria, `cadena(valor)` convierte un `entero`, `decimal`, `bool` o `cadena` a texto igual que `"${valor}"`.
 
