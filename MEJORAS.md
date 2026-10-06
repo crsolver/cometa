@@ -4,12 +4,6 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 
 ## Lenguaje
 
-### `repetir` no recorre cadenas
-
-- **Observado:** `repetir (texto) |letra|` falla con «repetir requiere una lista o mapa, no cadena» (`internal/sema/sema.go`). Hay que escribir `repetir (texto.dividir("")) |letra|`.
-- **Problema:** recorrer las letras de un texto es un ejercicio típico de principiantes, y el truco de `dividir("")` no es evidente.
-- **Posible solución:** aceptar `cadena` en `repetir`, ligando cada punto de código como `cadena` (y el índice opcional como `entero`), igual que `dividir("")`; o al menos sugerir `dividir("")` en el mensaje de error.
-
 ### Las constantes de tipos de la biblioteca no se pueden escribir con su tipo (`retro.Icono.Arriba`)
 
 - **Observado:** en una rama de `casos` que debe producir un ícono, `retro.Icono.Arriba` falla con «el nombre "retro.Icono" no existe». Solo funciona la forma contextual `.Arriba`, y para eso hay que anotar el tipo de la variable (`var flecha retro.Icono = casos ...`). Con los enums propios, `Semaforo.Rojo` sí funciona.

@@ -913,8 +913,11 @@ func (c *checker) checkRepeat(stmt *ast.RepeatStmt) error {
 			}
 		} else if err != nil {
 			elementType = Type{Kind: Invalid}
+		} else if iterable.Kind == String {
+			// Una cadena se recorre letra por letra, como dividir("").
+			elementType = Type{Kind: String}
 		} else if iterable.Kind != Slice && iterable.Kind != Map {
-			c.report(c.fail(stmt.Iterable.Position(), "repetir requiere una lista o mapa, no %s", iterable.String()))
+			c.report(c.fail(stmt.Iterable.Position(), "repetir requiere una lista, mapa o cadena, no %s", iterable.String()))
 			c.damaged++
 			elementType = Type{Kind: Invalid}
 		} else {

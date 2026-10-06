@@ -540,6 +540,13 @@ func hoverInStatements(statements []ast.Stmt, model *sema.Model, position ast.Po
 					}
 					return variableHover(stmt.Index, sema.Type{Kind: sema.Integer}), true
 				}
+			} else if exists && iterableType.Kind == sema.String {
+				if stmt.ElementPos == position {
+					return variableHover(stmt.Element, sema.Type{Kind: sema.String}), true
+				}
+				if stmt.IndexPos == position {
+					return variableHover(stmt.Index, sema.Type{Kind: sema.Integer}), true
+				}
 			}
 			if info, ok := hoverInStatements(stmt.Body, model, position, lines, receiverName); ok {
 				return info, true

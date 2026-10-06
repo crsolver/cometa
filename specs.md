@@ -601,7 +601,7 @@ Cada operando se evalúa una sola vez, en el orden escrito; las alternativas y l
 
 ## Ciclos
 
-`repetir` recorre una lista y liga cada elemento a la variable escrita entre `|`. Una segunda variable opcional recibe el índice como `entero`, comenzando en `0`. Ambas variables solo existen dentro del cuerpo del ciclo.
+`repetir` recorre una lista, un mapa o una cadena y liga cada elemento a la variable escrita entre `|`. Una segunda variable opcional recibe el índice como `entero`, comenzando en `0`. Ambas variables solo existen dentro del cuerpo del ciclo.
 
 ```cometa
 repetir (usuarios) |usuario|
@@ -611,6 +611,13 @@ repetir (usuarios) |usuario, indice|
 	si (indice == 2) continuar
 	si (indice == 3) romper
 	imprimir(usuario)
+```
+
+Una `cadena` se recorre letra por letra: cada elemento es una `cadena` con un solo punto de código y el índice cuenta letras, no bytes, igual que con `texto.dividir("")`. La cadena vacía produce cero iteraciones.
+
+```cometa
+repetir ("año") |letra, indice|
+	imprimir("${indice}: ${letra}") // 0: a, 1: ñ, 2: o
 ```
 
 Los rangos `inicio..final` solo se permiten dentro de los paréntesis de `repetir`; no son valores que puedan guardarse, pasarse a funciones o incluirse en listas. Ambos límites deben ser expresiones `entero` y se evalúan una sola vez, de izquierda a derecha, antes del ciclo. El inicio se incluye y el final se excluye. El paso es `1` si el inicio es menor y `-1` si es mayor; límites iguales producen cero iteraciones. Se permiten límites negativos; los límites decimales se rechazan. La variable del ciclo es `entero`; una segunda variable opcional recibe el índice desde `0`. Modificar estas variables dentro del cuerpo no altera la progresión del rango.

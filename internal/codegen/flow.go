@@ -901,6 +901,8 @@ func (g *generator) flowLoop(s *ast.RepeatStmt, indent int) {
 		if s.Index != "" {
 			g.line(indent+1, "%s := %s", localName(s.Index), index)
 		}
+	} else if g.model.ExprTypes[s.Iterable].Kind == sema.String {
+		g.emitStringRepeat(s, start, indent)
 	} else {
 		index := "_"
 		if s.Index != "" {

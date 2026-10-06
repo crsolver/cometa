@@ -384,6 +384,12 @@ func (g *generator) emitRepeat(stmt *ast.RepeatStmt, indent int) {
 	}
 
 	element := localName(stmt.Element)
+	if g.model.ExprTypes[stmt.Iterable].Kind == sema.String {
+		g.emitStringRepeat(stmt, g.expr(stmt.Iterable), indent)
+		g.emitBlock(stmt.Body, indent+1, false)
+		g.line(indent, "}")
+		return
+	}
 	if stmt.Index == "" {
 		g.line(indent, "for _, %s := range %s {", element, g.expr(stmt.Iterable))
 	} else {
@@ -393,6 +399,24 @@ func (g *generator) emitRepeat(stmt *ast.RepeatStmt, indent int) {
 	}
 	g.emitBlock(stmt.Body, indent+1, false)
 	g.line(indent, "}")
+}
+
+// emitStringRepeat opens a loop over the code points of a string: the element
+// is a one-character string and the index counts characters, not bytes.
+func (g *generator) emitStringRepeat(stmt *ast.RepeatStmt, iterable string, indent int) {
+	index, letter := "_", g.freshName()
+	if stmt.Index != "" {
+		index = g.freshName()
+	}
+	g.line(indent, "for %s, %s := range []rune(%s) {", index, letter, iterable)
+	if stmt.Element == "_" {
+		g.line(indent+1, "_ = %s", letter)
+	} else {
+		g.line(indent+1, "%s := string(%s)", localName(stmt.Element), letter)
+	}
+	if stmt.Index != "" {
+		g.line(indent+1, "%s := int64(%s)", localName(stmt.Index), index)
+	}
 }
 
 func (g *generator) emitRange(stmt *ast.RepeatStmt, indent int) {

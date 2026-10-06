@@ -42,7 +42,7 @@ func TestSemanticErrors(t *testing.T) {
 		{"index requires number", "fn inicio()\n\tvar lista = [1]\n\tvar x = lista[falso]\n", "el índice de una lista debe ser entero, no bool"},
 		{"unknown member", "tipo Usuario\n\tnombre cadena\nfn inicio()\n\tvar usuario = Usuario {}\n\tusuario.activar()\n", `el método "activar" no existe en Usuario`},
 		{"branch local does not escape", "fn inicio()\n\tsi verdadero\n\t\tvar local = 1\n\timprimir(local)\n", `el nombre "local" no existe`},
-		{"repeat requires collection", "fn inicio()\n\trepetir (1) |valor| imprimir(valor)\n", "repetir requiere una lista o mapa, no entero"},
+		{"repeat requires collection", "fn inicio()\n\trepetir (1) |valor| imprimir(valor)\n", "repetir requiere una lista, mapa o cadena, no entero"},
 		{"range start type", "fn inicio()\n\trepetir (falso..5) |i| imprimir(i)\n", "el inicio del rango debe ser entero"},
 		{"range end type", "fn inicio()\n\trepetir (0..\"fin\") |i| imprimir(i)\n", "el final del rango debe ser entero"},
 		{"range binding scope", "fn inicio()\n\trepetir (0..5) |i| imprimir(i)\n\timprimir(i)\n", `el nombre "i" no existe`},

@@ -16,6 +16,10 @@ fn inicio()
 	repetir (frutas) |fruta, indice|
 		imprimir("${indice}: ${fruta}")
 
+	// Y recorre un texto letra por letra.
+	repetir ("sol") |letra|
+		imprimir(letra)
+
 	// continuar salta a la siguiente vuelta; romper termina el bucle.
 	imprimir("Números pares hasta encontrar uno mayor que 8:")
 	repetir (1..100) |numero|
