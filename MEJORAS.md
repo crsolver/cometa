@@ -22,6 +22,28 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 - **Problema:** cuando no hay un tipo esperado (un `var` sin anotar, un valor de `casos`), no hay forma directa de nombrar un ícono, color o tecla, y el mensaje no sugiere la anotación.
 - **Posible solución:** aceptar `modulo.Tipo.Constante` para los tipos de la biblioteca con constantes (`Icono`, `Color`, `Tecla`…), igual que con los enums propios; o que el error sugiera anotar el tipo.
 
+### Una función con resultado no puede terminar en un `repetir` infinito
+
+- **Observado:** esta función falla con «el bloque debe producir entero en todos los caminos», aunque el ciclo solo se abandona con `retornar`:
+
+  ```cometa
+  fn primer_multiplo(numero entero, desde entero) entero
+  	var candidato = desde
+  	repetir
+  		si candidato % numero == 0
+  			retornar candidato
+  		candidato += 1
+  ```
+
+- **Problema:** «buscar hasta encontrar y devolver» es un patrón natural para principiantes; obliga a reescribirlo con `mientras` y un valor final, o a añadir una última línea que nunca se ejecuta. El mensaje tampoco explica que el problema es el final de la función. Visto al escribir el curso «desde cero» de `learn` (lección `18-dragon`).
+- **Posible solución:** tratar un `repetir` sin rango y sin `romper` como un bloque que nunca termina (igual que Go con `for {}`), de modo que no se exija un valor después.
+
+### La forma corta de `si` no admite una variante contextual (`si grande .Claro sino .Oscuro`)
+
+- **Observado:** con un tipo enum esperado, `si grande .Claro sino .Oscuro` falla con «se esperaba una expresión, pero se encontró 'sino'» (también con la condición entre paréntesis); con un literal antes, `si valor > 1 .Amarillo sino .Celeste` da «se esperaba el valor de la rama 'si'». El punto se lee como acceso a un miembro de la condición. La forma en varias líneas sí funciona.
+- **Problema:** la forma corta funciona con números y cadenas (`si a > b a sino b`), así que sorprende que falle justo con variantes y constantes como los colores, y el mensaje no da ninguna pista.
+- **Posible solución:** al analizar la condición de un `si`, no continuar con `.` cuando va precedido de un espacio; o que el error sugiera escribir las ramas en líneas separadas.
+
 ## Herramientas
 
 ### Los errores en tiempo de ejecución no indican la columna
