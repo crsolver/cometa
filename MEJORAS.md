@@ -10,22 +10,6 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 - **Problema:** el otro operando ya dice el tipo, y el mensaje habla de enums aunque `Color` o `Tecla` no lo son.
 - **Posible solución:** en `==` y `!=`, usar el tipo del otro operando como tipo esperado cuando es un tipo de la biblioteca con constantes, igual que se hace con las variantes sin payload.
 
-### Una función con resultado no puede terminar en un `repetir` infinito
-
-- **Observado:** esta función falla con «el bloque debe producir entero en todos los caminos», aunque el ciclo solo se abandona con `retornar`:
-
-  ```cometa
-  fn primer_multiplo(numero entero, desde entero) entero
-  	var candidato = desde
-  	repetir
-  		si candidato % numero == 0
-  			retornar candidato
-  		candidato += 1
-  ```
-
-- **Problema:** «buscar hasta encontrar y devolver» es un patrón natural para principiantes; obliga a reescribirlo con `mientras` y un valor final, o a añadir una última línea que nunca se ejecuta. El mensaje tampoco explica que el problema es el final de la función. Visto al escribir el curso «desde cero» de `learn` (lección `18-dragon`).
-- **Posible solución:** tratar un `repetir` sin rango y sin `romper` como un bloque que nunca termina (igual que Go con `for {}`), de modo que no se exija un valor después.
-
 ### La forma corta de `si` no admite una variante contextual (`si grande .Claro sino .Oscuro`)
 
 - **Observado:** con un tipo enum esperado, `si grande .Claro sino .Oscuro` falla con «se esperaba una expresión, pero se encontró 'sino'» (también con la condición entre paréntesis); con un literal antes, `si valor > 1 .Amarillo sino .Celeste` da «se esperaba el valor de la rama 'si'». El punto se lee como acceso a un miembro de la condición. La forma en varias líneas sí funciona.

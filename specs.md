@@ -639,6 +639,19 @@ Sin una lista ni variables, `repetir` crea un ciclo infinito. Su cuerpo también
 repetir imprimir("hola")
 ```
 
+Un ciclo infinito sin `romper` solo se abandona con `retornar`, así que una función con resultado puede terminar en él sin un valor final:
+
+```cometa
+fn primer_multiplo(numero entero, desde entero) entero
+	var candidato = desde
+	repetir
+		si candidato % numero == 0
+			retornar candidato
+		candidato += 1
+```
+
+Con un `romper` (o con `mientras`, que termina cuando su condición es falsa) el ciclo puede acabar y la función necesita un valor después.
+
 ### `mientras`
 
 `mientras condición` repite su bloque mientras la condición (un `bool`) sea verdadera. La condición se evalúa antes de cada vuelta, incluida la primera, así que el cuerpo puede no ejecutarse nunca. `romper` y `continuar` funcionan como en `repetir`; `continuar` vuelve a evaluar la condición. Su cuerpo también puede ir en la misma línea.
