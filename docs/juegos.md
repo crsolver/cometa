@@ -11,7 +11,7 @@ Pincel es la familia de bibliotecas de juego incluida con Cometa. Se importa cad
 | `std/pincel/graficos` | Dibujo, cámara, `graficos.Imagen` y `graficos.Fuente` |
 | `std/pincel/color` | `color.Color` y `rgba` |
 | `std/pincel/entrada` | Teclado y ratón |
-| `std/pincel/audio` | `audio.Sonido`, `audio.Reproduccion` y reproducción |
+| `std/pincel/audio` | `audio.Sonido`, `audio.Reproduccion`, reproducción y sonidos creados en código (`tono`, `ruido`) |
 | `std/pincel/ventana` | Propiedades de ventana |
 | `std/pincel/tiempo` | FPS y TPS |
 | `std/pincel/recursos` | Carga y empaquetado de recursos |
@@ -366,7 +366,9 @@ rejilla.Rejilla.mover(area mate.Rect, tamano_celda mate.Vec2, delta mate.Vec2, s
 rejilla.Rejilla.celda_en(punto mate.Vec2, tamano_celda mate.Vec2) entero?
 rejilla.Rejilla.valores_en(area mate.Rect, tamano_celda mate.Vec2) [entero]
 
-audio.reproducir(sonido audio.Sonido, volumen decimal = 1, bucle bool = falso) audio.Reproduccion
+audio.reproducir(sonido audio.Sonido, volumen decimal = 1, bucle bool = falso, tono decimal = 1) audio.Reproduccion
+audio.tono(frecuencia decimal, duracion decimal, onda audio.Onda = .Cuadrada, hasta decimal = 0, volumen decimal = 1) audio.Sonido
+audio.ruido(duracion decimal, volumen decimal = 1) audio.Sonido
 audio.pausar(reproduccion audio.Reproduccion)
 audio.reanudar(reproduccion audio.Reproduccion)
 audio.detener(reproduccion audio.Reproduccion)
@@ -538,6 +540,26 @@ retro.Mapa.colores(nombre cadena) rejilla.Rejilla
 Las piezas de abajo también están disponibles por separado: `recursos.texto` incorpora cualquier archivo de texto, `rejilla.desde_csv(texto, capa = "suelo")` lee una capa como `Rejilla`, `retro.hoja()` da el atlas como hoja y el parámetro `colores` de `rejilla.dibujar` recibe una rejilla de colores.
 
 **Exportar .cometa** escribe en su lugar un módulo con `pub const columnas`, `pub const filas` y dos funciones por capa (`pub fn suelo() rejilla.Rejilla` y `pub fn suelo_color() rejilla.Rejilla`) con los números a la vista, que se importa con `usar nivel` y no necesita el archivo de texto. Ver [el ejemplo de la cripta](../examples/pincel/16_editor_mapas.cometa).
+
+## Sonidos sin archivos
+
+`std/pincel/audio` puede crear sonidos en memoria, igual que `lienzo` crea imágenes, así que un juego suena sin buscar ni grabar nada:
+
+```cometa
+usar std/pincel/audio
+
+var salto = audio.tono(330, 0.12, hasta = 660)       // sube de 330 a 660 Hz
+var laser = audio.tono(880, 0.15, .Sierra, hasta = 220)
+var explosion = audio.ruido(0.3)
+
+// dentro de actualizar:
+audio.reproducir(salto)
+audio.reproducir(explosion, tono = 0.6)              // más grave y más lenta
+```
+
+`audio.tono(frecuencia, duracion)` genera un tono en hercios (440 es un la; el doble es una octava más) que dura `duracion` segundos, hasta 30. `onda` elige el timbre: `.Cuadrada` (consola antigua), `.Triangular` (suave), `.Sierra` (áspera) o `.Seno` (pura). Con `hasta` mayor que 0 la frecuencia se desliza hasta ese valor. `audio.ruido(duracion)` genera ruido blanco, siempre el mismo. Crea cada sonido una vez, en una variable global o en un campo, y reprodúcelo cuantas veces haga falta.
+
+El parámetro `tono` de `audio.reproducir` cambia la altura y la velocidad a la vez, entre 0.25 y 4: `tono = 2` suena una octava más aguda y dura la mitad. Sirve para variar un efecto (`tono = 1 + combo * 0.1`) o acelerar la música con el nivel, y vale también para los sonidos cargados con `recursos.sonido`.
 
 ## Guardar datos
 

@@ -1,5 +1,73 @@
 // Native implementations for azar.semilla, datos, gamepad input, graficos.Hoja and std/pincel/rejilla.
 
+// --- audio: sounds built in memory. Like loaded sounds they are 48 kHz, 16-bit, stereo PCM.
+type _hgOnda int64
+const _hgaudioFrecuencia = 48000
+// _hgaudioMuestras turns one sample per frame (-1..1) into PCM, with a 5 ms fade at both ends so the sound does not click.
+func _hgaudioMuestras(duracion,volumen float64,muestra func(i int) float64) *_hgSonido{
+ if !(duracion>0){return &_hgSonido{pcm:[]byte{}}}
+ if duracion>30{duracion=30}
+ if !(volumen>0){volumen=0};if volumen>1{volumen=1}
+ n,borde:=int(duracion*_hgaudioFrecuencia),_hgaudioFrecuencia/200
+ if borde*2>n{borde=n/2}
+ pcm:=make([]byte,n*4)
+ for i:=0;i<n;i++{
+  v:=muestra(i)*volumen*0.5
+  if i<borde{v*=float64(i)/float64(borde)}
+  if n-1-i<borde{v*=float64(n-1-i)/float64(borde)}
+  s:=int16(v*32767)
+  pcm[i*4],pcm[i*4+1],pcm[i*4+2],pcm[i*4+3]=byte(s),byte(s>>8),byte(s),byte(s>>8)
+ }
+ return &_hgSonido{pcm}
+}
+func _hgaudioTono(frecuencia,duracion float64,onda _hgOnda,hasta,volumen float64) *_hgSonido{
+ if !(frecuencia>0){frecuencia=0}
+ if !(hasta>0){hasta=frecuencia}
+ if frecuencia>20000{frecuencia=20000};if hasta>20000{hasta=20000}
+ n:=duracion*_hgaudioFrecuencia
+ fase:=0.0
+ return _hgaudioMuestras(duracion,volumen,func(i int) float64{
+  // The phase accumulates, so a frequency slide stays continuous.
+  f:=frecuencia;if n>1{f+=(hasta-frecuencia)*float64(i)/n}
+  p:=fase;fase+=f/_hgaudioFrecuencia;fase-=math.Floor(fase)
+  switch onda {
+  case 1:return 1-4*math.Abs(p-0.5)
+  case 2:return 2*p-1
+  case 3:return math.Sin(2*math.Pi*p)
+  }
+  if p<0.5{return 1};return -1
+ })
+}
+func _hgaudioRuido(duracion,volumen float64) *_hgSonido{
+ // A fixed xorshift seed: the same noise on every run, independent of std/azar.
+ estado:=uint32(0x9e3779b9)
+ return _hgaudioMuestras(duracion,volumen,func(int) float64{
+  estado^=estado<<13;estado^=estado>>17;estado^=estado<<5
+  return float64(estado)/2147483648-1
+ })
+}
+// _hgaudioRemuestrear plays a sound faster and higher (pitch > 1) or slower and lower, by linear interpolation.
+func _hgaudioRemuestrear(sound *_hgSonido,pitch float64) *_hgSonido{
+ if !(pitch>0)||pitch==1{return sound}
+ if pitch<0.25{pitch=0.25};if pitch>4{pitch=4}
+ frames:=len(sound.pcm)/4
+ n:=int(float64(frames)/pitch)
+ if frames<2||n<1{return sound}
+ at:=func(frame,canal int) float64{return float64(int16(uint16(sound.pcm[frame*4+canal*2])|uint16(sound.pcm[frame*4+canal*2+1])<<8))}
+ pcm:=make([]byte,n*4)
+ for i:=0;i<n;i++{
+  pos:=float64(i)*pitch
+  a:=int(pos);if a>frames-1{a=frames-1}
+  b:=a+1;if b>frames-1{b=frames-1}
+  t:=pos-float64(a)
+  for canal:=0;canal<2;canal++{
+   s:=int16(at(a,canal)+(at(b,canal)-at(a,canal))*t)
+   pcm[i*4+canal*2],pcm[i*4+canal*2+1]=byte(s),byte(s>>8)
+  }
+ }
+ return &_hgSonido{pcm}
+}
+
 // --- azar: a private generator so a seed makes a run reproducible.
 var _hgazarGen = rand.New(rand.NewPCG(rand.Uint64(),rand.Uint64()))
 func _hgazarSemilla(n int64){_hgazarGen=rand.New(rand.NewPCG(uint64(n),uint64(n)^0x9e3779b97f4a7c15))}

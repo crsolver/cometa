@@ -138,7 +138,7 @@ func _hgratonPresionado(k _hgBotonRaton) bool{if _hgguionActivo{return _hgsimPre
 func _hgratonSoltado(k _hgBotonRaton) bool{if _hgguionActivo{return _hgsimSoltada(-1-int(k))};return inpututil.IsMouseButtonJustReleased(ebiten.MouseButton(k))}
 func _hgposicionRaton() _hgVec2{if _hgguionActivo{return _hgsimCursor};x,y:=ebiten.CursorPosition();return _hgVec2{float64(x),float64(y)}}
 func _hgrueda() _hgVec2{if _hgguionActivo{return _hgsimRueda};x,y:=ebiten.Wheel();return _hgVec2{x,y}}
-func _hgreproducir(sound *_hgSonido,volume float64,loop bool) *_hgReproduccion{r:=&_hgReproduccion{sound:sound,loop:loop,volume:_hglimitar(volume,0,1)};_hgreanudar(r);return r}
+func _hgreproducir(sound *_hgSonido,volume float64,loop bool,pitch float64) *_hgReproduccion{r:=&_hgReproduccion{sound:_hgaudioRemuestrear(sound,pitch),loop:loop,volume:_hglimitar(volume,0,1)};_hgreanudar(r);return r}
 func _hgpausar(r *_hgReproduccion){if r.player!=nil{r.player.Pause();r.paused=true}}
 func _hgreanudar(r *_hgReproduccion){
  if _hgaudio==nil{_hgaudio=audio.NewContext(48000)}

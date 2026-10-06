@@ -169,7 +169,9 @@ var Functions = []Function{
 	{"entrada", "mando_boton", "mando entero, boton BotonMando) bool", "mandoBoton", false, false},
 	{"entrada", "mando_boton_presionado", "mando entero, boton BotonMando) bool", "mandoBotonPresionado", false, false},
 	{"entrada", "mando_eje", "mando entero, eje EjeMando, zona_muerta decimal = 0.15) decimal", "mandoEje", false, false},
-	{"audio", "reproducir", "sonido Sonido, volumen decimal = 1, bucle bool = falso) Reproduccion", "reproducir", false, false},
+	{"audio", "reproducir", "sonido Sonido, volumen decimal = 1, bucle bool = falso, tono decimal = 1) Reproduccion", "reproducir", false, false},
+	{"audio", "tono", "frecuencia decimal, duracion decimal, onda Onda = .Cuadrada, hasta decimal = 0, volumen decimal = 1) Sonido", "audioTono", false, false},
+	{"audio", "ruido", "duracion decimal, volumen decimal = 1) Sonido", "audioRuido", false, false},
 	{"audio", "pausar", "reproduccion Reproduccion)", "pausar", false, false},
 	{"audio", "reanudar", "reproduccion Reproduccion)", "reanudar", false, false},
 	{"audio", "detener", "reproduccion Reproduccion)", "detener", false, false},
@@ -254,7 +256,7 @@ var Methods = []Function{
 }
 
 var Fields = map[string]string{
-	"Icono": "", "Atlas": "", "Mapa": "",
+	"Icono": "", "Atlas": "", "Mapa": "", "Onda": "",
 	"Vec2": "x decimal\ny decimal", "Rect": "pos Vec2\ntamano Vec2",
 	"Camara2D": "pos Vec2\norigen Vec2\nzoom decimal\nrotacion decimal",
 	"Color":    "", "Imagen": "", "Fuente": "", "Sonido": "", "Reproduccion": "", "Tecla": "", "BotonRaton": "",
@@ -277,7 +279,7 @@ func IsValue(name string) bool {
 	if name == Symbol("Bordes") || name == Symbol("Alineacion") {
 		return true
 	}
-	if name == Symbol("Icono") || name == Symbol("Atlas") {
+	if name == Symbol("Icono") || name == Symbol("Atlas") || name == Symbol("Onda") {
 		return true
 	}
 	return name == Symbol("Vec2") || name == Symbol("Rect") || name == Symbol("Camara2D") || name == Symbol("Color") || name == Symbol("Tecla") || name == Symbol("BotonRaton") || name == Symbol("BotonMando") || name == Symbol("EjeMando")
@@ -378,6 +380,7 @@ func TypeDeclaration(name string) *ast.TypeDecl {
 
 var Constants = map[string]map[string]string{
 	"Atlas": {"Dungeon": "_hgAtlas(0)", "ASCII": "_hgAtlas(1)"},
+	"Onda":  {"Cuadrada": "_hgOnda(0)", "Triangular": "_hgOnda(1)", "Sierra": "_hgOnda(2)", "Seno": "_hgOnda(3)"},
 	"Icono": {"Corazon": "_hgIcono(3)", "CorazonVacio": "_hgIcono(19)", "Espada": "_hgIcono(156)", "Escudo": "_hgIcono(157)", "Llave": "_hgIcono(175)", "Calavera": "_hgIcono(237)", "Derecha": "_hgIcono(12)", "Izquierda": "_hgIcono(13)", "Arriba": "_hgIcono(14)", "Abajo": "_hgIcono(15)", "Cara": "_hgIcono(1)", "CirculoRelleno": "_hgIcono(2)", "Punto": "_hgIcono(7)", "Masculino": "_hgIcono(8)", "Femenino": "_hgIcono(9)", "CirculoPunteado": "_hgIcono(10)", "Puntero": "_hgIcono(11)", "Bloque": "_hgIcono(16)", "Equis": "_hgIcono(17)", "Anillo": "_hgIcono(18)", "Hoja": "_hgIcono(22)", "Nota": "_hgIcono(24)", "Notas": "_hgIcono(25)", "Esquinas": "_hgIcono(26)", "Oro": "_hgIcono(126)", "Nivel": "_hgIcono(127)", "Casa": "_hgIcono(138)", "Castillo": "_hgIcono(139)", "Marco": "_hgIcono(140)", "Candado": "_hgIcono(141)", "Estadisticas": "_hgIcono(142)", "Mano": "_hgIcono(143)", "Baculo": "_hgIcono(158)", "Bolsa": "_hgIcono(159)", "Cerrar": "_hgIcono(162)", "Libro": "_hgIcono(172)", "Mesa": "_hgIcono(173)", "Objetivo": "_hgIcono(174)", "Mas": "_hgIcono(180)", "Estrella": "_hgIcono(188)", "Diana": "_hgIcono(190)", "Hueso": "_hgIcono(191)", "Damero": "_hgIcono(209)", "Gato": "_hgIcono(220)", "Craneo": "_hgIcono(221)", "Demonio": "_hgIcono(222)", "Monstruo": "_hgIcono(223)", "Sombrero": "_hgIcono(236)", "Armadura": "_hgIcono(238)", "Manzana": "_hgIcono(239)", "SelectorV": "_hgIcono(28)", "SelectorH": "_hgIcono(30)"},
 	"Color": {
 		"Negro":         "_hgColor{0,0,0,255}",

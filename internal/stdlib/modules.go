@@ -14,13 +14,13 @@ func PublicName(name string) string                { return strings.TrimPrefix(n
 func FunctionSymbol(namespace, name string) string { return Symbol(namespace + "_" + name) }
 
 var TypeModules = map[string]string{
-	"Icono": "retro", "Atlas": "retro", "Mapa": "retro",
+	"Icono": "retro", "Atlas": "retro", "Mapa": "retro", "Onda": "audio",
 	"Vec2": "mate", "Rect": "mate", "Color": "color", "Camara2D": "graficos",
 	"Imagen": "graficos", "Fuente": "graficos", "Tecla": "entrada", "BotonRaton": "entrada", "BotonMando": "entrada", "EjeMando": "entrada", "Hoja": "graficos", "Rejilla": "rejilla", "Temporizador": "tiempo",
 	"Sonido": "audio", "Reproduccion": "audio", "Juego": "pincel",
 }
 
-var typeName = regexp.MustCompile(`\b(Vec2|Rect|Color|Camara2D|Imagen|Fuente|Tecla|BotonRaton|BotonMando|EjeMando|Hoja|Rejilla|Temporizador|Sonido|Reproduccion|Juego|Icono|Atlas|Mapa)\b`)
+var typeName = regexp.MustCompile(`\b(Vec2|Rect|Color|Camara2D|Imagen|Fuente|Tecla|BotonRaton|BotonMando|EjeMando|Hoja|Rejilla|Temporizador|Sonido|Reproduccion|Juego|Icono|Atlas|Mapa|Onda)\b`)
 
 func QualifiedSignature(signature string) string {
 	return typeName.ReplaceAllStringFunc(signature, func(name string) string { return TypeModules[name] + "." + name })

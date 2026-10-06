@@ -203,11 +203,13 @@ var FunctionDocs = map[string]string{
 	"entrada.rueda":            "Desplazamiento de la rueda del ratón en este cuadro (normalmente pequeño; suma cero cuando no se mueve).",
 
 	// audio
-	"audio.reproducir": "Empieza a reproducir `sonido` con el volumen y modo de bucle dados, y devuelve la Reproduccion para controlarla luego.",
+	"audio.reproducir": "Empieza a reproducir `sonido` con el volumen y modo de bucle dados, y devuelve la Reproduccion para controlarla luego. `tono` cambia la altura y la velocidad a la vez: 2 suena una octava más aguda y dura la mitad, 0.5 una octava más grave (se limita a entre 0.25 y 4).",
 	"audio.pausar":     "Pausa una reproducción en curso; puede reanudarse después con audio.reanudar.",
 	"audio.reanudar":   "Continúa una reproducción previamente pausada.",
 	"audio.detener":    "Detiene la reproducción por completo (a diferencia de pausar, no puede reanudarse desde donde iba).",
 	"audio.volumen":    "Cambia el volumen de una reproducción ya iniciada (0 = silencio, 1 = volumen original).",
+	"audio.tono": "Crea un sonido en memoria, sin archivos: un tono de `frecuencia` hercios (440 es un la) que dura `duracion` segundos (hasta 30). `onda` cambia el timbre (.Cuadrada suena a consola antigua); con `hasta` mayor que 0 la frecuencia se desliza hasta ese valor (un salto sube, un láser baja). Guárdalo en una variable global y reprodúcelo con audio.reproducir.",
+	"audio.ruido": "Crea un sonido de ruido blanco de `duracion` segundos (hasta 30), sin archivos: sirve para explosiones, pasos o golpes. Siempre genera el mismo ruido.",
 
 	// ventana
 	"ventana.titulo":               "Cambia el texto de la barra de título de la ventana.",
@@ -333,7 +335,8 @@ var TypeDocs = map[string]string{
 	"Color":        "Un color RGBA. Usa las constantes con nombre (por ejemplo .Rojo) o color.rgba para crear uno propio. Sus canales se leen con `.r`, `.g`, `.b` y `.a` (enteros de 0 a 255).",
 	"Imagen":       "Una imagen cargada o creada con lienzo, lista para dibujarse con graficos.imagen y funciones relacionadas.",
 	"Fuente":       "Una fuente tipográfica cargada con recursos.fuente (o la incorporada, graficos.fuente_predeterminada), lista para usarse con graficos.texto.",
-	"Sonido":       "Un sonido cargado con recursos.sonido, listo para reproducirse con audio.reproducir.",
+	"Sonido":       "Un sonido cargado con recursos.sonido o creado con audio.tono o audio.ruido, listo para reproducirse con audio.reproducir.",
+	"Onda":         "La forma de onda de audio.tono, que decide su timbre: .Cuadrada (consola antigua), .Triangular (suave), .Sierra (áspera) o .Seno (pura).",
 	"Reproduccion": "Una reproducción de sonido en curso, devuelta por audio.reproducir; permite pausarla, reanudarla o detenerla.",
 	"BotonMando":   "Un botón de un mando estándar (.A, .B, .X, .Y, .Arriba, .HombroIzquierdo, .Inicio...), para usar con las funciones mando_*.",
 	"EjeMando":     "Una palanca de un mando estándar (.IzquierdoX, .IzquierdoY, .DerechoX, .DerechoY) para entrada.mando_eje.",

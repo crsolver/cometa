@@ -38,12 +38,6 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 
 ## Biblioteca estándar
 
-### `audio` no genera sonidos: un juego sin archivos es mudo
-
-- **Observado:** `std/pincel/audio` solo reproduce lo que carga `recursos.sonido` desde un WAV/Ogg/MP3, y `audio.reproducir` no cambia el tono ni la velocidad. Para `experiments/tetris` hubo que escribir un script de Node (`sonidos.js`) que sintetiza doce WAV (pitidos, ruido y la música).
-- **Problema:** `retro` y `lienzo` permiten un juego completo sin recursos, salvo el sonido: el principiante tiene que buscar o fabricar archivos fuera de Cometa. Sin control de tono tampoco se puede variar un efecto (un pitido más agudo por cada fila de un combo) ni acelerar la música con el nivel.
-- **Posible solución:** un sintetizador mínimo, por ejemplo `audio.tono(frecuencia, duracion, onda = .Cuadrada, hasta = frecuencia, volumen = 1) Sonido` y `audio.ruido(duracion)`, que devuelvan un `Sonido` creado en memoria (como `lienzo.nuevo` con las imágenes); y un parámetro `tono decimal = 1` en `audio.reproducir`.
-
 ### Las rejillas no admiten pendientes
 
 - **Observado:** ya hay plataformas de un solo sentido (`mover(..., plataformas = [...])`), consulta de celdas (`celda_en`, `valores_en`) y tiles animados, pero las celdas son siempre cuadradas y sólidas por completo.
