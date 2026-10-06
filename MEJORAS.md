@@ -4,12 +4,6 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 
 ## Lenguaje
 
-### Una constante de la biblioteca no se puede comparar en forma corta (`tecla == .Espacio`)
-
-- **Observado:** `si rojo == .Rojo` o `tecla == .Espacio` fallan con «no se puede inferir el enum de .Rojo; se requiere un tipo enum, opcional o resultado esperado». Con los enums propios, `estado == .Jugando` sí funciona. Hay que escribir `rojo == color.Color.Rojo`.
-- **Problema:** el otro operando ya dice el tipo, y el mensaje habla de enums aunque `Color` o `Tecla` no lo son.
-- **Posible solución:** en `==` y `!=`, usar el tipo del otro operando como tipo esperado cuando es un tipo de la biblioteca con constantes, igual que se hace con las variantes sin payload.
-
 ### Llamar a un método sobre un literal de estructura da un error interno (`Luz {nivel: 2}.tono()`)
 
 - **Observado:** `imprimir(Luz {nivel: 2}.tono())` falla con «error interno del compilador […] cannot call pointer method Tono on Luz»: el Go generado llama al método sobre el literal sin tomar su dirección. Con una variable intermedia (`var luz = Luz {nivel: 2}`) funciona.

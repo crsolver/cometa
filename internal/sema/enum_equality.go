@@ -1,6 +1,9 @@
 package sema
 
-import "github.com/crsolver/cometa/internal/ast"
+import (
+	"github.com/crsolver/cometa/internal/ast"
+	"github.com/crsolver/cometa/internal/stdlib"
+)
 
 // EnumCompare records `valor == Enum.Variante`: the generated code compares
 // the value's variant tag with Tag and never looks at payloads.
@@ -9,7 +12,8 @@ type EnumCompare struct {
 	Tag   int
 }
 
-// checkContextualEnumEquality handles `estado == .Corriendo` (either order).
+// checkContextualEnumEquality handles `estado == .Corriendo` (either order),
+// and `tecla == .Espacio` for library types with constants.
 // The contextual side needs the other side's enum type, so it cannot go
 // through the general path, which checks both operands without expectations.
 // handled is false when the expression is not of that form or the other side
@@ -29,6 +33,13 @@ func (c *checker) checkContextualEnumEquality(expr *ast.BinaryExpr) (Type, bool,
 	value, err := c.checkExpr(valueSide)
 	if err != nil {
 		return Type{}, true, errInvalid
+	}
+	if stdlib.Constants[value.Name] != nil {
+		// tecla == .Espacio: library constants are plain comparable values.
+		if _, err := c.checkExprExpected(variantSide, &value); err != nil {
+			return Type{}, true, err
+		}
+		return Type{Kind: Boolean}, true, nil
 	}
 	if value.Kind != Enum {
 		return Type{}, false, nil

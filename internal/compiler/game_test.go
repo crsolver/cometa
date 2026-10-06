@@ -97,8 +97,9 @@ fn flecha(arriba bool) retro.Icono
 fn inicio()
 	var tecla = entrada.Tecla.Espacio
 	var rojo = color.Color.Rojo
-	var elegido = si rojo == color.Color.Rojo color.Color.Azul sino rojo
-	imprimir(tecla == entrada.Tecla.Espacio)
+	var elegido = si rojo == .Rojo color.Color.Azul sino rojo
+	imprimir(tecla == .Espacio)
+	imprimir(.Azul != elegido)
 	imprimir(elegido == color.Color.Azul)
 	imprimir(flecha(verdadero) == retro.Icono.Arriba)
 `
@@ -110,6 +111,10 @@ fn inicio()
 		if !strings.Contains(string(got), want) {
 			t.Fatalf("falta %s en el Go generado", want)
 		}
+	}
+	_, err = Compile("constantes.cometa", []byte(pincelImports+"fn inicio()\n\tvar tecla = entrada.Tecla.Espacio\n\timprimir(tecla == .Espacioo)\n"))
+	if err == nil || !strings.Contains(err.Error(), "constante inválida .Espacioo") {
+		t.Fatalf("error inesperado: %v", err)
 	}
 	_, err = Compile("constantes.cometa", []byte("usar std/pincel/retro\nfn inicio()\n\tvar flecha = retro.Icono.Arribaa\n"))
 	if err == nil || !strings.Contains(err.Error(), `la constante "Arribaa" no existe en retro.Icono; ¿quisiste decir "Arriba"?`) {
