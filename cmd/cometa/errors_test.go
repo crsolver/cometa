@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -10,6 +12,22 @@ func TestDescribeCrashTranslatesIndexError(t *testing.T) {
 	trace := "panic: runtime error: index out of range [5] with length 3\n\ngoroutine 1 [running]:\nmain.Main()\n\tC:/x/juego.cometa:12 +0x1d\n"
 	got := describeCrash(trace)
 	for _, want := range []string{"el índice 5 está fuera de rango (la lista tiene 3 elementos)", "juego.cometa, línea 12"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("falta %q en %q", want, got)
+		}
+	}
+}
+
+// Indexes and divisions carry their column after `#` in the trace.
+func TestDescribeCrashShowsColumn(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.ToSlash(filepath.Join(dir, "juego.cometa"))
+	if err := os.WriteFile(path, []byte("fn inicio()\n\tvar total = a[i] + a[i + 1] * 2\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	trace := "panic: runtime error: index out of range [3] with length 3\n\ngoroutine 1 [running]:\nmain.main()\n\t" + path + "#22:2 +0x1d\n"
+	got := describeCrash(trace)
+	for _, want := range []string{"juego.cometa, línea 2, columna 22\n", "  2 | var total = a[i] + a[i + 1] * 2\n", "                          ^\n"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("falta %q en %q", want, got)
 		}

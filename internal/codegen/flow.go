@@ -120,7 +120,7 @@ func (g *generator) flowTarget(e ast.Expr, indent int) string {
 	case *ast.IndexExpr:
 		object := g.flowExpr(v.Object, indent)
 		index := g.flowExpr(v.Index, indent)
-		return object + "[" + index + "]"
+		return g.located(v.Pos, object+"["+index+"]")
 	}
 	panic("invalid assignment target")
 }
@@ -373,7 +373,10 @@ func (g *generator) flowRaw(e ast.Expr, t sema.Type, indent int) string {
 			}
 			return g.mapLookup(object, index, t, indent)
 		}
-		return object + "[" + index + "]"
+		if object == "" || index == "" {
+			return ""
+		}
+		return g.located(v.Pos, object+"["+index+"]")
 	case *ast.UnaryExpr:
 		if lit, ok := v.Value.(*ast.LiteralExpr); ok && v.Operator == "-" && lit.Kind == "entero" && lit.Value == "9223372036854775808" {
 			return "int64(-9223372036854775808)"
@@ -424,6 +427,9 @@ func (g *generator) flowRaw(e ast.Expr, t sema.Type, indent int) string {
 			case "/":
 				return "_hgscale(" + left + ",1/" + right + ")"
 			}
+		}
+		if v.Operator == "/" || v.Operator == "%" {
+			return g.located(v.Pos, "("+left+" "+v.Operator+" "+right+")")
 		}
 		return "(" + left + " " + v.Operator + " " + right + ")"
 	case *ast.CallExpr:

@@ -6,12 +6,6 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 
 ## Herramientas
 
-### Los errores en tiempo de ejecución no indican la columna
-
-- **Observado:** un pánico (índice fuera de rango, división entre cero) ahora muestra archivo, línea y el texto de la línea, pero no la columna ni qué expresión falló.
-- **Problema:** en una línea con varias listas o divisiones no se sabe cuál causó el error.
-- **Posible solución:** emitir directivas `//line archivo:línea:columna` (Go las admite) en las expresiones que pueden fallar (índices y divisiones), no solo en cada sentencia.
-
 ### El manejo de fallos de juegos Ebitengine no está probado de extremo a extremo
 
 - **Observado:** la traducción de pánicos (`cmd/cometa/errors.go`) se comprobó a mano con un juego de Pincel que falla dentro de `actualizar` (mensaje y línea correctos), pero no hay una prueba automática: exige descargar y compilar Ebitengine.

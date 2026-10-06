@@ -8,6 +8,7 @@ import (
 	"go/parser"
 	"go/token"
 	"go/types"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -191,7 +192,7 @@ func GenerateWithOptions(filename string, program *ast.Program, model *sema.Mode
 		}
 	}
 
-	formatted, err := eliminateUnusedLocals(g.buffer.Bytes())
+	formatted, err := eliminateUnusedLocals(resolveLocations(g.buffer.Bytes()))
 	if err != nil {
 		return nil, fmt.Errorf("no se pudo formatear el Go generado: %w\n%s", err, g.buffer.String())
 	}
@@ -319,6 +320,33 @@ func (g *generator) directive(pos ast.Pos) {
 
 func (g *generator) writeDirective() {
 	fmt.Fprintf(&g.buffer, "//line %s:%d\n", g.position.Filename, g.position.Line)
+}
+
+// located marks an expression that can fail at run time (an index or a
+// division) with its column. A panic trace only carries file and line, so the
+// column travels in the file name of an inline directive, `juego.cometa#17:4`,
+// which cmd/cometa reads back. The parentheses keep gofmt from moving a
+// directive that starts a statement onto its own line.
+//
+// What follows the expression must return to the enclosing position, which
+// is only known later: the mark left after value names the statement, and an
+// enclosing located expression rewrites the marks inside it to itself.
+// resolveLocations turns the remaining ones into directives.
+func (g *generator) located(pos ast.Pos, value string) string {
+	if !g.lineDirectives || value == "" || pos.Filename == "" || pos.Line <= 0 || pos.Column <= 0 || g.position.Line <= 0 {
+		return value
+	}
+	here := fmt.Sprintf("/*line %s#%d:%d*/", pos.Filename, pos.Column, pos.Line)
+	value = pendingLocation.ReplaceAllLiteralString(value, here)
+	return fmt.Sprintf("(%s%s\x00%s:%d\x01)", here, value, g.position.Filename, g.position.Line)
+}
+
+var pendingLocation = regexp.MustCompile("\x00[^\x01]*\x01")
+
+func resolveLocations(source []byte) []byte {
+	return pendingLocation.ReplaceAllFunc(source, func(mark []byte) []byte {
+		return []byte("/*line " + string(mark[1:len(mark)-1]) + "*/")
+	})
 }
 
 func (g *generator) emitStmt(stmt ast.Stmt, indent int, returnValue bool) {
@@ -504,7 +532,7 @@ func (g *generator) rawExpr(expr ast.Expr) string {
 	case *ast.MemberExpr:
 		return operand(expression.Object, g.expr(expression.Object)) + "." + g.fieldName(g.model.ExprTypes[expression.Object], expression.Name)
 	case *ast.IndexExpr:
-		return g.expr(expression.Object) + "[" + g.expr(expression.Index) + "]"
+		return g.located(expression.Pos, g.expr(expression.Object)+"["+g.expr(expression.Index)+"]")
 	case *ast.LiteralExpr:
 		if expression.Kind == "bool" {
 			if expression.Value == "verdadero" {
@@ -524,7 +552,11 @@ func (g *generator) rawExpr(expr ast.Expr) string {
 		if list := g.model.ExprTypes[expression.Left]; list.Kind == sema.Slice && expression.Operator == "+" {
 			return listConcat(list, g.expr(expression.Left), g.expr(expression.Right))
 		}
-		return "(" + g.expr(expression.Left) + " " + expression.Operator + " " + g.expr(expression.Right) + ")"
+		binary := "(" + g.expr(expression.Left) + " " + expression.Operator + " " + g.expr(expression.Right) + ")"
+		if expression.Operator == "/" || expression.Operator == "%" {
+			return g.located(expression.Pos, binary)
+		}
+		return binary
 	case *ast.CallExpr:
 		if t, ok := g.model.NumericCalls[expression]; ok {
 			return g.numericCall(expression, t, g.expr(expression.Args[0]))

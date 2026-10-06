@@ -15,7 +15,10 @@ import (
 var errReported = errors.New("error ya informado")
 
 var (
-	cometaLocation = regexp.MustCompile(`(\S[^\n\t]*?\.cometa):(\d+)`)
+	// A location in a trace or a build error. Indexes and divisions carry
+	// their column after `#` (see located in internal/codegen).
+	cometaLocation = regexp.MustCompile(`(\S[^\n\t]*?\.cometa)(?:#\d+)?:(\d+)`)
+	cometaColumn   = regexp.MustCompile(`\.cometa#(\d+):\d+`)
 	indexRange     = regexp.MustCompile(`index out of range \[(-?\d+)\] with length (\d+)`)
 	indexNegative  = regexp.MustCompile(`index out of range \[(-?\d+)\]`)
 	sliceRange     = regexp.MustCompile(`slice bounds out of range`)
@@ -80,9 +83,20 @@ func describeCrash(trace string) string {
 	var out strings.Builder
 	fmt.Fprintf(&out, "error en ejecución: %s\n", message)
 	if found := cometaLocation.FindStringSubmatch(trace); found != nil {
-		fmt.Fprintf(&out, "  en %s, línea %s\n", displayPath(found[1]), found[2])
-		if text := sourceLine(found[1], found[2]); text != "" {
+		column := 0
+		if at := cometaColumn.FindStringSubmatch(found[0]); at != nil {
+			fmt.Sscanf(at[1], "%d", &column)
+		}
+		if column > 0 {
+			fmt.Fprintf(&out, "  en %s, línea %s, columna %d\n", displayPath(found[1]), found[2], column)
+		} else {
+			fmt.Fprintf(&out, "  en %s, línea %s\n", displayPath(found[1]), found[2])
+		}
+		if text, indent := sourceLine(found[1], found[2]); text != "" {
 			fmt.Fprintf(&out, "  %s | %s\n", found[2], text)
+			if offset := column - 1 - indent; column > 0 && offset >= 0 && offset < len([]rune(text)) {
+				fmt.Fprintf(&out, "  %s   %s^\n", strings.Repeat(" ", len(found[2])), strings.Repeat(" ", offset))
+			}
 		}
 	} else {
 		out.WriteString("  (no se pudo determinar la línea del programa Cometa)\n")
@@ -120,18 +134,22 @@ func displayPath(path string) string {
 	return path
 }
 
-func sourceLine(path, line string) string {
+// sourceLine returns a source line without its indentation, and how many
+// characters of indentation were removed.
+func sourceLine(path, line string) (string, int) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return ""
+		return "", 0
 	}
 	var number int
 	fmt.Sscanf(line, "%d", &number)
 	lines := strings.Split(string(data), "\n")
 	if number < 1 || number > len(lines) {
-		return ""
+		return "", 0
 	}
-	return strings.TrimSpace(strings.TrimRight(lines[number-1], "\r"))
+	text := strings.TrimRight(lines[number-1], "\r")
+	trimmed := strings.TrimLeft(text, " \t")
+	return strings.TrimSpace(trimmed), len([]rune(text)) - len([]rune(trimmed))
 }
 
 // buildFailure explains why `go build` failed in terms a Cometa user can act on.

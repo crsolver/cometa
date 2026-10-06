@@ -32,3 +32,36 @@ func TestLineDirectivesOnlyForRun(t *testing.T) {
 		t.Error("falta la directiva de la línea 4")
 	}
 }
+
+// A panic trace has no columns, so indexes and divisions carry theirs in the
+// file name of an inline directive and hand the position back afterwards.
+func TestLineDirectivesCarryColumns(t *testing.T) {
+	entry, loader := memoryProject(t, map[string]string{
+		"main.cometa": "fn inicio()\n\tvar lista = [1, 2, 3]\n\tvar cero = 0\n\tlista[0] = lista[1] / cero + lista[2] % 2\n\timprimir(lista)\n",
+	})
+	run, err := CompileProjectForRun(entry, loader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	code := string(run)
+	for _, column := range []string{"#7:4", "#18:4", "#22:4", "#36:4", "#40:4"} {
+		if !strings.Contains(code, "main.cometa"+column+"*/") {
+			t.Errorf("falta la posición %s\n%s", column, code)
+		}
+	}
+	if strings.ContainsAny(code, "\x00\x01") {
+		t.Error("quedaron marcas de posición sin resolver")
+	}
+	// The division restores the position of the statement after itself, and
+	// the index inside it hands the position back to the division.
+	if !strings.Contains(code, "main.cometa:4*/") || strings.Count(code, "main.cometa#22:4*/") < 2 {
+		t.Errorf("las directivas no devuelven la posición\n%s", code)
+	}
+	plain, err := CompileProject(entry, loader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(plain), "/*line") {
+		t.Error("compilar no debe emitir directivas de columna")
+	}
+}
