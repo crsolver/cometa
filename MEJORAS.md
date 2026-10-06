@@ -10,17 +10,11 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 - **Problema:** el otro operando ya dice el tipo, y el mensaje habla de enums aunque `Color` o `Tecla` no lo son.
 - **Posible solución:** en `==` y `!=`, usar el tipo del otro operando como tipo esperado cuando es un tipo de la biblioteca con constantes, igual que se hace con las variantes sin payload.
 
-### La forma corta de `si` no admite una variante contextual (`si grande .Claro sino .Oscuro`)
+### Llamar a un método sobre un literal de estructura da un error interno (`Luz {nivel: 2}.tono()`)
 
-- **Observado:** con un tipo enum esperado, `si grande .Claro sino .Oscuro` falla con «se esperaba una expresión, pero se encontró 'sino'» (también con la condición entre paréntesis); con un literal antes, `si valor > 1 .Amarillo sino .Celeste` da «se esperaba el valor de la rama 'si'». El punto se lee como acceso a un miembro de la condición. La forma en varias líneas sí funciona.
-- **Problema:** la forma corta funciona con números y cadenas (`si a > b a sino b`), así que sorprende que falle justo con variantes y constantes como los colores, y el mensaje no da ninguna pista.
-- **Posible solución:** al analizar la condición de un `si`, no continuar con `.` cuando va precedido de un espacio; o que el error sugiera escribir las ramas en líneas separadas.
-
-### La forma corta de `si` tampoco admite una rama negativa (`si izquierda -1 sino 0`)
-
-- **Observado:** `direccion = si izquierda -1 sino 0` falla con «se esperaba el valor de la rama 'si', pero se encontró 'sino'»: se lee como la resta `izquierda - 1`. Con paréntesis, `si izquierda (-1) sino 0`, da el mismo error porque se lee como la llamada `izquierda(-1)`. Visto en `experiments/tetris` (dirección de la repetición de teclas).
-- **Problema:** elegir entre `-1`, `0` y `1` es de lo más común en un juego, y ninguna de las dos formas naturales funciona; hay que usar tres líneas. Es el mismo origen que la entrada anterior: la condición no tiene un final marcado.
-- **Posible solución:** un separador opcional para la forma corta (`si izquierda entonces -1 sino 0`), o en la condición de un `si` corto no continuar con `-`/`(` cuando van precedidos de un espacio y seguidos sin espacio; como mínimo, que el error sugiera la forma en varias líneas.
+- **Observado:** `imprimir(Luz {nivel: 2}.tono())` falla con «error interno del compilador […] cannot call pointer method Tono on Luz»: el Go generado llama al método sobre el literal sin tomar su dirección. Con una variable intermedia (`var luz = Luz {nivel: 2}`) funciona.
+- **Problema:** es un error interno, no un diagnóstico de Cometa, y no dice qué línea lo causa.
+- **Posible solución:** generar `(&Luz{...}).Tono()` (los tipos declarados ya son punteros en el resto del código generado).
 
 ### Una función de una línea no puede empezar su cuerpo con `!` (`fn en_suelo() bool !@cabe(...)`)
 

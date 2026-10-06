@@ -34,6 +34,10 @@ type parser struct {
 	filename           string
 	tokens             []token.Token
 	index              int
+	// spacedCondition is set while a `si` condition is read again with the
+	// spacing rule (see parseCondition); conditionStart is its first token.
+	spacedCondition bool
+	conditionStart  int
 }
 
 func Parse(filename string, tokens []token.Token) (*ast.Program, error) {
@@ -687,7 +691,7 @@ func (p *parser) parseSimpleStatement() (ast.Stmt, error) {
 
 func (p *parser) parseIfStmt() (ast.Stmt, error) {
 	start := p.advance()
-	condition, err := p.parseExpression(0)
+	condition, err := p.parseCondition()
 	if err != nil {
 		return nil, err
 	}
@@ -702,7 +706,7 @@ func (p *parser) parseIfStmt() (ast.Stmt, error) {
 	stmt := &ast.IfStmt{Pos: start.Pos, Branches: []ast.IfBranch{{Pos: start.Pos, Condition: condition, Body: body, Binding: binding, BindingPos: bindingPos}}}
 	for p.at(token.Osi) {
 		branchStart := p.advance()
-		branchCondition, parseErr := p.parseExpression(0)
+		branchCondition, parseErr := p.parseCondition()
 		if parseErr != nil {
 			return nil, parseErr
 		}
@@ -758,6 +762,57 @@ var precedence = map[token.Kind]int{
 	token.Star: 6, token.Slash: 6, token.Percent: 6,
 }
 
+// parseCondition reads the condition of a `si` or `osi`. A short conditional
+// has no mark between its condition and its value, so `si izquierda -1 sino 0`
+// first reads as the subtraction `izquierda - 1` with no value left. When the
+// plain reading runs straight into `sino`/`osi`, the condition is read again
+// with the spacing rule: a `.`, `-` or `(` written after a space and attached
+// to what follows (` .Claro`, ` -1`, ` (-1)`) starts the branch value instead.
+func (p *parser) parseCondition() (ast.Expr, error) {
+	start := p.index
+	condition, err := p.parseExpression(0)
+	if err != nil || !p.at(token.Sino) && !p.at(token.Osi) {
+		return condition, err
+	}
+	end := p.index
+	outerSpaced, outerStart := p.spacedCondition, p.conditionStart
+	p.index, p.spacedCondition, p.conditionStart = start, true, start
+	spaced, spacedErr := p.parseExpression(0)
+	p.spacedCondition, p.conditionStart = outerSpaced, outerStart
+	if spacedErr != nil || p.index == end {
+		p.index = end
+		return condition, nil
+	}
+	return spaced, nil
+}
+
+// startsBranchValue applies the spacing rule of parseCondition to the current
+// token. Brackets opened inside the condition suspend it.
+func (p *parser) startsBranchValue() bool {
+	if !p.spacedCondition || p.index == 0 || p.index+1 >= len(p.tokens) {
+		return false
+	}
+	current, before, after := p.current(), p.previous(), p.tokens[p.index+1]
+	if current.Kind != token.Dot && current.Kind != token.Minus && current.Kind != token.LParen {
+		return false
+	}
+	spaceBefore := before.Pos.Line == current.Pos.Line && before.Pos.Column+len([]rune(before.Lexeme)) < current.Pos.Column
+	attached := after.Pos.Line == current.Pos.Line && after.Pos.Column == current.Pos.Column+1
+	if !spaceBefore || !attached {
+		return false
+	}
+	depth := 0
+	for _, tok := range p.tokens[p.conditionStart:p.index] {
+		switch tok.Kind {
+		case token.LParen, token.LBracket, token.LBrace:
+			depth++
+		case token.RParen, token.RBracket, token.RBrace:
+			depth--
+		}
+	}
+	return depth == 0
+}
+
 func (p *parser) parseExpression(minPrecedence int) (ast.Expr, error) {
 	left, err := p.parsePrefix()
 	if err != nil {
@@ -767,6 +822,9 @@ func (p *parser) parseExpression(minPrecedence int) (ast.Expr, error) {
 		// A block expression has consumed its line boundary already. Do not
 		// interpret a following statement as a postfix call or index.
 		if p.previous().Kind == token.Dedent {
+			break
+		}
+		if p.startsBranchValue() {
 			break
 		}
 		if p.at(token.Como) && minPrecedence <= 5 {
@@ -1330,7 +1388,7 @@ func (p *parser) parseIndex(object ast.Expr) (ast.Expr, error) {
 func (p *parser) parseIfExpr() (ast.Expr, error) {
 	startIndex := p.index
 	start := p.advance()
-	condition, err := p.parseExpression(0)
+	condition, err := p.parseCondition()
 	if err != nil {
 		return nil, err
 	}
@@ -1357,7 +1415,7 @@ func (p *parser) parseIfExpr() (ast.Expr, error) {
 	expr := &ast.IfExpr{Pos: start.Pos, Branches: []ast.IfExprBranch{{Pos: start.Pos, Condition: condition, Value: value, Binding: binding, BindingPos: bindingPos}}}
 	for p.match(token.Osi) {
 		branchStart := p.previous()
-		branchCondition, parseErr := p.parseExpression(0)
+		branchCondition, parseErr := p.parseCondition()
 		if parseErr != nil {
 			return nil, parseErr
 		}

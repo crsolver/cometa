@@ -462,6 +462,15 @@ Un condicional también puede producir un valor. En ese caso requiere `sino` y t
 @activo = si (@edad < 18) falso sino verdadero
 ```
 
+En la forma de una línea no hay ninguna marca entre la condición y su valor. Cuando la lectura normal de la condición se queda sin valor (llega directamente a `sino` u `osi`), un `.`, `-` o `(` escrito después de un espacio y pegado a lo que sigue comienza el valor de la rama:
+
+```cometa
+var direccion = si izquierda -1 osi derecha 1 sino 0
+var tono Tono = si grande .Claro sino .Oscuro
+```
+
+Con espacios a ambos lados (`a - 1`), sin espacios (`a-1`, `f(x)`, `luz.alta`) o dentro de paréntesis, corchetes o llaves, la condición se lee como siempre; `si vidas -1 > 0 "sigue" sino "fin"` conserva la resta.
+
 Una función con resultado puede terminar en un condicional multilínea. Cada camino debe terminar en una expresión compatible con el resultado declarado.
 
 ```cometa
