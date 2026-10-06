@@ -158,6 +158,9 @@ func GenerateWithOptions(filename string, program *ast.Program, model *sema.Mode
 		}
 		var nativeNames []string
 		for name := range model.Types {
+			if name == stdlib.Symbol("Color") {
+				continue // an alias of a library type cannot receive marker methods
+			}
 			if native := stdlib.GoType(name); native != "" && strings.Contains(runtimeSource, "type "+strings.TrimPrefix(native, "*")+" ") {
 				nativeNames = append(nativeNames, name)
 			}

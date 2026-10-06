@@ -124,6 +124,9 @@ var Functions = []Function{
 	{"rejilla", "desde_csv", `texto cadena, capa cadena = "") Rejilla`, "rejillaDesdeCsv", false, false},
 	{"rejilla", "dibujar", "mapa Rejilla, hoja Hoja, pos Vec2 = {}, escala Vec2 = {x: 1, y: 1}, tinte Color = .Blanco, animaciones [entero: [entero]] = [:], cuadros_por_segundo decimal = 8, colores Rejilla? = .Ninguno)", "rejillaDibujar", true, false},
 	{"color", "rgba", "r entero, g entero, b entero, a entero = 255) Color", "rgba", false, false},
+	{"color", "mezclar", "a Color, b Color, t decimal) Color", "mezclar", false, false},
+	{"color", "a_entero", "c Color) entero", "colorAEntero", false, false},
+	{"color", "desde_entero", "valor entero) Color", "colorDesdeEntero", false, false},
 	{"graficos", "limpiar", "color Color)", "limpiar", true, false},
 	{"graficos", "rectangulo", "x decimal, y decimal, ancho decimal, alto decimal, color Color, origen Vec2 = {}, rotacion decimal = 0)", "rectanguloXY", true, false},
 	{"graficos", "rectangulo_v", "pos Vec2, tamano Vec2, color Color, origen Vec2 = {}, rotacion decimal = 0)", "rectangulo", true, false},
@@ -240,6 +243,7 @@ var Methods = []Function{
 	{"Camara2D", "limitada", "mundo Rect) Camara2D", "limitada", false, false},
 	{"Camara2D", "sacudida", "intensidad decimal) Camara2D", "sacudida", false, false},
 	{"Camara2D", "visible", ") Rect", "visible", false, false},
+	{"Color", "con_alfa", "alfa entero) Color", "conAlfa", false, false},
 	{"Temporizador", "avanzar", "dt decimal) bool", "avanzar", false, false},
 	{"Temporizador", "terminado", ") bool", "terminado", false, false},
 	{"Temporizador", "terminar", ")", "terminar", false, false},
@@ -255,6 +259,10 @@ var Fields = map[string]string{
 	"Color":    "", "Imagen": "", "Fuente": "", "Sonido": "", "Reproduccion": "", "Tecla": "", "BotonRaton": "",
 	"BotonMando": "", "EjeMando": "", "Hoja": "", "Rejilla": "", "Temporizador": "",
 }
+
+// ColorChannels are the read-only members of Color and their Go fields. Color
+// stays opaque (no literal, no assignment), so they are not part of Fields.
+var ColorChannels = map[string]string{"r": "R", "g": "G", "b": "B", "a": "A"}
 
 // Native Go names are deliberately outside the exported user-name space.
 func GoType(name string) string {

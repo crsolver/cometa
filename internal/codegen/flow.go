@@ -363,6 +363,9 @@ func (g *generator) flowRaw(e ast.Expr, t sema.Type, indent int) string {
 	case *ast.InterpolatedStringExpr:
 		return g.interpolated(v, func(e ast.Expr) string { return g.flowExpr(e, indent) })
 	case *ast.MemberExpr:
+		if channel, ok := g.model.Game.Channels[v]; ok {
+			return "int64(" + g.flowExpr(v.Object, indent) + "." + channel + ")"
+		}
 		return operand(v.Object, g.flowExpr(v.Object, indent)) + "." + g.fieldName(g.model.ExprTypes[v.Object], v.Name)
 	case *ast.IndexExpr:
 		object := g.flowExpr(v.Object, indent)
@@ -542,7 +545,12 @@ func (g *generator) flowCall(call *ast.CallExpr, indent int) string {
 	case *ast.ReceiverExpr:
 		callee = "_self." + exported(v.Name)
 	case *ast.MemberExpr:
-		callee = operand(v.Object, g.flowExpr(v.Object, indent)) + "." + exported(v.Name)
+		object := operand(v.Object, g.flowExpr(v.Object, indent))
+		if g.model.ExprTypes[v.Object].Name == stdlib.Symbol("Color") {
+			// Colors alias a library type; their methods live on a wrapper.
+			object = "_hgColorMetodos{" + object + "}"
+		}
+		callee = object + "." + exported(v.Name)
 	}
 	info := g.model.Calls[call]
 	callee = g.promotedCallee(callee, info.Signature, call.Callee)

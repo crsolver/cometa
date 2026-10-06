@@ -255,6 +255,12 @@ func memberItems(model *sema.Model, t sema.Type, positions ...ast.Pos) *lsp.Comp
 		return &lsp.CompletionList{Items: items}
 	}
 	list := resolvedMemberItems(model, t, positions...)
+	if t.Name == stdlib.Symbol("Color") {
+		field := lsp.CompletionItemKindField
+		for _, channel := range []string{"r", "g", "b", "a"} {
+			list.Items = append(list.Items, lsp.CompletionItem{Label: channel, Kind: &field, Detail: "entero"})
+		}
+	}
 	if t.Kind == sema.Named && model.Types[t.Name] != nil && stdlib.GoType(t.Name) == "" {
 		if _, defined := model.Methods(t)["copiar"]; !defined {
 			synthetic := sema.FuncInfo{Decl: &ast.FuncDecl{Name: "copiar"}, Return: t}

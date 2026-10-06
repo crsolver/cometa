@@ -44,12 +44,6 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 - **Problema:** `retro` y `lienzo` permiten un juego completo sin recursos, salvo el sonido: el principiante tiene que buscar o fabricar archivos fuera de Cometa. Sin control de tono tampoco se puede variar un efecto (un pitido más agudo por cada fila de un combo) ni acelerar la música con el nivel.
 - **Posible solución:** un sintetizador mínimo, por ejemplo `audio.tono(frecuencia, duracion, onda = .Cuadrada, hasta = frecuencia, volumen = 1) Sonido` y `audio.ruido(duracion)`, que devuelvan un `Sonido` creado en memoria (como `lienzo.nuevo` con las imágenes); y un parámetro `tono decimal = 1` en `audio.reproducir`.
 
-### `color.Color` no se puede mezclar ni descomponer
-
-- **Observado:** no hay forma de interpolar dos colores, leer sus canales ni cambiarles el alfa. En `experiments/tetris` la rampa ámbar (`rampa(nivel, alfa)`) repite a mano los números de la paleta e interpola cada canal con `mate.interpolar` y `mate.redondear`.
-- **Problema:** los desvanecimientos, destellos y degradados (lo más habitual al pulir un juego) obligan a guardar los colores dos veces: como `Color` y como tres enteros sueltos.
-- **Posible solución:** `color.mezclar(a Color, b Color, t decimal) Color`, `Color.con_alfa(alfa entero) Color` y campos de lectura `r`, `g`, `b`, `a`.
-
 ### No hay forma directa de rellenar un número con ceros o repetir una cadena
 
 - **Observado:** para pintar `0000208` o `03:07` hay que construir los ceros con un bucle (`repetir (texto.longitud()..cifras) ceros += "0"`) o una función propia (`dos_cifras`). `formato(n)` solo fija los decimales.
@@ -93,12 +87,6 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 - **Observado:** el editor (`tools/mapa-editor`) guarda solo el icono y el color de cada celda. Para saber dónde empieza el jugador o cuántas llaves hay, el juego recorre la rejilla con dos `repetir` y `obtener(x, y) o -1` (ver `examples/pincel/16_editor_mapas.cometa`).
 - **Problema:** colocar enemigos, puntos de inicio o puertas exige reservar índices «mágicos» y escribir el mismo bucle de búsqueda en cada juego.
 - **Posible solución:** `Rejilla.buscar(valor) [mate.Vec2]` (las celdas que tienen ese valor) para leer entidades de una capa de objetos; en el editor, una capa de marcas con nombre exportada como lista.
-
-### Un color de rejilla es un entero sin conversión desde `Color`
-
-- **Observado:** la rejilla de colores de un mapa (`Mapa.colores`, o el parámetro `colores` de `rejilla.dibujar`) guarda cada color como `rojo * 65536 + verde * 256 + azul`. No hay forma de obtener ese número de un `color.Color`, aunque ya se puede escribir en hexadecimal (`0xFF0000`).
-- **Problema:** recolorear una celda al jugar obliga a calcular el número a mano (`colores.poner(x, y, 255 * 65536)`) en vez de escribir `.Rojo`.
-- **Posible solución:** `color.a_entero(c Color) entero` y `color.desde_entero(n entero) Color`.
 
 ### `retro.texto` no dibuja las mayúsculas acentuadas
 

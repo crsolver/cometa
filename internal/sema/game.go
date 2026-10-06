@@ -11,12 +11,14 @@ type GameModel struct {
 	Used      bool
 	Calls     map[*ast.CallExpr]stdlib.Function
 	Constants map[ast.Expr]string
+	// Channels maps `color.r` reads to the Go field of the color.
+	Channels map[*ast.MemberExpr]string
 }
 
 type Asset struct{ Path, Data string }
 
 func (c *checker) installGameAPI() error {
-	c.model.Game = GameModel{Calls: map[*ast.CallExpr]stdlib.Function{}, Constants: map[ast.Expr]string{}}
+	c.model.Game = GameModel{Calls: map[*ast.CallExpr]stdlib.Function{}, Constants: map[ast.Expr]string{}, Channels: map[*ast.MemberExpr]string{}}
 	for name := range stdlib.Fields {
 		c.model.Types[name] = &TypeInfo{Decl: stdlib.TypeDeclaration(name), Fields: map[string]FieldInfo{}, Methods: map[string]FuncInfo{}}
 	}

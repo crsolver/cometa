@@ -173,6 +173,9 @@ func RuntimeFor(modules []string, called map[string]bool) (string, []string, err
 				visit("_hg" + name)
 			}
 		}
+		if ns == "color" {
+			visit("_hgColorMetodos")
+		}
 		if ns == "mate" {
 			imports[strconv.Quote("math")] = true
 			visit("_hgadd")

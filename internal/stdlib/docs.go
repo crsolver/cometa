@@ -161,6 +161,9 @@ var FunctionDocs = map[string]string{
 
 	// color
 	"color.rgba": "Construye un Color a partir de sus componentes rojo, verde, azul y alfa (0-255 cada uno; alfa por defecto totalmente opaco).",
+	"color.mezclar": "Mezcla dos colores canal por canal: con `t` = 0 devuelve `a`, con 1 devuelve `b` y con 0.5 el punto medio (`t` se limita a [0, 1]). Sirve para desvanecimientos y degradados.",
+	"color.a_entero": "El color como un entero `0xRRGGBB` (sin alfa), el formato de la rejilla de colores de rejilla.dibujar y de los mapas del editor. Ejemplo: colores.poner(x, y, color.a_entero(.Rojo))",
+	"color.desde_entero": "Construye un color opaco a partir de un entero `0xRRGGBB`, como los que guarda la rejilla de colores de un mapa.",
 
 	// graficos
 	"graficos.limpiar":               "Pinta toda la pantalla del color dado. Suele ser lo primero que se llama en pintar().",
@@ -308,6 +311,7 @@ var MethodDocs = map[string]string{
 	"Camara2D.limitada":      "Una copia de la cámara movida lo justo para no mostrar nada fuera de `mundo` (el rectángulo del nivel); si el mundo es más pequeño que la pantalla, lo centra. Ignora la rotación.",
 	"Camara2D.sacudida":      "Una copia de la cámara desplazada al azar hasta `intensidad` píxeles en cada eje. Aplícala solo al dibujar y ve bajando la intensidad para un temblor que se apaga.",
 	"Camara2D.visible":       "El rectángulo del mundo que se ve en pantalla con esta cámara; útil para no dibujar lo que queda fuera.",
+	"Color.con_alfa": "Devuelve el mismo color con otra opacidad: 0 es transparente y 255 opaco. El color original no cambia.",
 	"Temporizador.avanzar":   "Suma `dt` segundos y devuelve `verdadero` en el paso en que el temporizador llega a su duración. Llámalo una vez por cuadro en actualizar.",
 	"Temporizador.terminado": "Indica si un temporizador sin repetición ya llegó a su duración (un temporizador que se repite nunca queda terminado).",
 	"Temporizador.terminar":  "Lo da por terminado ya, por ejemplo para que un enfriamiento empiece listo.",
@@ -325,7 +329,7 @@ var TypeDocs = map[string]string{
 	"Vec2":         "Un vector/punto 2D: dos números decimales, x e y.",
 	"Rect":         "Un rectángulo alineado a los ejes, definido por su posición (pos) y tamaño (tamano).",
 	"Camara2D":     "Una cámara 2D: posición, origen (punto de la pantalla que corresponde a `pos`), zoom y rotación.",
-	"Color":        "Un color RGBA. Usa las constantes con nombre (por ejemplo .Rojo) o color.rgba para crear uno propio.",
+	"Color":        "Un color RGBA. Usa las constantes con nombre (por ejemplo .Rojo) o color.rgba para crear uno propio. Sus canales se leen con `.r`, `.g`, `.b` y `.a` (enteros de 0 a 255).",
 	"Imagen":       "Una imagen cargada o creada con lienzo, lista para dibujarse con graficos.imagen y funciones relacionadas.",
 	"Fuente":       "Una fuente tipográfica cargada con recursos.fuente (o la incorporada, graficos.fuente_predeterminada), lista para usarse con graficos.texto.",
 	"Sonido":       "Un sonido cargado con recursos.sonido, listo para reproducirse con audio.reproducir.",

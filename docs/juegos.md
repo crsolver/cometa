@@ -147,6 +147,8 @@ Las constantes de cada tipo:
 
 - color.Color: los 24 tonos de la paleta siguiente y `.Transparente` (RGBA 0, 0, 0, 0).
   `color.rgba` permite colores personalizados y limita los canales a 0–255.
+  `color.mezclar(a, b, t)` interpola dos colores (desvanecimientos y degradados), `c.con_alfa(128)`
+  devuelve el mismo color con otra opacidad y `c.r`, `c.g`, `c.b`, `c.a` leen sus canales.
 - entrada.Tecla: `.A` a `.Z`, los dígitos `.Cero` a `.Nueve`, `.F1` a `.F12`, `.Izquierda`,
   `.Derecha`, `.Arriba`, `.Abajo`, `.Espacio`, `.Escape`, `.Enter`, `.Tab`, `.Retroceso`,
   `.Shift`, `.Control`, `.Alt`, `.Suprimir`, `.Inicio`, `.Fin`, `.RePag`, `.AvPag`,
@@ -282,6 +284,10 @@ azar.real(minimo decimal, maximo decimal) decimal
 azar.entero(minimo entero, maximo entero) entero  // incluye minimo, excluye maximo: un dado es azar.entero(1, 7)
 azar.semilla(valor entero)                          // partidas reproducibles
 color.rgba(r entero, g entero, b entero, a entero = 255) color.Color
+color.mezclar(a color.Color, b color.Color, t decimal) color.Color // t = 0 es a, t = 1 es b
+color.a_entero(c color.Color) entero               // 0xRRGGBB, el formato de las rejillas de color
+color.desde_entero(valor entero) color.Color
+color.Color.con_alfa(alfa entero) color.Color      // y los canales de lectura .r .g .b .a
 
 graficos.limpiar(color color.Color)
 graficos.rectangulo(x decimal, y decimal, ancho decimal, alto decimal, color color.Color, origen mate.Vec2 = {}, rotacion decimal = 0)
@@ -524,7 +530,7 @@ retro.Mapa.colores(nombre cadena) rejilla.Rejilla
 
 `retro.mapa` pinta todas las capas, de abajo arriba; con `capa = "suelo"` pinta solo esa, para dibujar algo entre dos capas. `Mapa.capa(nombre)` devuelve la rejilla de iconos de una capa, la misma que se dibuja: sirve para consultar celdas y colisiones (`obtener`, `choca`, `mover`) y para cambiar el mapa mientras se juega (`nivel.capa("objetos").poner(x, y, -1)` borra un objeto). El valor de cada celda es el índice del atlas, el mismo que usan `retro.glifo` y los iconos con nombre. Una capa que no existe detiene el programa con la lista de capas.
 
-`Mapa.colores(nombre)` devuelve la rejilla de colores de la capa, con un número `rojo * 65536 + verde * 256 + azul` por celda; las celdas con `-1` usan `tinte`.
+`Mapa.colores(nombre)` devuelve la rejilla de colores de la capa, con un número `0xRRGGBB` por celda; las celdas con `-1` usan `tinte`. `color.a_entero(.Rojo)` da ese número y `color.desde_entero(n)` lo convierte en un color: `colores.poner(x, y, color.a_entero(.Rojo))`.
 
 Las piezas de abajo también están disponibles por separado: `recursos.texto` incorpora cualquier archivo de texto, `rejilla.desde_csv(texto, capa = "suelo")` lee una capa como `Rejilla`, `retro.hoja()` da el atlas como hoja y el parámetro `colores` de `rejilla.dibujar` recibe una rejilla de colores.
 

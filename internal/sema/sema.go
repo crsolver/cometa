@@ -1025,6 +1025,9 @@ func (c *checker) assignmentTarget(expr ast.Expr) (Type, error) {
 		if objectType.Kind != Named {
 			return Type{}, c.fail(target.Pos, "%s no tiene campos", objectType.String())
 		}
+		if stdlib.ColorChannels[target.Name] != "" && objectType.Name == stdlib.Symbol("Color") {
+			return Type{}, c.fail(target.Pos, "los canales de un color solo se leen; crea otro color con color.rgba o con_alfa")
+		}
 		if stdlib.IsValue(objectType.Name) {
 			if _, err := c.assignmentTarget(target.Object); err != nil {
 				return Type{}, c.fail(target.Pos, "no se puede asignar un campo de un valor temporal")
@@ -1231,6 +1234,11 @@ func (c *checker) checkExpression(expr ast.Expr, expected *Type) (Type, error) {
 		objectType, objectErr := c.checkExpr(expression.Object)
 		if objectErr != nil {
 			err = objectErr
+			break
+		}
+		if channel := stdlib.ColorChannels[expression.Name]; channel != "" && objectType.Name == stdlib.Symbol("Color") {
+			result = Type{Kind: Integer}
+			c.model.Game.Channels[expression] = channel
 			break
 		}
 		if objectType.Kind == Interface || objectType.Kind == TypeParameter {

@@ -87,6 +87,18 @@ func _hgdesplazarDerecha(v,n int64) int64{if n<0{panic("no se puede desplazar un
 func _hgazarReal(a,b float64) float64 {if math.IsNaN(a)||math.IsNaN(b)||math.IsInf(a,0)||math.IsInf(b,0)||a>b||math.IsInf(b-a,0){panic("rango aleatorio inválido")};return a+_hgazarGen.Float64()*(b-a)}
 func _hgazarEntero(a,b int64) int64 {if a>b{panic("rango entero inválido")};if a==b{return a};return int64(uint64(a)+_hgazarGen.Uint64N(uint64(b)-uint64(a)))}
 func _hgrgba(r,g,b,a int64) _hgColor{return _hgColor{uint8(_hglimitarEntero(r,0,255)),uint8(_hglimitarEntero(g,0,255)),uint8(_hglimitarEntero(b,0,255)),uint8(_hglimitarEntero(a,0,255))}}
+func _hgmezclar(a,b _hgColor,t float64) _hgColor{
+ if !(t>0){t=0};if t>1{t=1}
+ m:=func(x,y uint8) uint8{return uint8(math.Round(float64(x)+(float64(y)-float64(x))*t))}
+ return _hgColor{m(a.R,b.R),m(a.G,b.G),m(a.B,b.B),m(a.A,b.A)}
+}
+// The 0xRRGGBB form used by the color grid of rejilla.dibujar and the map editor.
+func _hgcolorAEntero(c _hgColor) int64{return int64(c.R)<<16|int64(c.G)<<8|int64(c.B)}
+func _hgcolorDesdeEntero(n int64) _hgColor{return _hgColor{uint8(n>>16),uint8(n>>8),uint8(n),255}}
+// _hgColor aliases a library type and cannot have methods of its own, so the
+// generated code wraps a color in this type to call them.
+type _hgColorMetodos struct{c _hgColor}
+func (m _hgColorMetodos) Con_alfa(a int64) _hgColor{c:=m.c;c.A=uint8(_hglimitarEntero(a,0,255));return c}
 func _hgdraw(){if _hgscreen==nil{panic("dibujar solo se permite desde pintar")}}
 func _hgcameraMatrix() ebiten.GeoM {var m ebiten.GeoM;m.Translate(-_hgcamara.Pos.X,-_hgcamara.Pos.Y);m.Rotate(-_hgcamara.Rotacion);m.Scale(_hgcamara.Zoom,_hgcamara.Zoom);m.Translate(_hgcamara.Origen.X,_hgcamara.Origen.Y);return m}
 func _hgpoint(v _hgVec2) _hgVec2 {m:=_hgcameraMatrix();x,y:=m.Apply(v.X,v.Y);return _hgVec2{x,y}}
