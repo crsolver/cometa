@@ -76,11 +76,11 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 - **Posible solución:** parámetros opcionales `voltear_h` y `voltear_v` (bool) en `retro.icono` (y quizá en `glifo`) que inviertan los ejes al dibujar, como ya hace `lienzo.pegar` con los espejos.
 
 
-### Los mapas del editor no tienen entidades
+### El editor de mapas no tiene marcas con nombre
 
-- **Observado:** el editor (`tools/mapa-editor`) guarda solo el icono y el color de cada celda. Para saber dónde empieza el jugador o cuántas llaves hay, el juego recorre la rejilla con dos `repetir` y `obtener(x, y) o -1` (ver `examples/pincel/16_editor_mapas.cometa`).
-- **Problema:** colocar enemigos, puntos de inicio o puertas exige reservar índices «mágicos» y escribir el mismo bucle de búsqueda en cada juego.
-- **Posible solución:** `Rejilla.buscar(valor) [mate.Vec2]` (las celdas que tienen ese valor) para leer entidades de una capa de objetos; en el editor, una capa de marcas con nombre exportada como lista.
+- **Observado:** `Rejilla.buscar(valor)` ya devuelve las celdas de un icono (el inicio del jugador, las llaves), pero el editor (`tools/mapa-editor`) solo guarda el icono y el color de cada celda: una entidad sigue siendo un índice «mágico» del atlas.
+- **Problema:** para colocar enemigos, puntos de inicio o puertas hay que reservar un icono por cada clase de entidad y recordar su número.
+- **Posible solución:** en el editor, una capa de marcas con nombre exportada como lista, y `Mapa.marcas(nombre) [mate.Vec2]`.
 
 ### `retro.texto` no dibuja las mayúsculas acentuadas
 

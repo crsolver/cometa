@@ -60,11 +60,8 @@ tipo Partida
 
 fn inicio()
 	var partida = Partida {x: 2, y: 2}
-	// Cuenta las llaves que se pusieron en el editor.
-	var objetos = cripta.capa("objetos")
-	repetir (0..cripta.filas()) |y|
-		repetir (0..cripta.columnas()) |x|
-			si (objetos.obtener(x, y) o -1) == llave
-				partida.total += 1
+	// Cuenta las llaves que se pusieron en el editor: buscar devuelve la
+	// columna y la fila de cada celda que tiene ese icono.
+	partida.total = cripta.capa("objetos").buscar(llave).longitud()
 	retro.ejecutar(partida, titulo = "Cripta") atrapar |error|
 		imprimir(error)

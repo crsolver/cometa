@@ -23,6 +23,10 @@ fn inicio()
 	imprimir(mapa.filas())
 	imprimir(mapa.obtener(1, 1))
 	imprimir(mapa.obtener(5, 1))
+	var celdas = mapa.buscar(1)
+	imprimir(celdas.longitud())
+	imprimir(celdas[2].x + celdas[2].y * 10)
+	imprimir(mapa.buscar(9).esta_vacia())
 	imprimir(mapa.poner(2, 0, 7))
 	imprimir(mapa.poner(9, 9, 1))
 	imprimir(mapa.choca(mate.Rect {pos: {15, 0}, tamano: {4, 4}}, {16, 16}, [1]))
@@ -62,7 +66,7 @@ fn inicio()
 		t.Fatal(err)
 	}
 	want := strings.Join([]string{
-		"3", "3", "Alguno(1)", "Ninguno", "verdadero", "falso",
+		"3", "3", "Alguno(1)", "Ninguno", "3", "22", "verdadero", "verdadero", "falso",
 		"verdadero", "falso", "verdadero", "falso", "falso",
 		"Alguno(-1)", "Alguno(4)", "verdadero",
 		"-1", "1", "1024", "5", "90.000", "1.5708",

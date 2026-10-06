@@ -228,6 +228,7 @@ var Methods = []Function{
 	{"Rejilla", "obtener", "x entero, y entero) entero?", "obtener", false, false},
 	{"Rejilla", "poner", "x entero, y entero, valor entero) bool", "poner", false, false},
 	{"Rejilla", "rellenar", "valor entero)", "rellenar", false, false},
+	{"Rejilla", "buscar", "valor entero) [Vec2]", "buscar", false, false},
 	{"Rejilla", "choca", "area Rect, tamano_celda Vec2, solidos [entero]) bool", "choca", false, false},
 	{"Rejilla", "mover", "area Rect, tamano_celda Vec2, delta Vec2, solidos [entero], plataformas [entero] = []) Vec2", "mover", false, false},
 	{"Rejilla", "celda_en", "punto Vec2, tamano_celda Vec2) entero?", "celdaEn", false, false},

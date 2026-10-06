@@ -187,6 +187,11 @@ func (g *_hgRejilla) Obtener(x,y int64) struct { tag int; payload1 int64 }{
 }
 func (g *_hgRejilla) Poner(x,y,valor int64) bool{if !g.dentro(x,y){return false};g.cells[y*g.cols+x]=valor;return true}
 func (g *_hgRejilla) Rellenar(valor int64){for i:=range g.cells{g.cells[i]=valor}}
+func (g *_hgRejilla) Buscar(valor int64) []_hgVec2{
+ out:=[]_hgVec2{}
+ for i,v:=range g.cells{if v==valor{out=append(out,_hgVec2{float64(int64(i)%g.cols),float64(int64(i)/g.cols)})}}
+ return out
+}
 // cubiertas calls f(x, y, value) for every grid cell touched by area, row by row, until f returns true.
 func (g *_hgRejilla) cubiertas(area _hgRect,celda _hgVec2,f func(x,y,v int64) bool) bool{
  if !(area.Tamano.X>0)||!(area.Tamano.Y>0){return false}

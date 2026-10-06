@@ -301,6 +301,7 @@ var MethodDocs = map[string]string{
 	"Rejilla.obtener":        "El valor de la celda (x, y), o .Ninguno si está fuera de la rejilla.",
 	"Rejilla.poner":          "Escribe `valor` en la celda (x, y); devuelve falso si está fuera de la rejilla.",
 	"Rejilla.rellenar":       "Pone `valor` en todas las celdas.",
+	"Rejilla.buscar":         "Las celdas (columna, fila) que contienen `valor`, de arriba abajo y de izquierda a derecha. Sirve para leer de una capa de objetos dónde empieza el jugador o dónde están las llaves: repetir (objetos.buscar(llave)) |celda| ...",
 	"Rejilla.choca":          "verdadero si `area` toca alguna celda cuyo valor esté en `solidos`; `tamano_celda` es el tamaño de cada celda en el mundo. Lo que queda fuera de la rejilla nunca es sólido.",
 	"Rejilla.mover":          "Desplaza `area` según `delta` (primero en x y luego en y) sin atravesar celdas sólidas y devuelve lo que realmente se movió: si el resultado en un eje es menor que `delta`, hubo un choque en ese eje. Usa pasos menores que una celda por llamada. Las celdas con un valor de `plataformas` solo frenan al caer sobre ellas desde arriba: se atraviesan al saltar desde abajo o al moverse de lado.",
 	"Rejilla.celda_en":       "El valor de la celda que contiene el punto del mundo dado, o Ninguno si queda fuera de la rejilla. Útil con el ratón (junto con Camara2D.a_mundo).",

@@ -358,6 +358,7 @@ rejilla.Rejilla.filas() entero
 rejilla.Rejilla.obtener(x entero, y entero) entero?
 rejilla.Rejilla.poner(x entero, y entero, valor entero) bool
 rejilla.Rejilla.rellenar(valor entero)
+rejilla.Rejilla.buscar(valor entero) [mate.Vec2]   // celdas (columna, fila) con ese valor
 rejilla.Rejilla.choca(area mate.Rect, tamano_celda mate.Vec2, solidos [entero]) bool
 rejilla.Rejilla.mover(area mate.Rect, tamano_celda mate.Vec2, delta mate.Vec2, solidos [entero], plataformas [entero] = []) mate.Vec2
 rejilla.Rejilla.celda_en(punto mate.Vec2, tamano_celda mate.Vec2) entero?
