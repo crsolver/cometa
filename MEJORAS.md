@@ -44,7 +44,37 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 - **Problema:** la forma corta funciona con números y cadenas (`si a > b a sino b`), así que sorprende que falle justo con variantes y constantes como los colores, y el mensaje no da ninguna pista.
 - **Posible solución:** al analizar la condición de un `si`, no continuar con `.` cuando va precedido de un espacio; o que el error sugiera escribir las ramas en líneas separadas.
 
+### La forma corta de `si` tampoco admite una rama negativa (`si izquierda -1 sino 0`)
+
+- **Observado:** `direccion = si izquierda -1 sino 0` falla con «se esperaba el valor de la rama 'si', pero se encontró 'sino'»: se lee como la resta `izquierda - 1`. Con paréntesis, `si izquierda (-1) sino 0`, da el mismo error porque se lee como la llamada `izquierda(-1)`. Visto en `experiments/tetris` (dirección de la repetición de teclas).
+- **Problema:** elegir entre `-1`, `0` y `1` es de lo más común en un juego, y ninguna de las dos formas naturales funciona; hay que usar tres líneas. Es el mismo origen que la entrada anterior: la condición no tiene un final marcado.
+- **Posible solución:** un separador opcional para la forma corta (`si izquierda entonces -1 sino 0`), o en la condición de un `si` corto no continuar con `-`/`(` cuando van precedidos de un espacio y seguidos sin espacio; como mínimo, que el error sugiera la forma en varias líneas.
+
+### Una función de una línea no puede empezar su cuerpo con `!` (`fn en_suelo() bool !@cabe(...)`)
+
+- **Observado:** `fn en_suelo() bool !@cabe(@giro, @px, @py + 1)` compila la declaración sin queja, pero el tipo de resultado se lee como `bool!` (un resultado) y el cuerpo como `@cabe(...)`. El error aparece lejos, en cada uso: `si @en_suelo()` da «la condición debe ser bool, no bool!». Visto en `experiments/tetris`.
+- **Problema:** negar una condición es un cuerpo de una línea muy natural, y el mensaje señala la llamada y no la declaración, así que cuesta relacionarlo con el `!`.
+- **Posible solución:** exigir que el `!` de un tipo de resultado vaya pegado al tipo y el de la negación pegado a su operando (aquí hay un espacio antes del `!`, que ya los distingue); o avisar en la declaración cuando el tipo `T!` va seguido de un espacio y una expresión en la misma línea.
+
+### El error de `.Alguno |valor| =>` no dice dónde va la ligadura
+
+- **Observado:** en un `casos` sobre un opcional, escribir la ligadura en la rama (`.Alguno |pista| => ...`) falla con «se esperaba '=>' después del patrón, pero se encontró '|'». La forma correcta la pone en la cabecera: `casos opcional |pista|`.
+- **Problema:** `si opcional |valor|` y `atrapar |error|` ligan justo donde se usa el valor, así que es fácil esperar lo mismo en la rama; el mensaje no orienta.
+- **Posible solución:** que el error diga «la ligadura se escribe en la cabecera: `casos valor |nombre|`».
+
+### No hay operadores de bits (`&`, `|`, `^`, `<<`, `>>`)
+
+- **Observado:** en `experiments/ajedrez/motor.cometa` una jugada se guarda en un entero (casilla de salida, de llegada, coronación y clase). Sin desplazamientos ni máscaras hay que empaquetar con `d + h * 64 + corona * 4096` y leer con `m / 64 % 64`; los cuatro derechos de enroque acabaron en cuatro campos `entero` porque no se puede apagar un bit, y la clave de la posición suma números al azar en vez de combinarlos con XOR (Zobrist).
+- **Problema:** banderas, máscaras, colores `0xRRGGBB` y claves de dispersión son habituales en juegos; la aritmética los imita, pero es más frágil (con negativos `%` da restos negativos) y oculta la intención.
+- **Posible solución:** operadores `&`, `|`, `^`, `<<` y `>>` sobre `entero`, o funciones `mate.bit_y`, `mate.bit_o`, `mate.bit_xor`, `mate.desplazar` si no se quieren más símbolos; junto con los literales `0x…` que ya pide otra entrada.
+
 ## Herramientas
+
+### `cometa captura` escribe en los datos guardados reales del juego
+
+- **Observado:** al capturar `experiments/tetris` con un guion de entrada que llega al final de la partida, `datos.guardar_entero("mejor", ...)` escribió en `%AppData%\cometa\cometa_tetris`, la misma carpeta que usa el juego al jugarlo de verdad. Hubo que borrarla a mano.
+- **Problema:** una captura o una prueba visual deja una mejor puntuación falsa (o pisa la del jugador), y dos capturas seguidas no parten del mismo estado.
+- **Posible solución:** que `captura` y `probar` redirijan `std/pincel/datos` a una carpeta temporal vacía (o a memoria), con una opción `--datos carpeta` para partir de un guardado concreto.
 
 ### Los errores en tiempo de ejecución no indican la columna
 
@@ -77,6 +107,36 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 - **Posible solución:** un parámetro `mando` opcional en las funciones de `pruebas` y un prefijo en el guion (`+Mando1A`), con los códigos de botón desplazados por mando.
 
 ## Biblioteca estándar
+
+### `audio` no genera sonidos: un juego sin archivos es mudo
+
+- **Observado:** `std/pincel/audio` solo reproduce lo que carga `recursos.sonido` desde un WAV/Ogg/MP3, y `audio.reproducir` no cambia el tono ni la velocidad. Para `experiments/tetris` hubo que escribir un script de Node (`sonidos.js`) que sintetiza doce WAV (pitidos, ruido y la música).
+- **Problema:** `retro` y `lienzo` permiten un juego completo sin recursos, salvo el sonido: el principiante tiene que buscar o fabricar archivos fuera de Cometa. Sin control de tono tampoco se puede variar un efecto (un pitido más agudo por cada fila de un combo) ni acelerar la música con el nivel.
+- **Posible solución:** un sintetizador mínimo, por ejemplo `audio.tono(frecuencia, duracion, onda = .Cuadrada, hasta = frecuencia, volumen = 1) Sonido` y `audio.ruido(duracion)`, que devuelvan un `Sonido` creado en memoria (como `lienzo.nuevo` con las imágenes); y un parámetro `tono decimal = 1` en `audio.reproducir`.
+
+### Las listas no se pueden ordenar
+
+- **Observado:** `[T]` no tiene `ordenar`. En `experiments/ajedrez/motor.cometa` las jugadas se ordenan por puntuación con una selección escrita a mano sobre dos listas paralelas (`movs` y `puntos`), y las piezas capturadas se insertan ya ordenadas con un `mientras`.
+- **Problema:** ordenar una tabla de récords, un inventario o los sprites por su `y` antes de dibujarlos es de lo primero que pide un juego, y obliga a enseñar un algoritmo de ordenación antes de tiempo.
+- **Posible solución:** `lista.ordenar()` para `entero`, `decimal` y `cadena` (con `descendente = falso`), y una forma con clave para estructuras, por ejemplo `lista.ordenar_por(claves [decimal])` mientras no haya funciones como valores.
+
+### No se puede medir el tiempo real
+
+- **Observado:** `std/pincel/tiempo` da `fps()`, `tps()` y temporizadores que avanzan con `dt`, pero no un reloj. El motor de `experiments/ajedrez` reparte su búsqueda entre cuadros contando nodos (`presupuesto = 14000` por cuadro), un número ajustado a mano midiendo con `cometa probar`.
+- **Problema:** un cálculo largo (búsqueda, generación de un nivel, camino más corto) no puede decir «trabaja 8 ms y sigue en el próximo cuadro», así que en una máquina lenta la pantalla se traba y en una rápida se desaprovecha. Tampoco se puede mostrar la hora ni cronometrar un trozo de código.
+- **Posible solución:** `tiempo.ahora() decimal` (segundos desde que empezó el programa, con reloj monótono), sin depender de Ebitengine para poder usarlo también en pruebas.
+
+### `color.Color` no se puede mezclar ni descomponer
+
+- **Observado:** no hay forma de interpolar dos colores, leer sus canales ni cambiarles el alfa. En `experiments/tetris` la rampa ámbar (`rampa(nivel, alfa)`) repite a mano los números de la paleta e interpola cada canal con `mate.interpolar` y `mate.redondear`.
+- **Problema:** los desvanecimientos, destellos y degradados (lo más habitual al pulir un juego) obligan a guardar los colores dos veces: como `Color` y como tres enteros sueltos.
+- **Posible solución:** `color.mezclar(a Color, b Color, t decimal) Color`, `Color.con_alfa(alfa entero) Color` y campos de lectura `r`, `g`, `b`, `a`.
+
+### No hay forma directa de rellenar un número con ceros o repetir una cadena
+
+- **Observado:** para pintar `0000208` o `03:07` hay que construir los ceros con un bucle (`repetir (texto.longitud()..cifras) ceros += "0"`) o una función propia (`dos_cifras`). `formato(n)` solo fija los decimales.
+- **Problema:** marcadores y relojes aparecen en casi todos los juegos.
+- **Posible solución:** `cadena.rellenar_izquierda(ancho entero, relleno cadena = " ")` (y `rellenar_derecha`), `cadena.repetir(veces entero)`, o un segundo parámetro en `formato(decimales, ancho = 0)`.
 
 ### Las rejillas no admiten pendientes
 
