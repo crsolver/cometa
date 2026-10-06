@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -36,7 +37,7 @@ fn prueba_crash()
 	imprimir(v[i])
 `,
 	})
-	report, code := probar(entry, "", time.Minute, true)
+	report, code := probar(entry, "", time.Minute, true, "")
 	if code != exitTestsFailed || report.Status != "fallo" || report.Total != 3 || report.Passed != 1 || report.Failed != 2 {
 		t.Fatalf("unexpected report %+v code %d", report, code)
 	}
@@ -57,12 +58,12 @@ fn prueba_crash()
 
 func TestProbarTimeoutAndCompileError(t *testing.T) {
 	entry := writeProject(t, map[string]string{"pruebas.cometa": "fn prueba_a()\n\tmientras verdadero\n\t\tcontinuar\n\nfn prueba_b()\n\timprimir(1)\n"})
-	report, code := probar(entry, "", 2*time.Second, true)
+	report, code := probar(entry, "", 2*time.Second, true, "")
 	if code != exitTimeout || report.Tests[0].Status != "tiempo_agotado" || report.Tests[1].Status != "omitida" {
 		t.Fatalf("unexpected report %+v code %d", report, code)
 	}
 	entry = writeProject(t, map[string]string{"pruebas.cometa": "usar std/pruebas\nfn prueba_x()\n\tpruebas.igual(1, \"a\")\n"})
-	report, code = probar(entry, "", time.Minute, true)
+	report, code = probar(entry, "", time.Minute, true, "")
 	if code != exitCompile || report.Status != "error_compilacion" || len(report.Diagnostics) != 1 || report.Diagnostics[0].File != "pruebas.cometa" || report.Diagnostics[0].Line != 3 {
 		t.Fatalf("unexpected report %+v code %d", report, code)
 	}
@@ -110,7 +111,7 @@ fn prueba_sin_avanzar()
 	pruebas.pixel(0, 0, .Negro)
 `,
 	})
-	report, code := probar(entry, "", 5*time.Minute, true)
+	report, code := probar(entry, "", 5*time.Minute, true, "")
 	status := map[string]testResult{}
 	for _, r := range report.Tests {
 		status[r.Name] = r
@@ -226,11 +227,41 @@ fn prueba_texto()
 	pruebas.igual("hola", j.nombre)
 `,
 	})
-	report, code := probar(entry, "", 5*time.Minute, true)
+	report, code := probar(entry, "", 5*time.Minute, true, "")
 	if code != 0 {
 		t.Fatalf("unexpected report %+v code %d", report, code)
 	}
 	if report.Passed != 5 {
 		t.Fatalf("unexpected report %+v", report)
+	}
+}
+
+// Tests never touch the player's saved data: each run starts from an empty
+// folder unless --datos names one, which is kept.
+func TestProbarIsolatesSavedData(t *testing.T) {
+	entry := writeProject(t, map[string]string{"pruebas.cometa": `usar std/pruebas
+usar std/pincel/datos
+
+fn prueba_mejor()
+	var antes = datos.leer_entero("mejor") o 0
+	datos.guardar_entero("mejor", antes + 1) atrapar |error|
+		pruebas.fallar(error)
+	pruebas.igual(1, antes + 1, "partida")
+`})
+	for run := 0; run < 2; run++ {
+		if report, code := probar(entry, "", 5*time.Minute, true, ""); code != 0 {
+			t.Fatalf("run %d without --datos: %+v", run, report)
+		}
+	}
+	saved := filepath.Join(t.TempDir(), "guardado")
+	if report, code := probar(entry, "", 5*time.Minute, true, saved); code != 0 {
+		t.Fatalf("first run with --datos: %+v", report)
+	}
+	data, err := os.ReadFile(filepath.Join(saved, "datos.json"))
+	if err != nil || !strings.Contains(string(data), `"mejor": "1"`) {
+		t.Fatalf("datos.json = %q, %v", data, err)
+	}
+	if report, code := probar(entry, "", 5*time.Minute, true, saved); code != exitTestsFailed {
+		t.Fatalf("second run with --datos should see the saved value: %+v", report)
 	}
 }

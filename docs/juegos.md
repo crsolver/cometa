@@ -544,6 +544,8 @@ Para números usa `guardar_entero`/`leer_entero` y `guardar_decimal`/`leer_decim
 contiene un número). `datos.claves()` lista las claves guardadas en orden alfabético.
 `guardar`, `guardar_*` y `borrar` devuelven un resultado (`!`) porque el disco puede fallar.
 
+`cometa captura` y `cometa probar` no usan esa carpeta: trabajan sobre una temporal vacía, así que una captura no deja una mejor puntuación falsa. Con `--datos carpeta` leen y escriben `carpeta/datos.json`.
+
 ## Mandos
 
 `entrada.mandos()` cuenta los mandos conectados con distribución estándar (los de Xbox,

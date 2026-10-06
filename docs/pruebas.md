@@ -14,13 +14,14 @@ fn prueba_doble_de_tres()
 ```
 
 ```
-cometa probar pruebas.cometa [--json] [--tiempo SEGUNDOS] [--filtro texto]
+cometa probar pruebas.cometa [--json] [--tiempo SEGUNDOS] [--filtro texto] [--datos carpeta]
 ```
 
 - Se ejecuta cada función de nivel superior `prueba_*` (sin parámetros ni resultado), aislada de las demás: un fallo o un pánico no detiene el resto.
 - El archivo de pruebas no declara `inicio`; importa la solución con `usar`, que debe exponer lo necesario con `pub`.
 - `--tiempo` (por defecto 30) limita toda la ejecución; la prueba en curso se marca `tiempo_agotado` y las siguientes `omitida`.
 - `--filtro` ejecuta solo las pruebas cuyo nombre contiene el texto.
+- `std/pincel/datos` no toca los datos guardados del jugador: cada ejecución parte de una carpeta temporal vacía que se borra al terminar. `--datos carpeta` usa esa carpeta en su lugar (se crea si falta y conserva lo que se guarde), para partir de un guardado concreto.
 
 ## Afirmaciones
 

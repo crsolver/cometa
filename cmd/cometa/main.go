@@ -59,9 +59,9 @@ func run(args []string) error {
 		return lspserver.Run(context.Background())
 	}
 	if len(args) == 0 || (args[0] != "compilar" && args[0] != "ejecutar" && args[0] != "construir" && args[0] != "captura") {
-		return fmt.Errorf("uso: cometa <comando> ...\n  nuevo     <nombre> [--juego] [--sin-agentes]  crea un proyecto de ejemplo (consola o juego)\n  ejecutar <archivo.cometa>              compila y ejecuta el programa\n  construir <archivo.cometa> [-o salida]  genera un ejecutable\n  compilar  <archivo.cometa> [-o salida.go]  genera el código Go\n  captura   <archivo.cometa> [-o captura.png] [--cuadros N,M,...] [--escala N] [--entrada guion.txt]\n  probar    <pruebas.cometa> [--json] [--tiempo S] [--filtro x]  ejecuta las funciones prueba_*\n  mapa                                    abre el editor de mapas en el navegador\n  biblioteca <std/módulo>                 muestra las declaraciones de un módulo estándar\n  lsp                                     servidor de lenguaje para editores\n  --version                               muestra la versión")
+		return fmt.Errorf("uso: cometa <comando> ...\n  nuevo     <nombre> [--juego] [--sin-agentes]  crea un proyecto de ejemplo (consola o juego)\n  ejecutar <archivo.cometa>              compila y ejecuta el programa\n  construir <archivo.cometa> [-o salida]  genera un ejecutable\n  compilar  <archivo.cometa> [-o salida.go]  genera el código Go\n  captura   <archivo.cometa> [-o captura.png] [--cuadros N,M,...] [--escala N] [--entrada guion.txt] [--datos carpeta]\n  probar    <pruebas.cometa> [--json] [--tiempo S] [--filtro x] [--datos carpeta]  ejecuta las funciones prueba_*\n  mapa                                    abre el editor de mapas en el navegador\n  biblioteca <std/módulo>                 muestra las declaraciones de un módulo estándar\n  lsp                                     servidor de lenguaje para editores\n  --version                               muestra la versión")
 	}
-	var input, output, script string
+	var input, output, script, data string
 	var frames []int
 	scale := 1
 	for index := 1; index < len(args); index++ {
@@ -72,7 +72,7 @@ func run(args []string) error {
 				return fmt.Errorf("uso: cometa compilar <archivo.cometa> [-o <archivo.go>]")
 			}
 			output = args[index]
-		case "--cuadros", "--escala", "--entrada":
+		case "--cuadros", "--escala", "--entrada", "--datos":
 			flag := args[index]
 			index++
 			if args[0] != "captura" || index >= len(args) {
@@ -90,6 +90,8 @@ func run(args []string) error {
 					return errCaptureUsage
 				}
 				scale = value
+			case "--datos":
+				data = args[index]
 			default:
 				script = args[index]
 			}
@@ -137,7 +139,7 @@ func run(args []string) error {
 		return err
 	}
 	if args[0] == "captura" {
-		return captureProgram(generated, output, frames, scale, events)
+		return captureProgram(generated, output, frames, scale, events, data)
 	}
 	if args[0] != "compilar" {
 		return buildProgram(generated, output, args[0] == "ejecutar")

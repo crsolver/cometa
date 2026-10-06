@@ -14,7 +14,7 @@ import (
 	"github.com/crsolver/cometa/internal/stdlib"
 )
 
-var errCaptureUsage = errors.New("uso: cometa captura <archivo.cometa> [-o captura.png] [--cuadros N,M,...] [--escala 1-64] [--entrada guion.txt]")
+var errCaptureUsage = errors.New("uso: cometa captura <archivo.cometa> [-o captura.png] [--cuadros N,M,...] [--escala 1-64] [--entrada guion.txt] [--datos carpeta]")
 
 // parseFrames reads "--cuadros 100,300,900" into ascending unique ticks.
 func parseFrames(value string) ([]int, error) {
@@ -218,7 +218,8 @@ func capturePaths(output string, frames []int) []string {
 
 // captureProgram runs the game with a hidden window, optionally replaying an
 // input script, and saves its logical screen after each requested tick.
-func captureProgram(source []byte, output string, frames []int, scale int, events []scriptEvent) error {
+// std/pincel/datos works on the data folder, or on an empty temporary one.
+func captureProgram(source []byte, output string, frames []int, scale int, events []scriptEvent, data string) error {
 	if !strings.Contains(string(source), "func _hgcapturar(") {
 		return fmt.Errorf("captura requiere un juego iniciado con pincel.ejecutar")
 	}
@@ -264,7 +265,12 @@ func captureProgram(source []byte, output string, frames []int, scale int, event
 		init.WriteString("\t}\n")
 	}
 	init.WriteString("}\n")
-	if err = buildProgram(append(source, init.String()...), "", true); err != nil {
+	env, cleanup, err := dataEnv(data)
+	defer cleanup()
+	if err != nil {
+		return err
+	}
+	if err = buildProgram(append(source, init.String()...), "", true, env); err != nil {
 		return err
 	}
 	for i, path := range paths {

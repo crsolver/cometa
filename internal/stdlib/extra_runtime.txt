@@ -15,6 +15,8 @@ func _hgdatosJuego(nombre string){
  _hgdatosNombre=b.String();_hgdatosDatos=nil
 }
 func _hgdatosArchivo() (string,string,error){
+ // cometa captura y cometa probar apuntan aquí a una carpeta propia para no tocar los datos del jugador.
+ if dir:=os.Getenv("COMETA_DATOS");dir!=""{return dir,filepath.Join(dir,"datos.json"),nil}
  base,err:=os.UserConfigDir();if err!=nil{return "","",err}
  carpeta:=_hgdatosCarpeta
  if _hgdatosNombre!=""{carpeta=_hgdatosNombre}

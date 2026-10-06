@@ -6,12 +6,6 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 
 ## Herramientas
 
-### `cometa captura` escribe en los datos guardados reales del juego
-
-- **Observado:** al capturar `experiments/tetris` con un guion de entrada que llega al final de la partida, `datos.guardar_entero("mejor", ...)` escribió en `%AppData%\cometa\cometa_tetris`, la misma carpeta que usa el juego al jugarlo de verdad. Hubo que borrarla a mano.
-- **Problema:** una captura o una prueba visual deja una mejor puntuación falsa (o pisa la del jugador), y dos capturas seguidas no parten del mismo estado.
-- **Posible solución:** que `captura` y `probar` redirijan `std/pincel/datos` a una carpeta temporal vacía (o a memoria), con una opción `--datos carpeta` para partir de un guardado concreto.
-
 ### Los errores en tiempo de ejecución no indican la columna
 
 - **Observado:** un pánico (índice fuera de rango, división entre cero) ahora muestra archivo, línea y el texto de la línea, pero no la columna ni qué expresión falló.

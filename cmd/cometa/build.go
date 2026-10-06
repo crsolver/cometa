@@ -35,8 +35,31 @@ func goExecutable() (string, error) {
 	return path, nil
 }
 
+// dataEnv keeps std/pincel/datos away from the player's saved data while a
+// game is captured or tested: the program reads and writes folder, or an
+// empty temporary folder removed by cleanup when folder is "".
+func dataEnv(folder string) (env string, cleanup func(), err error) {
+	cleanup = func() {}
+	if folder == "" {
+		if folder, err = os.MkdirTemp("", "cometa-datos-"); err != nil {
+			return "", cleanup, err
+		}
+		temporary := folder
+		cleanup = func() { os.RemoveAll(temporary) }
+	} else {
+		if folder, err = filepath.Abs(folder); err == nil {
+			err = os.MkdirAll(folder, 0o755)
+		}
+		if err != nil {
+			return "", cleanup, fmt.Errorf("no se pudo usar la carpeta de datos: %w", err)
+		}
+	}
+	return "COMETA_DATOS=" + folder, cleanup, nil
+}
+
 // Each build is isolated from source directories and their existing go.mod.
-func buildProgram(source []byte, output string, execute bool) error {
+// env adds variables to the environment of an executed program.
+func buildProgram(source []byte, output string, execute bool, env ...string) error {
 	dir, err := os.MkdirTemp("", "cometa-build-")
 	if err != nil {
 		return err
@@ -61,6 +84,7 @@ func buildProgram(source []byte, output string, execute bool) error {
 		return nil
 	}
 	game := exec.Command(output)
+	game.Env = append(os.Environ(), env...)
 	game.Stdin = os.Stdin
 	game.Stdout = os.Stdout
 	crash := &crashFilter{out: os.Stderr}
