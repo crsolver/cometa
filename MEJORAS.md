@@ -69,13 +69,6 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 - **Posible solución:** añadir un segundo índice de selección al nodo, resaltar el rango seleccionado al dibujar, calcular la posición de clic contra las líneas medidas, y usar las funciones de portapapeles de Ebitengine para copiar/pegar.
 
 
-### `retro.icono` no se puede voltear
-
-- **Observado:** `retro.icono` dibuja la celda del atlas tal cual (`_hgretroIcono` llama a `_hgretroGlifo` sin más opciones); no hay forma de espejarla.
-- **Problema:** para tener un icono mirando a la izquierda y a la derecha, o boca arriba y boca abajo, hay que añadir al atlas una copia espejada de cada uno.
-- **Posible solución:** parámetros opcionales `voltear_h` y `voltear_v` (bool) en `retro.icono` (y quizá en `glifo`) que inviertan los ejes al dibujar, como ya hace `lienzo.pegar` con los espejos.
-
-
 ### El editor de mapas no tiene marcas con nombre
 
 - **Observado:** `Rejilla.buscar(valor)` ya devuelve las celdas de un icono (el inicio del jugador, las llaves), pero el editor (`tools/mapa-editor`) solo guarda el icono y el color de cada celda: una entidad sigue siendo un índice «mágico» del atlas.

@@ -99,17 +99,21 @@ func _hgretroMapa(m *_hgMapa,x,y,scale int64,capa string,tinte _hgColor){
  }
 }
 func _hgretroScale(scale int64){if scale<=0 {panic("escala retro debe ser positiva")}}
-func _hgretroGlifo(index,x,y,scale int64,c _hgColor,atlas _hgAtlas){
+func _hgretroGlifo(index,x,y,scale int64,c _hgColor,atlas _hgAtlas,espejoH,espejoV bool){
  _hgdraw();_hgretroScale(scale)
  if index<0 || index>255 {panic("índice de glifo retro debe estar entre 0 y 255")}
  img:=_hgretroImage(atlas)
  sx,sy:=int(index%16)*8,int(index/16)*8
  op:=&ebiten.DrawImageOptions{Filter:ebiten.FilterNearest}
- op.GeoM=_hgtransform(_hgVec2{float64(x),float64(y)},_hgVec2{},_hgVec2{float64(scale),float64(scale)},0,false)
+ // A mirrored glyph is scaled by -1 around the far edge of its 8x8 cell, so it stays in place.
+ o,s:=_hgVec2{},_hgVec2{float64(scale),float64(scale)}
+ if espejoH{s.X=-s.X;o.X=8}
+ if espejoV{s.Y=-s.Y;o.Y=8}
+ op.GeoM=_hgtransform(_hgVec2{float64(x),float64(y)},o,s,0,false)
  op.ColorScale.ScaleWithColor(c)
  _hgscreen.DrawImage(img.SubImage(image.Rect(sx,sy,sx+8,sy+8)).(*ebiten.Image),op)
 }
-func _hgretroIcono(icon _hgIcono,x,y,scale int64,c _hgColor){_hgretroGlifo(int64(icon),x,y,scale,c,0)}
+func _hgretroIcono(icon _hgIcono,x,y,scale int64,c _hgColor,espejoH,espejoV bool){_hgretroGlifo(int64(icon),x,y,scale,c,0,espejoH,espejoV)}
 func _hgretroLayout(value string,draw func(index,col,row int64)) {
  var col,row int64
  for _,r:=range value {
@@ -125,7 +129,7 @@ func _hgretroLayout(value string,draw func(index,col,row int64)) {
 }
 func _hgretroTexto(value string,x,y,scale int64,c _hgColor){
  _hgdraw();_hgretroScale(scale)
- _hgretroLayout(value,func(index,col,row int64){_hgretroGlifo(index,x+col*8*scale,y+row*8*scale,scale,c,1)})
+ _hgretroLayout(value,func(index,col,row int64){_hgretroGlifo(index,x+col*8*scale,y+row*8*scale,scale,c,1,false,false)})
 }
 // Width of the widest line up to its last visible glyph, so text can be centered.
 func _hgretroAnchoTexto(value string,scale int64) int64{

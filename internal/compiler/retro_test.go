@@ -82,19 +82,25 @@ func (*retroCheck) Update() error {
   data,_:=base64.StdEncoding.DecodeString(_hgretroData[atlas])
   original,_,err:=image.Decode(bytes.NewReader(data));if err!=nil{panic(err)}
   for index:=int64(0);index<256;index++ {
+   // Mirrored glyphs must stay inside the same cell, read backwards.
+   for _,flip:=range [][2]bool{{false,false},{true,false},{false,true},{true,true}} {
    for _,scale:=range []int64{1,4} {
     _hgscreen.Fill(color.NRGBA{0,0,255,255})
-    _hgretroGlifo(index,3,5,scale,_hgColor{255,0,0,255},atlas)
+    _hgretroGlifo(index,3,5,scale,_hgColor{255,0,0,255},atlas,flip[0],flip[1])
     pixels:=make([]byte,48*48*4);_hgscreen.ReadPixels(pixels)
     for y:=0;y<48;y++ {for x:=0;x<48;x++ {
      want:=color.NRGBA{0,0,255,255}
      if x>=3&&y>=5&&x<3+8*int(scale)&&y<5+8*int(scale) {
-      sx,sy:=int(index%16)*8+(x-3)/int(scale),int(index/16)*8+(y-5)/int(scale)
+      lx,ly:=(x-3)/int(scale),(y-5)/int(scale)
+      if flip[0]{lx=7-lx}
+      if flip[1]{ly=7-ly}
+      sx,sy:=int(index%16)*8+lx,int(index/16)*8+ly
       r,_,_,_:=original.At(sx,sy).RGBA();if r!=0{want=color.NRGBA{255,0,0,255}}
      }
      at:=(y*48+x)*4
-     if pixels[at]!=want.R||pixels[at+1]!=want.G||pixels[at+2]!=want.B||pixels[at+3]!=want.A{panic(fmt.Sprintf("pixel mismatch atlas %d glyph %d scale %d at %d,%d",atlas,index,scale,x,y))}
+     if pixels[at]!=want.R||pixels[at+1]!=want.G||pixels[at+2]!=want.B||pixels[at+3]!=want.A{panic(fmt.Sprintf("pixel mismatch atlas %d glyph %d scale %d flip %v at %d,%d",atlas,index,scale,flip,x,y))}
     }}
+   }
    }
   }
  }
@@ -102,7 +108,7 @@ func (*retroCheck) Update() error {
  for atlas:=_hgAtlas(0);atlas<2;atlas++ {
   for _,index:=range []int64{3,65,175,255} {
    red:=_hgColor{255,0,0,255}
-   _hgscreen.Clear();_hgretroGlifo(index,8,8,2,red,atlas)
+   _hgscreen.Clear();_hgretroGlifo(index,8,8,2,red,atlas,false,false)
    glyph:=make([]byte,48*48*4);_hgscreen.ReadPixels(glyph)
    _hgscreen.Clear();_hgrejillaDibujar(_hgrejillaNueva(1,1,index),_hgretroHoja(atlas),_hgVec2{8,8},_hgVec2{2,2},red,nil,0,struct { tag int; payload1 *_hgRejilla }{})
    sheet:=make([]byte,48*48*4);_hgscreen.ReadPixels(sheet)
@@ -110,9 +116,9 @@ func (*retroCheck) Update() error {
   }
  }
  if h:=_hgretroHoja(0);h.cols*h.rows!=256 {panic("retro sheet must have 256 frames")}
- for _,index:=range []int64{-1,256}{mustPanic(func(){_hgretroGlifo(index,0,0,1,white,0)})}
+ for _,index:=range []int64{-1,256}{mustPanic(func(){_hgretroGlifo(index,0,0,1,white,0,false,false)})}
  for _,scale:=range []int64{0,-1}{mustPanic(func(){_hgretroTexto("",0,0,scale,white)})}
- mustPanic(func(){_hgretroGlifo(0,0,0,1,white,2)})
+ mustPanic(func(){_hgretroGlifo(0,0,0,1,white,2,false,false)})
  screen:=_hgscreen;_hgscreen=nil
  mustPanic(func(){_hgretroTexto("",0,0,1,white)})
  _hgscreen=screen

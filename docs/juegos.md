@@ -77,10 +77,12 @@ Firmas (todos los dibujos requieren la fase `pintar`):
 
 ```cometa
 retro.texto(texto cadena, x entero, y entero, escala entero = 1, color color.Color = .Blanco)
-retro.icono(icono retro.Icono, x entero, y entero, escala entero = 1, color color.Color = .Blanco)
-retro.glifo(indice entero, x entero, y entero, escala entero = 1, color color.Color = .Blanco, atlas retro.Atlas = .Dungeon)
+retro.icono(icono retro.Icono, x entero, y entero, escala entero = 1, color color.Color = .Blanco, voltear_h bool = falso, voltear_v bool = falso)
+retro.glifo(indice entero, x entero, y entero, escala entero = 1, color color.Color = .Blanco, atlas retro.Atlas = .Dungeon, voltear_h bool = falso, voltear_v bool = falso)
 retro.hoja(atlas retro.Atlas = .Dungeon) graficos.Hoja
 ```
+
+`voltear_h` y `voltear_v` dibujan el icono o el glifo espejado dentro de su misma celda: `retro.icono(.Derecha, x, y, voltear_h = verdadero)` apunta a la izquierda.
 
 `retro.hoja` devuelve el atlas como hoja de cuadros de 8×8: el cuadro `i` es el glifo que dibuja `retro.glifo(i)`, así que una rejilla de índices se pinta con `rejilla.dibujar(mapa, retro.hoja(), tinte = .Gris)`, o con un color por celda mediante `colores`. No requiere la fase `pintar`; ver [el editor de mapas](#editor-de-mapas).
 
