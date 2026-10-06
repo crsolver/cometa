@@ -4,12 +4,6 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 
 ## Lenguaje
 
-### Llamar a un método sobre un literal de estructura da un error interno (`Luz {nivel: 2}.tono()`)
-
-- **Observado:** `imprimir(Luz {nivel: 2}.tono())` falla con «error interno del compilador […] cannot call pointer method Tono on Luz»: el Go generado llama al método sobre el literal sin tomar su dirección. Con una variable intermedia (`var luz = Luz {nivel: 2}`) funciona.
-- **Problema:** es un error interno, no un diagnóstico de Cometa, y no dice qué línea lo causa.
-- **Posible solución:** generar `(&Luz{...}).Tono()` (los tipos declarados ya son punteros en el resto del código generado).
-
 ## Herramientas
 
 ### `cometa captura` escribe en los datos guardados reales del juego

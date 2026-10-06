@@ -116,7 +116,7 @@ func (g *generator) flowTarget(e ast.Expr, indent int) string {
 		if stdlib.IsValue(g.model.ExprTypes[v.Object].Name) {
 			return g.flowTarget(v.Object, indent) + "." + g.fieldName(g.model.ExprTypes[v.Object], v.Name)
 		}
-		return g.flowExpr(v.Object, indent) + "." + g.fieldName(g.model.ExprTypes[v.Object], v.Name)
+		return operand(v.Object, g.flowExpr(v.Object, indent)) + "." + g.fieldName(g.model.ExprTypes[v.Object], v.Name)
 	case *ast.IndexExpr:
 		object := g.flowExpr(v.Object, indent)
 		index := g.flowExpr(v.Index, indent)
@@ -363,7 +363,7 @@ func (g *generator) flowRaw(e ast.Expr, t sema.Type, indent int) string {
 	case *ast.InterpolatedStringExpr:
 		return g.interpolated(v, func(e ast.Expr) string { return g.flowExpr(e, indent) })
 	case *ast.MemberExpr:
-		return g.flowExpr(v.Object, indent) + "." + g.fieldName(g.model.ExprTypes[v.Object], v.Name)
+		return operand(v.Object, g.flowExpr(v.Object, indent)) + "." + g.fieldName(g.model.ExprTypes[v.Object], v.Name)
 	case *ast.IndexExpr:
 		object := g.flowExpr(v.Object, indent)
 		index := g.flowExpr(v.Index, indent)
@@ -536,7 +536,7 @@ func (g *generator) flowCall(call *ast.CallExpr, indent int) string {
 	case *ast.ReceiverExpr:
 		callee = "_self." + exported(v.Name)
 	case *ast.MemberExpr:
-		callee = g.flowExpr(v.Object, indent) + "." + exported(v.Name)
+		callee = operand(v.Object, g.flowExpr(v.Object, indent)) + "." + exported(v.Name)
 	}
 	info := g.model.Calls[call]
 	callee = g.promotedCallee(callee, info.Signature, call.Callee)
@@ -603,7 +603,7 @@ func (g *generator) flowListCall(call *ast.CallExpr, operation string, indent in
 		g.line(indent, "%s := &(%s)", address, g.flowTarget(member.Object, indent))
 		receiver = g.capture(listType, "*"+address, indent)
 	} else {
-		receiver = g.flowExpr(member.Object, indent)
+		receiver = operand(member.Object, g.flowExpr(member.Object, indent))
 	}
 
 	info := g.model.Calls[call]
@@ -923,6 +923,15 @@ func (g *generator) flowLoop(s *ast.RepeatStmt, indent int) {
 	}
 	g.flowBlock(s.Body, indent+1, "")
 	g.line(indent, "}")
+}
+
+// operand makes a struct literal usable before a selector: `&T{...}.M()` would
+// take the address of the call's result.
+func operand(e ast.Expr, value string) string {
+	if _, ok := e.(*ast.StructLiteralExpr); ok && strings.HasPrefix(value, "&") {
+		return "(" + value + ")"
+	}
+	return value
 }
 
 func (g *generator) closeScopes(indent, depth int) {
