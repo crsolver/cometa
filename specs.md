@@ -193,7 +193,7 @@ var edad = "42".a_entero() o 0
 imprimir("Puntos: " + cadena(edad))
 ```
 
-Los números `entero` y `decimal` tienen el método `formato(decimales entero)`, que devuelve una `cadena` con exactamente esa cantidad de decimales (entre 0 y 20; los valores fuera de ese rango se ajustan): `3.14159.formato(2)` es `"3.14"` y `7.formato(2)` no existe como literal (el lexer lee `7.` como decimal), pero una variable entera sí: `var n = 7`, `n.formato(2)` es `"7.00"`.
+Los números `entero` y `decimal` tienen el método `formato(decimales entero)`, que devuelve una `cadena` con exactamente esa cantidad de decimales (entre 0 y 20; los valores fuera de ese rango se ajustan): `3.14159.formato(2)` es `"3.14"` y `7.formato(2)` es `"7.00"`.
 
 `dividir("")` divide por punto de código y devuelve una lista vacía para la cadena vacía. `reemplazar("", texto)` inserta el reemplazo en los límites entre puntos de código, incluidos ambos extremos. Los métodos no modifican el receptor.
 

@@ -142,7 +142,9 @@ func lexLine(filename string, lineNo, start int, runes []rune) ([]token.Token, e
 			for j < len(runes) && unicode.IsDigit(runes[j]) {
 				j++
 			}
-			if j < len(runes) && runes[j] == '.' && !(j+1 < len(runes) && runes[j+1] == '.') {
+			// `7..9` es un rango y `7.formato(2)` una llamada de método: el punto
+			// solo pertenece al número cuando no le sigue otro punto ni un nombre.
+			if j < len(runes) && runes[j] == '.' && !(j+1 < len(runes) && (runes[j+1] == '.' || unicode.IsLetter(runes[j+1]) || runes[j+1] == '_')) {
 				j++
 				if j >= len(runes) || !unicode.IsDigit(runes[j]) {
 					return nil, lexError(filename, lineNo, j+1, "se esperaba un dígito después del punto decimal")

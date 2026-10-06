@@ -4,12 +4,6 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 
 ## Lenguaje
 
-### Un literal entero no admite llamadas de método (`7.formato(2)`)
-
-- **Observado:** `7.formato(2)` falla con «se esperaba un dígito después del punto decimal» porque el lexer lee `7.` como el inicio de un decimal; `3.5.formato(2)` sí funciona.
-- **Problema:** obliga a usar una variable o paréntesis para un caso poco común, con un mensaje que no lo explica.
-- **Posible solución:** que el lexer no consuma el punto si le sigue una letra, o mejorar el mensaje para sugerir `(7).formato(2)`.
-
 ### `repetir` no recorre cadenas
 
 - **Observado:** `repetir (texto) |letra|` falla con «repetir requiere una lista o mapa, no cadena» (`internal/sema/sema.go`). Hay que escribir `repetir (texto.dividir("")) |letra|`.

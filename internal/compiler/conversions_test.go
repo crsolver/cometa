@@ -40,6 +40,8 @@ fn inicio()
 	imprimir("Puntaje ${puntaje.formato(3)}")
 	imprimir(1.999.formato(1))
 	imprimir(0.1.formato(25).longitud())
+	imprimir(7.formato(2))
+	imprimir((-3).formato(1))
 `
 	got, err := Compile("conv.cometa", []byte(source))
 	if err != nil {
@@ -51,6 +53,7 @@ fn inicio()
 		"12", "-1", "16",
 		"Puntos: 15", "Pi: 3.5", "Bien: verdadero", "ya es texto",
 		"3.14", "2", "7.00", "Puntaje 12.500", "2.0", "22",
+		"7.00", "-3.0",
 	}, "\n") + "\n"
 	runGeneratedGo(t, got, want)
 }
