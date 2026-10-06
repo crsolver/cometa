@@ -3,6 +3,7 @@ package parser
 import (
 	"github.com/crsolver/cometa/internal/ast"
 	"github.com/crsolver/cometa/internal/lexer"
+	"strings"
 	"testing"
 )
 
@@ -54,5 +55,17 @@ func TestRejectsInvalidEnumAndMatchSyntax(t *testing.T) {
 		if _, err := Parse("enum.cometa", tokens); err == nil {
 			t.Fatalf("accepted invalid syntax:\n%s", source)
 		}
+	}
+}
+
+func TestArmBindingErrorPointsToHeader(t *testing.T) {
+	source := "fn inicio()\n\tvar pista cadena? = \"x\"\n\tcasos pista\n\t\t.Alguno |texto| => imprimir(texto)\n\t\t.Ninguno => imprimir(0)\n"
+	tokens, err := lexer.Lex("ligadura.cometa", source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = Parse("ligadura.cometa", tokens)
+	if err == nil || !strings.Contains(err.Error(), "en la cabecera: `casos valor |nombre|`") {
+		t.Fatalf("error inesperado: %v", err)
 	}
 }

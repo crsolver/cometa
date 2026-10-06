@@ -16,12 +16,6 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 - **Problema:** es un error interno, no un diagnóstico de Cometa, y no dice qué línea lo causa.
 - **Posible solución:** generar `(&Luz{...}).Tono()` (los tipos declarados ya son punteros en el resto del código generado).
 
-### El error de `.Alguno |valor| =>` no dice dónde va la ligadura
-
-- **Observado:** en un `casos` sobre un opcional, escribir la ligadura en la rama (`.Alguno |pista| => ...`) falla con «se esperaba '=>' después del patrón, pero se encontró '|'». La forma correcta la pone en la cabecera: `casos opcional |pista|`.
-- **Problema:** `si opcional |valor|` y `atrapar |error|` ligan justo donde se usa el valor, así que es fácil esperar lo mismo en la rama; el mensaje no orienta.
-- **Posible solución:** que el error diga «la ligadura se escribe en la cabecera: `casos valor |nombre|`».
-
 ### No hay operadores de bits (`&`, `|`, `^`, `<<`, `>>`)
 
 - **Observado:** en `experiments/ajedrez/motor.cometa` una jugada se guarda en un entero (casilla de salida, de llegada, coronación y clase). Sin desplazamientos ni máscaras hay que empaquetar con `d + h * 64 + corona * 4096` y leer con `m / 64 % 64`; los cuatro derechos de enroque acabaron en cuatro campos `entero` porque no se puede apagar un bit, y la clave de la posición suma números al azar en vez de combinarlos con XOR (Zobrist).
