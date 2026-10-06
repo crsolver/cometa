@@ -118,6 +118,14 @@ func GenerateWithOptions(filename string, program *ast.Program, model *sema.Mode
 		imports[`"strconv"`] = true
 		imports[`"strings"`] = true
 	}
+	for _, operation := range model.ListCalls {
+		if operation == "ordenar" || operation == "ordenar_por" {
+			imports[`"sort"`] = true
+		}
+		if operation == "ordenar_por" {
+			imports[`"fmt"`] = true
+		}
+	}
 	var paths []string
 	for path := range imports {
 		paths = append(paths, path)

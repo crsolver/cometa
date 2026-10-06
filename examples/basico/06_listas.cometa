@@ -22,6 +22,12 @@ fn inicio()
 	// o indica qué usar si no hay valor.
 	imprimir(notas.obtener(10) o 0)
 
+	// ordenar pone los números (o los textos) de menor a mayor.
+	notas.ordenar()
+	imprimir(notas)
+	notas.ordenar(descendente = verdadero)
+	imprimir(notas)
+
 	// Una lista vacía necesita su tipo.
 	var nombres [cadena] = []
 	nombres.agregar("Ana")

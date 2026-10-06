@@ -27,7 +27,7 @@ func TestListMethodCompletionForVariablesFieldsAndIndexes(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(completion.Items) != 13 {
+			if len(completion.Items) != 15 {
 				t.Fatalf("completion at %d:%d = %+v", tc.line, tc.character, completion.Items)
 			}
 			labels := make([]string, len(completion.Items))
@@ -35,7 +35,7 @@ func TestListMethodCompletionForVariablesFieldsAndIndexes(t *testing.T) {
 				labels[i] = item.Label
 			}
 			joined := strings.Join(labels, ",")
-			if !strings.Contains(joined, "agregar") || !strings.Contains(joined, "buscar_indice") || !strings.Contains(joined, "invertir") {
+			if !strings.Contains(joined, "agregar") || !strings.Contains(joined, "buscar_indice") || !strings.Contains(joined, "invertir") || !strings.Contains(joined, "ordenar_por") {
 				t.Fatalf("missing list methods: %s", joined)
 			}
 		})

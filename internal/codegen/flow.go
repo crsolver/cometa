@@ -601,7 +601,7 @@ func (g *generator) flowCall(call *ast.CallExpr, indent int) string {
 func (g *generator) flowListCall(call *ast.CallExpr, operation string, indent int) string {
 	member := call.Callee.(*ast.MemberExpr)
 	listType := g.model.ExprTypes[member.Object]
-	mutating := operation == "agregar" || operation == "extender" || operation == "insertar" || operation == "eliminar" || operation == "invertir"
+	mutating := operation == "agregar" || operation == "extender" || operation == "insertar" || operation == "eliminar" || operation == "invertir" || operation == "ordenar" || operation == "ordenar_por"
 	var address string
 	var receiver string
 	if mutating {
@@ -703,6 +703,44 @@ func (g *generator) flowListCall(call *ast.CallExpr, operation string, indent in
 		g.line(indent, "for %s, %s := 0, len(%s)-1; %s < %s; %s, %s = %s+1, %s-1 {", left, right, receiver, left, right, left, right, left, right)
 		g.line(indent+1, "%s[%s], %s[%s] = %s[%s], %s[%s]", receiver, left, receiver, right, receiver, right, receiver, left)
 		g.line(indent, "}")
+		g.line(indent, "*%s = %s", address, receiver)
+		return ""
+	case "ordenar", "ordenar_por":
+		// Both sort in place and keep equal elements in their order.
+		descending := ordered[len(ordered)-1]
+		if descending == "" {
+			descending = "false"
+		}
+		a, b := g.freshName(), g.freshName()
+		less := func(keys, left, right string) {
+			g.line(indent+1, "if %s {", descending)
+			g.line(indent+2, "return %s[%s] > %s[%s]", keys, left, keys, right)
+			g.line(indent+1, "}")
+			g.line(indent+1, "return %s[%s] < %s[%s]", keys, left, keys, right)
+		}
+		if operation == "ordenar" {
+			g.line(indent, "sort.SliceStable(%s, func(%s, %s int) bool {", receiver, a, b)
+			less(receiver, a, b)
+			g.line(indent, "})")
+		} else {
+			keys, order, sorted, i, j := g.freshName(), g.freshName(), g.freshName(), g.freshName(), g.freshName()
+			g.line(indent, "%s := %s", keys, ordered[0])
+			g.line(indent, "if len(%s) != len(%s) {", keys, receiver)
+			g.line(indent+1, "panic(fmt.Sprintf(\"ordenar_por: la lista tiene %%d elementos y las claves %%d\", len(%s), len(%s)))", receiver, keys)
+			g.line(indent, "}")
+			g.line(indent, "%s := make([]int, len(%s))", order, receiver)
+			g.line(indent, "for %s := range %s {", i, order)
+			g.line(indent+1, "%s[%s] = %s", order, i, i)
+			g.line(indent, "}")
+			g.line(indent, "sort.SliceStable(%s, func(%s, %s int) bool {", order, a, b)
+			less(keys, order+"["+a+"]", order+"["+b+"]")
+			g.line(indent, "})")
+			g.line(indent, "%s := make(%s, len(%s))", sorted, goType(listType), receiver)
+			g.line(indent, "for %s, %s := range %s {", i, j, order)
+			g.line(indent+1, "%s[%s] = %s[%s]", sorted, i, receiver, j)
+			g.line(indent, "}")
+			g.line(indent, "copy(%s, %s)", receiver, sorted)
+		}
 		g.line(indent, "*%s = %s", address, receiver)
 		return ""
 	}

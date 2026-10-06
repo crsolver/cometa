@@ -322,7 +322,7 @@ var primero = usuarios[0]
 procesar_usuario(usuarios[1])
 ```
 
-Las listas ofrecen métodos incorporados. Los métodos `agregar`, `extender`, `insertar`, `eliminar` e `invertir` actualizan directamente la variable, parámetro, campo o elemento de lista que recibe la llamada. Los demás métodos aceptan también expresiones temporales.
+Las listas ofrecen métodos incorporados. Los métodos `agregar`, `extender`, `insertar`, `eliminar`, `invertir`, `ordenar` y `ordenar_por` actualizan directamente la variable, parámetro, campo o elemento de lista que recibe la llamada. Los demás métodos aceptan también expresiones temporales.
 
 | Método sobre `[T]` | Resultado | Comportamiento |
 |---|---|---|
@@ -338,8 +338,21 @@ Las listas ofrecen métodos incorporados. Los métodos `agregar`, `extender`, `i
 | `eliminar(indice entero)` | `bool` | Elimina el elemento conservando el orden |
 | `copiar()` | `[T]` | Copia superficial con almacenamiento independiente |
 | `invertir()` | sin valor | Invierte los elementos en el mismo almacenamiento |
+| `ordenar(descendente bool = falso)` | sin valor | Ordena de menor a mayor una lista de `entero`, `decimal` o `cadena` |
+| `ordenar_por(claves, descendente bool = falso)` | sin valor | Ordena cualquier lista según una lista paralela de claves |
 
 Los índices de estos métodos deben tener tipo `entero` y estar dentro del rango. Los decimales se rechazan durante el chequeo de tipos. `insertar` y `eliminar` devuelven `falso` sin modificar la lista ante un índice inválido. `obtener` devuelve `.Ninguno`. `contiene` y `buscar_indice` admiten números, cadenas, booleanos y estructuras, que se comparan por identidad; todavía no admiten enums, interfaces, wrappers, listas anidadas ni parámetros de tipo.
+
+`ordenar` y `ordenar_por` ordenan en el mismo almacenamiento y son estables: los elementos iguales conservan su orden. Las cadenas se comparan por punto de código, así que las mayúsculas van antes que las minúsculas. `ordenar_por` recibe una lista de claves `[entero]`, `[decimal]` o `[cadena]` con la misma longitud que la lista (otra longitud es un error de ejecución): el elemento `i` queda donde quedaría `claves[i]`, y las claves no se modifican.
+
+```cometa
+var puntos = [30, 10, 20]
+puntos.ordenar(descendente = verdadero) // [30, 20, 10]
+
+var alturas [decimal] = []
+repetir (sprites) |sprite| alturas.agregar(sprite.y)
+sprites.ordenar_por(alturas) // los de más arriba se dibujan primero
+```
 
 ```cometa
 var valores = [10, 20]

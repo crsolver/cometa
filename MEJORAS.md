@@ -4,6 +4,12 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 
 ## Lenguaje
 
+### Una lista no se puede interpolar en una cadena
+
+- **Observado:** `imprimir("Notas: ${notas}")` falla con «la interpolación requiere cadena, entero, decimal o bool, no [entero]», y `cadena(notas)` tampoco existe. `imprimir(notas)` sí la escribe (`[7, 9, 6]`).
+- **Problema:** para mostrar una lista junto a un texto hay que usar dos `imprimir` o construir la cadena con un bucle; lo mismo ocurre con mapas, estructuras y enums.
+- **Posible solución:** aceptar en la interpolación (y en `cadena(x)`) cualquier valor que `imprimir` sepa escribir, con el mismo formato.
+
 ## Herramientas
 
 ### El manejo de fallos de juegos Ebitengine no está probado de extremo a extremo
@@ -37,12 +43,6 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 - **Observado:** `std/pincel/audio` solo reproduce lo que carga `recursos.sonido` desde un WAV/Ogg/MP3, y `audio.reproducir` no cambia el tono ni la velocidad. Para `experiments/tetris` hubo que escribir un script de Node (`sonidos.js`) que sintetiza doce WAV (pitidos, ruido y la música).
 - **Problema:** `retro` y `lienzo` permiten un juego completo sin recursos, salvo el sonido: el principiante tiene que buscar o fabricar archivos fuera de Cometa. Sin control de tono tampoco se puede variar un efecto (un pitido más agudo por cada fila de un combo) ni acelerar la música con el nivel.
 - **Posible solución:** un sintetizador mínimo, por ejemplo `audio.tono(frecuencia, duracion, onda = .Cuadrada, hasta = frecuencia, volumen = 1) Sonido` y `audio.ruido(duracion)`, que devuelvan un `Sonido` creado en memoria (como `lienzo.nuevo` con las imágenes); y un parámetro `tono decimal = 1` en `audio.reproducir`.
-
-### Las listas no se pueden ordenar
-
-- **Observado:** `[T]` no tiene `ordenar`. En `experiments/ajedrez/motor.cometa` las jugadas se ordenan por puntuación con una selección escrita a mano sobre dos listas paralelas (`movs` y `puntos`), y las piezas capturadas se insertan ya ordenadas con un `mientras`.
-- **Problema:** ordenar una tabla de récords, un inventario o los sprites por su `y` antes de dibujarlos es de lo primero que pide un juego, y obliga a enseñar un algoritmo de ordenación antes de tiempo.
-- **Posible solución:** `lista.ordenar()` para `entero`, `decimal` y `cadena` (con `descendente = falso`), y una forma con clave para estructuras, por ejemplo `lista.ordenar_por(claves [decimal])` mientras no haya funciones como valores.
 
 ### No se puede medir el tiempo real
 

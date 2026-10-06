@@ -8,12 +8,13 @@ import (
 var listMethodOrder = []string{
 	"longitud", "esta_vacia", "contiene", "buscar_indice", "obtener",
 	"primero", "ultimo", "agregar", "extender", "insertar", "eliminar",
-	"copiar", "invertir",
+	"copiar", "invertir", "ordenar", "ordenar_por",
 }
 
 var listMutators = map[string]bool{
 	"agregar": true, "extender": true, "insertar": true,
 	"eliminar": true, "invertir": true,
+	"ordenar": true, "ordenar_por": true,
 }
 
 // ListMethods returns the concrete built-in method signatures for a list type.
@@ -48,6 +49,11 @@ func ListMethods(list Type) map[string]FuncInfo {
 	add("eliminar", []ast.Param{{Name: "indice"}}, []Type{number}, Type{Kind: Boolean})
 	add("copiar", nil, nil, list)
 	add("invertir", nil, nil, Type{Kind: Void})
+	descending := ast.Param{Name: "descendente", Default: &ast.LiteralExpr{Kind: "bool", Value: "falso"}}
+	add("ordenar", []ast.Param{descending}, []Type{{Kind: Boolean}}, Type{Kind: Void})
+	// checkListCall replaces the key type with the one of the argument.
+	keys := Type{Kind: Slice, Elem: &Type{Kind: Decimal}}
+	add("ordenar_por", []ast.Param{{Name: "claves"}, descending}, []Type{keys, {Kind: Boolean}}, Type{Kind: Void})
 	return methods
 }
 
@@ -68,6 +74,8 @@ func ListMethodDocumentation(name string) string {
 		"eliminar":      "Elimina un elemento y actualiza esta variable de lista; devuelve falso si el índice no es válido.",
 		"copiar":        "Devuelve una copia superficial con almacenamiento independiente.",
 		"invertir":      "Invierte los elementos de esta lista en el mismo almacenamiento.",
+		"ordenar":       "Ordena de menor a mayor una lista de entero, decimal o cadena en el mismo almacenamiento; con descendente = verdadero, de mayor a menor.",
+		"ordenar_por":   "Ordena esta lista según una lista de claves (entero, decimal o cadena) de la misma longitud: el elemento i se coloca donde quedaría claves[i]. Los empates conservan su orden y las claves no se modifican.",
 	}[name]
 }
 
@@ -79,6 +87,8 @@ func listElementComparable(t Type) bool {
 		return false
 	}
 }
+
+func sortable(t Type) bool { return t.Kind == Integer || t.Kind == Decimal || t.Kind == String }
 
 func assignableListReceiver(expr ast.Expr) bool {
 	switch expr.(type) {
@@ -100,6 +110,30 @@ func (c *checker) checkListCall(call *ast.CallExpr, member *ast.MemberExpr, list
 	}
 	if (member.Name == "contiene" || member.Name == "buscar_indice") && !listElementComparable(*list.Elem) {
 		return Type{}, c.fail(member.Pos, "el método %q no admite elementos de tipo %s", member.Name, list.Elem.String())
+	}
+	if member.Name == "ordenar" && !sortable(*list.Elem) {
+		return Type{}, c.fail(member.Pos, "el método \"ordenar\" solo admite listas de entero, decimal o cadena, no %s; usa ordenar_por con una lista de claves", list.String())
+	}
+	if member.Name == "ordenar_por" {
+		// The keys may be [entero], [decimal] or [cadena]: take the type of the
+		// argument when it is one of them, so binding checks the rest as usual.
+		for i, arg := range call.Args {
+			named := i < len(call.ArgInfo) && call.ArgInfo[i].Name != ""
+			if named && call.ArgInfo[i].Name != "claves" || !named && i != 0 {
+				continue
+			}
+			if empty, ok := arg.(*ast.ListLiteralExpr); ok && len(empty.Elements) == 0 {
+				continue // `[]` takes the declared key type
+			}
+			keys, err := c.checkExpr(arg)
+			if err != nil {
+				return Type{}, err
+			}
+			if keys.Kind != Slice || !sortable(*keys.Elem) {
+				return Type{}, c.fail(arg.Position(), "las claves de ordenar_por deben ser una lista de entero, decimal o cadena, no %s", keys.String())
+			}
+			signature.Params = []Type{keys, signature.Params[1]}
+		}
 	}
 	result, err := c.bindArguments(call, signature)
 	if err == nil {
