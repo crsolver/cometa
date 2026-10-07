@@ -7,6 +7,7 @@ import (
 )
 
 func TestEmbeddingExample(t *testing.T) {
+	t.Parallel()
 	source, err := os.ReadFile("testdata/programas/embebidos.cometa")
 	if err != nil {
 		t.Fatal(err)
@@ -22,6 +23,7 @@ func TestEmbeddingExample(t *testing.T) {
 }
 
 func TestEmbeddingRuntime(t *testing.T) {
+	t.Parallel()
 	runCometa(t, `interfaz Proveedor<T>
 	fn obtener() T
 tipo Caja<T>
@@ -74,6 +76,7 @@ fn inicio()
 }
 
 func TestEmbeddingDiagnostics(t *testing.T) {
+	t.Parallel()
 	const base = "tipo A\n\tx entero\n\tpub fn f() entero @x\ntipo B\n\tx entero\n\tpub fn f() entero @x\ntipo C\n\tpub A\n\tpub B\n"
 	for _, tc := range []struct{ name, source, want string }{
 		{"read ambiguity", base + "fn g(c C) entero c.x\n", "ambiguo"},
@@ -112,10 +115,12 @@ func TestEmbeddingDiagnostics(t *testing.T) {
 }
 
 func TestUnusedAmbiguousEmbeddingAndExplicitPaths(t *testing.T) {
+	t.Parallel()
 	runCometa(t, "tipo A\n\tx entero\ntipo B\n\tpub A\ntipo C\n\tpub A\ntipo D\n\tpub B\n\tpub C\nfn inicio()\n\tvar d = D {}\n\td.B.x = 9\n\timprimir(d.B.A.x)\n\timprimir(d.C.x)\n", "9\n0\n")
 }
 
 func TestEmbeddingDefaultCallsWithoutFlowLowering(t *testing.T) {
+	t.Parallel()
 	runCometa(t, `tipo Base
 	n entero
 	pub fn leer(v entero = @n) entero v

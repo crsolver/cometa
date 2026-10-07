@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/owenrumney/go-lsp/lsp"
 	"github.com/crsolver/cometa/internal/stdlib"
+	"github.com/owenrumney/go-lsp/lsp"
 )
 
 func TestNoiseTooling(t *testing.T) {

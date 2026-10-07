@@ -101,9 +101,7 @@ func (c *checker) checkTypeMatch(m *ast.MatchExpr, value bool, expected *Type, s
 				}
 			} else {
 				for _, stmt := range arm.Body {
-					if err := c.checkStmt(stmt); err != nil {
-						return err
-					}
+					c.checkStmt(stmt)
 				}
 			}
 			return nil

@@ -3,6 +3,7 @@ package compiler
 import "testing"
 
 func TestMemberAccessOnStructLiteral(t *testing.T) {
+	t.Parallel()
 	source := `tipo Luz
 	nivel entero
 

@@ -6,6 +6,7 @@ import (
 )
 
 func TestAudioSynthesisAPI(t *testing.T) {
+	t.Parallel()
 	source := `usar std/pincel/audio
 
 var salto = audio.tono(330, 0.12, hasta = 660)
@@ -46,6 +47,7 @@ fn sonar(nivel entero)
 // rising zero crossings), level, the anti-click fade and the resampling used
 // by the tono parameter of audio.reproducir. No audio device is opened.
 func TestAudioSynthesisRuntime(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("builds Ebitengine")
 	}

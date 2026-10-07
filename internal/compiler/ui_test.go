@@ -1,25 +1,45 @@
 package compiler
 
 import (
- "os"
- "strings"
- "testing"
+	"os"
+	"strings"
+	"testing"
 )
 
 func TestUIExample(t *testing.T) {
- source,err:=os.ReadFile("testdata/programas/ui.cometa");if err!=nil {t.Fatal(err)}
- generated,err:=Compile("ui.cometa",source);if err!=nil {t.Fatal(err)}
- for _,want:=range []string{"_hguiPintar","_hgContexto",".Entrar()",".Salir()","iVBOR"} {if !strings.Contains(string(generated),want){t.Fatal("missing",want)}}
+	t.Parallel()
+	source, err := os.ReadFile("testdata/programas/ui.cometa")
+	if err != nil {
+		t.Fatal(err)
+	}
+	generated, err := Compile("ui.cometa", source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"_hguiPintar", "_hgContexto", ".Entrar()", ".Salir()", "iVBOR"} {
+		if !strings.Contains(string(generated), want) {
+			t.Fatal("missing", want)
+		}
+	}
 }
 
 func TestUIRendering(t *testing.T) {
- if testing.Short() {t.Skip("desktop rendering")}
- data,err:=os.ReadFile("testdata/programas/ui.cometa");if err!=nil {t.Fatal(err)}
- source:=strings.Replace(string(data),"fn inicio()","fn lanzar()",1)
- generated,err:=Compile("ui.cometa",[]byte(source));if err!=nil {t.Fatal(err)}
- // The capture runtime already imports os and image/png by name; graficos brings goregular.
- code:=string(generated)
- code+=`
+	t.Parallel()
+	if testing.Short() {
+		t.Skip("desktop rendering")
+	}
+	data, err := os.ReadFile("testdata/programas/ui.cometa")
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := strings.Replace(string(data), "fn inicio()", "fn lanzar()", 1)
+	generated, err := Compile("ui.cometa", []byte(source))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The capture runtime already imports os and image/png by name; graficos brings goregular.
+	code := string(generated)
+	code += `
 type uiCheck struct{}
 func (*uiCheck) Layout(w,h int)(int,int){return 320,180}
 func (*uiCheck) Draw(screen *ebiten.Image){}
@@ -50,5 +70,5 @@ func (*uiCheck) Update() error {
 }
 func main(){ebiten.SetWindowVisible(false);ebiten.SetRunnableOnUnfocused(true);if err:=ebiten.RunGame(&uiCheck{});err!=nil{panic(err)}}
 `
- runGeneratedGo(t,[]byte(code),"ok\n")
+	runGeneratedGo(t, []byte(code), "ok\n")
 }

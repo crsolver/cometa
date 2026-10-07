@@ -1,10 +1,10 @@
 package codegen
 
 import (
+	"fmt"
 	"github.com/crsolver/cometa/internal/ast"
 	"github.com/crsolver/cometa/internal/sema"
 	"github.com/crsolver/cometa/internal/stdlib"
-	"fmt"
 	"strings"
 )
 
@@ -353,13 +353,7 @@ func (g *generator) flowRaw(e ast.Expr, t sema.Type, indent int) string {
 		}
 		return "_self." + g.fieldName(sema.Type{Kind: sema.Named, Name: g.receiver}, v.Name)
 	case *ast.LiteralExpr:
-		if v.Kind == "bool" {
-			if v.Value == "verdadero" {
-				return "true"
-			}
-			return "false"
-		}
-		return v.Value
+		return literal(v)
 	case *ast.InterpolatedStringExpr:
 		return g.interpolated(v, func(e ast.Expr) string { return g.flowExpr(e, indent) })
 	case *ast.MemberExpr:
@@ -533,14 +527,11 @@ func (g *generator) flowCall(call *ast.CallExpr, indent int) string {
 	callee := ""
 	switch v := call.Callee.(type) {
 	case *ast.InstantiateExpr:
-		callee = exported(v.Name)
+		callee = g.funcName(v.Name)
 	case *ast.IdentExpr:
-		callee = exported(v.Name)
+		callee = g.funcName(v.Name)
 		if v.Name == "imprimir" {
 			callee = "_hsimprimir"
-		}
-		if v.Name == "inicio" {
-			callee = "main"
 		}
 	case *ast.ReceiverExpr:
 		callee = "_self." + exported(v.Name)
@@ -902,14 +893,7 @@ func (g *generator) defaultFields(t sema.Type, supplied []ast.FieldValue, indent
 		}
 		ft := info.Fields[field.Name].Type
 		if field.Default != nil {
-			value := ""
-			if g.flow {
-				value = g.flowExpr(field.Default, indent)
-			}
-			if value == "" {
-				value = g.expr(field.Default)
-			}
-			fields = append(fields, g.fieldName(t, field.Name)+": "+value)
+			fields = append(fields, g.fieldName(t, field.Name)+": "+g.flowExpr(field.Default, indent))
 		} else if ft.Kind == sema.Map {
 			fields = append(fields, g.fieldName(t, field.Name)+": make("+goType(ft)+")")
 		} else if ft.Kind == sema.Named {
@@ -976,10 +960,6 @@ func (g *generator) flowLoop(s *ast.RepeatStmt, indent int) {
 				g.line(indent+1, "%s := int64(%s)", localName(s.Index), index)
 			}
 		}
-	}
-	if s.Element != "" {
-	}
-	if s.Index != "" {
 	}
 	g.flowBlock(s.Body, indent+1, "")
 	g.line(indent, "}")

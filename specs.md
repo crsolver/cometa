@@ -123,6 +123,10 @@ fn inicio()
 - Un campo con valor predeterminado queda exento de la regla de inicialización obligatoria, incluyendo la de los ciclos de campos requeridos: un tipo autorreferencial que sería rechazado como ciclo sin valor predeterminado se acepta si el campo que cierra el ciclo lo tiene, aunque construir una instancia sin una anulación explícita que termine la recursión sigue siendo responsabilidad de quien llama.
 - Los campos embebidos no admiten valores predeterminados. Los campos declarados directamente como un parámetro de tipo `T` siguen requiriendo inicialización explícita en cada instanciación.
 
+## Nombres
+
+Los nombres distinguen mayúsculas de minúsculas: `punto` y `Punto` son nombres distintos, así que una función `punto` puede convivir con un tipo `Punto`. La excepción son los nombres que solo se diferencian en la mayúscula de la primera letra dentro del mismo grupo, que se rechazan con un error: dos tipos (`caja` y `Caja`, incluidos enums e interfaces) o dos miembros del mismo tipo (un campo `valor` y un método `Valor`).
+
 ## Tipos
 
 | Cometa | Go |
@@ -160,7 +164,7 @@ La promoción a `decimal` usa redondeo IEEE-754: por encima de `2^53` algunos en
 
 ### Cadenas
 
-`+` concatena dos valores `cadena`; no convierte otros tipos automáticamente. Una cadena puede incluir expresiones con `${expresión}`. La interpolación acepta cualquier valor, evalúa cada expresión una sola vez de izquierda a derecha y representa booleanos como `verdadero` o `falso`. Las listas, mapas, estructuras, enums, opcionales y resultados se escriben igual que con `imprimir`: `"Notas: ${notas}"` produce `Notas: [7, 9, 6]`, y `cadena(valor)` hace lo mismo. Solo se rechaza una expresión que no produce ningún valor. `\${` escribe los caracteres `${` literalmente. Las cadenas interpoladas son expresiones de ejecución y no se admiten en `const`.
+`+` concatena dos valores `cadena`; no convierte otros tipos automáticamente. Una cadena puede incluir expresiones con `${expresión}`. La expresión puede llevar espacios alrededor: `"${ nombre }"`. La interpolación acepta cualquier valor, evalúa cada expresión una sola vez de izquierda a derecha y representa booleanos como `verdadero` o `falso`. Las listas, mapas, estructuras, enums, opcionales y resultados se escriben igual que con `imprimir`: `"Notas: ${notas}"` produce `Notas: [7, 9, 6]`, y `cadena(valor)` hace lo mismo. Solo se rechaza una expresión que no produce ningún valor. `\${` escribe los caracteres `${` literalmente. Las cadenas interpoladas son expresiones de ejecución y no se admiten en `const`.
 
 ```cometa
 var nombre = "Ana"

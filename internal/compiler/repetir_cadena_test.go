@@ -6,6 +6,7 @@ import (
 )
 
 func TestRepeatOverString(t *testing.T) {
+	t.Parallel()
 	source := `fn vocales(texto cadena) entero
 	var total = 0
 	repetir (texto) |letra|

@@ -118,15 +118,3 @@ func copyTree(src, dst string) error {
 		return out.Close()
 	})
 }
-
-// useBundledGo makes the toolchain bundled with cometa the one Go's type
-// importer (used to validate generated code) finds, even when no Go is on PATH.
-func useBundledGo() {
-	b := findBundle()
-	if b == nil || os.Getenv("COMETA_GO") != "" {
-		return
-	}
-	os.Setenv("GOROOT", filepath.Join(b.root, "go"))
-	os.Setenv("GOTOOLCHAIN", "local")
-	os.Setenv("PATH", filepath.Dir(b.goEx)+string(os.PathListSeparator)+os.Getenv("PATH"))
-}

@@ -1,10 +1,10 @@
 package lspserver
 
 import (
-	"github.com/owenrumney/go-lsp/lsp"
 	"github.com/crsolver/cometa/internal/ast"
 	"github.com/crsolver/cometa/internal/sema"
 	"github.com/crsolver/cometa/internal/stdlib"
+	"github.com/owenrumney/go-lsp/lsp"
 	"sort"
 	"strings"
 )
@@ -319,16 +319,4 @@ func resolvedMemberItems(model *sema.Model, t sema.Type, positions ...ast.Pos) *
 		items = append(items, lsp.CompletionItem{Label: label, Kind: &kind, Documentation: completionDocumentation(detail, ""), InsertText: name})
 	}
 	return &lsp.CompletionList{Items: items}
-}
-
-func genericEnumCompletion(filename string, lines []string, line int, prefix string, dot int) *lsp.CompletionList {
-	model := completionModel(filename, lines, line, closeCompletionDelimiters(prefix[:dot+1]+"__cometa_generic_probe__"))
-	if model != nil {
-		for expr, t := range model.ExprTypes {
-			if _, ok := expr.(*ast.InstantiateExpr); ok && expr.Position().Line == line+1 && t.Kind == sema.Enum {
-				return enumCompletionItems(model.EnumFor(t))
-			}
-		}
-	}
-	return &lsp.CompletionList{}
 }

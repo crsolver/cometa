@@ -7,6 +7,7 @@ import (
 )
 
 func TestCurvesNumericsWithoutGame(t *testing.T) {
+	t.Parallel()
 	generated, err := Compile("curvas.cometa", []byte("usar std/mate/curvas\n"))
 	if err != nil {
 		t.Fatal(err)
@@ -70,6 +71,7 @@ func main() {
 }
 
 func TestCurvesImportsAndCalls(t *testing.T) {
+	t.Parallel()
 	runCometa(t, "usar std/mate/curvas\nfn inicio()\n\timprimir(curvas.cubica_entrada(progreso = 0.5))\n\timprimir(curvas.lineal(2))\n", "0.125\n1\n")
 	runCometa(t, "usar std/mate/curvas como c\nfn inicio() imprimir(c.cuadratica_salida(0.5))\n", "0.75\n")
 	for _, source := range []string{
@@ -101,6 +103,7 @@ func TestCurvesImportsAndCalls(t *testing.T) {
 }
 
 func TestCurvesExample(t *testing.T) {
+	t.Parallel()
 	source, err := os.ReadFile("testdata/programas/curvas.cometa")
 	if err != nil {
 		t.Fatal(err)

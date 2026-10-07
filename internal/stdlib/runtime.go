@@ -80,7 +80,10 @@ func RuntimeFor(modules []string, called map[string]bool) (string, []string, err
 	fs := token.NewFileSet()
 	source := runtimeSource + "\n" + extraRuntimeSource + "\n" + lienzoRuntimeSource + "\n" + crtRuntimeSource + "\n" + curvasRuntimeSource + "\n" + ruidoRuntimeSource + "\n" + pruebasRuntimeSource + "\n" + consolaRuntimeSource
 	for _, module := range modules {
-		if module == "std/pincel/ui" { source += "\n" + uiCoreSource + "\n" + uiRuntimeSource; break }
+		if module == "std/pincel/ui" {
+			source += "\n" + uiCoreSource + "\n" + uiRuntimeSource
+			break
+		}
 	}
 	for _, module := range modules {
 		if module == "std/pincel/retro" || module == "std/pincel/ui" {

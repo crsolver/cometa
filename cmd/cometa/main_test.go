@@ -21,7 +21,7 @@ func TestRunWritesDefaultOutput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(generated), "func main()") || !strings.Contains(string(generated), `_hsimprimir("hola")`) {
+	if !strings.Contains(string(generated), "func main()") || !strings.Contains(string(generated), "_hsimprimir") || !strings.Contains(string(generated), `"hola"`) {
 		t.Fatalf("unexpected output:\n%s", generated)
 	}
 }

@@ -25,7 +25,7 @@ func TestUnusedLocals(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := validate("unused", got); err != nil {
+			if err := Validate("unused", got); err != nil {
 				t.Fatalf("%v\n%s", err, got)
 			}
 			if !strings.Contains(string(got), tt.want) || strings.Contains(string(got), tt.absent) {

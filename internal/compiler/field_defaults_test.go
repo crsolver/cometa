@@ -6,6 +6,7 @@ import (
 )
 
 func TestFieldDefaultsRuntime(t *testing.T) {
+	t.Parallel()
 	runCometa(t, `tipo Mascota
 	nombre cadena
 	energia entero = 10
@@ -26,6 +27,7 @@ fn inicio()
 }
 
 func TestFieldDefaultFreshPerLiteral(t *testing.T) {
+	t.Parallel()
 	runCometa(t, `tipo Caja
 	valores [entero] = [1]
 fn inicio()
@@ -37,10 +39,10 @@ fn inicio()
 `, "2\n1\n")
 }
 
-func TestFieldDefaultUnderFlowCodegen(t *testing.T) {
-	// Generic type params on any declaration force flow-mode codegen for the
-	// whole file (see model.HasScopes / TypeParams checks in codegen.go), so
-	// this also exercises defaultFields' flow-aware branch for Caja's field.
+// A field default that needs statements of its own (a conditional) next to a
+// generic type.
+func TestFieldDefaultWithControlFlow(t *testing.T) {
+	t.Parallel()
 	runCometa(t, `tipo Generico<T>
 	valor T
 tipo Caja
@@ -56,6 +58,7 @@ fn inicio()
 }
 
 func TestFieldDefaultBreaksRequiredCycle(t *testing.T) {
+	t.Parallel()
 	// Without a default, a required self-referential field is rejected as a cycle
 	// (see "cycle and independent" in diagnostics_test.go). A supplied default
 	// breaks that static cycle check; actually constructing an instance without
@@ -74,6 +77,7 @@ fn inicio()
 }
 
 func TestInvalidFieldDefaults(t *testing.T) {
+	t.Parallel()
 	cases := []struct{ source, message string }{
 		{"tipo T\n\tcampo entero = campo\nfn inicio()\n\tT {}\n", "no existe"},
 		{"tipo T\n\ta entero\n\tb entero = a\nfn inicio()\n\tT {a: 1}\n", "no existe"},

@@ -6,6 +6,7 @@ import (
 )
 
 func TestMapsRuntime(t *testing.T) {
+	t.Parallel()
 	runCometa(t, `var global = ["g": 7]
 tipo Nodo
 	hijos [cadena: Nodo]
@@ -57,6 +58,7 @@ fn inicio()
 }
 
 func TestMapsNestedAndContextualRuntime(t *testing.T) {
+	t.Parallel()
 	runCometa(t, `tipo Objeto
 	n entero
 enum E
@@ -87,6 +89,7 @@ fn inicio()
 }
 
 func TestMapsEvaluationOrderAndPropagation(t *testing.T) {
+	t.Parallel()
 	runCometa(t, `var m [cadena: entero] = [:]
 fn receptor() [cadena: entero]
 	imprimir("receptor")
@@ -119,6 +122,7 @@ fn inicio()
 }
 
 func TestMapDiagnostics(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct{ source, want string }{
 		{"var m = [:]", "mapa vacío"},
 		{"var m = [1.0: 2]", "clave de mapa"},
@@ -143,6 +147,7 @@ func TestMapDiagnostics(t *testing.T) {
 }
 
 func TestMapsExplicitExitsAndLazyLookup(t *testing.T) {
+	t.Parallel()
 	runCometa(t, `fn literal() entero
 	var m = ["a": retornar 7]
 	9
@@ -168,6 +173,7 @@ fn inicio()
 }
 
 func TestMapsProjectTypesAndVisibility(t *testing.T) {
+	t.Parallel()
 	entry, loader := memoryProject(t, map[string]string{
 		"main.cometa": `usar modelos como m
 fn primero<T>(mapa [cadena: T]) T? mapa["a"]
@@ -199,6 +205,7 @@ pub fn crear() [cadena: Oculto] ["x": {}]
 }
 
 func TestMapInterfaceValues(t *testing.T) {
+	t.Parallel()
 	runCometa(t, `interfaz Cualquiera
 fn inicio()
 	var valores [cadena: Cualquiera] = ["a": 1, "b": "dos"]
@@ -215,6 +222,7 @@ fn inicio()
 }
 
 func TestMapsIterationAndFreshDefaults(t *testing.T) {
+	t.Parallel()
 	runCometa(t, `tipo Contenedor
 	mapa [entero: entero]
 fn nuevo(m [cadena: entero] = [:]) entero

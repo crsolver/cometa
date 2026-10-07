@@ -6,6 +6,7 @@ import (
 )
 
 func TestEnumEqualityWithUnitVariants(t *testing.T) {
+	t.Parallel()
 	source := `enum Estado
 	Menu
 	Jugando
@@ -50,6 +51,7 @@ fn inicio()
 }
 
 func TestEnumEqualityErrors(t *testing.T) {
+	t.Parallel()
 	cases := []struct{ name, source, want string }{
 		{"two values", "enum E\n\tA\n\tB\nfn inicio()\n\tvar x = E.A\n\tvar y = E.B\n\timprimir(x == y)\n", "solo se comparan con una variante sin payload"},
 		{"payload variant", "enum E\n\tA\n\tB cadena\nfn inicio()\n\tvar x = E.A\n\timprimir(x == .B)\n", "requiere un payload"},

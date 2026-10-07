@@ -6,6 +6,7 @@ import (
 )
 
 func TestGlobalVariablesAndConstantsRuntime(t *testing.T) {
+	t.Parallel()
 	source := `const base = 2
 const limite entero = base + 3
 var siguiente = limite
@@ -25,7 +26,7 @@ fn inicio()
 		"const Base int64 = 2",
 		"const Limite int64 = (Base + 3)",
 		"var Siguiente int64 = func() int64",
-		"Contador = (Contador + 1)",
+		":= &(Contador)\n",
 	} {
 		if !strings.Contains(goSource, expected) {
 			t.Errorf("generated Go does not contain %q:\n%s", expected, goSource)
@@ -35,6 +36,7 @@ fn inicio()
 }
 
 func TestGlobalCompositeValuesAndFunctionCalls(t *testing.T) {
+	t.Parallel()
 	source := `tipo Usuario
 	nombre cadena
 fn crear() Usuario Usuario {nombre: "Ana"}
@@ -54,6 +56,7 @@ fn inicio()
 }
 
 func TestGlobalDiagnostics(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		source string
@@ -79,6 +82,7 @@ func TestGlobalDiagnostics(t *testing.T) {
 }
 
 func TestImportedGlobalsArePublic(t *testing.T) {
+	t.Parallel()
 	entry, loader := memoryProject(t, map[string]string{
 		"main.cometa":   "usar config como c\nconst doble = c.limite * 2\nvar copia = doble\nfn inicio()\n\tc.contador = c.contador + copia\n\timprimir(c.contador)\n",
 		"config.cometa": "pub const limite = 4\npub var contador = 1\n",
@@ -91,6 +95,7 @@ func TestImportedGlobalsArePublic(t *testing.T) {
 }
 
 func TestLocalVariableShadowsGlobal(t *testing.T) {
+	t.Parallel()
 	source := "var valor = 1\nfn inicio()\n\tvar valor = 2\n\timprimir(valor)\n"
 	generated, err := Compile("sombra_global.cometa", []byte(source))
 	if err != nil {

@@ -3,6 +3,7 @@ package compiler
 import "testing"
 
 func TestMultilineListLiterals(t *testing.T) {
+	t.Parallel()
 	want, err := Compile("lista.cometa", []byte("var lista = [\"hola\"]\nfn inicio()\n\timprimir(lista[0])\n"))
 	if err != nil {
 		t.Fatal(err)
@@ -26,10 +27,12 @@ func TestMultilineListLiterals(t *testing.T) {
 }
 
 func TestNestedMultilineListsRuntime(t *testing.T) {
+	t.Parallel()
 	runCometa(t, "fn inicio()\n\tvar listas = [\n\t\t[\n\t\t\t\"hola\",\n\t\t\t\"mundo\",\n\t\t],\n\t\t[\"otra\"],\n\t]\n\tvar vacia [cadena] = [\n\t]\n\timprimir(listas[0][1])\n\timprimir(listas[1][0])\n\timprimir(vacia.longitud())\n", "mundo\notra\n0\n")
 }
 
 func TestInvalidMultilineLists(t *testing.T) {
+	t.Parallel()
 	for _, literal := range []string{
 		"[\n\t1\n\t2\n]",
 		"[\n\t1,\n",

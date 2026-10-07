@@ -8,12 +8,14 @@ import (
 )
 
 func TestPlatformerExampleCompiles(t *testing.T) {
+	t.Parallel()
 	if _, err := CompileProject(filepath.Join("testdata", "programas", "plataformas.cometa"), nil); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestPlatformerSimulation(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join("testdata", "programas", "plataformas", "mundo.cometa")
 	source, err := os.ReadFile(path)
 	if err != nil {
@@ -127,6 +129,7 @@ func main() {
 // partially visible tile row at vertical room boundaries. Optional captures
 // are useful when adjusting the example's palette and sprites.
 func TestPlatformerRenderingRuntime(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("desktop rendering")
 	}

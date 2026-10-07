@@ -160,9 +160,9 @@ var FunctionDocs = map[string]string{
 	"azar.entero": "Un entero aleatorio uniforme en [minimo, maximo): incluye minimo y excluye maximo, como los rangos a..b. Para un dado usa azar.entero(1, 7). Si minimo == maximo devuelve minimo.",
 
 	// color
-	"color.rgba": "Construye un Color a partir de sus componentes rojo, verde, azul y alfa (0-255 cada uno; alfa por defecto totalmente opaco).",
-	"color.mezclar": "Mezcla dos colores canal por canal: con `t` = 0 devuelve `a`, con 1 devuelve `b` y con 0.5 el punto medio (`t` se limita a [0, 1]). Sirve para desvanecimientos y degradados.",
-	"color.a_entero": "El color como un entero `0xRRGGBB` (sin alfa), el formato de la rejilla de colores de rejilla.dibujar y de los mapas del editor. Ejemplo: colores.poner(x, y, color.a_entero(.Rojo))",
+	"color.rgba":         "Construye un Color a partir de sus componentes rojo, verde, azul y alfa (0-255 cada uno; alfa por defecto totalmente opaco).",
+	"color.mezclar":      "Mezcla dos colores canal por canal: con `t` = 0 devuelve `a`, con 1 devuelve `b` y con 0.5 el punto medio (`t` se limita a [0, 1]). Sirve para desvanecimientos y degradados.",
+	"color.a_entero":     "El color como un entero `0xRRGGBB` (sin alfa), el formato de la rejilla de colores de rejilla.dibujar y de los mapas del editor. Ejemplo: colores.poner(x, y, color.a_entero(.Rojo))",
 	"color.desde_entero": "Construye un color opaco a partir de un entero `0xRRGGBB`, como los que guarda la rejilla de colores de un mapa.",
 
 	// graficos
@@ -210,8 +210,8 @@ var FunctionDocs = map[string]string{
 	"audio.reanudar":   "Continúa una reproducción previamente pausada.",
 	"audio.detener":    "Detiene la reproducción por completo (a diferencia de pausar, no puede reanudarse desde donde iba).",
 	"audio.volumen":    "Cambia el volumen de una reproducción ya iniciada (0 = silencio, 1 = volumen original).",
-	"audio.tono": "Crea un sonido en memoria, sin archivos: un tono de `frecuencia` hercios (440 es un la) que dura `duracion` segundos (hasta 30). `onda` cambia el timbre (.Cuadrada suena a consola antigua); con `hasta` mayor que 0 la frecuencia se desliza hasta ese valor (un salto sube, un láser baja). Guárdalo en una variable global y reprodúcelo con audio.reproducir.",
-	"audio.ruido": "Crea un sonido de ruido blanco de `duracion` segundos (hasta 30), sin archivos: sirve para explosiones, pasos o golpes. Siempre genera el mismo ruido.",
+	"audio.tono":       "Crea un sonido en memoria, sin archivos: un tono de `frecuencia` hercios (440 es un la) que dura `duracion` segundos (hasta 30). `onda` cambia el timbre (.Cuadrada suena a consola antigua); con `hasta` mayor que 0 la frecuencia se desliza hasta ese valor (un salto sube, un láser baja). Guárdalo en una variable global y reprodúcelo con audio.reproducir.",
+	"audio.ruido":      "Crea un sonido de ruido blanco de `duracion` segundos (hasta 30), sin archivos: sirve para explosiones, pasos o golpes. Siempre genera el mismo ruido.",
 
 	// ventana
 	"ventana.titulo":               "Cambia el texto de la barra de título de la ventana.",
@@ -316,7 +316,7 @@ var MethodDocs = map[string]string{
 	"Camara2D.limitada":      "Una copia de la cámara movida lo justo para no mostrar nada fuera de `mundo` (el rectángulo del nivel); si el mundo es más pequeño que la pantalla, lo centra. Ignora la rotación.",
 	"Camara2D.sacudida":      "Una copia de la cámara desplazada al azar hasta `intensidad` píxeles en cada eje. Aplícala solo al dibujar y ve bajando la intensidad para un temblor que se apaga.",
 	"Camara2D.visible":       "El rectángulo del mundo que se ve en pantalla con esta cámara; útil para no dibujar lo que queda fuera.",
-	"Color.con_alfa": "Devuelve el mismo color con otra opacidad: 0 es transparente y 255 opaco. El color original no cambia.",
+	"Color.con_alfa":         "Devuelve el mismo color con otra opacidad: 0 es transparente y 255 opaco. El color original no cambia.",
 	"Temporizador.avanzar":   "Suma `dt` segundos y devuelve `verdadero` en el paso en que el temporizador llega a su duración. Llámalo una vez por cuadro en actualizar.",
 	"Temporizador.terminado": "Indica si un temporizador sin repetición ya llegó a su duración (un temporizador que se repite nunca queda terminado).",
 	"Temporizador.terminar":  "Lo da por terminado ya, por ejemplo para que un enfriamiento empiece listo.",
@@ -328,7 +328,7 @@ var MethodDocs = map[string]string{
 	"Recorte.salir":          "Restaura el recorte (o la pantalla completa) que había antes; se usa automáticamente al cerrar el bloque `con`.",
 	"Destino.entrar":         "Empieza a pintar en la imagen; se usa automáticamente al abrir un bloque `con` sobre él.",
 	"Destino.salir":          "Vuelve a pintar donde se pintaba antes, con su cámara y su recorte; se usa automáticamente al cerrar el bloque `con`.",
-	"AmbitoUI.entrar":       "Entra al ámbito de este contenedor; se usa automáticamente al abrir un bloque `con` sobre él.",
+	"AmbitoUI.entrar":        "Entra al ámbito de este contenedor; se usa automáticamente al abrir un bloque `con` sobre él.",
 	"AmbitoUI.salir":         "Sale del ámbito de este contenedor; se usa automáticamente al cerrar el bloque `con`.",
 }
 

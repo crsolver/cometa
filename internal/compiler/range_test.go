@@ -3,6 +3,7 @@ package compiler
 import "testing"
 
 func TestRangeRuntime(t *testing.T) {
+	t.Parallel()
 	runCometa(t, `enum E
 	A
 tipo Contador
@@ -40,6 +41,7 @@ fn inicio()
 }
 
 func TestRangesAreOnlyLoopSyntax(t *testing.T) {
+	t.Parallel()
 	for _, body := range []string{
 		"var rango = 0..5", "imprimir(0..5)", "var lista = [0..5]",
 		"repetir (..5) |i| imprimir(i)", "repetir (0..) |i| imprimir(i)",
@@ -54,6 +56,7 @@ func TestRangesAreOnlyLoopSyntax(t *testing.T) {
 }
 
 func TestRangeLoopWithoutVariablesCompiles(t *testing.T) {
+	t.Parallel()
 	for _, body := range []string{
 		"repetir (0..3) imprimir(0)",
 		"repetir (3..0)\n\t\timprimir(0)",

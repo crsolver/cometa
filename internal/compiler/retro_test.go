@@ -8,6 +8,7 @@ import (
 )
 
 func TestRetroAPI(t *testing.T) {
+	t.Parallel()
 	source := "usar std/pincel/retro como r\nfn pintar()\n\tr.texto(\"¡Niño!\", 0, 0)\n\tr.icono(.Corazon, color = .Rojo, y = 8, x = 0)\n\tr.glifo(255, 8, 8, atlas = .ASCII)\n"
 	got, err := Compile("retro.cometa", []byte(source))
 	if err != nil {
@@ -48,6 +49,7 @@ func TestRetroAPI(t *testing.T) {
 }
 
 func TestRetroRenderingRuntime(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("desktop rendering")
 	}

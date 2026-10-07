@@ -8,6 +8,7 @@ import (
 // Run builds carry //line directives so Go panics and build errors point at
 // Cometa lines; plain compilation must stay free of them.
 func TestLineDirectivesOnlyForRun(t *testing.T) {
+	t.Parallel()
 	entry, loader := memoryProject(t, map[string]string{
 		// The interpolation forces the multi-line lowering used by games.
 		"main.cometa": "fn inicio()\n\tvar lista = [1, 2, 3]\n\tvar x = lista[5]\n\timprimir(\"${x}\")\n",
@@ -36,6 +37,7 @@ func TestLineDirectivesOnlyForRun(t *testing.T) {
 // A panic trace has no columns, so indexes and divisions carry theirs in the
 // file name of an inline directive and hand the position back afterwards.
 func TestLineDirectivesCarryColumns(t *testing.T) {
+	t.Parallel()
 	entry, loader := memoryProject(t, map[string]string{
 		"main.cometa": "fn inicio()\n\tvar lista = [1, 2, 3]\n\tvar cero = 0\n\tlista[0] = lista[1] / cero + lista[2] % 2\n\timprimir(lista)\n",
 	})
@@ -52,9 +54,9 @@ func TestLineDirectivesCarryColumns(t *testing.T) {
 	if strings.ContainsAny(code, "\x00\x01") {
 		t.Error("quedaron marcas de posición sin resolver")
 	}
-	// The division restores the position of the statement after itself, and
-	// the index inside it hands the position back to the division.
-	if !strings.Contains(code, "main.cometa:4*/") || strings.Count(code, "main.cometa#22:4*/") < 2 {
+	// Each of the five marked expressions hands the position back to its
+	// statement afterwards.
+	if strings.Count(code, "main.cometa:4*/") != 5 {
 		t.Errorf("las directivas no devuelven la posición\n%s", code)
 	}
 	plain, err := CompileProject(entry, loader)

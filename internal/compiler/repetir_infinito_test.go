@@ -6,6 +6,7 @@ import (
 )
 
 func TestInfiniteRepeatEndsFunction(t *testing.T) {
+	t.Parallel()
 	source := `fn primer_multiplo(numero entero, desde entero) entero
 	var candidato = desde
 	repetir

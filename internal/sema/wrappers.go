@@ -3,7 +3,6 @@ package sema
 import (
 	"github.com/crsolver/cometa/internal/ast"
 	"github.com/crsolver/cometa/internal/stdlib"
-	"reflect"
 )
 
 func (t Type) Wrapped() bool { return t.Kind == Optional || t.Kind == Result }
@@ -122,9 +121,7 @@ func (c *checker) checkRecovery(e *ast.RecoverExpr) (Type, error) {
 	}
 	if t.Elem.Kind == Void {
 		for _, stmt := range e.Body {
-			if err := c.checkStmt(stmt); err != nil {
-				return Type{}, err
-			}
+			c.checkStmt(stmt)
 		}
 	} else {
 		actual, err := c.checkValueBlock(e.Body, t.Elem)
@@ -194,42 +191,25 @@ func (m *Model) Terminates(stmt ast.Stmt) bool {
 	case *ast.RepeatStmt:
 		// Un repetir infinito sin romper solo se abandona con retornar, como
 		// `for {}` en Go: nada de lo que sigue llega a ejecutarse.
-		return s.Iterable == nil && !breaksLoop(reflect.ValueOf(s.Body))
+		return s.Iterable == nil && !breaksLoop(s.Body)
 	}
 	return false
 }
 
 // breaksLoop reports whether the body holds a romper for its own loop; nested
 // loops keep theirs.
-func breaksLoop(v reflect.Value) bool {
-	switch v.Kind() {
-	case reflect.Interface, reflect.Pointer:
-		if v.IsNil() {
+func breaksLoop(body []ast.Stmt) bool {
+	found := false
+	ast.Inspect(body, func(node any) bool {
+		switch node.(type) {
+		case *ast.BreakStmt:
+			found = true
+		case *ast.RepeatStmt:
 			return false
 		}
-		if v.CanInterface() {
-			switch v.Interface().(type) {
-			case *ast.BreakStmt:
-				return true
-			case *ast.RepeatStmt:
-				return false
-			}
-		}
-		return breaksLoop(v.Elem())
-	case reflect.Struct:
-		for i := 0; i < v.NumField(); i++ {
-			if breaksLoop(v.Field(i)) {
-				return true
-			}
-		}
-	case reflect.Slice:
-		for i := 0; i < v.Len(); i++ {
-			if breaksLoop(v.Index(i)) {
-				return true
-			}
-		}
-	}
-	return false
+		return !found
+	})
+	return found
 }
 
 // A terminating operand prevents evaluation of the rest of an eager expression.

@@ -166,41 +166,41 @@ func (c *checker) checkMatch(m *ast.MatchExpr, value bool, expected *Type) (Type
 				}
 				c.vars = cloneVars(outer)
 			} else {
-			c.model.PatternTypes[arm] = t
-			if arm.TypePattern != nil {
-				return c.fail(arm.Pos, "las variantes de casos requieren Enum.Variante o .Variante")
-			}
-			if arm.QualifierType != nil {
-				q, err := c.resolveType(*arm.QualifierType)
-				if err != nil {
-					return err
+				c.model.PatternTypes[arm] = t
+				if arm.TypePattern != nil {
+					return c.fail(arm.Pos, "las variantes de casos requieren Enum.Variante o .Variante")
 				}
-				if !q.Equal(t) {
-					return c.fail(arm.Pos, "el patrón debe pertenecer a %s", t.String())
+				if arm.QualifierType != nil {
+					q, err := c.resolveType(*arm.QualifierType)
+					if err != nil {
+						return err
+					}
+					if !q.Equal(t) {
+						return c.fail(arm.Pos, "el patrón debe pertenecer a %s", t.String())
+					}
 				}
-			}
-			if arm.Qualifier != "" && arm.Qualifier != t.Name {
-				return c.fail(arm.QualifierPos, "el patrón debe pertenecer a %s, no %s", t.Name, arm.Qualifier)
-			}
-			if wildcard {
-				return c.fail(arm.Pos, "no se permiten ramas después de '_'")
-			}
-			if seen[arm.Pattern] {
-				return c.fail(arm.Pos, "la variante %q está duplicada en casos", arm.Pattern)
-			}
-			seen[arm.Pattern] = true
-			c.vars = cloneVars(outer)
-			if arm.Pattern == "_" {
-				wildcard = true
-			} else {
-				variant, exists := info.Variants[arm.Pattern]
-				if !exists {
-					return c.fail(arm.Pos, "la variante %q no existe en %s%s", arm.Pattern, t.Name, diagnostic.Hint(arm.Pattern, sortedKeys(info.Variants)))
+				if arm.Qualifier != "" && arm.Qualifier != t.Name {
+					return c.fail(arm.QualifierPos, "el patrón debe pertenecer a %s, no %s", t.Name, arm.Qualifier)
 				}
-				if m.Binding != "" && variant.Payload.Kind != Void {
-					c.vars[m.Binding] = variant.Payload
+				if wildcard {
+					return c.fail(arm.Pos, "no se permiten ramas después de '_'")
 				}
-			}
+				if seen[arm.Pattern] {
+					return c.fail(arm.Pos, "la variante %q está duplicada en casos", arm.Pattern)
+				}
+				seen[arm.Pattern] = true
+				c.vars = cloneVars(outer)
+				if arm.Pattern == "_" {
+					wildcard = true
+				} else {
+					variant, exists := info.Variants[arm.Pattern]
+					if !exists {
+						return c.fail(arm.Pos, "la variante %q no existe en %s%s", arm.Pattern, t.Name, diagnostic.Hint(arm.Pattern, sortedKeys(info.Variants)))
+					}
+					if m.Binding != "" && variant.Payload.Kind != Void {
+						c.vars[m.Binding] = variant.Payload
+					}
+				}
 			}
 			if value {
 				branchExpected := expected
@@ -227,9 +227,7 @@ func (c *checker) checkMatch(m *ast.MatchExpr, value bool, expected *Type) (Type
 				}
 			} else {
 				for _, stmt := range arm.Body {
-					if err := c.checkStmt(stmt); err != nil {
-						return err
-					}
+					c.checkStmt(stmt)
 				}
 			}
 			return nil
@@ -272,9 +270,7 @@ func (c *checker) checkValueBlock(body []ast.Stmt, expected *Type) (Type, error)
 	defer func() { c.vars = outer }()
 	for index, stmt := range body {
 		if index < len(body)-1 {
-			if err := c.checkStmt(stmt); err != nil {
-				return Type{}, err
-			}
+			c.checkStmt(stmt)
 			if c.model.Terminates(stmt) {
 				return Type{Kind: Never}, nil
 			}
@@ -359,10 +355,10 @@ func (c *checker) checkValueBlock(body []ast.Stmt, expected *Type) (Type, error)
 			}
 			return common, nil
 		default:
-			if err := c.checkStmt(stmt); err != nil {
-				return Type{}, err
+			c.checkStmt(stmt)
+			if c.model.Terminates(stmt) {
+				return Type{Kind: Never}, nil
 			}
-			if c.model.Terminates(stmt) { return Type{Kind: Never}, nil }
 		}
 		if c.damaged != before {
 			return Type{}, errInvalid

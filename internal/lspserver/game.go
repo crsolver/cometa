@@ -1,17 +1,13 @@
 package lspserver
 
 import (
-	"github.com/owenrumney/go-lsp/lsp"
 	"github.com/crsolver/cometa/internal/ast"
 	"github.com/crsolver/cometa/internal/sema"
 	"github.com/crsolver/cometa/internal/stdlib"
+	"github.com/owenrumney/go-lsp/lsp"
 	"sort"
 	"strings"
 )
-
-func gameNamespaceCompletion(prefix string) *lsp.CompletionList {
-	return nil // Native namespaces are offered through imported modules only.
-}
 
 func gameConstantCompletion(t sema.Type) *lsp.CompletionList {
 	constants := stdlib.Constants[t.Name]
@@ -81,13 +77,14 @@ func gameHover(program *ast.Program, model *sema.Model, pos ast.Pos) (hoverInfo,
 		}
 	}
 	var name string
-	sema.WalkSyntax(program, func(n any) {
+	ast.Inspect(program, func(n any) bool {
 		if t, ok := n.(*ast.TypeRef); ok && t.Pos == pos && stdlib.IsType(t.Name) {
 			name = t.Name
 		}
 		if lit, ok := n.(*ast.StructLiteralExpr); ok && lit.Pos == pos && stdlib.IsType(lit.TypeName) {
 			name = lit.TypeName
 		}
+		return true
 	})
 	if name != "" {
 		return hoverInfo{detail: "tipo incorporado " + name}, true

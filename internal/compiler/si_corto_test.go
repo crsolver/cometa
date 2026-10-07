@@ -6,6 +6,7 @@ import (
 )
 
 func TestShortConditionalSpacing(t *testing.T) {
+	t.Parallel()
 	source := `enum Tono
 	Claro
 	Oscuro

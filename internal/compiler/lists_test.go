@@ -6,6 +6,7 @@ import (
 )
 
 func TestListMethodsRuntime(t *testing.T) {
+	t.Parallel()
 	runCometa(t, `fn inicio()
 	var valores = [10, 20, 20]
 	imprimir(valores.longitud())
@@ -36,6 +37,7 @@ func TestListMethodsRuntime(t *testing.T) {
 }
 
 func TestListMutationReceiversAliasingAndOrder(t *testing.T) {
+	t.Parallel()
 	runCometa(t, `tipo Objeto
 	valor entero
 tipo Caja
@@ -70,6 +72,7 @@ fn inicio()
 }
 
 func TestGenericListMethodsRuntime(t *testing.T) {
+	t.Parallel()
 	runCometa(t, `fn agregar_y_primero<T>(valores [T], valor T) T?
 	valores.agregar(valor)
 	valores.primero()
@@ -79,6 +82,7 @@ fn inicio()
 }
 
 func TestListConcatenationRuntime(t *testing.T) {
+	t.Parallel()
 	runCometa(t, `var globales = [1] + [2, 3]
 fn unir<T>(a [T], b [T]) [T] a + b
 fn inicio()
@@ -101,6 +105,7 @@ fn inicio()
 }
 
 func TestListMutationWaitsForPropagatingArguments(t *testing.T) {
+	t.Parallel()
 	runCometa(t, `tipo Caja
 	valores [entero]
 fn falla() entero! .Error("fallo")
@@ -115,6 +120,7 @@ fn inicio()
 }
 
 func TestListMethodDiagnostics(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name, source, want string
 	}{

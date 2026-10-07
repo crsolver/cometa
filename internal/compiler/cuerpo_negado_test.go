@@ -3,6 +3,7 @@ package compiler
 import "testing"
 
 func TestOneLineBodyStartingWithNegation(t *testing.T) {
+	t.Parallel()
 	source := `tipo Pieza
 	y entero
 

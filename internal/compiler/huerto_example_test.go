@@ -10,12 +10,14 @@ import (
 )
 
 func TestHuertoExampleCompiles(t *testing.T) {
+	t.Parallel()
 	if _, err := CompileProject(filepath.Join("testdata", "programas", "huerto.cometa"), nil); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestHuertoSimulation(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join("testdata", "programas", "huerto", "granja.cometa")
 	source, err := os.ReadFile(path)
 	if err != nil {
@@ -143,6 +145,7 @@ func main() {
 // Run the real game for a few frames in a hidden window through the capture
 // hook: sprite texts, the baked ground and every draw function execute.
 func TestHuertoRenderingRuntime(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("desktop rendering")
 	}

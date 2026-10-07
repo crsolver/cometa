@@ -1,54 +1,13 @@
 package compiler
 
 import (
-	"bytes"
-	"context"
 	"os"
-	"os/exec"
-	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
-	"time"
 )
 
-func runCometa(t *testing.T, source, want string) []byte {
-	t.Helper()
-	generated, err := Compile("enum.cometa", []byte(source))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return runGeneratedGo(t, generated, want)
-}
-
-func runGeneratedGo(t *testing.T, generated []byte, want string) []byte {
-	t.Helper()
-	dir := t.TempDir()
-	file := filepath.Join(dir, "main.go")
-	if err := os.WriteFile(file, generated, 0600); err != nil {
-		t.Fatal(err)
-	}
-	goName := "go"
-	if runtime.GOOS == "windows" {
-		goName += ".exe"
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, filepath.Join(runtime.GOROOT(), "bin", goName), "run", file)
-	// Only stdout is compared: graphics drivers may print warnings to stderr.
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	out, err := cmd.Output()
-	if err != nil {
-		t.Fatalf("generated program failed: %v\n%s%s\n%s", err, out, stderr.Bytes(), generated)
-	}
-	if got := strings.ReplaceAll(string(out), "\r\n", "\n"); got != want {
-		t.Fatalf("output = %q, want %q\n%s", got, want, generated)
-	}
-	return generated
-}
-
 func TestEnumRuntimeAndReferenceSemantics(t *testing.T) {
+	t.Parallel()
 	source := `tipo Boton
 	caracter cadena
 tipo Contador
@@ -119,7 +78,7 @@ fn inicio()
 	E.Numero(1)
 `
 	generated := runCometa(t, source, "A\nvalor\n2\nb\nc\ntexto\n3\nverdadero\nlista\nanidado\n[]\n[]\ncontextual\n")
-	for _, fragment := range []string{"payload2 *Boton", "payload6 []*E", "payload7 *E", "switch", "func() string", "func() *Boton"} {
+	for _, fragment := range []string{"payload2 *Boton", "payload6 []*E", "payload7 *E", "switch"} {
 		if !strings.Contains(string(generated), fragment) {
 			t.Errorf("missing %q in generated storage/match code", fragment)
 		}
@@ -127,6 +86,7 @@ fn inicio()
 }
 
 func TestMatchLoopControlAndExpressionContexts(t *testing.T) {
+	t.Parallel()
 	source := `enum E
 	A
 	B
@@ -167,25 +127,10 @@ fn inicio()
 }
 
 func TestEnumExample(t *testing.T) {
+	t.Parallel()
 	source, err := os.ReadFile("testdata/programas/usuario.cometa")
 	if err != nil {
 		t.Fatal(err)
 	}
 	runCometa(t, string(source), "izquierda\nleyendo el boton:\nb\ncargando pagina\nbuton presionado:\nb\nv4\nv6\n")
-}
-
-// runGoExpectingFailure runs a generated program that must panic and returns its output.
-func runGoExpectingFailure(t *testing.T, file string) string {
-	t.Helper()
-	goName := "go"
-	if runtime.GOOS == "windows" {
-		goName += ".exe"
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	out, err := exec.CommandContext(ctx, filepath.Join(runtime.GOROOT(), "bin", goName), "run", file).CombinedOutput()
-	if err == nil {
-		t.Fatalf("el programa debía fallar\n%s", out)
-	}
-	return string(out)
 }

@@ -8,6 +8,7 @@ import (
 // Mixing, channels and the 0xRRGGBB form used by the color grids are plain
 // computations, so they can be checked from a console program.
 func TestColorHelpersRun(t *testing.T) {
+	t.Parallel()
 	entry, loader := memoryProject(t, map[string]string{"main.cometa": `usar std/pincel/color
 usar std/pincel/rejilla
 

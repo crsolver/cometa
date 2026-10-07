@@ -48,6 +48,7 @@ pub fn local() entero
 `
 
 func TestPrivateModuleAccess(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct{ name, body, want string }{
 		{"function", "imprimir(m.secreto())", "privada"},
 		{"global read", "imprimir(m.privada)", "privada"},
@@ -79,6 +80,7 @@ func TestPrivateModuleAccess(t *testing.T) {
 }
 
 func TestPublicModuleRuntime(t *testing.T) {
+	t.Parallel()
 	entry, loader := memoryProject(t, map[string]string{"biblioteca.cometa": visibilityLibrary, "main.cometa": `usar biblioteca como m
 fn inicio()
 	var opaco = m.crear()
@@ -108,6 +110,7 @@ fn inicio()
 }
 
 func TestPrivateMethodsCannotEscapeThroughInterfaces(t *testing.T) {
+	t.Parallel()
 	runCometa(t, `interfaz Todo
 interfaz Lector
 	fn leer() entero
@@ -137,6 +140,7 @@ fn inicio()
 }
 
 func TestPrivateMethodsDoNotSatisfyConstraints(t *testing.T) {
+	t.Parallel()
 	_, _, err := Analyze("private.cometa", []byte("interfaz I\n\tfn leer() entero\ntipo T\n\tfn leer() entero 1\nfn usarlo<A I>(v A) entero v.leer()\nfn inicio() imprimir(usarlo(T {}))\n"))
 	if err == nil || !strings.Contains(err.Error(), "restricción") {
 		t.Fatal(err)

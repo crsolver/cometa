@@ -3,7 +3,6 @@ package sema
 import (
 	"github.com/crsolver/cometa/internal/ast"
 	"github.com/crsolver/cometa/internal/stdlib"
-	"reflect"
 )
 
 type GameModel struct {
@@ -139,45 +138,15 @@ func (c *checker) gameCall(call *ast.CallExpr) (Type, bool, error) {
 	return t, true, err
 }
 
-// WalkSyntax visits syntax only, never semantic links. Used for effect closure.
-func WalkSyntax(node any, visit func(any)) {
-	var walk func(reflect.Value)
-	walk = func(v reflect.Value) {
-		if !v.IsValid() {
-			return
-		}
-		if v.Kind() == reflect.Interface || v.Kind() == reflect.Pointer {
-			if v.IsNil() {
-				return
-			}
-			if v.CanInterface() {
-				visit(v.Interface())
-			}
-			walk(v.Elem())
-			return
-		}
-		if v.Kind() == reflect.Struct {
-			for i := 0; i < v.NumField(); i++ {
-				walk(v.Field(i))
-			}
-		}
-		if v.Kind() == reflect.Slice {
-			for i := 0; i < v.Len(); i++ {
-				walk(v.Index(i))
-			}
-		}
-	}
-	walk(reflect.ValueOf(node))
-}
-
 func (c *checker) checkGame(program *ast.Program) error {
 	if err := c.checkUIPhases(program); err != nil {
 		return err
 	}
-	WalkSyntax(program, func(n any) {
+	ast.Inspect(program, func(n any) bool {
 		if ref, ok := n.(*ast.TypeRef); ok && stdlib.IsType(ref.Name) {
 			c.model.Game.Used = true
 		}
+		return true
 	})
 	for _, t := range c.model.ExprTypes {
 		if stdlib.IsType(t.Name) {

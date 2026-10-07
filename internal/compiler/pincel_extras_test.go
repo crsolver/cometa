@@ -2,10 +2,8 @@ package compiler
 
 import (
 	"io/fs"
-	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 )
@@ -13,6 +11,7 @@ import (
 // Compiles and runs a console program: rejilla, azar.semilla and the new
 // mate helpers need no window, so their behavior can be checked directly.
 func TestRejillaAndMathHelpersRun(t *testing.T) {
+	t.Parallel()
 	entry, loader := memoryProject(t, map[string]string{"main.cometa": `usar std/mate
 usar std/azar
 usar std/pincel/rejilla
@@ -78,6 +77,7 @@ fn inicio()
 // A map file saved by tools/mapa-editor is embedded with recursos.texto and
 // read one layer at a time with rejilla.desde_csv.
 func TestRejillaDesdeCsvRuns(t *testing.T) {
+	t.Parallel()
 	entry, loader := memoryProject(t, map[string]string{
 		"niveles/uno.mapa.txt": "\xEF\xBB\xBF// Mapa de prueba\r\n# suelo\r\n// color: Gris\r\n1, 1, 1\r\n1,-1,1\r\n\r\n# objetos\r\n-1,-1,175\r\n-1,3,-1\r\n",
 		"main.cometa": `usar std/pincel/recursos
@@ -114,6 +114,7 @@ fn inicio()
 
 // retro.cargar_mapa loads every layer of an editor file at once; its layers are live grids.
 func TestRetroMapaRuns(t *testing.T) {
+	t.Parallel()
 	entry, loader := memoryProject(t, map[string]string{
 		"uno.mapa.txt": "# suelo\n1,1,1\n1,-1,1\n\n# suelo.color\n0xFF0000,-1,-1\n-1,-1,255\n\n# objetos\n-1,-1,175\n-1,3,-1\n",
 		"main.cometa": `usar std/pincel/retro
@@ -135,11 +136,7 @@ fn inicio()
 	if err != nil {
 		t.Fatal(err)
 	}
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "main.go"), generated, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	out := runGoExpectingFailure(t, filepath.Join(dir, "main.go"))
+	out := runGoExpectingFailure(t, generated)
 	for _, want := range []string{"3\n2\n[\"suelo\", \"objetos\"]\nAlguno(175)\nAlguno(16711680)\nAlguno(-1)\nAlguno(-1)\n", `el mapa no tiene una capa "techo" (capas: suelo, objetos)`} {
 		if !strings.Contains(out, want) {
 			t.Errorf("falta %q en la salida:\n%s", want, out)
@@ -148,6 +145,7 @@ fn inicio()
 }
 
 func TestRejillaErrorsAreClear(t *testing.T) {
+	t.Parallel()
 	cases := []struct{ name, body, want string }{
 		{"csv not a number", `rejilla.desde_csv("1,2\n3,x")`, `"x" (línea 2, columna 2)`},
 		{"csv ragged rows", `rejilla.desde_csv("1,2\n3")`, "la línea 2 tiene 1 valores"},
@@ -165,11 +163,7 @@ func TestRejillaErrorsAreClear(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			dir := t.TempDir()
-			if err := os.WriteFile(filepath.Join(dir, "main.go"), generated, 0o600); err != nil {
-				t.Fatal(err)
-			}
-			out := runGoExpectingFailure(t, filepath.Join(dir, "main.go"))
+			out := runGoExpectingFailure(t, generated)
 			if !strings.Contains(out, tc.want) {
 				t.Errorf("falta %q en la salida:\n%s", tc.want, out)
 			}
@@ -184,12 +178,8 @@ func TestRejillaErrorsAreClear(t *testing.T) {
 // temporary folder.
 func configDir(t *testing.T) string {
 	t.Helper()
-	goName := "go"
-	if runtime.GOOS == "windows" {
-		goName += ".exe"
-	}
 	for _, name := range []string{"GOCACHE", "GOMODCACHE", "GOPATH"} {
-		out, err := exec.Command(filepath.Join(runtime.GOROOT(), "bin", goName), "env", name).Output()
+		out, err := exec.Command(goTool(), "env", name).Output()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -277,12 +267,14 @@ fn inicio()
 
 // The extras fixture uses every new drawing, gamepad and quit function.
 func TestPincelExtrasFixtureCompiles(t *testing.T) {
+	t.Parallel()
 	if _, err := CompileProject(filepath.Join("testdata", "programas", "pincel_extras.cometa"), nil); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestNewKeyConstants(t *testing.T) {
+	t.Parallel()
 	source := `usar std/pincel
 usar std/pincel/entrada
 tipo P
@@ -304,6 +296,7 @@ fn inicio()
 
 // mover stops flush against solid cells, slides along the other axis and never tunnels through a thin wall.
 func TestRejillaMover(t *testing.T) {
+	t.Parallel()
 	entry, loader := memoryProject(t, map[string]string{"main.cometa": `usar std/mate
 usar std/pincel/rejilla
 
@@ -354,6 +347,7 @@ var apoyo = cielo.mover(mate.Rect {pos: {2, 0}, tamano: {10, 10}}, plataformas =
 
 // Camera helpers invert the drawing transform and use the default 320x180 logical screen; timers need no window.
 func TestCamaraYTemporizador(t *testing.T) {
+	t.Parallel()
 	entry, loader := memoryProject(t, map[string]string{"main.cometa": `usar std/mate
 usar std/pincel/graficos
 usar std/pincel/tiempo
@@ -405,6 +399,7 @@ fn inicio()
 // tiempo.ahora and the timers need no window: a program that calls neither
 // fps nor tps stays free of Ebitengine and runs as a plain console program.
 func TestTiempoAhoraRunsWithoutWindow(t *testing.T) {
+	t.Parallel()
 	entry, loader := memoryProject(t, map[string]string{"main.cometa": `usar std/pincel/tiempo
 
 fn inicio()

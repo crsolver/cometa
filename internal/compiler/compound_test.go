@@ -6,6 +6,7 @@ import (
 )
 
 func TestCompoundAssignmentRuns(t *testing.T) {
+	t.Parallel()
 	source := `tipo Contador
 	total entero
 	pos decimal
@@ -50,6 +51,7 @@ fn inicio()
 }
 
 func TestCompoundAssignmentMapEntries(t *testing.T) {
+	t.Parallel()
 	runCometa(t, `tipo Marcador
 	puntos [cadena: entero]
 fn inicio()
@@ -79,6 +81,7 @@ fn inicio()
 }
 
 func TestCompoundAssignmentErrors(t *testing.T) {
+	t.Parallel()
 	cases := []struct{ name, source, want string }{
 		{"call target", "fn f() entero 1\nfn inicio()\n\tvar l = [1, 2]\n\tl[f()] += 1\n", "no puede contener llamadas"},
 		{"map entry of bool", "fn inicio()\n\tvar m = [\"a\": verdadero]\n\tm[\"a\"] += verdadero\n", "solo funciona con valores entero, decimal o cadena"},

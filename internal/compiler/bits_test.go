@@ -6,6 +6,7 @@ import (
 )
 
 func TestBitFunctionsAndRadixLiterals(t *testing.T) {
+	t.Parallel()
 	entry, loader := memoryProject(t, map[string]string{"main.cometa": `usar std/mate
 
 const enroque_corto = 0b0001

@@ -6,6 +6,7 @@ import (
 )
 
 func TestTextNumberConversions(t *testing.T) {
+	t.Parallel()
 	source := `fn leer(texto cadena) cadena
 	var n = texto.a_entero() o -1
 	"${n}"
@@ -59,6 +60,7 @@ fn inicio()
 }
 
 func TestConversionErrors(t *testing.T) {
+	t.Parallel()
 	cases := []struct{ name, source, want string }{
 		{"a_entero args", "fn inicio()\n\timprimir(\"1\".a_entero(2))\n", "argumento"},
 		{"formato needs arg", "fn inicio()\n\timprimir(1.5.formato())\n", "decimales"},

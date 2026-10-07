@@ -8,6 +8,7 @@ import (
 )
 
 func TestInterfacesGenericsExample(t *testing.T) {
+	t.Parallel()
 	source, err := os.ReadFile(filepath.Join("testdata", "programas", "interfaces_genericos.cometa"))
 	if err != nil {
 		t.Fatal(err)
@@ -16,6 +17,7 @@ func TestInterfacesGenericsExample(t *testing.T) {
 }
 
 func TestInterfacesAndGenericsRuntime(t *testing.T) {
+	t.Parallel()
 	source := `interfaz Cualquiera
 interfaz Describible
 	fn describir(prefijo cadena) cadena
@@ -82,6 +84,7 @@ fn inicio()
 }
 
 func TestGenericAndInterfaceErrors(t *testing.T) {
+	t.Parallel()
 	cases := []struct{ name, source, want string }{
 		{"expanding type", "tipo A<T>\n\thijos [A<[T]>]\n", "expande"},
 		{"expanding function", "fn f<T>(v T)\n\tf<[T]>([v])\n", "expande"},
@@ -124,6 +127,7 @@ func TestGenericAndInterfaceErrors(t *testing.T) {
 }
 
 func TestGenericInferenceDefaultsAndWrappers(t *testing.T) {
+	t.Parallel()
 	source := `interfaz Todo
 interfaz Primero
 	fn elegir(a entero, b entero) entero
@@ -218,6 +222,7 @@ fn inicio()
 }
 
 func TestInterfaceInspectionEvaluationAndControlFlow(t *testing.T) {
+	t.Parallel()
 	source := `interfaz Todo
 tipo Contador
 	n entero
@@ -254,6 +259,7 @@ fn inicio()
 }
 
 func TestTypeParameterInspectionFromMethodInterface(t *testing.T) {
+	t.Parallel()
 	source := `interfaz I
 	fn numero() entero
 tipo A

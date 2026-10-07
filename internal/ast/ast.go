@@ -241,6 +241,9 @@ type IfBranch struct {
 // RepeatStmt represents an infinite loop (Iterable is nil), list iteration,
 // or a numeric range (Iterable is the start and RangeEnd is the exclusive end).
 type RepeatStmt struct {
+	// While marks an infinite loop written as `mientras condición`: Body starts
+	// with the exit test `si !condición romper` that the parser added.
+	While      bool
 	Pos        Pos
 	Iterable   Expr
 	RangeEnd   Expr

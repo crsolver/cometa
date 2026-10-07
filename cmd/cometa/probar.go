@@ -14,12 +14,12 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode"
 
+	"github.com/crsolver/cometa/internal/ast"
 	"github.com/crsolver/cometa/internal/codegen"
 	"github.com/crsolver/cometa/internal/compiler"
 	"github.com/crsolver/cometa/internal/diagnostic"
-	"github.com/crsolver/cometa/internal/ast"
+	"github.com/crsolver/cometa/internal/sema"
 )
 
 // exitCode is returned from run to choose the process exit status.
@@ -121,10 +121,10 @@ func probar(input, filter string, limit time.Duration, asJSON bool, data string)
 	project, err := compiler.AnalyzeProject(input, nil)
 	var generated []byte
 	if err == nil {
-		generated, err = codegen.GenerateWithOptions(project.Root.Path, project.Program, project.Model, codegen.Options{LineDirectives: true})
+		generated, err = project.Generate(codegen.Options{LineDirectives: true})
 	}
 	if err != nil {
-		return compileFailure(err, filepath.Dir(input)), exitCompile
+		return compileFailure(project.DisplayPaths(err), filepath.Dir(input)), exitCompile
 	}
 	var names []string
 	for _, decl := range project.Root.Program.Decls {
@@ -159,7 +159,7 @@ func probar(input, filter string, limit time.Duration, asJSON bool, data string)
 	if runtime.GOOS == "windows" {
 		exe += ".exe"
 	}
-	if err = goBuild(dir, generated, map[string]string{"harness.go": harnessSource(names, bytes.Contains(generated, []byte("func _hgpruebasBucle(")))}, exe); err != nil {
+	if err = goBuild(dir, generated, map[string]string{"harness.go": harnessSource(project.Model, names, bytes.Contains(generated, []byte("func _hgpruebasBucle(")))}, exe); err != nil {
 		return testReport{Status: "error", Message: err.Error()}, exitInternal
 	}
 	resultsPath := filepath.Join(dir, "resultados.jsonl")
@@ -324,7 +324,7 @@ func printReport(report testReport) {
 // assertions are recognised through the PruebaFallo method on their panic value.
 // With visual tests (pruebas.avanzar) the tests run inside a hidden game loop,
 // which Ebitengine needs before it can paint and read pixels.
-func harnessSource(names []string, visual bool) string {
+func harnessSource(model *sema.Model, names []string, visual bool) string {
 	reset, start := "", "run()"
 	if visual {
 		reset = "_hgpruebasReiniciar()"
@@ -335,9 +335,7 @@ func harnessSource(names []string, visual bool) string {
 	}
 	var list strings.Builder
 	for _, name := range names {
-		runes := []rune(name)
-		runes[0] = unicode.ToUpper(runes[0])
-		fmt.Fprintf(&list, "\t\t\t{%q, %s},\n", name, string(runes))
+		fmt.Fprintf(&list, "\t\t\t{%q, %s},\n", name, codegen.FunctionName(model, name))
 	}
 	return `package main
 
@@ -392,4 +390,3 @@ func _hpRun(f func()) (status, message, trace string) {
 }
 `
 }
-

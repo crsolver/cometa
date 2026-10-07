@@ -279,3 +279,19 @@ fn inicio()
 		}
 	}
 }
+
+// A go that does not run (a leftover of another installation) earlier on PATH
+// must not hide a working one, and PATH wins over the installer's folder.
+func TestPickGoSkipsBrokenInstallations(t *testing.T) {
+	works := map[string]bool{"b/go": true, "c/go": true}
+	usable := func(path string) bool { return works[path] }
+	if path, broken := pickGo([]string{"a/go", "b/go", "a/go", "c/go"}, usable); path != "b/go" || len(broken) != 1 || broken[0] != "a/go" {
+		t.Fatalf("pickGo = %q, %v", path, broken)
+	}
+	if path, broken := pickGo([]string{"a/go", "d/go"}, usable); path != "" || len(broken) != 2 {
+		t.Fatalf("pickGo sin candidatos válidos = %q, %v", path, broken)
+	}
+	if path, broken := pickGo(nil, usable); path != "" || broken != nil {
+		t.Fatalf("pickGo sin candidatos = %q, %v", path, broken)
+	}
+}

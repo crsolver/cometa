@@ -6,6 +6,7 @@ import (
 )
 
 func TestStringPaddingAndRepeat(t *testing.T) {
+	t.Parallel()
 	source := `fn reloj(segundos entero) cadena
 	var minutos = cadena(segundos / 60).rellenar_izquierda(2, "0")
 	var resto = cadena(segundos % 60).rellenar_izquierda(2, "0")

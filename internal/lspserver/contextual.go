@@ -4,9 +4,9 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/owenrumney/go-lsp/lsp"
 	"github.com/crsolver/cometa/internal/ast"
 	"github.com/crsolver/cometa/internal/sema"
+	"github.com/owenrumney/go-lsp/lsp"
 )
 
 // Ignore dots in strings and comments, including escaped quotes.
@@ -74,7 +74,10 @@ func closeCompletionDelimiters(line string) string {
 	return line
 }
 
-func contextualCompletion(filename string, lines []string, line int, prefix string, dot, receiverStart int) (*lsp.CompletionList, bool) {
+// contextualCompletion offers the variants a `.` can name where the type is
+// known from context: an argument, a typed variable, a result, a label of
+// `casos`. handled is false when the dot belongs to an ordinary member access.
+func (h *Handler) contextualCompletion(uri lsp.DocumentURI, lines []string, line int, prefix string, dot, receiverStart int) (list *lsp.CompletionList, handled bool) {
 	// A dotted label starts at indentation; ordinary member expressions keep
 	// their existing completion path.
 	pattern := strings.TrimSpace(prefix[:receiverStart]) == ""
@@ -115,25 +118,26 @@ func contextualCompletion(filename string, lines []string, line int, prefix stri
 		replacement = prefix[:dot+1] + probe + " => 0"
 	}
 	replacement = closeCompletionDelimiters(replacement)
-	model := completionModel(filename, lines, line, replacement)
-	if model == nil {
+	p := h.completionProject(uri, lines, line, replacement)
+	if p == nil || p.Model == nil || p.Root == nil {
 		return &lsp.CompletionList{}, true
 	}
+	model, here := p.Model, func(pos ast.Pos) bool { return pos.Filename == p.Root.Path && pos.Line == line+1 }
 	var expected sema.Type
 	if pattern {
 		for arm, typ := range model.PatternTypes {
-			if arm.Pattern == probe && arm.Pos.Line == line+1 && (arm.Qualifier == "" || arm.Qualifier == typ.Name) {
+			if arm.Pattern == probe && here(arm.Pos) && (arm.Qualifier == "" || arm.Qualifier == typ.Name) {
 				expected = typ
 			}
 		}
 	} else {
 		for expr, typ := range model.ExpectedTypes {
-			if variant, ok := expr.(*ast.ContextualVariantExpr); ok && variant.Name == probe && variant.Pos.Line == line+1 {
+			if variant, ok := expr.(*ast.ContextualVariantExpr); ok && variant.Name == probe && here(variant.Pos) {
 				expected = typ
 			}
 		}
 	}
-	list := gameConstantCompletion(expected)
+	list = gameConstantCompletion(expected)
 	if list == nil && expected.Kind != sema.Enum && !expected.Wrapped() {
 		return &lsp.CompletionList{}, true
 	}
@@ -147,5 +151,5 @@ func contextualCompletion(filename string, lines []string, line int, prefix stri
 			NewText: list.Items[i].Label,
 		})
 	}
-	return list, true
+	return displayItems(p, list), true
 }

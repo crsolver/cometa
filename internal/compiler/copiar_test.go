@@ -6,6 +6,7 @@ import (
 )
 
 func TestStructCopiar(t *testing.T) {
+	t.Parallel()
 	source := `tipo Arma
 	dano entero
 
@@ -52,6 +53,7 @@ fn inicio()
 }
 
 func TestStructCopiarErrors(t *testing.T) {
+	t.Parallel()
 	cases := []struct{ name, source, want string }{
 		{"args", "tipo A\n\tx entero\nfn inicio()\n\tvar a = A {}\n\tvar b = a.copiar(1)\n", "no acepta argumentos"},
 		{"library type", "usar std/mate\nfn inicio()\n\tvar v = mate.Vec2 {}\n\tvar w = v.copiar()\n", "copiar"},

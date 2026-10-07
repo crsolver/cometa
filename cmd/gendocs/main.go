@@ -3,9 +3,9 @@
 package main
 
 import (
-	"github.com/crsolver/cometa/internal/stdlib"
 	"encoding/json"
 	"fmt"
+	"github.com/crsolver/cometa/internal/stdlib"
 	"os"
 	"path/filepath"
 	"sort"

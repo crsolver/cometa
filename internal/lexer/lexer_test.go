@@ -123,3 +123,17 @@ func TestIgnoresLeadingBOM(t *testing.T) {
 		t.Fatalf("first token = %v", tokens[0])
 	}
 }
+
+func TestNumbersUseASCIIDigits(t *testing.T) {
+	_, err := Lex("digitos.cometa", "var x = ٣\n")
+	if err == nil || !strings.Contains(err.Error(), "digitos.cometa:1:9: carácter inesperado '٣'; los números se escriben con los dígitos del 0 al 9") {
+		t.Fatalf("se esperaba un error por el dígito, se obtuvo %v", err)
+	}
+	// Inside a name such a digit is a letter-like character, as before.
+	if _, err := Lex("digitos.cometa", "var nivel٣ = 12٣\n"); err == nil || !strings.Contains(err.Error(), "1:16:") {
+		t.Fatalf("un número no puede continuar con otro tipo de dígito: %v", err)
+	}
+	if _, err := Lex("digitos.cometa", "var nivel٣ = 12\n"); err != nil {
+		t.Fatal(err)
+	}
+}
