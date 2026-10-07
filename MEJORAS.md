@@ -4,6 +4,54 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 
 ## Lenguaje
 
+### `eliminar`, `insertar` y `agregar` sobre un parámetro de lista dejan la lista del llamador a medio cambiar
+
+- **Observado:** al escribir la lectura `12-ordenar-y-buscar` del curso `04-intermedio`. Una función `fn quitar(l [entero])` que hace `l.eliminar(0)` y `l.agregar(9)`, llamada con `[1, 2, 3]`, deja al llamador con `[2, 3, 9]`; con solo `l.eliminar(0)` queda `[2, 3, 3]`. La longitud del llamador no cambia, pero los elementos se desplazan porque el almacenamiento se comparte.
+- **Problema:** `specs.md` lo documenta (la asignación copia el descriptor del slice), pero para quien aprende es un resultado que no es ni «se cambió» ni «no se cambió», y no hay error ni aviso. Los mapas y los tipos propios sí se comparten por completo, así que las listas son la excepción. El curso tiene que enseñar «devuelve una lista nueva» como regla.
+- **Posible solución:** que las listas se compartan por completo, como los mapas (un puntero al slice), o un aviso del compilador cuando un método que cambia la longitud se llama sobre un parámetro de lista que la función no devuelve.
+
+### `repetir (veces)` con un entero da un error que no explica el problema
+
+- **Observado:** al escribir la lectura `14-funciones-flexibles` del curso `04-intermedio`. Con `var veces = 3`, el ciclo `repetir (veces)` falla con «se esperaba '|' antes de las variables del ciclo, pero se encontró el final de la línea». Al añadir `|i|` el error pasa a ser «repetir requiere una lista, mapa o cadena, no entero». Lo que funciona es `repetir (0..veces)`.
+- **Problema:** «repetir N veces» es lo primero que alguien intenta con un parámetro `veces`, y `repetir (0..3)` sin variables sí está permitido. El primer mensaje manda a añadir `|i|`, que no arregla nada, y ninguno de los dos menciona el rango.
+- **Posible solución:** aceptar `repetir (n)` con un entero como `repetir (0..n)`, o que el error diga «para repetir un número de veces, escribe `repetir (0..veces)`».
+
+### El error de una interfaz no cumplida no dice qué falta
+
+- **Observado:** al escribir la lectura `19-interfaces` y el ejercicio `20-bestiario` del curso `04-intermedio`. Si un tipo no cumple una interfaz, el error es «el literal es Lobo, pero se esperaba Criatura», «el elemento debe ser Criatura, no Lobo» o «no se puede asignar Golem a Criatura». Sale igual cuando falta un método, cuando su resultado es de otro tipo, cuando el método existe pero no lleva `pub`, y cuando viene de un tipo embebido que no es `pub`.
+- **Problema:** el caso de `pub` es el más confuso: el método está escrito, con la firma correcta y en el mismo archivo, y nada indica que la visibilidad sea el motivo. El curso tiene que dar una lista de tres cosas para revisar a mano.
+- **Posible solución:** añadir el motivo al mensaje: «a Lobo le falta el método atacar() entero», «Lobo.atacar devuelve decimal y Criatura pide entero», «Lobo.atacar existe pero no es pub».
+
+### `opcional == .Ninguno` no compila
+
+- **Observado:** en las pruebas de `20-bestiario`, `pruebas.afirmar(solucion.mas_peligrosa(lista) == .Ninguno, "...")`, donde la función devuelve `cadena?`, falla con «no se puede inferir el enum de .Ninguno; se requiere un tipo enum, opcional o resultado esperado».
+- **Problema:** con un enum propio, `clima == .Lluvia` sí funciona, y el lado izquierdo ya dice que el tipo es `cadena?`. Para comprobar que algo falta hay que escribir `valor o "centinela"` y comparar con el centinela.
+- **Posible solución:** inferir `.Ninguno` (y `.Alguno(x)`) a partir del otro operando de `==` y `!=`, como con los enums declarados.
+
+### `imprimir` muestra el campo embebido en minúscula
+
+- **Observado:** con `tipo Lobo` que embebe `Posicion`, `imprimir(lobo)` escribe `Lobo {posicion: Posicion {x: 2, y: 0}, vida: 5}`.
+- **Problema:** en el código el campo se llama `Posicion` (`lobo.Posicion`, `Lobo {Posicion: {...}}`); `posicion` en minúscula no existe y copiarlo de la salida da un error.
+- **Posible solución:** imprimir el nombre del campo embebido con la capitalización del tipo.
+
+### El error de un `usar` que no encuentra el archivo mezcla inglés y rutas repetidas
+
+- **Observado:** al escribir la lectura `21-modulos` del curso `04-intermedio`. Con `usar tienda3` y sin ese archivo, el error es «no se pudo importar tienda3: open c:\...\tienda3.cometa: The system cannot find the file specified. (cadena: c:\...\d.cometa -> c:\...\tienda3.cometa)».
+- **Problema:** es el error más probable al empezar con módulos (un nombre mal escrito), y el mensaje incluye el texto del sistema operativo en inglés, la palabra `open` y la misma ruta absoluta dos veces. La «cadena» de importación no aporta nada cuando solo hay un salto.
+- **Posible solución:** «no existe el archivo tienda3.cometa (se buscó en la carpeta de d.cometa)», y mostrar la cadena solo cuando tenga más de un salto.
+
+### Un campo de estructura omitido no usa el valor predeterminado de un campo enum de dentro
+
+- **Observado:** al escribir el ejercicio `25-escenas` del curso `04-intermedio`. Con `tipo Carrera` que declara `escena Escena = .Menu` y `tipo Partida` que declara `carrera solucion.Carrera`, el literal `juego.Partida {}` falla con «el campo carrera.escena requiere inicialización explícita». `solucion.Carrera {}` sí compila.
+- **Problema:** el campo tiene un valor predeterminado, así que no debería exigir nada; el error contradice la regla de `specs.md` («un campo con valor predeterminado queda exento de la regla de inicialización obligatoria»). Hay que escribir `carrera solucion.Carrera = solucion.Carrera {}` en el tipo de fuera.
+- **Posible solución:** al crear la estructura anidada omitida, aplicar los valores predeterminados de sus campos igual que en un literal vacío explícito.
+
+### En las pruebas, dos `pruebas.pulsar` en cuadros seguidos cuentan como una sola pulsación
+
+- **Observado:** en las pruebas de `25-escenas`. `pruebas.pulsar(.Derecha)` seguido de `pruebas.avanzar(juego, 1)`, repetido tres veces, solo produce un `entrada.tecla_presionada`. Con `pruebas.avanzar(juego, 2)` después de cada pulsación funcionan las tres.
+- **Problema:** `docs/pruebas.md` dice que la tecla «se suelta al cuadro siguiente», pero no que una nueva pulsación en ese mismo cuadro se pierde. La prueba falla con un número de pasos menor sin ninguna pista de por qué.
+- **Posible solución:** que `pulsar` sobre una tecla que se está soltando cuente como pulsación nueva, o documentar que entre dos pulsaciones de la misma tecla hace falta un cuadro libre.
+
 ## Herramientas
 
 ### El manejo de fallos de juegos Ebitengine no está probado de extremo a extremo
