@@ -319,6 +319,8 @@ graficos.texto_depuracion_v(texto cadena, pos mate.Vec2 = {})
 graficos.tamano() mate.Vec2
 graficos.recortar(rect mate.Rect) graficos.Recorte // solo dibuja dentro de rect (pantalla); úsalo con `con`
 graficos.quitar_recorte()                         // solo para un recortar suelto, sin `con`
+graficos.pintar_en(imagen graficos.Imagen) graficos.Destino // dibuja en la imagen; úsalo con `con`
+graficos.liberar(imagen graficos.Imagen)          // libera su copia en la tarjeta gráfica
 graficos.usar_camara(camara graficos.Camara2D)
 graficos.restablecer_camara()
 graficos.Camara2D.a_mundo(punto mate.Vec2) mate.Vec2
@@ -431,16 +433,48 @@ graficos.texto_depuracion("fuera del marco")
 
 Un `con` anidado se limita al recorte que lo contiene. Llamado suelto, el recorte
 dura hasta `graficos.quitar_recorte()` o el siguiente cuadro.
+
+`graficos.pintar_en(imagen)` hace que lo que se dibuja dentro de su bloque `con` vaya
+a una imagen en vez de a la pantalla: un minimapa, una escena a baja resolución que
+luego se amplía o un fondo que se pinta una sola vez. La imagen es una
+`graficos.Imagen` cualquiera (por ejemplo de `lienzo.nuevo`) y después se dibuja
+como siempre:
+
+```cometa
+var escena = lienzo.nuevo(160, 90)
+
+pub fn pintar()
+	con graficos.pintar_en(escena)
+		graficos.limpiar(.Negro)
+		graficos.circulo(80, 45, 20, .Rojo)
+	graficos.imagen(escena, 0, 0, escala = {x: 2, y: 2})
+```
+
+Dentro del bloque no hay cámara ni recorte y las coordenadas son píxeles de la
+imagen; al salir, también con `retornar`, vuelven la pantalla, la cámara y el
+recorte de antes. La imagen no se limpia sola: conserva lo pintado hasta que se
+llame a `graficos.limpiar`. El bloque puede usarse en cualquier momento, no solo
+desde `pintar` (por ejemplo para preparar un fondo en `inicio`), se puede anidar y
+admite `graficos.recortar`. Una imagen no puede dibujarse sobre sí misma.
+
+El dibujo lo hace la tarjeta gráfica. Las funciones de `lienzo` ven el resultado
+(`lienzo.leer_pixel`, `lienzo.guardar`), pero para eso hay que traer la imagen de
+vuelta a la memoria, lo cual es lento y solo funciona con el juego en marcha:
+conviene no mezclar ambas cosas en cada cuadro.
+
+`graficos.liberar(imagen)` libera en el momento la copia de la imagen en la tarjeta
+gráfica. La imagen sigue siendo válida y vuelve a subirse sola la próxima vez que se
+dibuje, pero lo pintado en ella con `pintar_en` se pierde (cópiala antes con
+`lienzo.copiar` para conservarlo). No hace falta para un juego normal: sirve para
+soltar imágenes grandes que ya no se usan.
 mate.Rectángulos y texto aplican origen, rotación y posición antes de la cámara.
 Todas las rotaciones son radianes y valen cero por defecto. Círculos, líneas y
 texto de depuración no tienen rotación. Los métodos de mate.Vec2 devuelven valores
 nuevos y no mutan el receptor; normalizar cero devuelve cero.
 
-El compilador rechaza dibujo alcanzable desde globales,
-inicialización o actualización, incluyendo helpers, métodos y defaults.
-Para interfaces comprueba conservadoramente los métodos con ese nombre.
-Los helpers llamados desde `pintar` pueden dibujar; el runtime también verifica
-el contexto. Lea los estados presionado/soltado en `actualizar`: corresponden al tick.
+Dibujar en la pantalla solo se permite desde `pintar` y los helpers que llama; la
+biblioteca lo comprueba al ejecutar. Dentro de un bloque `con graficos.pintar_en`
+se puede dibujar en cualquier momento. Lea los estados presionado/soltado en `actualizar`: corresponden al tick.
 
 Audio retiene las reproducciones activas aunque se descarte el handle. Al terminar
 libera el reproductor; `reanudar` reinicia un sonido terminado/detenido. Volumen 0–1.

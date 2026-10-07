@@ -1,0 +1,36 @@
+// Pincel: pintar dentro de una imagen con graficos.pintar_en.
+// La escena se dibuja en una imagen pequeña (80x45) y después esa imagen se
+// dibuja ampliada en la pantalla, así que todo se ve con píxeles grandes.
+usar std/pincel
+usar std/pincel/graficos
+usar std/pincel/lienzo
+usar std/mate
+
+// La imagen en la que se pinta. Empieza transparente.
+var escena = lienzo.nuevo(80, 45)
+
+tipo Juego
+	tiempo decimal
+
+	pub fn actualizar(dt decimal)
+		@tiempo += dt
+
+	pub fn pintar()
+		// Dentro del bloque todo se dibuja en `escena`, no en la pantalla.
+		con graficos.pintar_en(escena)
+			// La imagen no se limpia sola: conserva lo del cuadro anterior.
+			graficos.limpiar(.Azul)
+			graficos.circulo(40 + 25 * mate.coseno(@tiempo), 20, 8, .Amarillo)
+			graficos.rectangulo(0, 38, 80, 7, .Verde)
+
+		// Al salir del bloque se vuelve a dibujar en la pantalla.
+		graficos.limpiar(.Negro)
+		graficos.imagen(escena, 0, 0, escala = {x: 4, y: 4})
+
+		// La misma imagen sirve de minimapa en una esquina.
+		graficos.rectangulo(235, 3, 82, 47, .Blanco)
+		graficos.imagen(escena, 236, 4)
+
+fn inicio()
+	pincel.ejecutar(Juego {}, 320, 180, titulo = "Pintar en una imagen", escala = 3, pixelado = verdadero) atrapar |error|
+		imprimir(error)

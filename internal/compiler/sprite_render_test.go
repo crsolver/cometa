@@ -9,6 +9,7 @@ import (
 // checks screen pixels: mirroring, origins, empty tiles, animated tiles and the
 // camera must keep each quadrant of the frame where it belongs.
 func TestSpriteSheetAndGridPixels(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("desktop rendering")
 	}
@@ -38,6 +39,16 @@ fn recortes(h graficos.Hoja, salir bool)
 		graficos.cuadro(h, 1, 8, 8)
 	graficos.cuadro(h, 0, 40, 40)
 
+// Inside the block everything lands on the image, without the caller's camera; the nested clip is in image pixels.
+fn pintada(img graficos.Imagen, h graficos.Hoja, salir bool)
+	con graficos.pintar_en(img)
+		graficos.limpiar(.Azul)
+		con graficos.recortar(mate.Rect {pos: {0, 0}, tamano: {4, 4}})
+			graficos.cuadro(h, 1, 2, 2)
+			si salir
+				retornar
+	graficos.cuadro(h, 0, 40, 40)
+
 fn inicio()
 	imprimir(0)
 `
@@ -64,6 +75,10 @@ func check(name string,draw func(),want ...expect){
   got:=_hgColor{px[i],px[i+1],px[i+2],px[i+3]}
   if got!=w.c{panic(fmt.Sprintf("%s: pixel (%d,%d) = %v, want %v",name,w.x,w.y,got,w.c))}
  }
+}
+func mustPanic(name,want string,f func()){
+ defer func(){if r:=recover();fmt.Sprint(r)!=want{panic(fmt.Sprintf("%s: panic = %v, want %q",name,r,want))}}()
+ f()
 }
 func (*spriteCheck) Update() error {
  _hgscreen=ebiten.NewImage(64,64)
@@ -105,6 +120,32 @@ func (*spriteCheck) Update() error {
  // An early return leaves both blocks, so later drawing is unclipped.
  check("clip scopes return",func(){Recortes(h,true);_hgcuadro(h,0,_hgVec2{40,40},zero,one,0,blanco,false,false,nada)},
   expect{12,12,amarillo},expect{11,11,nada},expect{13,13,nada},expect{40,40,rojo})
+ // pintar_en: the screen is untouched inside the block and the camera comes back after it.
+ lz:=_hglienzoNuevo(8,8,_hgColor{})
+ drawn:=func(){_hgimagenXY(lz,20,20,zero,one,0,blanco,nada)}
+ check("target",func(){_hgusarCamara(_hgCamara2D{Pos:_hgVec2{-5,0},Zoom:1});Pintada(lz,h,false)},expect{0,0,nada},expect{2,2,nada},expect{45,40,rojo},expect{40,40,nada})
+ check("target drawn",drawn,expect{20,20,azul},expect{22,22,magenta},expect{23,23,magenta},expect{24,24,azul},expect{27,27,azul},expect{28,28,nada})
+ check("target return",func(){Pintada(lz,h,true);_hgcuadro(h,0,_hgVec2{40,40},zero,one,0,blanco,false,false,nada)},expect{0,0,nada},expect{40,40,rojo})
+ if _hgdestinoActual!=nil {panic("target left open after return")}
+ // lienzo reads what was painted, and editing afterwards keeps it.
+ if c:=_hglienzoLeerPixel(lz,3,3).payload1;c!=magenta {panic(fmt.Sprintf("target read back = %v",c))}
+ _hglienzoPixel(lz,0,0,rojo)
+ check("target edited",drawn,expect{20,20,rojo},expect{21,21,azul},expect{22,22,magenta})
+ // Outside pintar the block supplies the target and leaves none behind.
+ pantalla:=_hgscreen;_hgscreen=nil
+ fuera:=_hgpintarEn(lz);fuera.Entrar();_hglimpiar(verde);fuera.Salir()
+ if _hgscreen!=nil {panic("target left a screen outside pintar")}
+ _hgscreen=pantalla
+ check("target outside pintar",drawn,expect{20,20,verde},expect{27,27,verde})
+ mustPanic("self draw","no se puede dibujar una imagen sobre sí misma",func(){d:=_hgpintarEn(lz);d.Entrar();defer d.Salir();drawn()})
+ mustPanic("free target","no se puede liberar una imagen mientras se pinta en ella",func(){d:=_hgpintarEn(lz);d.Entrar();defer d.Salir();_hgliberar(lz)})
+ // Freeing drops the GPU copy: unread paint is lost and the CPU pixels are uploaded again.
+ _hgliberar(lz);_hgliberar(lz)
+ check("freed",drawn,expect{20,20,rojo},expect{21,21,azul},expect{22,22,magenta})
+ otra:=_hgpintarEn(lz);otra.Entrar();_hglimpiar(verde);otra.Salir()
+ if c:=_hglienzoLeerPixel(lz,0,0).payload1;c!=verde {panic(fmt.Sprintf("paint read back = %v",c))}
+ _hgliberar(lz)
+ check("freed after read",drawn,expect{20,20,verde})
  grid:=_hgVec2{20,30}
  check("grid",func(){_hgrejillaDibujar(m,h,grid,one,_hgColor{255,255,255,255},nil,8,sinColores)},
   expect{20,30,magenta},expect{23,33,magenta},expect{24,30,rojo},expect{27,33,amarillo},expect{28,30,nada},expect{19,30,nada})

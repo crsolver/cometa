@@ -409,5 +409,5 @@ func (t *_hgTemporizador) Restante() float64{return math.Max(0,t.duracion-t.tran
 func (t *_hgTemporizador) Progreso() float64{return math.Min(1,t.transcurrido/t.duracion)}
 
 func _hgventanaCursor(visible bool){if visible{ebiten.SetCursorMode(ebiten.CursorModeVisible)}else{ebiten.SetCursorMode(ebiten.CursorModeHidden)}}
-func _hgventanaIcono(img *_hgImagen){if img.pixels!=nil{ebiten.SetWindowIcon([]image.Image{img.pixels})}}
+func _hgventanaIcono(img *_hgImagen){if p:=img.cpu();p!=nil{ebiten.SetWindowIcon([]image.Image{p})}}
 func _hgesPantallaCompleta() bool{return ebiten.IsFullscreen()}

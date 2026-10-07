@@ -29,7 +29,7 @@ func _hglienzoTexto(filas []string,colores map[rune]_hgColor,cuadro int) *_hgIma
   for x,r:=range runes {
    c,ok:=colores[r]
    if !ok {panic(fmt.Sprintf("lienzo.desde_texto: el carácter %q de la fila %d%s no tiene color",r,y+1,donde))}
-   img.pixels.SetNRGBA(x,y,c)
+   img.cpu().SetNRGBA(x,y,c)
   }
  }
  return img
@@ -47,19 +47,19 @@ func _hglienzoHojaDesdeTexto(cuadros [][]string,colores map[string]_hgColor) []*
 func _hglienzoAncho(img *_hgImagen) int64 {return int64(img.bounds().Dx())}
 func _hglienzoAlto(img *_hgImagen) int64 {return int64(img.bounds().Dy())}
 func _hglienzoCopiar(img *_hgImagen) *_hgImagen {
- pixels:=image.NewNRGBA(img.pixels.Rect);copy(pixels.Pix,img.pixels.Pix)
+ pixels:=image.NewNRGBA(img.cpu().Rect);copy(pixels.Pix,img.cpu().Pix)
  return &_hgImagen{pixels:pixels}
 }
 func _hglienzoLimpiar(img *_hgImagen,c _hgColor) {
- p:=img.pixels.Pix
+ p:=img.cpu().Pix
  for i:=0;i<len(p);i+=4 {p[i],p[i+1],p[i+2],p[i+3]=c.R,c.G,c.B,c.A}
  img.dirty=true
 }
-func _hglienzoDentro(img *_hgImagen,x,y int64) bool {b:=img.pixels.Rect;return x>=0&&y>=0&&x<int64(b.Dx())&&y<int64(b.Dy())}
-func _hglienzoPixel(img *_hgImagen,x,y int64,c _hgColor) {if _hglienzoDentro(img,x,y){img.pixels.SetNRGBA(int(x),int(y),c);img.dirty=true}}
+func _hglienzoDentro(img *_hgImagen,x,y int64) bool {b:=img.cpu().Rect;return x>=0&&y>=0&&x<int64(b.Dx())&&y<int64(b.Dy())}
+func _hglienzoPixel(img *_hgImagen,x,y int64,c _hgColor) {if _hglienzoDentro(img,x,y){img.cpu().SetNRGBA(int(x),int(y),c);img.dirty=true}}
 func _hglienzoLeerPixel(img *_hgImagen,x,y int64) struct { tag int; payload1 _hgColor } {
  if !_hglienzoDentro(img,x,y) {return struct { tag int; payload1 _hgColor }{}}
- return struct { tag int; payload1 _hgColor }{tag:1,payload1:img.pixels.NRGBAAt(int(x),int(y))}
+ return struct { tag int; payload1 _hgColor }{tag:1,payload1:img.cpu().NRGBAAt(int(x),int(y))}
 }
 func _hglienzoRect(img *_hgImagen,x,y,w,h int64,c _hgColor,relleno bool) {
  if w<=0||h<=0 {return}
@@ -94,13 +94,13 @@ func _hglienzoCirculo(img *_hgImagen,cx,cy,r int64,c _hgColor,relleno bool) {
 }
 func _hglienzoRellenar(img *_hgImagen,x,y int64,c _hgColor) {
  if !_hglienzoDentro(img,x,y) {return}
- objetivo:=img.pixels.NRGBAAt(int(x),int(y))
+ objetivo:=img.cpu().NRGBAAt(int(x),int(y))
  if objetivo==c {return}
  pila:=[][2]int64{{x,y}}
  for len(pila)>0 {
   p:=pila[len(pila)-1];pila=pila[:len(pila)-1]
-  if !_hglienzoDentro(img,p[0],p[1])||img.pixels.NRGBAAt(int(p[0]),int(p[1]))!=objetivo {continue}
-  img.pixels.SetNRGBA(int(p[0]),int(p[1]),c)
+  if !_hglienzoDentro(img,p[0],p[1])||img.cpu().NRGBAAt(int(p[0]),int(p[1]))!=objetivo {continue}
+  img.cpu().SetNRGBA(int(p[0]),int(p[1]),c)
   pila=append(pila,[2]int64{p[0]+1,p[1]},[2]int64{p[0]-1,p[1]},[2]int64{p[0],p[1]+1},[2]int64{p[0],p[1]-1})
  }
  img.dirty=true
@@ -115,8 +115,8 @@ func _hglienzoMezclar(d,s _hgColor) _hgColor {
  return _hgColor{mix(s.R,d.R),mix(s.G,d.G),mix(s.B,d.B),uint8(math.Round(a*255))}
 }
 func _hglienzoPegar(destino,fuente *_hgImagen,x,y int64,espejoH,espejoV bool) {
- w,h:=int64(fuente.pixels.Rect.Dx()),int64(fuente.pixels.Rect.Dy())
- src:=fuente.pixels;if destino==fuente {src=_hglienzoCopiar(fuente).pixels}
+ w,h:=int64(fuente.cpu().Rect.Dx()),int64(fuente.cpu().Rect.Dy())
+ src:=fuente.cpu();if destino==fuente {src=_hglienzoCopiar(fuente).pixels}
  for sy:=int64(0);sy<h;sy++ {
   for sx:=int64(0);sx<w;sx++ {
    dx,dy:=x+sx,y+sy
@@ -125,7 +125,7 @@ func _hglienzoPegar(destino,fuente *_hgImagen,x,y int64,espejoH,espejoV bool) {
    if !_hglienzoDentro(destino,dx,dy) {continue}
    s:=src.NRGBAAt(int(sx),int(sy))
    if s.A==0 {continue}
-   destino.pixels.SetNRGBA(int(dx),int(dy),_hglienzoMezclar(destino.pixels.NRGBAAt(int(dx),int(dy)),s))
+   destino.cpu().SetNRGBA(int(dx),int(dy),_hglienzoMezclar(destino.cpu().NRGBAAt(int(dx),int(dy)),s))
   }
  }
  destino.dirty=true
@@ -139,6 +139,6 @@ func _hgescribirPNG(src image.Image,ruta string,escala int64) error {
  return f.Close()
 }
 func _hglienzoGuardar(img *_hgImagen,ruta string,escala int64) struct { tag int; payload2 string } {
- if err:=_hgescribirPNG(img.pixels,ruta,escala);err!=nil {return struct { tag int; payload2 string }{tag:2,payload2:"no se pudo guardar "+ruta+": "+err.Error()}}
+ if err:=_hgescribirPNG(img.cpu(),ruta,escala);err!=nil {return struct { tag int; payload2 string }{tag:2,payload2:"no se pudo guardar "+ruta+": "+err.Error()}}
  return struct { tag int; payload2 string }{tag:1}
 }

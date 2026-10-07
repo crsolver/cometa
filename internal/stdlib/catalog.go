@@ -155,6 +155,8 @@ var Functions = []Function{
 	{"graficos", "tamano", ") Vec2", "tamano", false, false},
 	{"graficos", "recortar", "rect Rect) Recorte", "recortar", true, false},
 	{"graficos", "quitar_recorte", ")", "quitarRecorte", true, false},
+	{"graficos", "pintar_en", "imagen Imagen) Destino", "pintarEn", false, false},
+	{"graficos", "liberar", "imagen Imagen)", "liberar", false, false},
 	{"graficos", "usar_camara", "camara Camara2D)", "usarCamara", true, false},
 	{"graficos", "restablecer_camara", ")", "restablecerCamara", true, false},
 	{"entrada", "tecla_mantenida", "tecla Tecla) bool", "teclaMantenida", false, false},
@@ -255,6 +257,8 @@ var Methods = []Function{
 	{"Temporizador", "progreso", ") decimal", "progreso", false, false},
 	{"Recorte", "entrar", ")", "entrar", false, false},
 	{"Recorte", "salir", ")", "salir", false, false},
+	{"Destino", "entrar", ")", "entrar", false, false},
+	{"Destino", "salir", ")", "salir", false, false},
 }
 
 var Fields = map[string]string{
@@ -262,7 +266,7 @@ var Fields = map[string]string{
 	"Vec2": "x decimal\ny decimal", "Rect": "pos Vec2\ntamano Vec2",
 	"Camara2D": "pos Vec2\norigen Vec2\nzoom decimal\nrotacion decimal",
 	"Color":    "", "Imagen": "", "Fuente": "", "Sonido": "", "Reproduccion": "", "Tecla": "", "BotonRaton": "",
-	"BotonMando": "", "EjeMando": "", "Hoja": "", "Rejilla": "", "Temporizador": "", "Recorte": "",
+	"BotonMando": "", "EjeMando": "", "Hoja": "", "Rejilla": "", "Temporizador": "", "Recorte": "", "Destino": "",
 }
 
 // ColorChannels are the read-only members of Color and their Go fields. Color

@@ -40,9 +40,9 @@ type _hgConfigJuego struct {
 }
 type _hgColor = color.NRGBA
 type _hgImagen struct {
-	image  *ebiten.Image
-	pixels *image.NRGBA
-	dirty  bool
+	image           *ebiten.Image
+	pixels          *image.NRGBA
+	dirty, gpuNueva bool
 }
 type _hgFuente struct{ source *text.GoTextFaceSource }
 type _hgSonido struct{ pcm []byte }
@@ -473,6 +473,47 @@ func _hgquitarRecorte() {
 		_hgsinRecorte = nil
 	}
 }
+
+var _hgdestinoActual *_hgImagen
+
+type _hgDestino struct {
+	img, previo          *_hgImagen
+	pantalla, sinRecorte *ebiten.Image
+	camara               _hgCamara2D
+	dentro               bool
+}
+
+func _hgpintarEn(img *_hgImagen) *_hgDestino { return &_hgDestino{img: img} }
+func (d *_hgDestino) Entrar() {
+	if d.dentro || d.img == _hgdestinoActual {
+		panic("ya se está pintando en esta imagen")
+	}
+	d.pantalla, d.sinRecorte, d.camara, d.previo = _hgscreen, _hgsinRecorte, _hgcamara, _hgdestinoActual
+	_hgscreen = d.img.gpu()
+	d.img.gpuNueva = true
+	_hgsinRecorte = nil
+	_hgcamara = _hgCamara2D{Zoom: 1}
+	_hgdestinoActual = d.img
+	d.dentro = true
+}
+func (d *_hgDestino) Salir() {
+	if !d.dentro {
+		return
+	}
+	_hgscreen, _hgsinRecorte, _hgcamara, _hgdestinoActual = d.pantalla, d.sinRecorte, d.camara, d.previo
+	d.dentro = false
+}
+func _hgliberar(img *_hgImagen) {
+	if img == _hgdestinoActual {
+		panic("no se puede liberar una imagen mientras se pinta en ella")
+	}
+	if img.image != nil {
+		img.image.Deallocate()
+		img.image = nil
+	}
+	img.gpuNueva = false
+	img.dirty = false
+}
 func _hgtransform(p, o, s _hgVec2, r float64, destinationOrigin bool) ebiten.GeoM {
 	var m ebiten.GeoM
 	if !destinationOrigin {
@@ -539,6 +580,9 @@ func _hgejecutar(instancia _hgJuego, w, h int64, title string, scale float64, re
 	}{1, ""}
 }
 func (i *_hgImagen) gpu() *ebiten.Image {
+	if i == _hgdestinoActual {
+		panic("no se puede dibujar una imagen sobre sí misma")
+	}
 	if i.image == nil {
 		i.image = ebiten.NewImageFromImage(i.pixels)
 		i.dirty = false
@@ -548,6 +592,23 @@ func (i *_hgImagen) gpu() *ebiten.Image {
 		i.dirty = false
 	}
 	return i.image
+}
+func (i *_hgImagen) cpu() *image.NRGBA {
+	if i.gpuNueva {
+		b := i.image.Bounds()
+		pix := make([]byte, 4*b.Dx()*b.Dy())
+		func() {
+			defer func() {
+				if recover() != nil {
+					panic("leer una imagen en la que se pintó con graficos.pintar_en requiere que el juego esté en marcha")
+				}
+			}()
+			i.image.ReadPixels(pix)
+		}()
+		i.pixels = _hgnrgba(&image.RGBA{Pix: pix, Stride: 4 * b.Dx(), Rect: image.Rect(0, 0, b.Dx(), b.Dy())})
+		i.gpuNueva = false
+	}
+	return i.pixels
 }
 func (i *_hgImagen) bounds() image.Rectangle {
 	if i.pixels != nil {
@@ -563,6 +624,16 @@ func _hgpremultiplicar(pix []byte) []byte {
 		out[i+1] = uint8(uint32(pix[i+1]) * a / 255)
 		out[i+2] = uint8(uint32(pix[i+2]) * a / 255)
 		out[i+3] = pix[i+3]
+	}
+	return out
+}
+func _hgnrgba(src image.Image) *image.NRGBA {
+	b := src.Bounds()
+	out := image.NewNRGBA(image.Rect(0, 0, b.Dx(), b.Dy()))
+	for y := 0; y < b.Dy(); y++ {
+		for x := 0; x < b.Dx(); x++ {
+			out.Set(x, y, src.At(b.Min.X+x, b.Min.Y+y))
+		}
 	}
 	return out
 }
@@ -813,6 +884,8 @@ func (_hgCamara2D) _cometa_public_Limitada()     {}
 func (_hgCamara2D) _cometa_public_Sacudida()     {}
 func (_hgCamara2D) _cometa_public_Siguiendo()    {}
 func (_hgCamara2D) _cometa_public_Visible()      {}
+func (*_hgDestino) _cometa_public_Entrar()       {}
+func (*_hgDestino) _cometa_public_Salir()        {}
 func (*_hgRecorte) _cometa_public_Entrar()       {}
 func (*_hgRecorte) _cometa_public_Salir()        {}
 func (_hgRect) _cometa_public_Centro()           {}

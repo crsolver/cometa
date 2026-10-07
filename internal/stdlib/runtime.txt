@@ -7,7 +7,8 @@ type _hgColor = color.NRGBA
 type _hgTecla ebiten.Key
 type _hgBotonRaton ebiten.MouseButton
 // Images keep straight-alpha CPU pixels; the GPU copy is created or refreshed on draw.
-type _hgImagen struct { image *ebiten.Image; pixels *image.NRGBA; dirty bool }
+// After painting into an image the GPU copy is the newer one (gpuNueva) until cpu() reads it back.
+type _hgImagen struct { image *ebiten.Image; pixels *image.NRGBA; dirty, gpuNueva bool }
 type _hgFuente struct { source *text.GoTextFaceSource }
 type _hgSonido struct { pcm []byte }
 type _hgReproduccion struct { player *audio.Player; sound *_hgSonido; loop, paused bool; volume float64 }
@@ -246,6 +247,31 @@ func (c *_hgRecorte) Entrar(){
 func (c *_hgRecorte) Salir(){_hgdraw();if c.vigente(){_hgscreen,_hgsinRecorte=c.pantalla,c.sinRecorte}}
 func _hgquitarRecorte(){_hgdraw();if _hgsinRecorte!=nil{_hgscreen=_hgsinRecorte;_hgsinRecorte=nil}}
 
+// Painting into an image: a `con` block makes its GPU copy the draw target, with
+// no clip and no camera, and puts the previous target back on exit. The block
+// supplies the target, so it also works outside pintar.
+var _hgdestinoActual *_hgImagen
+type _hgDestino struct { img,previo *_hgImagen; pantalla,sinRecorte *ebiten.Image; camara _hgCamara2D; dentro bool }
+func _hgpintarEn(img *_hgImagen) *_hgDestino {return &_hgDestino{img:img}}
+func (d *_hgDestino) Entrar(){
+ if d.dentro||d.img==_hgdestinoActual{panic("ya se está pintando en esta imagen")}
+ d.pantalla,d.sinRecorte,d.camara,d.previo=_hgscreen,_hgsinRecorte,_hgcamara,_hgdestinoActual
+ _hgscreen=d.img.gpu();d.img.gpuNueva=true
+ _hgsinRecorte=nil;_hgcamara=_hgCamara2D{Zoom:1};_hgdestinoActual=d.img;d.dentro=true
+}
+func (d *_hgDestino) Salir(){
+ if !d.dentro{return}
+ _hgscreen,_hgsinRecorte,_hgcamara,_hgdestinoActual=d.pantalla,d.sinRecorte,d.camara,d.previo
+ d.dentro=false
+}
+// Frees the GPU copy now; the CPU pixels stay, so the next draw uploads them again.
+// Anything painted into the image and not read back since is lost.
+func _hgliberar(img *_hgImagen){
+ if img==_hgdestinoActual{panic("no se puede liberar una imagen mientras se pinta en ella")}
+ if img.image!=nil{img.image.Deallocate();img.image=nil}
+ img.gpuNueva=false;img.dirty=false
+}
+
 // Transform local geometry before applying the active camera. Image origins use
 // source pixels; rectangle/destination origins use already-sized local pixels.
 func _hgtransform(p,o,s _hgVec2,r float64,destinationOrigin bool) ebiten.GeoM {
@@ -283,9 +309,22 @@ func _hgejecutar(instancia _hgJuego,w,h int64,title string,scale float64,resize,
 }
 
 func (i *_hgImagen) gpu() *ebiten.Image {
+ if i==_hgdestinoActual {panic("no se puede dibujar una imagen sobre sí misma")}
  if i.image==nil {i.image=ebiten.NewImageFromImage(i.pixels);i.dirty=false}
  if i.dirty {i.image.WritePixels(_hgpremultiplicar(i.pixels.Pix));i.dirty=false}
  return i.image
+}
+// The CPU pixels, read back from the GPU first when the image was painted into.
+func (i *_hgImagen) cpu() *image.NRGBA {
+ if i.gpuNueva {
+  b:=i.image.Bounds();pix:=make([]byte,4*b.Dx()*b.Dy())
+  func(){
+   defer func(){if recover()!=nil{panic("leer una imagen en la que se pintó con graficos.pintar_en requiere que el juego esté en marcha")}}()
+   i.image.ReadPixels(pix)
+  }()
+  i.pixels=_hgnrgba(&image.RGBA{Pix:pix,Stride:4*b.Dx(),Rect:image.Rect(0,0,b.Dx(),b.Dy())});i.gpuNueva=false
+ }
+ return i.pixels
 }
 func (i *_hgImagen) bounds() image.Rectangle {if i.pixels!=nil{return i.pixels.Rect};return i.image.Bounds()}
 func _hgpremultiplicar(pix []byte) []byte {

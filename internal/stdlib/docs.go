@@ -189,6 +189,8 @@ var FunctionDocs = map[string]string{
 	"graficos.tamano":                "El tamaño actual de la ventana/pantalla lógica, como Vec2.",
 	"graficos.recortar":              "Solo se dibuja dentro de `rect` (en coordenadas de pantalla, sin cámara). Con `con graficos.recortar(rect)` el recorte dura lo que el bloque y se quita solo al salir; los bloques anidados se limitan al recorte que los contiene. Llamado suelto, dura hasta quitar_recorte o el siguiente cuadro. Sirve para deslizar contenido dentro de un marco.",
 	"graficos.quitar_recorte":        "Vuelve a dibujar en toda la pantalla tras un graficos.recortar suelto. Con un bloque `con` no hace falta.",
+	"graficos.pintar_en":             "Con `con graficos.pintar_en(imagen)`, todo lo que se dibuja dentro del bloque se pinta en `imagen` en vez de en la pantalla, sin cámara ni recorte; al salir se vuelve a dibujar donde antes. La imagen no se limpia sola (usa graficos.limpiar) y se puede usar en cualquier momento, no solo desde pintar. Sirve para minimapas, escenas a baja resolución o fondos que se pintan una sola vez.",
+	"graficos.liberar":               "Libera la copia de `imagen` en la tarjeta gráfica. La imagen sigue siendo válida y vuelve a subirse sola al dibujarla; lo pintado en ella con graficos.pintar_en se pierde.",
 	"graficos.usar_camara":           "A partir de aquí, todo lo dibujado usa la cámara 2D dada (desplazamiento, zoom y rotación) hasta la próxima llamada a usar_camara o restablecer_camara.",
 	"graficos.restablecer_camara":    "Vuelve a dibujar en coordenadas de pantalla normales, deshaciendo el efecto de usar_camara.",
 
@@ -324,6 +326,8 @@ var MethodDocs = map[string]string{
 	"Rect.contiene":          "verdadero si `punto` cae dentro de este rectángulo.",
 	"Recorte.entrar":         "Aplica el recorte, limitado al recorte que había al crearlo; se usa automáticamente al abrir un bloque `con` sobre él.",
 	"Recorte.salir":          "Restaura el recorte (o la pantalla completa) que había antes; se usa automáticamente al cerrar el bloque `con`.",
+	"Destino.entrar":         "Empieza a pintar en la imagen; se usa automáticamente al abrir un bloque `con` sobre él.",
+	"Destino.salir":          "Vuelve a pintar donde se pintaba antes, con su cámara y su recorte; se usa automáticamente al cerrar el bloque `con`.",
 	"AmbitoUI.entrar":       "Entra al ámbito de este contenedor; se usa automáticamente al abrir un bloque `con` sobre él.",
 	"AmbitoUI.salir":         "Sale del ámbito de este contenedor; se usa automáticamente al cerrar el bloque `con`.",
 }
@@ -345,6 +349,7 @@ var TypeDocs = map[string]string{
 	"Hoja":         "Una imagen dividida en cuadros iguales (creada con graficos.hoja), para dibujar sprites y tiles por número.",
 	"Temporizador": "Cuenta segundos hacia una duración, creado con tiempo.temporizador; sirve para enfriamientos, invulnerabilidad o eventos periódicos. Es un objeto compartido.",
 	"Recorte":      "Un recorte de la pantalla abierto por graficos.recortar, para usarse con `con`: al salir del bloque se vuelve a dibujar como antes.",
+	"Destino":      "Una imagen preparada por graficos.pintar_en para pintar en ella, para usarse con `con`.",
 	"Rejilla":      "Una cuadrícula de enteros (por ejemplo un mapa de tiles) creada con rejilla.nueva, rejilla.desde_texto o rejilla.desde_csv; es un objeto compartido, como los demás tipos.",
 	"Tecla":        "Una tecla del teclado, para usar con las funciones de entrada.",
 	"BotonRaton":   "Un botón del ratón (izquierdo, derecho o medio), para usar con las funciones de entrada.",

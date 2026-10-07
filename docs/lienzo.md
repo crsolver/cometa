@@ -6,6 +6,7 @@
 - Los píxeles viven en memoria de CPU y se suben a la GPU al dibujarlos, así que los lienzos pueden crearse en variables globales o en `inicio()`, antes de `pincel.ejecutar`. Editar un lienzo que ya se dibujó vuelve a subirlo en el siguiente dibujo.
 - Las primitivas **reemplazan** píxeles, incluida la transparencia (sirven también como borrador). Solo `pegar` mezcla la fuente sobre el destino.
 - Escribir fuera de los bordes se recorta sin error.
+- Un lienzo también se puede pintar con las funciones de `graficos` (formas suavizadas, texto, otras imágenes con escala y rotación) dentro de `con graficos.pintar_en(imagen)`; ver [juegos](juegos.md). Las funciones de `lienzo` ven después el resultado.
 
 ## Sprites desde texto
 
