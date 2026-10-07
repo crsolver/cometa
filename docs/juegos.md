@@ -317,8 +317,8 @@ graficos.cuadro_v(hoja graficos.Hoja, indice entero, pos mate.Vec2, origen mate.
 graficos.texto_depuracion(texto cadena, x decimal = 0, y decimal = 0)
 graficos.texto_depuracion_v(texto cadena, pos mate.Vec2 = {})
 graficos.tamano() mate.Vec2
-graficos.recortar(rect mate.Rect)                 // solo dibuja dentro de rect (pantalla)
-graficos.quitar_recorte()
+graficos.recortar(rect mate.Rect) graficos.Recorte // solo dibuja dentro de rect (pantalla); úsalo con `con`
+graficos.quitar_recorte()                         // solo para un recortar suelto, sin `con`
 graficos.usar_camara(camara graficos.Camara2D)
 graficos.restablecer_camara()
 graficos.Camara2D.a_mundo(punto mate.Vec2) mate.Vec2
@@ -419,8 +419,18 @@ graficos.cuadro(@hoja, @cuadro, @pos.x, @pos.y, relleno = color.rgba(255, 255, 2
 ```
 
 `graficos.recortar(rect)` limita el dibujo a un rectángulo de la pantalla (no le
-afecta la cámara) hasta `graficos.quitar_recorte()` o el siguiente cuadro; sirve para
-deslizar una sala o un texto dentro de un marco sin tapar lo que sobresale.
+afecta la cámara); sirve para deslizar una sala o un texto dentro de un marco sin
+tapar lo que sobresale. Con `con`, el recorte dura lo que el bloque y se quita solo,
+también si se sale con `retornar`:
+
+```cometa
+con graficos.recortar(mate.Rect {pos: {40, 20}, tamano: {240, 140}})
+	graficos.imagen(@sala, @desplazamiento, 20)
+graficos.texto_depuracion("fuera del marco")
+```
+
+Un `con` anidado se limita al recorte que lo contiene. Llamado suelto, el recorte
+dura hasta `graficos.quitar_recorte()` o el siguiente cuadro.
 mate.Rectángulos y texto aplican origen, rotación y posición antes de la cámara.
 Todas las rotaciones son radianes y valen cero por defecto. Círculos, líneas y
 texto de depuración no tienen rotación. Los métodos de mate.Vec2 devuelven valores

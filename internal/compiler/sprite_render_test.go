@@ -16,6 +16,7 @@ func TestSpriteSheetAndGridPixels(t *testing.T) {
 usar std/pincel/graficos
 usar std/pincel/rejilla
 usar std/pincel/lienzo
+usar std/mate
 
 // Two 4x4 frames: frame 0 has red/blue on top and green/yellow below; frame 1 is magenta.
 fn sprites() graficos.Hoja
@@ -25,6 +26,17 @@ fn sprites() graficos.Hoja
 // Cells hold frame 1, frame 0 and an empty tile.
 fn mapa() rejilla.Rejilla
 	rejilla.desde_texto(["ab."], ["a": 1, "b": 0, ".": -1])
+
+// The inner clip is limited to the outer one; leaving each block restores the previous target.
+fn recortes(h graficos.Hoja, salir bool)
+	con graficos.recortar(mate.Rect {pos: {11, 11}, tamano: {2, 2}})
+		con graficos.recortar(mate.Rect {pos: {12, 12}, tamano: {20, 20}})
+			graficos.cuadro(h, 0, 10, 10)
+			si salir
+				retornar
+		graficos.cuadro(h, 0, 30, 30)
+		graficos.cuadro(h, 1, 8, 8)
+	graficos.cuadro(h, 0, 40, 40)
 
 fn inicio()
 	imprimir(0)
@@ -88,6 +100,11 @@ func (*spriteCheck) Update() error {
   expect{11,11,rojo},expect{12,12,amarillo},expect{10,10,nada},expect{13,13,nada})
  check("clip removed",func(){_hgrecortar(_hgRect{_hgVec2{0,0},_hgVec2{1,1}});_hgquitarRecorte();_hgcuadro(h,0,at,zero,one,0,blanco,false,false,nada)},expect{10,10,rojo},expect{13,13,amarillo})
  check("clip outside",func(){_hgrecortar(_hgRect{_hgVec2{100,100},_hgVec2{5,5}});_hgcuadro(h,0,at,zero,one,0,blanco,false,false,nada);_hgquitarRecorte()},expect{10,10,nada})
+ // con blocks: frame 0 only shows through the intersection (12,12); once the inner block ends, frame 1 reaches the rest of the outer clip.
+ check("clip scopes",func(){Recortes(h,false)},expect{11,11,magenta},expect{12,12,amarillo},expect{10,10,nada},expect{13,13,nada},expect{30,30,nada},expect{40,40,rojo})
+ // An early return leaves both blocks, so later drawing is unclipped.
+ check("clip scopes return",func(){Recortes(h,true);_hgcuadro(h,0,_hgVec2{40,40},zero,one,0,blanco,false,false,nada)},
+  expect{12,12,amarillo},expect{11,11,nada},expect{13,13,nada},expect{40,40,rojo})
  grid:=_hgVec2{20,30}
  check("grid",func(){_hgrejillaDibujar(m,h,grid,one,_hgColor{255,255,255,255},nil,8,sinColores)},
   expect{20,30,magenta},expect{23,33,magenta},expect{24,30,rojo},expect{27,33,amarillo},expect{28,30,nada},expect{19,30,nada})

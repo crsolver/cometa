@@ -428,13 +428,43 @@ func _hgregionRect(img *_hgImagen, source, d _hgRect, o _hgVec2, r float64, c, f
 
 var _hgsinRecorte *ebiten.Image
 
-func _hgrecortar(r _hgRect) {
+type _hgRecorte struct {
+	area                 image.Rectangle
+	pantalla, sinRecorte *ebiten.Image
+}
+
+func _hgrecortar(r _hgRect) *_hgRecorte {
 	_hgdraw()
+	c := &_hgRecorte{pantalla: _hgscreen, sinRecorte: _hgsinRecorte}
 	if _hgsinRecorte == nil {
 		_hgsinRecorte = _hgscreen
 	}
-	area := image.Rect(int(math.Floor(r.Pos.X)), int(math.Floor(r.Pos.Y)), int(math.Ceil(r.Pos.X+r.Tamano.X)), int(math.Ceil(r.Pos.Y+r.Tamano.Y))).Intersect(_hgsinRecorte.Bounds())
-	_hgscreen = _hgsinRecorte.SubImage(area).(*ebiten.Image)
+	c.area = image.Rect(int(math.Floor(r.Pos.X)), int(math.Floor(r.Pos.Y)), int(math.Ceil(r.Pos.X+r.Tamano.X)), int(math.Ceil(r.Pos.Y+r.Tamano.Y))).Intersect(_hgsinRecorte.Bounds())
+	_hgscreen = _hgsinRecorte.SubImage(c.area).(*ebiten.Image)
+	return c
+}
+func (c *_hgRecorte) base() *ebiten.Image {
+	if c.sinRecorte != nil {
+		return c.sinRecorte
+	}
+	return c.pantalla
+}
+func (c *_hgRecorte) vigente() bool {
+	return _hgsinRecorte == c.base() || (_hgsinRecorte == nil && _hgscreen == c.base())
+}
+func (c *_hgRecorte) Entrar() {
+	_hgdraw()
+	if !c.vigente() {
+		return
+	}
+	_hgsinRecorte = c.base()
+	_hgscreen = _hgsinRecorte.SubImage(c.area.Intersect(c.pantalla.Bounds())).(*ebiten.Image)
+}
+func (c *_hgRecorte) Salir() {
+	_hgdraw()
+	if c.vigente() {
+		_hgscreen, _hgsinRecorte = c.pantalla, c.sinRecorte
+	}
 }
 func _hgquitarRecorte() {
 	_hgdraw()
@@ -783,6 +813,8 @@ func (_hgCamara2D) _cometa_public_Limitada()     {}
 func (_hgCamara2D) _cometa_public_Sacudida()     {}
 func (_hgCamara2D) _cometa_public_Siguiendo()    {}
 func (_hgCamara2D) _cometa_public_Visible()      {}
+func (*_hgRecorte) _cometa_public_Entrar()       {}
+func (*_hgRecorte) _cometa_public_Salir()        {}
 func (_hgRect) _cometa_public_Centro()           {}
 func (_hgRect) _cometa_public_Colision_circulo() {}
 func (_hgRect) _cometa_public_Contiene()         {}
