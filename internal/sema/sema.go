@@ -57,15 +57,11 @@ func Check(filename string, program *ast.Program) (*Model, error) {
 
 func newChecker(filename string) *checker {
 	return &checker{filename: filename, invalid: map[string]bool{}, model: &Model{
-		NumericCoercions: map[ast.Expr]Type{}, NumericCalls: map[*ast.CallExpr]Type{},
-		Interfaces: map[string]*InterfaceInfo{}, TypeParams: map[ast.Decl][]Type{}, Constraints: map[string]Type{}, RawTypes: map[ast.Expr]Type{}, TypeRefs: map[*ast.TypeRef]Type{},
+		NumericCoercions: map[ast.Expr]Type{},
+		Interfaces:       map[string]*InterfaceInfo{}, TypeParams: map[ast.Decl][]Type{}, Constraints: map[string]Type{}, RawTypes: map[ast.Expr]Type{}, TypeRefs: map[*ast.TypeRef]Type{},
 		Wraps:         map[ast.Expr]Type{},
 		Calls:         map[*ast.CallExpr]CallInfo{},
-		ListCalls:     map[*ast.CallExpr]string{},
-		MapCalls:      map[*ast.CallExpr]string{},
-		StringCalls:   map[*ast.CallExpr]string{},
-		NumberCalls:   map[*ast.CallExpr]string{},
-		StructCopies:  map[*ast.CallExpr]Type{},
+		Builtins:      map[*ast.CallExpr]Builtin{},
 		EnumCompares:  map[*ast.BinaryExpr]EnumCompare{},
 		LocalNames:    map[string]bool{},
 		ExpectedTypes: map[ast.Expr]Type{},

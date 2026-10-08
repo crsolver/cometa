@@ -137,3 +137,17 @@ func TestNumbersUseASCIIDigits(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// Every token names its file, the structural ones included, so nothing
+// downstream has to fill positions in.
+func TestTokensCarryTheFilename(t *testing.T) {
+	tokens, err := Lex("bloque.cometa", "fn inicio()\n\tsi verdadero\n\t\timprimir(1)\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tok := range tokens {
+		if tok.Pos.Filename != "bloque.cometa" {
+			t.Fatalf("token %v has file %q", tok, tok.Pos.Filename)
+		}
+	}
+}

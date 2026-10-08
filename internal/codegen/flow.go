@@ -499,30 +499,29 @@ func (g *generator) flowValueBlock(body []ast.Stmt, t sema.Type, indent int) str
 }
 
 func (g *generator) flowCall(call *ast.CallExpr, indent int) string {
-	if operation, ok := g.model.MapCalls[call]; ok {
-		return g.flowMapCall(call, operation, indent)
-	}
-	if t, ok := g.model.NumericCalls[call]; ok {
-		return g.numericCall(call, t, g.flowExpr(call.Args[0], indent))
+	if builtin, ok := g.model.Builtins[call]; ok {
+		switch builtin.Kind {
+		case sema.MapMethod:
+			return g.flowMapCall(call, builtin.Name, indent)
+		case sema.ListMethod:
+			return g.flowListCall(call, builtin.Name, indent)
+		case sema.StringMethod:
+			return g.flowStringCall(call, builtin.Name, indent)
+		case sema.NumberMethod:
+			return g.flowNumberCall(call, builtin.Name, indent)
+		case sema.Conversion:
+			return g.numericCall(call, builtin.Type, g.flowExpr(call.Args[0], indent))
+		case sema.StructCopy:
+			// Structs are pointers, so a shallow copy duplicates the pointed-to value.
+			original := g.flowExpr(call.Callee.(*ast.MemberExpr).Object, indent)
+			duplicate := g.freshName()
+			g.line(indent, "%s := *%s", duplicate, original)
+			return "&" + duplicate
+		}
+		panic("codegen: unknown kind of built-in call")
 	}
 	if f, ok := g.model.Stdlib.Calls[call]; ok {
 		return g.stdlibCall(call, f, indent)
-	}
-	if operation, ok := g.model.ListCalls[call]; ok {
-		return g.flowListCall(call, operation, indent)
-	}
-	if operation, ok := g.model.StringCalls[call]; ok {
-		return g.flowStringCall(call, operation, indent)
-	}
-	if operation, ok := g.model.NumberCalls[call]; ok {
-		return g.flowNumberCall(call, operation, indent)
-	}
-	if _, ok := g.model.StructCopies[call]; ok {
-		// Structs are pointers, so a shallow copy duplicates the pointed-to value.
-		original := g.flowExpr(call.Callee.(*ast.MemberExpr).Object, indent)
-		duplicate := g.freshName()
-		g.line(indent, "%s := *%s", duplicate, original)
-		return "&" + duplicate
 	}
 	callee := ""
 	switch v := call.Callee.(type) {

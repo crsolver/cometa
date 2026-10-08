@@ -37,7 +37,8 @@ var singles = map[rune]token.Kind{
 }
 
 // Lex converts source text into tokens, including Python-style INDENT and DEDENT
-// markers. Tabs are the only permitted indentation characters.
+// markers. Tabs are the only permitted indentation characters. Every token
+// carries filename in its position.
 func Lex(filename, source string) ([]token.Token, error) {
 	// Some Windows editors and PowerShell save UTF-8 files with a BOM.
 	source = strings.TrimPrefix(source, "\ufeff")
@@ -106,6 +107,9 @@ func Lex(filename, source string) ([]token.Token, error) {
 		out = append(out, token.Token{Kind: token.Dedent, Pos: ast.Pos{Line: eofLine, Column: 1}})
 	}
 	out = append(out, token.Token{Kind: token.EOF, Pos: ast.Pos{Line: eofLine, Column: 1}})
+	for i := range out {
+		out[i].Pos.Filename = filename
+	}
 	return out, errors.Err()
 }
 

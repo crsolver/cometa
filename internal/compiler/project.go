@@ -83,9 +83,6 @@ func parseModule(path string, source []byte) (*ast.Program, error) {
 	var errors diagnostic.List
 	tokens, err := lexer.Lex(path, string(source))
 	errors.Add(err)
-	for i := range tokens {
-		tokens[i].Pos.Filename = path
-	}
 	program, err := parser.Parse(path, tokens)
 	errors.Add(err)
 	return program, errors.Err()

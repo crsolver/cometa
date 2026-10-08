@@ -5,13 +5,6 @@ import (
 	"github.com/crsolver/cometa/internal/diagnostic"
 )
 
-var stringMethodOrder = []string{
-	"longitud", "esta_vacia", "contiene", "buscar_indice", "empieza_con",
-	"termina_con", "mayusculas", "minusculas", "recortar", "reemplazar",
-	"dividir", "obtener", "subcadena", "a_entero", "a_decimal",
-	"rellenar_izquierda", "rellenar_derecha", "repetir",
-}
-
 func StringMethods() map[string]FuncInfo {
 	stringType := Type{Kind: String}
 	number := Type{Kind: Integer}
@@ -45,8 +38,6 @@ func StringMethods() map[string]FuncInfo {
 	return methods
 }
 
-func StringMethodNames() []string { return append([]string(nil), stringMethodOrder...) }
-
 func StringMethodDocumentation(name string) string {
 	return map[string]string{
 		"longitud":           "Devuelve la cantidad de puntos de código Unicode.",
@@ -77,7 +68,7 @@ func (c *checker) checkStringCall(call *ast.CallExpr, member *ast.MemberExpr) (T
 	}
 	result, err := c.bindArguments(call, signature)
 	if err == nil {
-		c.model.StringCalls[call] = member.Name
+		c.model.Builtins[call] = Builtin{Kind: StringMethod, Name: member.Name}
 	}
 	return result, err
 }

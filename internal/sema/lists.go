@@ -5,12 +5,6 @@ import (
 	"github.com/crsolver/cometa/internal/diagnostic"
 )
 
-var listMethodOrder = []string{
-	"longitud", "esta_vacia", "contiene", "buscar_indice", "obtener",
-	"primero", "ultimo", "agregar", "extender", "insertar", "eliminar",
-	"copiar", "invertir", "ordenar", "ordenar_por",
-}
-
 var listMutators = map[string]bool{
 	"agregar": true, "extender": true, "insertar": true,
 	"eliminar": true, "invertir": true,
@@ -56,8 +50,6 @@ func ListMethods(list Type) map[string]FuncInfo {
 	add("ordenar_por", []ast.Param{{Name: "claves"}, descending}, []Type{keys, {Kind: Boolean}}, Type{Kind: Void})
 	return methods
 }
-
-func ListMethodNames() []string { return append([]string(nil), listMethodOrder...) }
 
 func ListMethodDocumentation(name string) string {
 	return map[string]string{
@@ -137,7 +129,7 @@ func (c *checker) checkListCall(call *ast.CallExpr, member *ast.MemberExpr, list
 	}
 	result, err := c.bindArguments(call, signature)
 	if err == nil {
-		c.model.ListCalls[call] = member.Name
+		c.model.Builtins[call] = Builtin{Kind: ListMethod, Name: member.Name}
 	}
 	return result, err
 }

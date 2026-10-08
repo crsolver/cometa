@@ -71,7 +71,12 @@ func identifierAt(tokens []token.Token, lines []string, position lsp.Position) (
 		}
 		if start < end {
 			lexeme := string(runes[start:end])
-			return token.Token{Kind: token.Ident, Lexeme: lexeme, Pos: ast.Pos{Line: position.Line + 1, Column: start + 1}}, lsp.Range{Start: lsp.Position{Line: position.Line, Character: utf16Length(string(runes[:start]))}, End: lsp.Position{Line: position.Line, Character: utf16Length(string(runes[:end]))}}, true
+			// Positions name their file, like the ones the lexer gave tokens.
+			filename := ""
+			if len(tokens) > 0 {
+				filename = tokens[0].Pos.Filename
+			}
+			return token.Token{Kind: token.Ident, Lexeme: lexeme, Pos: ast.Pos{Filename: filename, Line: position.Line + 1, Column: start + 1}}, lsp.Range{Start: lsp.Position{Line: position.Line, Character: utf16Length(string(runes[:start]))}, End: lsp.Position{Line: position.Line, Character: utf16Length(string(runes[:end]))}}, true
 		}
 	}
 	return token.Token{}, lsp.Range{}, false
@@ -327,17 +332,15 @@ func hoverInExpression(expression ast.Expr, model *sema.Model, position ast.Pos,
 		if callPosition == position {
 			if call, ok := model.Calls[expr]; ok {
 				info := functionHover(call.Signature, lines)
-				if operation, builtin := model.ListCalls[expr]; builtin {
-					info.documentation = sema.ListMethodDocumentation(operation)
-				}
-				if operation, builtin := model.MapCalls[expr]; builtin {
-					info.documentation = sema.MapMethodDocumentation(operation)
-				}
-				if operation, builtin := model.StringCalls[expr]; builtin {
-					info.documentation = sema.StringMethodDocumentation(operation)
-				}
-				if operation, builtin := model.NumberCalls[expr]; builtin {
-					info.documentation = sema.NumberMethodDocumentation(operation)
+				switch builtin := model.Builtins[expr]; builtin.Kind {
+				case sema.ListMethod:
+					info.documentation = sema.ListMethodDocumentation(builtin.Name)
+				case sema.MapMethod:
+					info.documentation = sema.MapMethodDocumentation(builtin.Name)
+				case sema.StringMethod:
+					info.documentation = sema.StringMethodDocumentation(builtin.Name)
+				case sema.NumberMethod:
+					info.documentation = sema.NumberMethodDocumentation(builtin.Name)
 				}
 				return info, true
 			}

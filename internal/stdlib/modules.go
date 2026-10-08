@@ -125,7 +125,6 @@ func (m *Module) parseAt(key, source string) ast.Decl {
 			pos.Column += at.column
 		}
 		pos.Line += at.line - 1
-		pos.Filename = filename
 	}
 	program, err := parser.Parse(filename, tokens)
 	if err != nil {

@@ -54,7 +54,19 @@ func GenerateWithOptions(filename string, program *ast.Program, model *sema.Mode
 
 	g := &generator{model: model, names: newGoNames(model), defaultFlags: map[*ast.FuncDecl][]string{}, lineDirectives: options.LineDirectives, displayPath: options.DisplayPath}
 	g.printing = usesPrint(program) || model.FormatsValues
-	stringFeatures := len(model.StringCalls) > 0 || len(model.NumberCalls) > 0
+	// What the built-in calls of the program need from Go and from the runtime.
+	stringFeatures, sorts, sortsByKey, converts := false, false, false, false
+	for _, builtin := range model.Builtins {
+		switch builtin.Kind {
+		case sema.StringMethod, sema.NumberMethod:
+			stringFeatures = true
+		case sema.ListMethod:
+			sorts = sorts || builtin.Name == "ordenar" || builtin.Name == "ordenar_por"
+			sortsByKey = sortsByKey || builtin.Name == "ordenar_por"
+		case sema.Conversion:
+			converts = true
+		}
+	}
 	for expr := range model.ExprTypes {
 		if _, ok := expr.(*ast.InterpolatedStringExpr); ok {
 			stringFeatures = true
@@ -101,13 +113,11 @@ func GenerateWithOptions(filename string, program *ast.Program, model *sema.Mode
 		imports[`"strconv"`] = true
 		imports[`"strings"`] = true
 	}
-	for _, operation := range model.ListCalls {
-		if operation == "ordenar" || operation == "ordenar_por" {
-			imports[`"sort"`] = true
-		}
-		if operation == "ordenar_por" {
-			imports[`"fmt"`] = true
-		}
+	if sorts {
+		imports[`"sort"`] = true
+	}
+	if sortsByKey {
+		imports[`"fmt"`] = true
 	}
 	var paths []string
 	for path := range imports {
@@ -155,7 +165,7 @@ func GenerateWithOptions(filename string, program *ast.Program, model *sema.Mode
 	if g.printing {
 		g.write("%s\n", printRuntime)
 	}
-	if len(model.NumericCalls) > 0 || model.Stdlib.Used {
+	if converts || model.Stdlib.Used {
 		g.write("%s\n", numericRuntime)
 	}
 

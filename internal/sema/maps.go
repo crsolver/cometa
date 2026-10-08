@@ -79,7 +79,7 @@ func (c *checker) checkMapCall(call *ast.CallExpr, member *ast.MemberExpr, t Typ
 	}
 	result, err := c.bindArguments(call, f)
 	if err == nil {
-		c.model.MapCalls[call] = member.Name
+		c.model.Builtins[call] = Builtin{Kind: MapMethod, Name: member.Name}
 	}
 	return result, err
 }

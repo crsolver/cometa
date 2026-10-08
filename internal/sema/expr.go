@@ -456,7 +456,7 @@ func (c *checker) checkCall(call *ast.CallExpr) (Type, error) {
 		if id.Name == "decimal" {
 			t.Kind = Decimal
 		}
-		c.model.NumericCalls[call] = t
+		c.model.Builtins[call] = Builtin{Kind: Conversion, Name: id.Name, Type: t}
 		return t, nil
 	}
 	if t, ok, err := c.stdlibCall(call); ok {
@@ -565,7 +565,7 @@ func (c *checker) checkCall(call *ast.CallExpr) (Type, error) {
 				if len(call.Args) != 0 {
 					return Type{}, c.fail(call.Pos, "copiar no acepta argumentos")
 				}
-				c.model.StructCopies[call] = objectType
+				c.model.Builtins[call] = Builtin{Kind: StructCopy, Name: callee.Name, Type: objectType}
 				return objectType, nil
 			}
 		}

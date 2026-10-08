@@ -309,7 +309,6 @@ func (h *Handler) moduleHover(params *lsp.HoverParams, text string) *lsp.Hover {
 	if !ok {
 		return nil
 	}
-	id.Pos.Filename = p.Root.Path
 	detail, docs := "", ""
 	if target := p.Root.Imports[id.Lexeme]; target != nil && p.References[id.Pos] != nil {
 		return &lsp.Hover{Contents: lsp.NewHoverContents(lsp.Markdown, "módulo `"+id.Lexeme+"`"), Range: &span}
@@ -381,7 +380,6 @@ func (h *Handler) Definition(_ context.Context, params *lsp.DefinitionParams) ([
 	if !ok {
 		return nil, nil
 	}
-	id.Pos.Filename = p.Root.Path
 	if target := p.Root.Imports[id.Lexeme]; target != nil && p.References[id.Pos] != nil {
 		return []lsp.Location{{URI: h.moduleURI(p, target.Path), Range: lsp.Range{}}}, nil
 	}
