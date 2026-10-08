@@ -30,7 +30,7 @@ func (c *checker) checkContextualVariant(expr *ast.ContextualVariantExpr, call *
 		if !ok || call != nil {
 			return Type{}, c.fail(expr.Pos, "constante inválida .%s para %s", expr.Name, expected.Name)
 		}
-		c.model.Game.Constants[expr] = value
+		c.model.Stdlib.Constants[expr] = value
 		return *expected, nil
 	}
 	if call != nil {

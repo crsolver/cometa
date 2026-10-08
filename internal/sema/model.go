@@ -38,7 +38,7 @@ type Model struct {
 	NumericCoercions map[ast.Expr]Type
 	NumericCalls     map[*ast.CallExpr]Type
 	Assets           map[*ast.CallExpr]Asset
-	Game             GameModel
+	Stdlib           StdlibModel
 	Interfaces       map[string]*InterfaceInfo
 	TypeParams       map[ast.Decl][]Type
 	Constraints      map[string]Type

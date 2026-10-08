@@ -244,7 +244,7 @@ func (g *generator) flowExpr(e ast.Expr, indent int) string {
 }
 
 func (g *generator) flowRaw(e ast.Expr, t sema.Type, indent int) string {
-	if value, ok := g.model.Game.Constants[e]; ok {
+	if value, ok := g.model.Stdlib.Constants[e]; ok {
 		return value
 	}
 	if ctor, ok := g.model.Constructors[e]; ok {
@@ -357,7 +357,7 @@ func (g *generator) flowRaw(e ast.Expr, t sema.Type, indent int) string {
 	case *ast.InterpolatedStringExpr:
 		return g.interpolated(v, func(e ast.Expr) string { return g.flowExpr(e, indent) })
 	case *ast.MemberExpr:
-		if channel, ok := g.model.Game.Channels[v]; ok {
+		if channel, ok := g.model.Stdlib.Channels[v]; ok {
 			return "int64(" + g.flowExpr(v.Object, indent) + "." + channel + ")"
 		}
 		return operand(v.Object, g.flowExpr(v.Object, indent)) + "." + g.fieldName(g.model.ExprTypes[v.Object], v.Name)
@@ -378,8 +378,8 @@ func (g *generator) flowRaw(e ast.Expr, t sema.Type, indent int) string {
 		if lit, ok := v.Value.(*ast.LiteralExpr); ok && v.Operator == "-" && lit.Kind == "entero" && lit.Value == "9223372036854775808" {
 			return "int64(-9223372036854775808)"
 		}
-		if t.Name == stdlib.Symbol("Vec2") {
-			return "_hgscale(" + g.flowExpr(v.Value, indent) + ", -1)"
+		if vector := stdlib.Vector(t.Name); vector != nil {
+			return "_hg" + vector.Scale + "(" + g.flowExpr(v.Value, indent) + ", -1)"
 		}
 		return "(" + v.Operator + g.flowExpr(v.Value, indent) + ")"
 	case *ast.BinaryExpr:
@@ -410,19 +410,19 @@ func (g *generator) flowRaw(e ast.Expr, t sema.Type, indent int) string {
 		if list := g.model.ExprTypes[v.Left]; list.Kind == sema.Slice && v.Operator == "+" {
 			return listConcat(list, left, right)
 		}
-		if t.Name == stdlib.Symbol("Vec2") {
+		if vector := stdlib.Vector(t.Name); vector != nil {
 			switch v.Operator {
 			case "+":
-				return "_hgadd(" + left + "," + right + ")"
+				return "_hg" + vector.Add + "(" + left + "," + right + ")"
 			case "-":
-				return "_hgsub(" + left + "," + right + ")"
+				return "_hg" + vector.Sub + "(" + left + "," + right + ")"
 			case "*":
-				if g.model.ExprTypes[v.Left].Name == stdlib.Symbol("Vec2") {
-					return "_hgscale(" + left + "," + right + ")"
+				if g.model.ExprTypes[v.Left].Name == t.Name {
+					return "_hg" + vector.Scale + "(" + left + "," + right + ")"
 				}
-				return "_hgscale(" + right + "," + left + ")"
+				return "_hg" + vector.Scale + "(" + right + "," + left + ")"
 			case "/":
-				return "_hgscale(" + left + ",1/" + right + ")"
+				return "_hg" + vector.Scale + "(" + left + ",1/" + right + ")"
 			}
 		}
 		if v.Operator == "/" || v.Operator == "%" {
@@ -505,8 +505,8 @@ func (g *generator) flowCall(call *ast.CallExpr, indent int) string {
 	if t, ok := g.model.NumericCalls[call]; ok {
 		return g.numericCall(call, t, g.flowExpr(call.Args[0], indent))
 	}
-	if f, ok := g.model.Game.Calls[call]; ok {
-		return g.gameCall(call, f, indent)
+	if f, ok := g.model.Stdlib.Calls[call]; ok {
+		return g.stdlibCall(call, f, indent)
 	}
 	if operation, ok := g.model.ListCalls[call]; ok {
 		return g.flowListCall(call, operation, indent)
@@ -537,9 +537,9 @@ func (g *generator) flowCall(call *ast.CallExpr, indent int) string {
 		callee = "_self." + exported(v.Name)
 	case *ast.MemberExpr:
 		object := operand(v.Object, g.flowExpr(v.Object, indent))
-		if g.model.ExprTypes[v.Object].Name == stdlib.Symbol("Color") {
-			// Colors alias a library type; their methods live on a wrapper.
-			object = "_hgColorMetodos{" + object + "}"
+		if native, ok := stdlib.LookupType(g.model.ExprTypes[v.Object].Name); ok && native.Wrapper != "" {
+			// The type is an alias of a Go type; its methods live on a wrapper.
+			object = "_hg" + native.Wrapper + "{" + object + "}"
 		}
 		callee = object + "." + exported(v.Name)
 	}
@@ -903,9 +903,6 @@ func (g *generator) defaultFields(t sema.Type, supplied []ast.FieldValue, indent
 			}
 			fields = append(fields, g.fieldName(t, field.Name)+": &"+namedGoType(ft)+"{"+strings.Join(g.defaultFields(ft, nil, indent), ", ")+"}")
 		}
-	}
-	if t.Name == stdlib.Symbol("Camara2D") && !seen["zoom"] {
-		fields = append(fields, "Zoom: 1")
 	}
 	return fields
 }

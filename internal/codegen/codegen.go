@@ -81,10 +81,10 @@ func GenerateWithOptions(filename string, program *ast.Program, model *sema.Mode
 	g.line(0, "package main")
 	g.line(0, "")
 	called := map[string]bool{}
-	for _, f := range model.Game.Calls {
+	for _, f := range model.Stdlib.Calls {
 		called[f.Namespace+"."+f.Name] = true
 	}
-	runtimeSource, runtimeImports, err := stdlib.RuntimeFor(model.Game.Modules, called)
+	runtimeSource, runtimeImports, err := stdlib.RuntimeFor(model.Stdlib.Modules, called)
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +127,7 @@ func GenerateWithOptions(filename string, program *ast.Program, model *sema.Mode
 	}
 	if runtimeSource != "" {
 		g.write("%s\n", runtimeSource)
-		for _, module := range model.Game.Modules {
+		for _, module := range model.Stdlib.Modules {
 			if module == "std/pincel/datos" {
 				// Saved data belongs to the project, not to the window title,
 				// so it can be read before pincel.ejecutar runs.
@@ -137,8 +137,8 @@ func GenerateWithOptions(filename string, program *ast.Program, model *sema.Mode
 		}
 		var nativeNames []string
 		for name := range model.Types {
-			if name == stdlib.Symbol("Color") {
-				continue // an alias of a library type cannot receive marker methods
+			if native, ok := stdlib.LookupType(name); ok && native.Wrapper != "" {
+				continue // an alias of a Go type cannot receive marker methods
 			}
 			if native := stdlib.GoType(name); native != "" && strings.Contains(runtimeSource, "type "+strings.TrimPrefix(native, "*")+" ") {
 				nativeNames = append(nativeNames, name)
@@ -155,7 +155,7 @@ func GenerateWithOptions(filename string, program *ast.Program, model *sema.Mode
 	if g.printing {
 		g.write("%s\n", printRuntime)
 	}
-	if len(model.NumericCalls) > 0 || model.Game.Used {
+	if len(model.NumericCalls) > 0 || model.Stdlib.Used {
 		g.write("%s\n", numericRuntime)
 	}
 
@@ -361,7 +361,7 @@ func (g *generator) constExpr(expr ast.Expr) string {
 }
 
 func (g *generator) rawConstExpr(expr ast.Expr) string {
-	if value, ok := g.model.Game.Constants[expr]; ok {
+	if value, ok := g.model.Stdlib.Constants[expr]; ok {
 		return value
 	}
 	switch e := expr.(type) {
@@ -423,8 +423,8 @@ func (g *generator) interpolated(expression *ast.InterpolatedStringExpr, emit fu
 }
 
 func goType(t sema.Type) string {
-	if t.Name == stdlib.Symbol("Juego") && t.Kind == sema.Interface {
-		return "_hgJuego"
+	if name := stdlib.GoInterface(t.Name); name != "" && t.Kind == sema.Interface {
+		return name
 	}
 	if name := stdlib.GoType(t.Name); name != "" && t.Kind == sema.Named {
 		if stdlib.IsValue(t.Name) {

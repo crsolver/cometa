@@ -70,9 +70,8 @@ func Runtime(modules []string) (string, []string, error) {
 }
 
 // RuntimeFor is Runtime for a program whose library calls are known: called
-// holds "namespace.name" for each one. std/pincel/tiempo mixes a clock and
-// timers that need no window with fps/tps, which need Ebitengine, so only its
-// called functions are emitted and a console program stays window-free.
+// holds "namespace.name" for each one. A module marked OnlyCalled contributes
+// just those functions; the others contribute everything they declare.
 func RuntimeFor(modules []string, called map[string]bool) (string, []string, error) {
 	if len(modules) == 0 {
 		return "", nil, nil
@@ -146,44 +145,46 @@ func RuntimeFor(modules []string, called map[string]bool) (string, []string, err
 		}
 	}
 	for _, path := range modules {
-		ns, ok := Namespace(path)
+		m, ok := LookupModule(path)
 		if !ok {
 			continue
 		}
-		for _, f := range Functions {
-			if f.Namespace == ns {
-				if ns == "tiempo" && called != nil && !called[ns+"."+f.Name] {
+		for _, f := range m.Functions {
+			if m.OnlyCalled && called != nil && !called[m.Name+"."+f.Name] {
+				continue
+			}
+			if f.Visual {
+				if !UsesPincel(modules) {
 					continue
 				}
-				if VisualTest(f) {
-					if !UsesPincel(modules) {
-						continue
-					}
-					visit("_hgpruebasBucle")
-					visit("_hgpruebasReiniciar")
-				}
-				visit("_hg" + f.GoName)
-				visit("_hg" + f.GoName + "Entero")
-				if ns == "pruebas" {
-					for _, kind := range []string{"Decimal", "Cadena", "Bool"} {
-						visit("_hg" + f.GoName + kind)
-					}
+				visit("_hgpruebasBucle")
+				visit("_hgpruebasReiniciar")
+			}
+			visit("_hg" + f.GoName)
+			switch f.Overload {
+			case Numeric:
+				visit("_hg" + f.Integer().GoName)
+			case Scalar:
+				for _, kind := range ScalarVariants {
+					visit("_hg" + f.Variant(kind).GoName)
 				}
 			}
 		}
-		for name, owner := range TypeModules {
-			if owner == ns {
-				visit("_hg" + name)
+		for _, t := range m.Types {
+			visit("_hg" + t.Name)
+			if t.Wrapper != "" {
+				visit("_hg" + t.Wrapper)
+			}
+			if a := t.Arithmetic; a != nil {
+				visit("_hg" + a.Add)
+				visit("_hg" + a.Sub)
+				visit("_hg" + a.Scale)
 			}
 		}
-		if ns == "color" {
-			visit("_hgColorMetodos")
-		}
-		if ns == "mate" {
-			imports[strconv.Quote("math")] = true
-			visit("_hgadd")
-			visit("_hgsub")
-			visit("_hgscale")
+		for _, c := range m.Constants {
+			if c.GoImport != "" {
+				imports[strconv.Quote(c.GoImport)] = true
+			}
 		}
 	}
 	if imports[strconv.Quote("image")] {

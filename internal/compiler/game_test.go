@@ -267,8 +267,8 @@ func publicTypeSource(t ast.TypeRef) string {
 }
 
 func publicLibraryType(name string) string {
-	if owner := stdlib.TypeModules[stdlib.PublicName(name)]; owner != "" {
-		return owner + "." + stdlib.PublicName(name)
+	if t, ok := stdlib.LookupType(name); ok {
+		return t.Module().Name + "." + t.Name
 	}
 	return name
 }

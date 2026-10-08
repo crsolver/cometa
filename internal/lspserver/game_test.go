@@ -205,7 +205,7 @@ func TestGameMethodHover(t *testing.T) {
 	}
 }
 func TestRemovedGameCompletions(t *testing.T) {
-	for _, item := range gameTopCompletion("").Items {
+	for _, item := range builtinTypeCompletion("").Items {
 		switch item.Label {
 		case "mat", "vectores", "colisiones", "ConfigJuego", "configurar":
 			t.Fatalf("obsolete completion: %s", item.Label)

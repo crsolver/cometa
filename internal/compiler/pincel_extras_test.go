@@ -355,6 +355,9 @@ usar std/pincel/tiempo
 fn ver(v mate.Vec2) cadena
 	"${v.x.formato(1)},${v.y.formato(1)}"
 
+tipo Escena
+	camara graficos.Camara2D
+
 fn inicio()
 	var cam = graficos.Camara2D {pos: {100, 50}, origen: {160, 90}, zoom: 2}
 	imprimir(ver(cam.a_mundo({160, 90})))
@@ -369,6 +372,10 @@ fn inicio()
 	imprimir(ver(origen.limitada({pos: {0, 0}, tamano: {100, 50}}).pos))
 	imprimir(ver(origen.siguiendo({10, 0}, 0.5).pos))
 	imprimir(ver(origen.sacudida(0).pos))
+	// A camera made without a zoom shows the world at its real size.
+	var libre = graficos.Camara2D {pos: {3, 4}}
+	var escena = Escena {}
+	imprimir("${libre.zoom.formato(1)} ${escena.camara.zoom.formato(1)}")
 	var t = tiempo.temporizador(1)
 	imprimir(t.avanzar(0.6))
 	imprimir(t.avanzar(0.6))
@@ -389,7 +396,7 @@ fn inicio()
 	}
 	want := strings.Join([]string{
 		"100.0,50.0", "20.0,5.0", "0.0,0.0", "33.0,44.0", "20.0,5.0 160.0,90.0",
-		"80.0,45.0", "50.0,25.0", "5.0,0.0", "0.0,0.0",
+		"80.0,45.0", "50.0,25.0", "5.0,0.0", "0.0,0.0", "1.0 1.0",
 		"falso", "verdadero", "verdadero", "falso", "0.0 1.0", "falso 0.0", "verdadero",
 		"verdadero", "falso 0.4",
 	}, "\n") + "\n"

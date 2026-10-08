@@ -17,11 +17,11 @@ func (c *checker) check(program *ast.Program) (*Model, error) {
 	for name := range program.InvalidNames {
 		c.invalid[name] = true
 	}
-	if err := c.installGameAPI(); err != nil {
+	if err := c.installStdlib(); err != nil {
 		return nil, err
 	}
-	c.model.Game.Modules = program.NativeModules
-	c.model.Game.Used = len(program.NativeModules) > 0
+	c.model.Stdlib.Modules = program.NativeModules
+	c.model.Stdlib.Used = len(program.NativeModules) > 0
 
 	typeNames := map[string]string{}
 	c.eachValid(program, func(d ast.Decl) error { return c.collectDeclaration(d, typeNames) })
@@ -76,7 +76,7 @@ func (c *checker) check(program *ast.Program) (*Model, error) {
 		c.report(err)
 	}
 	c.rejectExpandingGenerics()
-	if err := c.safeCheck(func() error { return c.checkGame(program) }); err != nil {
+	if err := c.safeCheck(func() error { return c.checkStdlib(program) }); err != nil {
 		c.report(err)
 	}
 	return c.model, nil

@@ -42,6 +42,9 @@ Las notas de cada versión. La sección de la etiqueta publicada se usa como tex
 - **`cometa compilar` es más rápido** en programas de consola (de alrededor de 1 s a 0,2 s) y ya no necesita tener Go instalado: el Go generado deja de comprobarse en cada compilación; esa comprobación corre ahora en las pruebas del compilador.
 - **El editor analiza menos:** los errores se recalculan cuando dejas de escribir un instante, no con cada tecla, y pasar el ratón o ir a una definición reutiliza el último análisis.
 - El Go de los programas más simples sale ahora por el mismo camino que el de los demás, con una variable temporal por operando (más largo, mismo resultado).
+- **Constantes de un tipo en el editor:** al pasar el ratón por `color.Color`, `entrada.Tecla` y los demás tipos con constantes se ven sus valores (`.Rojo`, `.Espacio`…). En `retro` aparecían bajo el tipo siguiente.
+- **«Ir a la definición» en la biblioteca:** `mate.angulo`, `mate.interpolar` y los métodos `entrar`/`salir` de `graficos.Recorte` llevan a su propia línea y no a otra declaración con el mismo nombre.
+- La referencia de `graficos.Camara2D` muestra que `zoom` vale 1 si no se indica.
 
 ## v0.1.0
 

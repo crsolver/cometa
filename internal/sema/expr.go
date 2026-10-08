@@ -110,9 +110,9 @@ func (c *checker) checkExpression(expr ast.Expr, expected *Type) (Type, error) {
 			result = Type{Kind: String}
 		}
 	case *ast.IdentExpr:
-		if expression.Name == stdlib.FunctionSymbol("mate", "pi") {
-			result = Type{Kind: Decimal}
-			c.model.Game.Constants[expression] = "math.Pi"
+		if constant, ok := stdlib.LookupConstant(expression.Name); ok {
+			result, err = c.resolveType(ast.TypeRef{Pos: expression.Pos, Name: constant.Type})
+			c.model.Stdlib.Constants[expression] = constant.GoValue
 			break
 		}
 		if binding := c.bindings[expression.Name]; binding != nil {
@@ -160,12 +160,6 @@ func (c *checker) checkExpression(expr ast.Expr, expected *Type) (Type, error) {
 			result = field.Type
 		}
 	case *ast.MemberExpr:
-		if id, ok := expression.Object.(*ast.IdentExpr); ok && id.Name == stdlib.Symbol("mate") && expression.Name == "pi" {
-			result = Type{Kind: Decimal}
-			c.model.Game.Constants[expression] = "math.Pi"
-			c.model.Game.Used = true
-			break
-		}
 		// retro.Icono.Arriba: una constante de un tipo de la biblioteca escrita con
 		// su tipo, equivalente a .Arriba con ese tipo esperado.
 		if id, ok := expression.Object.(*ast.IdentExpr); ok && stdlib.Constants[id.Name] != nil {
@@ -181,7 +175,7 @@ func (c *checker) checkExpression(expr ast.Expr, expected *Type) (Type, error) {
 				break
 			}
 			result = owner
-			c.model.Game.Constants[expression] = value
+			c.model.Stdlib.Constants[expression] = value
 			break
 		}
 		if info, variant, found, enumErr := c.enumMember(expression); found {
@@ -201,9 +195,9 @@ func (c *checker) checkExpression(expr ast.Expr, expected *Type) (Type, error) {
 			err = objectErr
 			break
 		}
-		if channel := stdlib.ColorChannels[expression.Name]; channel != "" && objectType.Name == stdlib.Symbol("Color") {
+		if native, ok := stdlib.LookupType(objectType.Name); ok && native.Channel(expression.Name) != "" {
 			result = Type{Kind: Integer}
-			c.model.Game.Channels[expression] = channel
+			c.model.Stdlib.Channels[expression] = native.Channel(expression.Name)
 			break
 		}
 		if objectType.Kind == Interface || objectType.Kind == TypeParameter {
@@ -339,7 +333,7 @@ func (c *checker) checkUnary(expr *ast.UnaryExpr) (Type, error) {
 	if expr.Operator == "-" && value.Numeric() {
 		return value, nil
 	}
-	if expr.Operator == "-" && value.Name == stdlib.Symbol("Vec2") {
+	if expr.Operator == "-" && isVector(value) {
 		return value, nil
 	}
 	if expr.Operator == "!" && value.Kind == Boolean {
@@ -379,16 +373,24 @@ func (c *checker) checkBinary(expr *ast.BinaryExpr) (Type, error) {
 			return Type{Kind: Boolean}, nil
 		}
 	}
-	if left.Name == stdlib.Symbol("Vec2") && right.Kind == Integer && (expr.Operator == "*" || expr.Operator == "/") {
+	// A vector adds to and subtracts from another of its type, and a number
+	// scales it: v * n, n * v and v / n.
+	scales := expr.Operator == "*" || expr.Operator == "/"
+	if isVector(left) && right.Kind == Integer && scales {
 		c.promoteNumeric(expr.Right)
 		right.Kind = Decimal
 	}
-	if right.Name == stdlib.Symbol("Vec2") && left.Kind == Integer && expr.Operator == "*" {
+	if isVector(right) && left.Kind == Integer && expr.Operator == "*" {
 		c.promoteNumeric(expr.Left)
 		left.Kind = Decimal
 	}
-	if (expr.Operator == "+" || expr.Operator == "-") && left.Name == stdlib.Symbol("Vec2") && right.Name == stdlib.Symbol("Vec2") || (expr.Operator == "*" || expr.Operator == "/") && left.Name == stdlib.Symbol("Vec2") && right.Kind == Decimal || expr.Operator == "*" && left.Kind == Decimal && right.Name == stdlib.Symbol("Vec2") {
-		return Type{Kind: Named, Name: stdlib.Symbol("Vec2")}, nil
+	switch {
+	case (expr.Operator == "+" || expr.Operator == "-") && isVector(left) && right.Kind == Named && right.Name == left.Name:
+		return left, nil
+	case scales && isVector(left) && right.Kind == Decimal:
+		return left, nil
+	case expr.Operator == "*" && left.Kind == Decimal && isVector(right):
+		return right, nil
 	}
 	switch expr.Operator {
 	case "+", "-", "*", "/":
@@ -457,7 +459,7 @@ func (c *checker) checkCall(call *ast.CallExpr) (Type, error) {
 		c.model.NumericCalls[call] = t
 		return t, nil
 	}
-	if t, ok, err := c.gameCall(call); ok {
+	if t, ok, err := c.stdlibCall(call); ok {
 		return t, err
 	}
 	if member, ok := call.Callee.(*ast.MemberExpr); ok {
@@ -666,3 +668,6 @@ func (c *checker) checkIfExpr(expr *ast.IfExpr, expected *Type) (Type, error) {
 	}
 	return result, nil
 }
+
+// isVector reports whether t is a library type with arithmetic, such as mate.Vec2.
+func isVector(t Type) bool { return t.Kind == Named && stdlib.Vector(t.Name) != nil }

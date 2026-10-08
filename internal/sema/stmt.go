@@ -300,8 +300,8 @@ func (c *checker) assignmentTarget(expr ast.Expr) (Type, error) {
 		if objectType.Kind != Named {
 			return Type{}, c.fail(target.Pos, "%s no tiene campos", objectType.String())
 		}
-		if stdlib.ColorChannels[target.Name] != "" && objectType.Name == stdlib.Symbol("Color") {
-			return Type{}, c.fail(target.Pos, "los canales de un color solo se leen; crea otro color con color.rgba o con_alfa")
+		if native, ok := stdlib.LookupType(objectType.Name); ok && native.Channel(target.Name) != "" {
+			return Type{}, c.fail(target.Pos, "%s", native.ReadOnly)
 		}
 		if stdlib.IsValue(objectType.Name) {
 			if _, err := c.assignmentTarget(target.Object); err != nil {

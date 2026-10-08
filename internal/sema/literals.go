@@ -32,7 +32,7 @@ func (c *checker) checkStructLiteral(expr *ast.StructLiteralExpr, expected *Type
 	if expected != nil && !c.model.Assignable(result, *expected) {
 		return Type{}, c.fail(expr.Pos, "el literal es %s, pero se esperaba %s", result.String(), expected.String())
 	}
-	if stdlib.IsType(result.Name) && stdlib.Fields[result.Name] == "" {
+	if stdlib.IsOpaque(result.Name) {
 		return Type{}, c.fail(expr.Pos, "%s es un tipo opaco; use su constructor incorporado", result.Name)
 	}
 	info := c.model.StructInfo(result)

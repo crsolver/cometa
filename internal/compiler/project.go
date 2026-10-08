@@ -149,26 +149,27 @@ func AnalyzeProject(entry string, loader SourceLoader) (*Project, error) {
 					continue
 				}
 				seen[imp.Path] = true
-				source, ok := stdlib.Source(imp.Path)
+				native, ok := stdlib.LookupModule(imp.Path)
 				if !ok {
 					errors.Add(projectError(imp.PathPos, "módulo estándar desconocido %q", imp.Path))
 					continue
 				}
-				target := "cometa-std:///" + imp.Path + ".cometa"
+				target := native.URI()
 				dependency := p.Modules[target]
 				if dependency == nil {
+					source, _ := stdlib.Source(imp.Path)
 					dependency = &Module{Native: true, Path: target, Display: target, Source: []byte(source), Imports: map[string]*Module{}, Declarations: map[string]*Declaration{}}
 					dependency.Program, _ = parseModule(target, []byte(source))
-					ns, _ := stdlib.Namespace(imp.Path)
 					// Opaque native types have no Cometa fields or body to parse.
-					for name, owner := range stdlib.TypeModules {
-						if owner != ns || name == "Juego" || stdlib.Fields[stdlib.Symbol(name)] != "" {
+					lines := strings.Split(source, "\n")
+					for _, t := range native.Types {
+						if t.Interface || len(t.Fields) > 0 {
 							continue
 						}
-						for i, line := range strings.Split(source, "\n") {
-							if line == "pub tipo "+name {
+						for i, line := range lines {
+							if line == "pub tipo "+t.Name {
 								pos := ast.Pos{Filename: target, Line: i + 1, Column: 10}
-								dependency.Program.Decls = append(dependency.Program.Decls, &ast.TypeDecl{Public: true, Name: name, NamePos: pos, Pos: ast.Pos{Filename: target, Line: i + 1, Column: 5}})
+								dependency.Program.Decls = append(dependency.Program.Decls, &ast.TypeDecl{Public: true, Name: t.Name, NamePos: pos, Pos: ast.Pos{Filename: target, Line: i + 1, Column: 5}})
 								break
 							}
 						}
@@ -176,11 +177,9 @@ func AnalyzeProject(entry string, loader SourceLoader) (*Project, error) {
 					for _, node := range dependency.Program.Decls {
 						name, pos := declarationName(node)
 						symbol := stdlib.Symbol(name)
-						if _, ok := node.(*ast.FuncDecl); ok {
-							symbol = stdlib.FunctionSymbol(ns, name)
-						}
-						if name == "pi" {
-							symbol = stdlib.FunctionSymbol(ns, name)
+						switch node.(type) {
+						case *ast.FuncDecl, *ast.GlobalDecl:
+							symbol = stdlib.FunctionSymbol(native.Name, name)
 						}
 						dependency.Declarations[name] = &Declaration{Module: dependency, Node: node, Name: name, Symbol: symbol, Pos: pos}
 					}

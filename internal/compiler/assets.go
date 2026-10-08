@@ -42,7 +42,7 @@ type assetUse struct {
 // assetUses lists the resources of a checked program in source order.
 func assetUses(filename string, model *sema.Model) []assetUse {
 	var calls []*ast.CallExpr
-	for call, f := range model.Game.Calls {
+	for call, f := range model.Stdlib.Calls {
 		if f.Resource {
 			calls = append(calls, call)
 		}
@@ -59,7 +59,7 @@ func assetUses(filename string, model *sema.Model) []assetUse {
 	})
 	uses := make([]assetUse, len(calls))
 	for i, call := range calls {
-		use := assetUse{call: call, kind: model.Game.Calls[call].Name}
+		use := assetUse{call: call, kind: model.Stdlib.Calls[call].Name}
 		use.path, _ = strconv.Unquote(call.Args[0].(*ast.LiteralExpr).Value)
 		use.source = call.Pos.Filename
 		if use.source == "" {

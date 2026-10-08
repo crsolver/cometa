@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-func gameConstantCompletion(t sema.Type) *lsp.CompletionList {
+func constantCompletion(t sema.Type) *lsp.CompletionList {
 	constants := stdlib.Constants[t.Name]
 	if constants == nil {
 		return nil
@@ -27,7 +27,7 @@ func gameConstantCompletion(t sema.Type) *lsp.CompletionList {
 	return list
 }
 
-func gameTopCompletion(prefix string) *lsp.CompletionList {
+func builtinTypeCompletion(prefix string) *lsp.CompletionList {
 	end := len(prefix)
 	start := end
 	for start > 0 && isIdentifierRune(rune(prefix[start-1])) {
@@ -51,17 +51,14 @@ func gameTopCompletion(prefix string) *lsp.CompletionList {
 	return list
 }
 
-func gameHover(program *ast.Program, model *sema.Model, pos ast.Pos) (hoverInfo, bool) {
-	for call, f := range model.Game.Calls {
+func stdlibHover(program *ast.Program, model *sema.Model, pos ast.Pos) (hoverInfo, bool) {
+	for call, f := range model.Stdlib.Calls {
 		if calleePosition(call.Callee) == pos {
-			signature := f.Signature
-			if strings.HasSuffix(f.GoName, "Entero") && f.Namespace == "mate" {
-				signature = strings.ReplaceAll(signature, "decimal", "entero")
-			}
-			return hoverInfo{detail: "fn " + f.Namespace + "." + f.Name + "(" + signature, documentation: "Biblioteca estándar de Cometa."}, true
+			// f is the variant the call resolved to: mate.minimo(1, 2) shows integers.
+			return hoverInfo{detail: "fn " + f.Namespace + "." + f.Name + f.Signature, documentation: "Biblioteca estándar de Cometa."}, true
 		}
 	}
-	for expr := range model.Game.Constants {
+	for expr := range model.Stdlib.Constants {
 		switch e := expr.(type) {
 		case *ast.ContextualVariantExpr:
 			if e.NamePos == pos {
@@ -69,10 +66,7 @@ func gameHover(program *ast.Program, model *sema.Model, pos ast.Pos) (hoverInfo,
 			}
 		case *ast.MemberExpr:
 			if e.NamePos == pos {
-				if owner, ok := e.Object.(*ast.IdentExpr); ok && stdlib.Constants[owner.Name] != nil {
-					return hoverInfo{detail: model.ExprTypes[e].String() + "." + e.Name}, true
-				}
-				return hoverInfo{detail: "const mate.pi decimal"}, true
+				return hoverInfo{detail: model.ExprTypes[e].String() + "." + e.Name}, true
 			}
 		}
 	}

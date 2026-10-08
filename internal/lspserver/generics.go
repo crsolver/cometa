@@ -255,10 +255,10 @@ func memberItems(model *sema.Model, t sema.Type, positions ...ast.Pos) *lsp.Comp
 		return &lsp.CompletionList{Items: items}
 	}
 	list := resolvedMemberItems(model, t, positions...)
-	if t.Name == stdlib.Symbol("Color") {
+	if native, ok := stdlib.LookupType(t.Name); ok {
 		field := lsp.CompletionItemKindField
-		for _, channel := range []string{"r", "g", "b", "a"} {
-			list.Items = append(list.Items, lsp.CompletionItem{Label: channel, Kind: &field, Detail: "entero"})
+		for _, channel := range native.Channels {
+			list.Items = append(list.Items, lsp.CompletionItem{Label: channel.Name, Kind: &field, Detail: "entero"})
 		}
 	}
 	if t.Kind == sema.Named && model.Types[t.Name] != nil && stdlib.GoType(t.Name) == "" {

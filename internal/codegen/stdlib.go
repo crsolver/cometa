@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func (g *generator) gameCall(call *ast.CallExpr, f stdlib.Function, indent int) string {
+func (g *generator) stdlibCall(call *ast.CallExpr, f stdlib.Function, indent int) string {
 	if f.Resource {
 		asset := g.model.Assets[call]
 		return "_hg" + f.GoName + "(" + strconv.Quote(asset.Data) + "," + strconv.Quote(asset.Path) + ")"

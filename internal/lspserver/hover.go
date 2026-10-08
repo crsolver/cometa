@@ -78,7 +78,7 @@ func identifierAt(tokens []token.Token, lines []string, position lsp.Position) (
 }
 
 func resolveHover(program *ast.Program, model *sema.Model, position ast.Pos, lines []string) (hoverInfo, bool) {
-	if info, ok := gameHover(program, model, position); ok {
+	if info, ok := stdlibHover(program, model, position); ok {
 		return info, true
 	}
 	if info, ok := enumHover(model, position); ok {

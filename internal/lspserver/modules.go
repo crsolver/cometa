@@ -571,7 +571,7 @@ func (h *Handler) moduleCompletion(params *lsp.CompletionParams, text string) *l
 		}
 		if selected != nil {
 			if id, ok := selected.(*ast.IdentExpr); ok && stdlib.Constants[id.Name] != nil {
-				return displayItems(p, gameConstantCompletion(resolved))
+				return displayItems(p, constantCompletion(resolved))
 			}
 			if resolved.Numeric() {
 				return displayItems(p, memberItems(p.Model, resolved))
@@ -758,7 +758,7 @@ func (h *Handler) moduleContextualCompletion(params *lsp.CompletionParams, lines
 			for _, alias := range names {
 				list.Items = append(list.Items, lsp.CompletionItem{Label: alias, Kind: &kind, Detail: "módulo " + alias})
 			}
-			list.Items = append(list.Items, gameTopCompletion(prefix).Items...)
+			list.Items = append(list.Items, builtinTypeCompletion(prefix).Items...)
 			return list
 		}
 	}

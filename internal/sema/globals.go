@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/crsolver/cometa/internal/ast"
+	"github.com/crsolver/cometa/internal/stdlib"
 )
 
 func (c *checker) checkGlobal(name string) (err error) {
@@ -72,18 +73,15 @@ func (c *checker) checkGlobal(name string) (err error) {
 }
 
 func (c *checker) checkConstantExpression(expr ast.Expr) error {
-	if c.model.Game.Constants[expr] == "math.Pi" {
-		return nil
-	}
 	switch e := expr.(type) {
 	case *ast.MemberExpr:
-		if c.model.Game.Constants[e] == "math.Pi" {
-			return nil
-		}
 		return c.fail(e.Pos, "se requiere una expresión constante")
 	case *ast.LiteralExpr:
 		return nil
 	case *ast.IdentExpr:
+		if _, ok := stdlib.LookupConstant(e.Name); ok {
+			return nil // mate.pi
+		}
 		global := c.model.Globals[e.Name]
 		if global == nil || !global.Constant {
 			return c.fail(e.Pos, "una constante solo puede referirse a otras constantes")

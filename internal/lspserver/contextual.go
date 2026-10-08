@@ -137,7 +137,7 @@ func (h *Handler) contextualCompletion(uri lsp.DocumentURI, lines []string, line
 			}
 		}
 	}
-	list = gameConstantCompletion(expected)
+	list = constantCompletion(expected)
 	if list == nil && expected.Kind != sema.Enum && !expected.Wrapped() {
 		return &lsp.CompletionList{}, true
 	}
