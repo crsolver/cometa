@@ -1,15 +1,12 @@
 package stdlib
 
 import (
-	"go/parser"
-	"go/token"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"runtime"
 	"sort"
-	"strconv"
 	"strings"
 	"testing"
 )
@@ -22,9 +19,9 @@ func goTool() string {
 	return exe
 }
 
-// The runtime lives in .txt files that Go tooling never sees. Vetting it with
-// every module selected catches a type error here instead of in the first
-// game that happens to use the broken function.
+// go vet already checks package rt as a whole. This checks what a program
+// receives: with every module selected, the declarations and the imports
+// picked for it must make a complete Go program.
 func TestRuntimeTypeChecks(t *testing.T) {
 	if testing.Short() {
 		t.Skip("compiles Ebitengine")
@@ -47,33 +44,45 @@ func TestRuntimeTypeChecks(t *testing.T) {
 		t.Fatal(err)
 	}
 	// The file is checked against this module's go.mod, like a generated game.
-	// Colors are written as unkeyed literals throughout, which is a style
-	// choice of the runtime rather than a defect.
+	// The color constants of the catalog are unkeyed literals of an aliased
+	// type, which vet reports and Go accepts.
 	if out, err := exec.Command(goTool(), "vet", "-composites=false", path).CombinedOutput(); err != nil {
 		t.Fatalf("el runtime no pasa go vet: %v\n%s", err, out)
 	}
 }
 
-func TestRuntimeDependenciesAreRecorded(t *testing.T) {
-	file, err := parser.ParseFile(token.NewFileSet(), "runtime_deps.go", nil, parser.ImportsOnly)
+// Every file of package rt must be listed in runtimeFiles, or its
+// declarations would never reach a program.
+func TestRuntimeFilesAreListed(t *testing.T) {
+	entries, err := runtimeFS.ReadDir("rt")
 	if err != nil {
 		t.Fatal(err)
 	}
-	var recorded []string
-	for _, spec := range file.Imports {
-		path, _ := strconv.Unquote(spec.Path.Value)
-		recorded = append(recorded, path)
-	}
-	var used []string
-	for _, path := range runtimeImports {
-		if strings.Contains(strings.SplitN(path, "/", 2)[0], ".") {
-			used = append(used, path)
+	var found []string
+	for _, entry := range entries {
+		if name := entry.Name(); name != "doc.go" && !strings.HasSuffix(name, "_test.go") {
+			found = append(found, name)
 		}
 	}
-	sort.Strings(recorded)
-	sort.Strings(used)
-	if strings.Join(recorded, "\n") != strings.Join(used, "\n") {
-		t.Fatalf("runtime_deps.go no coincide con runtimeImports\nregistradas:\n%s\nusadas:\n%s", strings.Join(recorded, "\n"), strings.Join(used, "\n"))
+	listed := append([]string(nil), runtimeFiles...)
+	sort.Strings(listed)
+	if strings.Join(found, " ") != strings.Join(listed, " ") {
+		t.Fatalf("runtimeFiles = %v, package rt has %v", listed, found)
+	}
+}
+
+// A module that needs nothing from Ebitengine must not bring it into a program.
+func TestConsoleModulesStayWindowFree(t *testing.T) {
+	for _, module := range []string{"std/mate", "std/azar", "std/consola", "std/mate/curvas", "std/mate/ruido", "std/pruebas", "std/pincel/datos"} {
+		_, imports, err := Runtime([]string{module})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, imported := range imports {
+			if strings.Contains(imported, "ebiten") {
+				t.Errorf("%s imports %s", module, imported)
+			}
+		}
 	}
 }
 

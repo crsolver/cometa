@@ -35,7 +35,7 @@ func parseFrames(value string) ([]int, error) {
 }
 
 // scriptEvent is one line item of a `--entrada` script; kind matches the
-// _hgguion* constants in runtime.txt (0 hold, 1 release, 2 tap, 3 move, 4 text,
+// _hgguion* constants in internal/stdlib/rt/pincel.go (0 hold, 1 release, 2 tap, 3 move, 4 text,
 // 5 wheel, 6 gamepad axis, whose value is x).
 type scriptEvent struct {
 	frame int

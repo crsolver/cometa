@@ -1,3 +1,9 @@
+package rt
+
+import (
+	"math"
+)
+
 // Stateless value noise. Integer mixing deliberately wraps modulo 2^64.
 func _hgRuidoMezclar(v uint64) uint64 {
 	v = (v ^ (v >> 30)) * 0xbf58476d1ce4e5b9
@@ -7,9 +13,9 @@ func _hgRuidoMezclar(v uint64) uint64 {
 
 func _hgRuidoEsquina(x, y, semilla int64) float64 {
 	h := _hgRuidoMezclar(uint64(semilla) + 0x9e3779b97f4a7c15)
-	h = _hgRuidoMezclar(h ^ _hgRuidoMezclar(uint64(x) + 0x632be59bd9b4e019))
-	h = _hgRuidoMezclar(h ^ _hgRuidoMezclar(uint64(y) + 0x8cb92baa3f3d8dd7))
-	return float64(h >> 11) / 9007199254740991.0
+	h = _hgRuidoMezclar(h ^ _hgRuidoMezclar(uint64(x)+0x632be59bd9b4e019))
+	h = _hgRuidoMezclar(h ^ _hgRuidoMezclar(uint64(y)+0x8cb92baa3f3d8dd7))
+	return float64(h>>11) / 9007199254740991.0
 }
 
 func _hgRuidoValidar(x, y float64) {
@@ -19,7 +25,7 @@ func _hgRuidoValidar(x, y float64) {
 	}
 }
 
-func _hgRuidoCurva(t float64) float64 { return t*t*t*(t*(t*6-15)+10) }
+func _hgRuidoCurva(t float64) float64   { return t * t * t * (t*(t*6-15) + 10) }
 func _hgRuidoLimitar(v float64) float64 { return math.Max(0, math.Min(1, v)) }
 
 func _hgruidoSuave(x, y float64, semilla int64) float64 {
@@ -30,21 +36,33 @@ func _hgruidoSuave(x, y float64, semilla int64) float64 {
 	a, b := _hgRuidoEsquina(ix, iy, semilla), _hgRuidoEsquina(ix+1, iy, semilla)
 	c, d := _hgRuidoEsquina(ix, iy+1, semilla), _hgRuidoEsquina(ix+1, iy+1, semilla)
 	ab, cd := a+(b-a)*u, c+(d-c)*u
-	return _hgRuidoLimitar(ab+(cd-ab)*v)
+	return _hgRuidoLimitar(ab + (cd-ab)*v)
 }
 
 func _hgruidoFractal(x, y float64, semilla, octavas int64, persistencia, lacunaridad float64) float64 {
-	if octavas < 1 || octavas > 16 { panic("ruido: octavas debe estar entre 1 y 16") }
-	if !(persistencia >= 0 && persistencia <= 1) { panic("ruido: persistencia debe estar en [0, 1]") }
-	if !(lacunaridad >= 1) || math.IsInf(lacunaridad, 0) { panic("ruido: lacunaridad debe ser finita y mayor o igual a 1") }
+	if octavas < 1 || octavas > 16 {
+		panic("ruido: octavas debe estar entre 1 y 16")
+	}
+	if !(persistencia >= 0 && persistencia <= 1) {
+		panic("ruido: persistencia debe estar en [0, 1]")
+	}
+	if !(lacunaridad >= 1) || math.IsInf(lacunaridad, 0) {
+		panic("ruido: lacunaridad debe ser finita y mayor o igual a 1")
+	}
 	suma, peso, amplitud := 0.0, 0.0, 1.0
 	for i := int64(0); i < octavas; i++ {
 		// Octave zero shares the base seed; subsequent octaves use distinct mixed seeds.
 		s := semilla
-		if i > 0 { s = int64(_hgRuidoMezclar(uint64(semilla) + uint64(i)*0x9e3779b97f4a7c15)) }
+		if i > 0 {
+			s = int64(_hgRuidoMezclar(uint64(semilla) + uint64(i)*0x9e3779b97f4a7c15))
+		}
 		suma += _hgruidoSuave(x, y, s) * amplitud
 		peso += amplitud
-		if i+1 < octavas { x *= lacunaridad; y *= lacunaridad; amplitud *= persistencia }
+		if i+1 < octavas {
+			x *= lacunaridad
+			y *= lacunaridad
+			amplitud *= persistencia
+		}
 	}
 	return _hgRuidoLimitar(suma / peso)
 }

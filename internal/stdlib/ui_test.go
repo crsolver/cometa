@@ -1,12 +1,34 @@
 package stdlib
 
 import (
+	"go/parser"
+	"go/token"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"testing"
 )
+
+// runtimeDeclarations returns the text of a file of package rt from its first
+// declaration on, without the package clause and the imports.
+func runtimeDeclarations(t *testing.T, name string) string {
+	t.Helper()
+	source, err := runtimeFS.ReadFile("rt/" + name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, name, source, parser.ImportsOnly)
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := fset.Position(file.Name.End()).Offset
+	for _, d := range file.Decls {
+		start = fset.Position(d.End()).Offset
+	}
+	return string(source[start:])
+}
 
 // Compile the actual embedded engine against tiny data-only graphics types.
 // This catches runtime Go errors and exercises layout without a window/backend.
@@ -20,7 +42,7 @@ type _hgColor struct { R,G,B,A uint8 }
 type _hgFuente struct{}
 type _hgImagen struct{}
 func _hgUIBegin(c *_hgContexto) {}
-` + uiCoreSource + `
+` + runtimeDeclarations(t, "ui_core.go") + `
 func frame(c *_hgContexto,in _hgUIInput) {c.begin(_hgVec2{320,180},in,func(s string,t _hgTema)float64{return float64(len([]rune(s)))*8});_hgUIActive=c}
 func end(c *_hgContexto) {c.finish();_hgUIActive=nil}
 func fixed(v float64)*_hgMedida{return _hguiFijo(v)}

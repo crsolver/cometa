@@ -1,13 +1,23 @@
+package rt
+
+import (
+	"github.com/hajimehoshi/ebiten/v2"
+	"math"
+)
+
 // CRT is a presentation-only wrapper; the game's logical screen is unchanged.
-type _hgCRTGame struct { ebiten.Game; shader *ebiten.Shader }
+type _hgCRTGame struct {
+	ebiten.Game
+	shader *ebiten.Shader
+}
 
 func (g *_hgCRTGame) DrawFinalScreen(screen ebiten.FinalScreen, offscreen *ebiten.Image, geoM ebiten.GeoM) {
- op:=&ebiten.DrawRectShaderOptions{}
- op.Images[0]=offscreen
- op.GeoM=geoM
- op.Uniforms=map[string]any{"Scale":float32(math.Abs(geoM.Element(0,0)))}
- size:=offscreen.Bounds().Size()
- screen.DrawRectShader(size.X,size.Y,g.shader,op)
+	op := &ebiten.DrawRectShaderOptions{}
+	op.Images[0] = offscreen
+	op.GeoM = geoM
+	op.Uniforms = map[string]any{"Scale": float32(math.Abs(geoM.Element(0, 0)))}
+	size := offscreen.Bounds().Size()
+	screen.DrawRectShader(size.X, size.Y, g.shader, op)
 }
 
 const _hgCRTSource = `//kage:unit pixels

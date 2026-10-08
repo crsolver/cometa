@@ -1,10 +1,22 @@
+package rt
+
+import (
+	"bufio"
+	"fmt"
+	"os"
+	"strings"
+)
+
 // Native implementations for std/consola.
 
 // One shared reader: a fresh one per call would lose buffered input.
 var _hgconsolaEntrada = bufio.NewReader(os.Stdin)
 var _hgconsolaIniciada bool
 
-func _hgconsolaLeerLinea() struct { tag int; payload1 string } {
+func _hgconsolaLeerLinea() struct {
+	tag      int
+	payload1 string
+} {
 	if !_hgconsolaIniciada {
 		// Windows PowerShell prepends a UTF-8 BOM to piped text.
 		_hgconsolaIniciada = true
@@ -14,9 +26,15 @@ func _hgconsolaLeerLinea() struct { tag int; payload1 string } {
 	}
 	linea, err := _hgconsolaEntrada.ReadString('\n')
 	if err != nil && linea == "" {
-		return struct { tag int; payload1 string }{}
+		return struct {
+			tag      int
+			payload1 string
+		}{}
 	}
 	linea = strings.TrimSuffix(strings.TrimSuffix(linea, "\n"), "\r")
-	return struct { tag int; payload1 string }{tag: 1, payload1: linea}
+	return struct {
+		tag      int
+		payload1 string
+	}{tag: 1, payload1: linea}
 }
 func _hgconsolaEscribir(texto string) { fmt.Print(texto) }

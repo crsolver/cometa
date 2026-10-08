@@ -9,7 +9,7 @@ import (
 // stores for a key (an entrada.Tecla constant such as "D" or "Enter") or a
 // mouse button ("Raton" plus a BotonRaton constant, e.g. "RatonIzquierdo") or
 // a button of gamepad 0 ("Mando" plus a BotonMando constant, e.g. "MandoA").
-// The codes match _hgEventoGuion in runtime.txt.
+// The codes match _hgEventoGuion in rt/pincel.go.
 func InputCode(name string) (string, bool) {
 	if strings.HasPrefix(name, "Raton") {
 		if value, ok := Constants[Symbol("BotonRaton")][strings.TrimPrefix(name, "Raton")]; ok {

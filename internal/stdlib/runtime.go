@@ -2,49 +2,31 @@ package stdlib
 
 import (
 	"bytes"
-	_ "embed"
+	"embed"
 	"encoding/base64"
 	"go/ast"
 	"go/format"
 	"go/parser"
 	"go/token"
+	"path"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 )
 
-//go:embed runtime.txt
-var runtimeSource string
+// The runtime is the Go code of package rt, embedded as text.
+//
+//go:embed rt/*.go
+var runtimeFS embed.FS
 
-//go:embed curvas_runtime.txt
-var curvasRuntimeSource string
-
-//go:embed ruido_runtime.txt
-var ruidoRuntimeSource string
-
-//go:embed pruebas_runtime.txt
-var pruebasRuntimeSource string
-
-//go:embed consola_runtime.txt
-var consolaRuntimeSource string
-
-//go:embed crt_runtime.txt
-var crtRuntimeSource string
-
-//go:embed extra_runtime.txt
-var extraRuntimeSource string
-
-//go:embed lienzo_runtime.txt
-var lienzoRuntimeSource string
-
-//go:embed retro_runtime.txt
-var retroRuntimeSource string
-
-//go:embed ui_core.txt
-var uiCoreSource string
-
-//go:embed ui_runtime.txt
-var uiRuntimeSource string
+// runtimeFiles lists the files of package rt that hold the runtime, in the
+// order their declarations are written to a generated program. doc.go is left
+// out: it documents the package and stands in for what programs define.
+var runtimeFiles = []string{
+	"pincel.go", "extra.go", "lienzo.go", "crt.go", "curvas.go", "ruido.go",
+	"pruebas.go", "consola.go", "ui_core.go", "ui.go", "retro.go",
+}
 
 //go:embed assets/dungeon-mode.png
 var dungeonAtlas []byte
@@ -52,19 +34,86 @@ var dungeonAtlas []byte
 //go:embed assets/dungeon-437.png
 var asciiAtlas []byte
 
-var runtimeImports = map[string]string{
-	"bufio": "bufio", "bytes": "bytes", "base64": "encoding/base64", "fmt": "fmt", "image": "image",
-	"color": "image/color", "io": "io", "log": "log", "math": "math", "rand": "math/rand/v2", "strings": "strings",
-	"ebiten": "github.com/hajimehoshi/ebiten/v2", "audio": "github.com/hajimehoshi/ebiten/v2/audio",
-	"mp3": "github.com/hajimehoshi/ebiten/v2/audio/mp3", "vorbis": "github.com/hajimehoshi/ebiten/v2/audio/vorbis",
-	"wav": "github.com/hajimehoshi/ebiten/v2/audio/wav", "ebitenutil": "github.com/hajimehoshi/ebiten/v2/ebitenutil",
-	"inpututil": "github.com/hajimehoshi/ebiten/v2/inpututil", "text": "github.com/hajimehoshi/ebiten/v2/text/v2",
-	"vector": "github.com/hajimehoshi/ebiten/v2/vector", "colorm": "github.com/hajimehoshi/ebiten/v2/colorm", "goregular": "golang.org/x/image/font/gofont/goregular",
-	"strconv": "strconv", "os": "os", "png": "image/png", "json": "encoding/json", "filepath": "path/filepath", "sort": "sort", "unicode": "unicode", "time": "time",
+// parsedRuntime is the runtime as syntax, ready to pick declarations from.
+type parsedRuntime struct {
+	fset  *token.FileSet
+	decls []ast.Decl
+	// byName finds the declarations of a name; the methods of a type are
+	// found under the name of the type.
+	byName map[string][]ast.Decl
+	// imports gives, for each declaration, the packages its file imports by
+	// the name the file uses for them.
+	imports map[ast.Decl]map[string]string
 }
 
-// Runtime selects the declarations reachable from imported library exports.
-// Go syntax supplies dependencies, so helpers and imports cannot drift apart.
+// loadRuntime parses package rt once: every program picks from the same
+// read-only syntax.
+var loadRuntime = sync.OnceValues(func() (*parsedRuntime, error) {
+	rt := &parsedRuntime{fset: token.NewFileSet(), byName: map[string][]ast.Decl{}, imports: map[ast.Decl]map[string]string{}}
+	for _, name := range runtimeFiles {
+		source, err := runtimeFS.ReadFile("rt/" + name)
+		if err != nil {
+			return nil, err
+		}
+		file, err := parser.ParseFile(rt.fset, name, source, 0)
+		if err != nil {
+			return nil, err
+		}
+		imports := map[string]string{}
+		for _, spec := range file.Imports {
+			imported, _ := strconv.Unquote(spec.Path.Value)
+			imports[importName(spec, imported)] = imported
+		}
+		for _, d := range file.Decls {
+			switch d := d.(type) {
+			case *ast.FuncDecl:
+				name := d.Name.Name
+				if d.Recv != nil {
+					t := d.Recv.List[0].Type
+					if p, ok := t.(*ast.StarExpr); ok {
+						t = p.X
+					}
+					name = t.(*ast.Ident).Name
+				}
+				rt.byName[name] = append(rt.byName[name], d)
+			case *ast.GenDecl:
+				if d.Tok == token.IMPORT {
+					continue
+				}
+				for _, s := range d.Specs {
+					switch s := s.(type) {
+					case *ast.TypeSpec:
+						rt.byName[s.Name.Name] = append(rt.byName[s.Name.Name], d)
+					case *ast.ValueSpec:
+						for _, n := range s.Names {
+							rt.byName[n.Name] = append(rt.byName[n.Name], d)
+						}
+					}
+				}
+			}
+			rt.decls = append(rt.decls, d)
+			rt.imports[d] = imports
+		}
+	}
+	return rt, nil
+})
+
+// importName is the name a file refers to an imported package by: the one it
+// gives it, or the last element of its path that is not a version.
+func importName(spec *ast.ImportSpec, imported string) string {
+	if spec.Name != nil {
+		return spec.Name.Name
+	}
+	name := path.Base(imported)
+	if len(name) > 1 && name[0] == 'v' && strings.Trim(name[1:], "0123456789") == "" {
+		name = path.Base(path.Dir(imported))
+	}
+	return name
+}
+
+// Runtime selects the declarations reachable from what the imported modules
+// declare, and the Go imports those declarations need. Go syntax supplies the
+// dependencies, so helpers and imports cannot drift apart.
 func Runtime(modules []string) (string, []string, error) {
 	return RuntimeFor(modules, nil)
 }
@@ -76,55 +125,15 @@ func RuntimeFor(modules []string, called map[string]bool) (string, []string, err
 	if len(modules) == 0 {
 		return "", nil, nil
 	}
-	fs := token.NewFileSet()
-	source := runtimeSource + "\n" + extraRuntimeSource + "\n" + lienzoRuntimeSource + "\n" + crtRuntimeSource + "\n" + curvasRuntimeSource + "\n" + ruidoRuntimeSource + "\n" + pruebasRuntimeSource + "\n" + consolaRuntimeSource
-	for _, module := range modules {
-		if module == "std/pincel/ui" {
-			source += "\n" + uiCoreSource + "\n" + uiRuntimeSource
-			break
-		}
-	}
-	for _, module := range modules {
-		if module == "std/pincel/retro" || module == "std/pincel/ui" {
-			source += "\n" + strings.NewReplacer("DUNGEON_ATLAS_DATA", base64.StdEncoding.EncodeToString(dungeonAtlas), "ASCII_ATLAS_DATA", base64.StdEncoding.EncodeToString(asciiAtlas)).Replace(retroRuntimeSource)
-			break
-		}
-	}
-	file, err := parser.ParseFile(fs, "stdlib.go", "package main\n"+source, 0)
+	rt, err := loadRuntime()
 	if err != nil {
 		return "", nil, err
-	}
-	byName := map[string][]ast.Decl{}
-	for _, d := range file.Decls {
-		switch d := d.(type) {
-		case *ast.FuncDecl:
-			name := d.Name.Name
-			if d.Recv != nil {
-				t := d.Recv.List[0].Type
-				if p, ok := t.(*ast.StarExpr); ok {
-					t = p.X
-				}
-				name = t.(*ast.Ident).Name
-			}
-			byName[name] = append(byName[name], d)
-		case *ast.GenDecl:
-			for _, s := range d.Specs {
-				switch s := s.(type) {
-				case *ast.TypeSpec:
-					byName[s.Name.Name] = append(byName[s.Name.Name], d)
-				case *ast.ValueSpec:
-					for _, n := range s.Names {
-						byName[n.Name] = append(byName[n.Name], d)
-					}
-				}
-			}
-		}
 	}
 	selected := map[ast.Decl]bool{}
 	imports := map[string]bool{}
 	var visit func(string)
 	visit = func(name string) {
-		for _, d := range byName[name] {
+		for _, d := range rt.byName[name] {
 			if selected[d] {
 				continue
 			}
@@ -134,9 +143,10 @@ func RuntimeFor(modules []string, called map[string]bool) (string, []string, err
 					visit(id.Name)
 				}
 				if s, ok := n.(*ast.SelectorExpr); ok {
-					if id, ok := s.X.(*ast.Ident); ok {
-						if path := runtimeImports[id.Name]; path != "" {
-							imports[strconv.Quote(path)] = true
+					// A name the file declares, such as a variable, is not a package.
+					if id, ok := s.X.(*ast.Ident); ok && id.Obj == nil {
+						if imported := rt.imports[d][id.Name]; imported != "" {
+							imports[strconv.Quote(imported)] = true
 						}
 					}
 				}
@@ -144,8 +154,8 @@ func RuntimeFor(modules []string, called map[string]bool) (string, []string, err
 			})
 		}
 	}
-	for _, path := range modules {
-		m, ok := LookupModule(path)
+	for _, module := range modules {
+		m, ok := LookupModule(module)
 		if !ok {
 			continue
 		}
@@ -194,18 +204,26 @@ func RuntimeFor(modules []string, called map[string]bool) (string, []string, err
 		imports["_ "+strconv.Quote("image/jpeg")] = true
 	}
 	var out bytes.Buffer
-	for _, d := range file.Decls {
+	for _, d := range rt.decls {
 		if selected[d] {
-			if err := format.Node(&out, fs, d); err != nil {
+			if err := format.Node(&out, rt.fset, d); err != nil {
 				return "", nil, err
 			}
 			out.WriteString("\n")
 		}
 	}
+	source := out.String()
+	// The atlases travel inside the program that draws with them.
+	if strings.Contains(source, "DUNGEON_ATLAS_DATA") || strings.Contains(source, "ASCII_ATLAS_DATA") {
+		source = strings.NewReplacer(
+			"DUNGEON_ATLAS_DATA", base64.StdEncoding.EncodeToString(dungeonAtlas),
+			"ASCII_ATLAS_DATA", base64.StdEncoding.EncodeToString(asciiAtlas),
+		).Replace(source)
+	}
 	var paths []string
-	for path := range imports {
-		paths = append(paths, path)
+	for imported := range imports {
+		paths = append(paths, imported)
 	}
 	sort.Strings(paths)
-	return out.String(), paths, nil
+	return source, paths, nil
 }

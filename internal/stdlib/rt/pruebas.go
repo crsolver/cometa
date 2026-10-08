@@ -1,3 +1,13 @@
+package rt
+
+import (
+	"fmt"
+	"github.com/hajimehoshi/ebiten/v2"
+	"image"
+	"image/color"
+	"math"
+)
+
 type _hgpruebaFallo struct{ mensaje string }
 
 func (f _hgpruebaFallo) PruebaFallo() string { return f.mensaje }
@@ -146,9 +156,15 @@ func _hgpruebasEntrada(nombre string, tipo byte, codigo int, x, y float64, texto
 	}
 	_hgguion = append(_hgguion, _hgEventoGuion{_hgtick + 1, tipo, codigo, x, y, texto})
 }
-func _hgpruebasMantener(tecla _hgTecla) { _hgpruebasEntrada("mantener", _hgguionMantener, int(tecla), 0, 0, "") }
-func _hgpruebasSoltar(tecla _hgTecla)   { _hgpruebasEntrada("soltar", _hgguionSoltar, int(tecla), 0, 0, "") }
-func _hgpruebasPulsar(tecla _hgTecla)   { _hgpruebasEntrada("pulsar", _hgguionPulsar, int(tecla), 0, 0, "") }
+func _hgpruebasMantener(tecla _hgTecla) {
+	_hgpruebasEntrada("mantener", _hgguionMantener, int(tecla), 0, 0, "")
+}
+func _hgpruebasSoltar(tecla _hgTecla) {
+	_hgpruebasEntrada("soltar", _hgguionSoltar, int(tecla), 0, 0, "")
+}
+func _hgpruebasPulsar(tecla _hgTecla) {
+	_hgpruebasEntrada("pulsar", _hgguionPulsar, int(tecla), 0, 0, "")
+}
 func _hgpruebasMantenerRaton(boton _hgBotonRaton) {
 	_hgpruebasEntrada("mantener_raton", _hgguionMantener, -1-int(boton), 0, 0, "")
 }
