@@ -30,7 +30,7 @@ func (c *checker) checkStructLiteral(expr *ast.StructLiteralExpr, expected *Type
 		return Type{}, c.fail(expr.Pos, "no se puede inferir el tipo del literal de estructura")
 	}
 	if expected != nil && !c.model.Assignable(result, *expected) {
-		return Type{}, c.fail(expr.Pos, "el literal es %s, pero se esperaba %s", result.String(), expected.String())
+		return Type{}, c.fail(expr.Pos, "el literal es %s, pero se esperaba %s%s", result.String(), expected.String(), c.unmet(result, *expected))
 	}
 	if stdlib.IsOpaque(result.Name) {
 		return Type{}, c.fail(expr.Pos, "%s es un tipo opaco; use su constructor incorporado", result.Name)
@@ -55,7 +55,7 @@ func (c *checker) checkStructLiteral(expr *ast.StructLiteralExpr, expected *Type
 				return err
 			}
 			if !c.model.Assignable(actual, field.Type) {
-				return c.fail(value.Position(), "el campo %q debe ser %s, no %s", fieldDecl.Name, field.Type.String(), actual.String())
+				return c.fail(value.Position(), "el campo %q debe ser %s, no %s%s", fieldDecl.Name, field.Type.String(), actual.String(), c.unmet(actual, field.Type))
 			}
 
 			return nil
@@ -83,7 +83,7 @@ func (c *checker) checkStructLiteral(expr *ast.StructLiteralExpr, expected *Type
 				return err
 			}
 			if !c.model.Assignable(actual, field.Type) {
-				return c.fail(value.Value.Position(), "el campo %q debe ser %s, no %s", value.Name, field.Type.String(), actual.String())
+				return c.fail(value.Value.Position(), "el campo %q debe ser %s, no %s%s", value.Name, field.Type.String(), actual.String(), c.unmet(actual, field.Type))
 			}
 
 			return nil
@@ -153,7 +153,7 @@ func (c *checker) checkListLiteral(expr *ast.ListLiteralExpr, expected *Type) (T
 				}
 				continue
 			}
-			c.report(c.fail(value.Position(), "el elemento debe ser %s, no %s", element.String(), actual.String()))
+			c.report(c.fail(value.Position(), "el elemento debe ser %s, no %s%s", element.String(), actual.String(), c.unmet(actual, *element)))
 			broken = true
 		}
 	}

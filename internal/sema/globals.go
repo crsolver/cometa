@@ -54,7 +54,7 @@ func (c *checker) checkGlobal(name string) (err error) {
 		return c.fail(decl.Value.Position(), "una global requiere un valor")
 	}
 	if declared != nil && !c.model.Assignable(actual, *declared) {
-		return c.fail(decl.Pos, "no se puede asignar %s a %s", actual.String(), declared.String())
+		return c.fail(decl.Pos, "no se puede asignar %s a %s%s", actual.String(), declared.String(), c.unmet(actual, *declared))
 	}
 	if declared != nil {
 		actual = *declared

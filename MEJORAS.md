@@ -4,12 +4,6 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 
 ## Lenguaje
 
-### El error de una interfaz no cumplida no dice qué falta
-
-- **Observado:** al escribir la lectura `19-interfaces` y el ejercicio `20-bestiario` del curso `04-intermedio`. Si un tipo no cumple una interfaz, el error es «el literal es Lobo, pero se esperaba Criatura», «el elemento debe ser Criatura, no Lobo» o «no se puede asignar Golem a Criatura». Sale igual cuando falta un método, cuando su resultado es de otro tipo, cuando el método existe pero no lleva `pub`, y cuando viene de un tipo embebido que no es `pub`.
-- **Problema:** el caso de `pub` es el más confuso: el método está escrito, con la firma correcta y en el mismo archivo, y nada indica que la visibilidad sea el motivo. El curso tiene que dar una lista de tres cosas para revisar a mano.
-- **Posible solución:** añadir el motivo al mensaje: «a Lobo le falta el método atacar() entero», «Lobo.atacar devuelve decimal y Criatura pide entero», «Lobo.atacar existe pero no es pub».
-
 ### `imprimir` muestra el campo embebido en minúscula
 
 - **Observado:** con `tipo Lobo` que embebe `Posicion`, `imprimir(lobo)` escribe `Lobo {posicion: Posicion {x: 2, y: 0}, vida: 5}`.

@@ -147,7 +147,7 @@ func (c *checker) checkFunction(function *ast.FuncDecl, receiver *TypeInfo) erro
 				c.report(err)
 				c.damaged++
 			} else if !c.model.Assignable(actual, expected) {
-				c.report(c.fail(param.Default.Position(), "el valor predeterminado de %q debe ser %s, no %s", param.Name, expected.String(), actual.String()))
+				c.report(c.fail(param.Default.Position(), "el valor predeterminado de %q debe ser %s, no %s%s", param.Name, expected.String(), actual.String(), c.unmet(actual, expected)))
 				c.damaged++
 			}
 		}
@@ -170,7 +170,7 @@ func (c *checker) checkFunction(function *ast.FuncDecl, receiver *TypeInfo) erro
 			return err
 		}
 		if !c.model.Assignable(actual, expected) {
-			return c.fail(function.Pos, "la función %q produce %s, pero declara %s", function.Name, actual.String(), expected.String())
+			return c.fail(function.Pos, "la función %q produce %s, pero declara %s%s", function.Name, actual.String(), expected.String(), c.unmet(actual, expected))
 		}
 	} else {
 		for _, stmt := range function.Body {
@@ -214,7 +214,7 @@ func (c *checker) checkFieldDefaults(d *ast.TypeDecl) error {
 			continue
 		}
 		if !c.model.Assignable(actual, expected) {
-			c.report(c.fail(field.Default.Position(), "el valor predeterminado de %q debe ser %s, no %s", field.Name, expected.String(), actual.String()))
+			c.report(c.fail(field.Default.Position(), "el valor predeterminado de %q debe ser %s, no %s%s", field.Name, expected.String(), actual.String(), c.unmet(actual, expected)))
 			c.damaged++
 		}
 	}

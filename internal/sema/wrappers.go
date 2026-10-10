@@ -66,7 +66,7 @@ func (c *checker) checkReturn(e *ast.ReturnExpr) (Type, error) {
 			return Type{}, err
 		}
 		if !c.model.Assignable(t, c.returnType) {
-			return Type{}, c.fail(e.Pos, "retornar requiere %s, no %s", c.returnType.String(), t.String())
+			return Type{}, c.fail(e.Pos, "retornar requiere %s, no %s%s", c.returnType.String(), t.String(), c.unmet(t, c.returnType))
 		}
 	}
 	return Type{Kind: Never}, nil

@@ -131,7 +131,7 @@ func (c *checker) checkMapLiteral(expr *ast.MapLiteralExpr, expected *Type) (Typ
 			inferred := v
 			value = &inferred
 		} else if !c.model.Assignable(v, *value) {
-			c.report(c.fail(entry.Value.Position(), "el valor debe ser %s, no %s", value.String(), v.String()))
+			c.report(c.fail(entry.Value.Position(), "el valor debe ser %s, no %s%s", value.String(), v.String(), c.unmet(v, *value)))
 			broken = true
 		}
 	}

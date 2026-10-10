@@ -56,7 +56,7 @@ func (c *checker) checkStatement(stmt ast.Stmt) error {
 			return err
 		}
 		if !c.model.Assignable(value, target) {
-			return c.fail(statement.Pos, "no se puede asignar %s a %s", value.String(), target.String())
+			return c.fail(statement.Pos, "no se puede asignar %s a %s%s", value.String(), target.String(), c.unmet(value, target))
 		}
 		return nil
 	case *ast.VarDeclStmt:
@@ -83,7 +83,7 @@ func (c *checker) checkStatement(stmt ast.Stmt) error {
 			return c.fail(statement.Value.Position(), "una variable requiere un valor")
 		}
 		if declared != nil && !c.model.Assignable(actual, *declared) {
-			return c.fail(statement.Pos, "no se puede asignar %s a %s", actual.String(), declared.String())
+			return c.fail(statement.Pos, "no se puede asignar %s a %s%s", actual.String(), declared.String(), c.unmet(actual, *declared))
 		}
 		c.vars[statement.Name] = actual
 		c.model.VarTypes[statement] = actual

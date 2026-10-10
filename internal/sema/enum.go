@@ -64,7 +64,7 @@ func (c *checker) checkContextualVariant(expr *ast.ContextualVariantExpr, call *
 			return Type{}, err
 		}
 		if !c.model.Assignable(actual, variant.Payload) {
-			return Type{}, c.fail(call.Args[0].Position(), "el payload debe ser %s, no %s", variant.Payload.String(), actual.String())
+			return Type{}, c.fail(call.Args[0].Position(), "el payload debe ser %s, no %s%s", variant.Payload.String(), actual.String(), c.unmet(actual, variant.Payload))
 		}
 	}
 	c.model.Constructors[node] = ConstructorInfo{Enum: info, Variant: variant}

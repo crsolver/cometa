@@ -372,7 +372,7 @@ func (c *checker) checkConstraints(params, args []Type, pos ast.Pos) error {
 	for i, p := range params {
 		constraint := substitute(c.model.Constraints[paramKey(p)], b)
 		if !c.model.Assignable(args[i], constraint) {
-			return c.fail(pos, "%s no satisface la restricción %s de %s", args[i].String(), constraint.String(), p.Name)
+			return c.fail(pos, "%s no satisface la restricción %s de %s%s", args[i].String(), constraint.String(), p.Name, c.unmet(args[i], constraint))
 		}
 	}
 	return nil

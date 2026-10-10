@@ -84,7 +84,7 @@ func (c *checker) bindArguments(call *ast.CallExpr, signature FuncInfo) (Type, e
 			continue
 		}
 		if !c.model.Assignable(actual, expected) {
-			c.report(c.fail(arg.Position(), "el argumento %d debe ser %s, no %s", i+1, expected.String(), actual.String()))
+			c.report(c.fail(arg.Position(), "el argumento %d debe ser %s, no %s%s", i+1, expected.String(), actual.String(), c.unmet(actual, expected)))
 			broken = true
 			continue
 		}
