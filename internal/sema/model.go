@@ -68,8 +68,10 @@ type Model struct {
 	Calls            map[*ast.CallExpr]CallInfo
 	// Builtins holds the calls the language implements itself. A call is
 	// here, in Stdlib.Calls, or is a call to a declared function.
-	Builtins      map[*ast.CallExpr]Builtin
-	EnumCompares  map[*ast.BinaryExpr]EnumCompare
+	Builtins     map[*ast.CallExpr]Builtin
+	EnumCompares map[*ast.BinaryExpr]EnumCompare
+	// CountLoops holds the loops written `repetir (n)`: n turns counted from 0.
+	CountLoops    map[*ast.RepeatStmt]bool
 	LocalNames    map[string]bool
 	Enums         map[string]*EnumInfo
 	Constructors  map[ast.Expr]ConstructorInfo

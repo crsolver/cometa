@@ -36,7 +36,7 @@ func TestCompilesVariablesCompositeLiteralsAndMemberCall(t *testing.T) {
 	}
 	// Operands are stored in temporaries in evaluation order, so the checks name
 	// the shapes that matter and not whole statements.
-	for _, expected := range []string{"var usuario1 *Usuario = ", "&Usuario{Nombre: ", "Amigos: ", "var usuarios []*Usuario = ", "[]*Usuario{", " := Procesar_usuario\n", ".Activar\n"} {
+	for _, expected := range []string{"var usuario1 *Usuario = ", "&Usuario{Nombre: ", "Amigos: ", "var usuarios *[]*Usuario = ", "[]*Usuario{", " := Procesar_usuario\n", ".Activar\n"} {
 		if !strings.Contains(string(got), expected) {
 			t.Errorf("generated Go does not contain %q:\n%s", expected, got)
 		}

@@ -178,13 +178,19 @@ func (c *checker) checkRepeat(stmt *ast.RepeatStmt) error {
 			}
 		} else if err != nil {
 			elementType = Type{Kind: Invalid}
+		} else if iterable.Kind == Integer {
+			// `repetir (n)` gives n turns, counted from 0 like `repetir (0..n)`.
+			c.model.CountLoops[stmt] = true
+		} else if iterable.Kind != String && iterable.Kind != Slice && iterable.Kind != Map {
+			c.report(c.fail(stmt.Iterable.Position(), "repetir requiere una lista, un mapa, una cadena o una cantidad entera de vueltas, no %s", iterable.String()))
+			c.damaged++
+			elementType = Type{Kind: Invalid}
+		} else if stmt.Element == "" {
+			c.report(c.fail(stmt.Iterable.Position(), "para recorrer %s falta el nombre de cada elemento: repetir (...) |elemento|", iterable.String()))
+			c.damaged++
 		} else if iterable.Kind == String {
 			// Una cadena se recorre letra por letra, como dividir("").
 			elementType = Type{Kind: String}
-		} else if iterable.Kind != Slice && iterable.Kind != Map {
-			c.report(c.fail(stmt.Iterable.Position(), "repetir requiere una lista, mapa o cadena, no %s", iterable.String()))
-			c.damaged++
-			elementType = Type{Kind: Invalid}
 		} else {
 			elementType = *iterable.Elem
 		}

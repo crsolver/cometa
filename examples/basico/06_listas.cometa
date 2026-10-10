@@ -37,3 +37,16 @@ fn inicio()
 	// + une dos listas del mismo tipo en una lista nueva.
 	var todos = nombres + ["Eva", "Tomás"]
 	imprimir(todos)
+
+	// Una función recibe la misma lista, no una copia:
+	// lo que le cambia se ve aquí también.
+	quitar_primero(todos)
+	imprimir(todos)
+
+	// copiar da una lista aparte.
+	var respaldo = todos.copiar()
+	quitar_primero(respaldo)
+	imprimir(todos.longitud())
+
+fn quitar_primero(lista [cadena])
+	lista.eliminar(0)

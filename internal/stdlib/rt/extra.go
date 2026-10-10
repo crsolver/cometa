@@ -187,14 +187,14 @@ func _hgdatosArchivo() (string, string, error) {
 	dir := filepath.Join(base, "cometa", carpeta)
 	return dir, filepath.Join(dir, "datos.json"), nil
 }
-func _hgdatosClaves() []string {
+func _hgdatosClaves() *[]string {
 	_hgdatosCargar()
 	out := make([]string, 0, len(_hgdatosDatos))
 	for k := range _hgdatosDatos {
 		out = append(out, k)
 	}
 	sort.Strings(out)
-	return out
+	return &out
 }
 func _hgdatosGuardarEntero(clave string, valor int64) struct {
 	tag      int
@@ -467,7 +467,8 @@ func _hgrejillaNueva(cols, rows, valor int64) *_hgRejilla {
 	}
 	return &_hgRejilla{cols, rows, cells}
 }
-func _hgrejillaDesdeTexto(filas []string, simbolos map[string]int64) *_hgRejilla {
+func _hgrejillaDesdeTexto(lista *[]string, simbolos map[string]int64) *_hgRejilla {
+	filas := *lista
 	if len(filas) == 0 {
 		panic("rejilla.desde_texto requiere al menos una fila")
 	}
@@ -572,14 +573,14 @@ func (g *_hgRejilla) Rellenar(valor int64) {
 		g.cells[i] = valor
 	}
 }
-func (g *_hgRejilla) Buscar(valor int64) []_hgVec2 {
+func (g *_hgRejilla) Buscar(valor int64) *[]_hgVec2 {
 	out := []_hgVec2{}
 	for i, v := range g.cells {
 		if v == valor {
 			out = append(out, _hgVec2{float64(int64(i) % g.cols), float64(int64(i) / g.cols)})
 		}
 	}
-	return out
+	return &out
 }
 
 // cubiertas calls f(x, y, value) for every grid cell touched by area, row by row, until f returns true.
@@ -615,9 +616,9 @@ func _hgrejillaEn(v int64, lista []int64) bool {
 }
 
 // Choca reports whether any cell touched by area holds one of the solid values; cells outside the grid are never solid.
-func (g *_hgRejilla) Choca(area _hgRect, celda _hgVec2, solidos []int64) bool {
+func (g *_hgRejilla) Choca(area _hgRect, celda _hgVec2, solidos *[]int64) bool {
 	_hgrejillaCelda("choca", celda)
-	return g.cubiertas(area, celda, func(_, _, v int64) bool { return _hgrejillaEn(v, solidos) })
+	return g.cubiertas(area, celda, func(_, _, v int64) bool { return _hgrejillaEn(v, *solidos) })
 }
 func (g *_hgRejilla) Celda_en(punto, celda _hgVec2) struct {
 	tag      int
@@ -641,7 +642,7 @@ func (g *_hgRejilla) Celda_en(punto, celda _hgVec2) struct {
 }
 
 // Valores_en lists the distinct values under area, in row order of first appearance.
-func (g *_hgRejilla) Valores_en(area _hgRect, celda _hgVec2) []int64 {
+func (g *_hgRejilla) Valores_en(area _hgRect, celda _hgVec2) *[]int64 {
 	_hgrejillaCelda("valores_en", celda)
 	out := []int64{}
 	g.cubiertas(area, celda, func(_, _, v int64) bool {
@@ -650,17 +651,17 @@ func (g *_hgRejilla) Valores_en(area _hgRect, celda _hgVec2) []int64 {
 		}
 		return false
 	})
-	return out
+	return &out
 }
 
 // Mover slides area by delta (x first, then y) and returns the displacement actually applied: it stops flush against solid cells.
 // Platform cells only stop downward movement that starts above their top edge, so they can be crossed from below.
-func (g *_hgRejilla) Mover(area _hgRect, celda, delta _hgVec2, solidos, plataformas []int64) _hgVec2 {
+func (g *_hgRejilla) Mover(area _hgRect, celda, delta _hgVec2, solidos, plataformas *[]int64) _hgVec2 {
 	_hgrejillaCelda("mover", celda)
 	var out _hgVec2
-	out.X = g.moverEje(area, celda, delta.X, true, solidos, nil)
+	out.X = g.moverEje(area, celda, delta.X, true, *solidos, nil)
 	area.Pos.X += out.X
-	out.Y = g.moverEje(area, celda, delta.Y, false, solidos, plataformas)
+	out.Y = g.moverEje(area, celda, delta.Y, false, *solidos, *plataformas)
 	return out
 }
 func (g *_hgRejilla) moverEje(area _hgRect, celda _hgVec2, d float64, horizontal bool, solidos, plataformas []int64) float64 {
@@ -684,7 +685,7 @@ func (g *_hgRejilla) moverEje(area _hgRect, celda _hgVec2, d float64, horizontal
 		} else {
 			a.Pos.Y += s
 		}
-		if g.Choca(a, celda, solidos) {
+		if g.Choca(a, celda, &solidos) {
 			return true
 		}
 		if d <= 0 || len(plataformas) == 0 {
@@ -714,7 +715,7 @@ func (g *_hgRejilla) moverEje(area _hgRect, celda _hgVec2, d float64, horizontal
 
 // Animated values are replaced by one of their frames, chosen from the update counter so every tile stays in step.
 // A color grid holds 0xRRGGBB per cell; negative cells and cells outside it keep the tint.
-func _hgrejillaDibujar(g *_hgRejilla, h *_hgHoja, pos, escala _hgVec2, tinte _hgColor, animaciones map[int64][]int64, fps float64, colores struct {
+func _hgrejillaDibujar(g *_hgRejilla, h *_hgHoja, pos, escala _hgVec2, tinte _hgColor, animaciones map[int64]*[]int64, fps float64, colores struct {
 	tag      int
 	payload1 *_hgRejilla
 }) {
@@ -728,8 +729,8 @@ func _hgrejillaDibujar(g *_hgRejilla, h *_hgHoja, pos, escala _hgVec2, tinte _hg
 	for y := int64(0); y < g.rows; y++ {
 		for x := int64(0); x < g.cols; x++ {
 			v := g.cells[y*g.cols+x]
-			if cuadros := animaciones[v]; len(cuadros) > 0 {
-				v = cuadros[paso%int64(len(cuadros))]
+			if cuadros := animaciones[v]; cuadros != nil && len(*cuadros) > 0 {
+				v = (*cuadros)[paso%int64(len(*cuadros))]
 			}
 			if v < 0 || v >= h.cols*h.rows {
 				continue

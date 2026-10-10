@@ -137,7 +137,10 @@ func _hgretroCargarMapa(encoded, path string) (m *_hgMapa) {
 }
 func (m *_hgMapa) Columnas() int64 { return m.capas[0].cols }
 func (m *_hgMapa) Filas() int64    { return m.capas[0].rows }
-func (m *_hgMapa) Capas() []string { return append([]string{}, m.nombres...) }
+func (m *_hgMapa) Capas() *[]string {
+	nombres := append([]string{}, m.nombres...)
+	return &nombres
+}
 func (m *_hgMapa) indice(nombre string) int {
 	for i, n := range m.nombres {
 		if n == nombre {

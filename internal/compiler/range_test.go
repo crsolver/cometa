@@ -66,3 +66,24 @@ func TestRangeLoopWithoutVariablesCompiles(t *testing.T) {
 		}
 	}
 }
+
+func TestRepeatCount(t *testing.T) {
+	t.Parallel()
+	runCometa(t, `fn veces() entero
+	imprimir("una vez")
+	2
+fn inicio()
+	var n = 3
+	repetir (n) imprimir("hola")
+	repetir (veces()) |i| imprimir(i)
+	repetir (n - 1) |valor, indice|
+		si (valor == 1) continuar
+		imprimir("${valor} ${indice}")
+	repetir (0) imprimir("nunca")
+	repetir (-2) |i| imprimir(i)
+	repetir (n) |i|
+		n = 0
+		si (i == 1) romper
+		imprimir("vuelta ${i}")
+`, "hola\nhola\nhola\nuna vez\n0\n1\n0 0\nvuelta 0\n")
+}

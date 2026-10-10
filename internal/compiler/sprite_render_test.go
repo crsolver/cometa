@@ -156,7 +156,7 @@ func (*spriteCheck) Update() error {
  conColores:=struct { tag int; payload1 *_hgRejilla }{1,colores}
  check("cell colors",func(){_hgrejillaDibujar(m,h,grid,one,_hgColor{255,255,255,255},nil,8,conColores)},expect{20,30,azul},expect{24,30,rojo},expect{27,33,amarillo})
  // Animated cells: value 1 cycles frames [0, 1] at 8 per second (60 TPS).
- anim:=map[int64][]int64{1:{0,1}}
+ anim:=map[int64]*[]int64{1:{0,1}}
  _hgtick=0
  check("animated first",func(){_hgrejillaDibujar(m,h,grid,one,_hgColor{255,255,255,255},anim,8,sinColores)},expect{20,30,rojo},expect{24,30,rojo})
  _hgtick=8

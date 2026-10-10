@@ -262,11 +262,7 @@ func (g *generator) emitFunction(decl *ast.FuncDecl) {
 		if index > 0 {
 			g.write(", ")
 		}
-		paramType := goType(signature.Params[index])
-		if param.Variadic {
-			paramType = "..." + goType(*signature.Params[index].Elem)
-		}
-		g.write("%s %s", localName(param.Name), paramType)
+		g.write("%s %s", localName(param.Name), goType(signature.Params[index]))
 	}
 	g.write(")")
 	if signature.Return.Kind != sema.Void {
@@ -472,13 +468,17 @@ func goType(t sema.Type) string {
 	case sema.Named, sema.Enum:
 		return "*" + namedGoType(t)
 	case sema.Slice:
-		return "[]" + goType(*t.Elem)
+		return "*" + listStorage(t)
 	case sema.Map:
 		return "map[" + goType(*t.Key) + "]" + goType(*t.Elem)
 	default:
 		panic("invalid Go type")
 	}
 }
+
+// listStorage is the Go slice behind a list. A list is a pointer to it, so
+// every alias and parameter sees the same elements and the same length.
+func listStorage(t sema.Type) string { return "[]" + goType(*t.Elem) }
 
 func usesPrint(program *ast.Program) bool {
 	found := false

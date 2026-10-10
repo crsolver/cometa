@@ -120,7 +120,7 @@ func (g *generator) flowTarget(e ast.Expr, indent int) string {
 	case *ast.IndexExpr:
 		object := g.flowExpr(v.Object, indent)
 		index := g.flowExpr(v.Index, indent)
-		return g.located(v.Pos, object+"["+index+"]")
+		return g.located(v.Pos, "(*"+object+")["+index+"]")
 	}
 	panic("invalid assignment target")
 }
@@ -373,6 +373,9 @@ func (g *generator) flowRaw(e ast.Expr, t sema.Type, indent int) string {
 		if object == "" || index == "" {
 			return ""
 		}
+		if g.model.ExprTypes[v.Object].Kind == sema.Slice {
+			object = "(*" + object + ")"
+		}
 		return g.located(v.Pos, object+"["+index+"]")
 	case *ast.UnaryExpr:
 		if lit, ok := v.Value.(*ast.LiteralExpr); ok && v.Operator == "-" && lit.Kind == "entero" && lit.Value == "9223372036854775808" {
@@ -384,11 +387,31 @@ func (g *generator) flowRaw(e ast.Expr, t sema.Type, indent int) string {
 		return "(" + v.Operator + g.flowExpr(v.Value, indent) + ")"
 	case *ast.BinaryExpr:
 		if compare, ok := g.model.EnumCompares[v]; ok {
-			value := g.flowExpr(compare.Value, indent)
-			if value == "" {
+			if compare.Payload == nil {
+				value := g.flowExpr(compare.Value, indent)
+				if value == "" {
+					return ""
+				}
+				return "(" + value + ".tag " + v.Operator + " " + fmt.Sprint(compare.Tag) + ")"
+			}
+			// opcional == .Alguno(x): same variant and same payload. The
+			// operands keep the order they were written in.
+			var value, payload string
+			if v.Left == compare.Value {
+				value = g.flowExpr(compare.Value, indent)
+				payload = g.flowExpr(compare.Payload, indent)
+			} else {
+				payload = g.flowExpr(compare.Payload, indent)
+				value = g.flowExpr(compare.Value, indent)
+			}
+			if value == "" || payload == "" {
 				return ""
 			}
-			return "(" + value + ".tag " + v.Operator + " " + fmt.Sprint(compare.Tag) + ")"
+			equal := fmt.Sprintf("(%s.tag == %d && %s.payload%d == %s)", value, compare.Tag, value, compare.Tag, payload)
+			if v.Operator == "!=" {
+				return "!" + equal
+			}
+			return equal
 		}
 		left := g.flowExpr(v.Left, indent)
 		if v.Operator == "&&" || v.Operator == "||" {
@@ -455,7 +478,7 @@ func (g *generator) flowRaw(e ast.Expr, t sema.Type, indent int) string {
 			}
 			values = append(values, value)
 		}
-		return goType(t) + "{" + strings.Join(values, ", ") + "}"
+		return "&" + listStorage(t) + "{" + strings.Join(values, ", ") + "}"
 	case *ast.MapLiteralExpr:
 		if t.Kind == sema.Never {
 			for _, entry := range v.Entries {
@@ -556,9 +579,6 @@ func (g *generator) flowCall(call *ast.CallExpr, indent int) string {
 		if args[i] == "" {
 			return ""
 		}
-		if i < len(info.Spread) && info.Spread[i] {
-			args[i] += "..."
-		}
 	}
 	if info.Signature.Decl == nil {
 		return fn + "(" + strings.Join(args, ", ") + ")"
@@ -579,6 +599,24 @@ func (g *generator) flowCall(call *ast.CallExpr, indent int) string {
 	}
 	for p, param := range info.Signature.Decl.Params {
 		found := false
+		if param.Variadic && !native {
+			// The function receives one list: the expanded one itself, or a
+			// new list with the loose elements.
+			var elements []string
+			spread := false
+			for i, index := range info.Parameters {
+				if index == p {
+					elements = append(elements, args[i])
+					spread = spread || i < len(info.Spread) && info.Spread[i]
+				}
+			}
+			if spread {
+				ordered = append(ordered, elements[0])
+			} else {
+				ordered = append(ordered, "&"+listStorage(info.Signature.Params[p])+"{"+strings.Join(elements, ", ")+"}")
+			}
+			continue
+		}
 		for i, index := range info.Parameters {
 			if index == p {
 				ordered = append(ordered, args[i])
@@ -599,16 +637,13 @@ func (g *generator) flowCall(call *ast.CallExpr, indent int) string {
 func (g *generator) flowListCall(call *ast.CallExpr, operation string, indent int) string {
 	member := call.Callee.(*ast.MemberExpr)
 	listType := g.model.ExprTypes[member.Object]
-	mutating := operation == "agregar" || operation == "extender" || operation == "insertar" || operation == "eliminar" || operation == "invertir" || operation == "ordenar" || operation == "ordenar_por"
-	var address string
-	var receiver string
-	if mutating {
-		address = g.freshName()
-		g.line(indent, "%s := &(%s)", address, g.flowTarget(member.Object, indent))
-		receiver = g.capture(listType, "*"+address, indent)
-	} else {
-		receiver = operand(member.Object, g.flowExpr(member.Object, indent))
+	// A list is a pointer to its slice, so a method that changes the length
+	// writes through it and every alias sees the change.
+	address := g.flowExpr(member.Object, indent)
+	if address == "" {
+		return ""
 	}
+	receiver := "(*" + address + ")"
 
 	info := g.model.Calls[call]
 	args := make([]string, len(call.Args))
@@ -670,7 +705,7 @@ func (g *generator) flowListCall(call *ast.CallExpr, operation string, indent in
 		g.line(indent, "*%s = append(%s, %s)", address, receiver, ordered[0])
 		return ""
 	case "extender":
-		g.line(indent, "*%s = append(%s, %s...)", address, receiver, ordered[0])
+		g.line(indent, "*%s = append(%s, *%s...)", address, receiver, ordered[0])
 		return ""
 	case "insertar":
 		success := g.freshName()
@@ -695,13 +730,14 @@ func (g *generator) flowListCall(call *ast.CallExpr, operation string, indent in
 		g.line(indent, "}")
 		return success
 	case "copiar":
-		return "append(make(" + goType(listType) + ", 0, len(" + receiver + ")), " + receiver + "...)"
+		duplicate := g.freshName()
+		g.line(indent, "%s := append(make(%s, 0, len(%s)), %s...)", duplicate, listStorage(listType), receiver, receiver)
+		return "&" + duplicate
 	case "invertir":
 		left, right := g.freshName(), g.freshName()
 		g.line(indent, "for %s, %s := 0, len(%s)-1; %s < %s; %s, %s = %s+1, %s-1 {", left, right, receiver, left, right, left, right, left, right)
 		g.line(indent+1, "%s[%s], %s[%s] = %s[%s], %s[%s]", receiver, left, receiver, right, receiver, right, receiver, left)
 		g.line(indent, "}")
-		g.line(indent, "*%s = %s", address, receiver)
 		return ""
 	case "ordenar", "ordenar_por":
 		// Both sort in place and keep equal elements in their order.
@@ -722,7 +758,7 @@ func (g *generator) flowListCall(call *ast.CallExpr, operation string, indent in
 			g.line(indent, "})")
 		} else {
 			keys, order, sorted, i, j := g.freshName(), g.freshName(), g.freshName(), g.freshName(), g.freshName()
-			g.line(indent, "%s := %s", keys, ordered[0])
+			g.line(indent, "%s := *%s", keys, ordered[0])
 			g.line(indent, "if len(%s) != len(%s) {", keys, receiver)
 			g.line(indent+1, "panic(fmt.Sprintf(\"ordenar_por: la lista tiene %%d elementos y las claves %%d\", len(%s), len(%s)))", receiver, keys)
 			g.line(indent, "}")
@@ -733,13 +769,12 @@ func (g *generator) flowListCall(call *ast.CallExpr, operation string, indent in
 			g.line(indent, "sort.SliceStable(%s, func(%s, %s int) bool {", order, a, b)
 			less(keys, order+"["+a+"]", order+"["+b+"]")
 			g.line(indent, "})")
-			g.line(indent, "%s := make(%s, len(%s))", sorted, goType(listType), receiver)
+			g.line(indent, "%s := make(%s, len(%s))", sorted, listStorage(listType), receiver)
 			g.line(indent, "for %s, %s := range %s {", i, j, order)
 			g.line(indent+1, "%s[%s] = %s[%s]", sorted, i, receiver, j)
 			g.line(indent, "}")
 			g.line(indent, "copy(%s, %s)", receiver, sorted)
 		}
-		g.line(indent, "*%s = %s", address, receiver)
 		return ""
 	}
 	panic("unknown list operation: " + operation)
@@ -747,8 +782,8 @@ func (g *generator) flowListCall(call *ast.CallExpr, operation string, indent in
 
 // listConcat builds a fresh list so the result never aliases either operand.
 func listConcat(list sema.Type, left, right string) string {
-	t := goType(list)
-	return "func(a, b " + t + ") " + t + " { return append(append(make(" + t + ", 0, len(a)+len(b)), a...), b...) }(" + left + ", " + right + ")"
+	t, storage := goType(list), listStorage(list)
+	return "func(a, b " + t + ") " + t + " { c := append(append(make(" + storage + ", 0, len(*a)+len(*b)), *a...), *b...); return &c }(" + left + ", " + right + ")"
 }
 
 func validListIndex(index, receiver string, existing bool) string {
@@ -791,7 +826,9 @@ func (g *generator) flowStringCall(call *ast.CallExpr, operation string, indent 
 	case "reemplazar":
 		return "strings.ReplaceAll(" + receiver + ", " + ordered[0] + ", " + ordered[1] + ")"
 	case "dividir":
-		return "strings.Split(" + receiver + ", " + ordered[0] + ")"
+		parts := g.freshName()
+		g.line(indent, "%s := strings.Split(%s, %s)", parts, receiver, ordered[0])
+		return "&" + parts
 	case "repetir":
 		return "_hsrepetir(" + receiver + ", " + ordered[0] + ")"
 	case "rellenar_izquierda", "rellenar_derecha":
@@ -895,6 +932,8 @@ func (g *generator) defaultFields(t sema.Type, supplied []ast.FieldValue, indent
 			fields = append(fields, g.fieldName(t, field.Name)+": "+g.flowExpr(field.Default, indent))
 		} else if ft.Kind == sema.Map {
 			fields = append(fields, g.fieldName(t, field.Name)+": make("+goType(ft)+")")
+		} else if ft.Kind == sema.Slice {
+			fields = append(fields, g.fieldName(t, field.Name)+": &"+listStorage(ft)+"{}")
 		} else if ft.Kind == sema.Named {
 			if stdlib.IsValue(ft.Name) {
 				fields = append(fields, g.fieldName(t, field.Name)+": "+goType(ft)+"{"+strings.Join(g.defaultFields(ft, nil, indent), ", ")+"}")
@@ -932,6 +971,16 @@ func (g *generator) flowLoop(s *ast.RepeatStmt, indent int) {
 	}
 	if start == "" {
 		g.line(indent, "for {")
+	} else if g.model.CountLoops[s] {
+		// A count never runs backwards: zero or less gives no turns.
+		current := g.freshName()
+		g.line(indent, "for %s := int64(0); %s < %s; %s++ {", current, current, start, current)
+		if s.Element != "" {
+			g.line(indent+1, "%s := %s", localName(s.Element), current)
+		}
+		if s.Index != "" {
+			g.line(indent+1, "%s := %s", localName(s.Index), current)
+		}
 	} else if end != "" {
 		current, index := g.freshName(), g.freshName()
 		g.line(indent, "for %s, %s := %s, int64(0); (%s > 0 && %s < %s) || (%s < 0 && %s > %s); %s, %s = %s + %s, %s + 1 {", current, index, start, step, current, end, step, current, end, current, index, current, step, index)
@@ -947,6 +996,9 @@ func (g *generator) flowLoop(s *ast.RepeatStmt, indent int) {
 		index := "_"
 		if s.Index != "" {
 			index = g.freshName()
+		}
+		if g.model.ExprTypes[s.Iterable].Kind == sema.Slice {
+			start = "*" + start
 		}
 		g.line(indent, "for %s, %s := range %s {", index, localName(s.Element), start)
 		if s.Index != "" {

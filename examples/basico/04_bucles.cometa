@@ -1,6 +1,9 @@
 // Repetir acciones con repetir y mientras.
 
 fn inicio()
+	// Con un número, repetir hace eso mismo esa cantidad de veces.
+	repetir (3) imprimir("¡Hola!")
+
 	// Un rango cuenta desde el primer número hasta antes del segundo.
 	imprimir("Cuenta del 1 al 5:")
 	repetir (1..6) |numero|

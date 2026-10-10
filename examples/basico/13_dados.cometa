@@ -7,7 +7,7 @@ fn lanzar_dado() entero azar.entero(1, 7)
 
 fn barra(cantidad entero) cadena
 	var texto = ""
-	repetir (0..cantidad) |i|
+	repetir (cantidad)
 		texto = texto + "#"
 	texto
 
@@ -15,7 +15,7 @@ fn inicio()
 	var lanzamientos = 60
 	var conteo [entero: entero] = [:]
 
-	repetir (0..lanzamientos) |i|
+	repetir (lanzamientos)
 		var cara = lanzar_dado()
 		conteo[cara] += 1
 

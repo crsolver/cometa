@@ -62,13 +62,72 @@ fn inicio()
 	var compartida = base
 	base.eliminar(0)
 	imprimir(compartida[0])
-	imprimir(compartida[2])
+	imprimir(compartida.longitud())
 	var objeto = Objeto {valor: 1}
 	var objetos = [objeto]
 	var objetos_copia = objetos.copiar()
 	objetos_copia[0].valor = 8
 	imprimir(objetos[0].valor)
-`, "2\n3\n4\n3\n4\n4\n2\n3\n8\n")
+`, "3\n3\n4\n4\n4\n4\n2\n2\n8\n")
+}
+
+// A list is shared whole, like a map: a function that changes the length of a
+// parameter changes the list of the caller, never half of it.
+func TestListsAreSharedWithTheirLength(t *testing.T) {
+	t.Parallel()
+	runCometa(t, `tipo Mochila
+	cosas [cadena]
+	pub fn todas() [cadena] @cosas
+fn quitar(l [entero])
+	l.eliminar(0)
+fn quitar_y_agregar(l [entero])
+	l.eliminar(0)
+	l.agregar(9)
+fn meter(l [entero])
+	l.insertar(0, 7)
+fn crecer(l ...entero)
+	l.agregar(5)
+fn reemplazar(l [entero])
+	l = [0]
+	l.agregar(1)
+fn inicio()
+	var a = [1, 2, 3]
+	quitar(a)
+	imprimir(a)
+	var b = [1, 2, 3]
+	quitar_y_agregar(b)
+	imprimir(b)
+	meter(b)
+	imprimir(b)
+	var alias = b
+	alias.extender([4, 4])
+	imprimir(b.longitud())
+	crecer(a...)
+	imprimir(a)
+	crecer(1, 2)
+	reemplazar(a)
+	imprimir(a)
+	var copia = a.copiar()
+	copia.agregar(6)
+	imprimir(a.longitud())
+	var suma = a + [8]
+	suma.eliminar(0)
+	imprimir(a)
+	var mochila = Mochila {}
+	mochila.todas().agregar("cuerda")
+	imprimir(mochila.cosas)
+	var filas = [[1], [2]]
+	var fila = filas[0]
+	fila.agregar(3)
+	imprimir(filas)
+	var por_nombre = ["a": [1]]
+	si (por_nombre["a"]) |lista| lista.agregar(2)
+	imprimir(por_nombre)
+	var partes = "a,b".dividir(",")
+	partes.agregar("c")
+	imprimir(partes)
+	repetir (a) |valor, i| imprimir("${i}: ${valor}")
+`, "[2, 3]\n[2, 3, 9]\n[7, 2, 3, 9]\n6\n[2, 3, 5]\n[2, 3, 5]\n3\n[2, 3, 5]\n[\"cuerda\"]\n[[1, 3], [2]]\n[\"a\": [1, 2]]\n[\"a\", \"b\", \"c\"]\n0: 2\n1: 3\n2: 5\n")
 }
 
 func TestGenericListMethodsRuntime(t *testing.T) {
@@ -126,7 +185,6 @@ func TestListMethodDiagnostics(t *testing.T) {
 	}{
 		{"wrong element", "fn inicio()\n\tvar xs = [1]\n\txs.agregar(verdadero)\n", "debe ser entero"},
 		{"unknown named argument", "fn inicio()\n\tvar xs = [1]\n\txs.agregar(otro = 2)\n", `el parámetro "otro" no existe`},
-		{"temporary mutation", "fn lista() [entero] [1]\nfn inicio()\n\tlista().agregar(2)\n", "requiere una lista asignable"},
 		{"nested list equality", "fn inicio()\n\tvar xs = [[1]]\n\timprimir(xs.contiene([1]))\n", "no admite elementos de tipo [entero]"},
 		{"enum equality", "enum E\n\tA\nfn inicio()\n\tvar xs = [E.A]\n\timprimir(xs.contiene(E.A))\n", "no admite elementos de tipo E"},
 		{"interface equality", "interfaz I\nfn inicio()\n\tvar xs [I] = [1]\n\timprimir(xs.contiene(1))\n", "no admite elementos de tipo I"},

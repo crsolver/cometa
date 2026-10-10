@@ -76,7 +76,7 @@ fn inicio()
 ```
 
 - Solo el último parámetro de una función o método puede ser variádico: `nombre ...T`. Dentro del cuerpo tiene tipo `[T]`.
-- Una llamada posicional proporciona cero o más elementos `T`, o una única lista `[T]` seguida de `...` como último argumento. No se pueden combinar elementos variádicos individuales con una expansión. La expansión comparte el almacenamiento de la lista; sin elementos se genera una lista Go nil. Los elementos individuales forman una lista nueva.
+- Una llamada posicional proporciona cero o más elementos `T`, o una única lista `[T]` seguida de `...` como último argumento. No se pueden combinar elementos variádicos individuales con una expansión. La expansión entrega la misma lista, así que lo que la función le cambie lo ve quien la pasó; los elementos individuales forman una lista nueva, vacía si no hay ninguno.
 - Los argumentos nombrados usan `nombre = expresión` y pueden aparecer en cualquier orden después de los posicionales. No se permiten posicionales después de nombrados, nombres desconocidos, parámetros duplicados ni parámetros obligatorios ausentes.
 - Un argumento variádico nombrado recibe la lista completa: `valores = lista`; también admite `valores = lista...` si es el último argumento. Se puede omitir el parámetro variádico.
 - El receptor se evalúa primero y los argumentos se evalúan una vez, en el orden escrito, aunque sus nombres requieran reordenarlos en Go.
@@ -331,7 +331,7 @@ var primero = usuarios[0]
 procesar_usuario(usuarios[1])
 ```
 
-Las listas ofrecen métodos incorporados. Los métodos `agregar`, `extender`, `insertar`, `eliminar`, `invertir`, `ordenar` y `ordenar_por` actualizan directamente la variable, parámetro, campo o elemento de lista que recibe la llamada. Los demás métodos aceptan también expresiones temporales.
+Las listas ofrecen métodos incorporados. Los métodos `agregar`, `extender`, `insertar`, `eliminar`, `invertir`, `ordenar` y `ordenar_por` cambian la lista que recibe la llamada, y el cambio lo ven todas las variables, parámetros y campos que se refieren a ella.
 
 | Método sobre `[T]` | Resultado | Comportamiento |
 |---|---|---|
@@ -345,14 +345,14 @@ Las listas ofrecen métodos incorporados. Los métodos `agregar`, `extender`, `i
 | `extender(otra [T])` | sin valor | Agrega todos los elementos de otra lista |
 | `insertar(indice entero, valor T)` | `bool` | Inserta antes del índice; permite el final |
 | `eliminar(indice entero)` | `bool` | Elimina el elemento conservando el orden |
-| `copiar()` | `[T]` | Copia superficial con almacenamiento independiente |
-| `invertir()` | sin valor | Invierte los elementos en el mismo almacenamiento |
+| `copiar()` | `[T]` | Lista nueva e independiente con los mismos elementos (copia superficial) |
+| `invertir()` | sin valor | Invierte el orden de los elementos |
 | `ordenar(descendente bool = falso)` | sin valor | Ordena de menor a mayor una lista de `entero`, `decimal` o `cadena` |
 | `ordenar_por(claves, descendente bool = falso)` | sin valor | Ordena cualquier lista según una lista paralela de claves |
 
 Los índices de estos métodos deben tener tipo `entero` y estar dentro del rango. Los decimales se rechazan durante el chequeo de tipos. `insertar` y `eliminar` devuelven `falso` sin modificar la lista ante un índice inválido. `obtener` devuelve `.Ninguno`. `contiene` y `buscar_indice` admiten números, cadenas, booleanos y estructuras, que se comparan por identidad; todavía no admiten enums, interfaces, wrappers, listas anidadas ni parámetros de tipo.
 
-`ordenar` y `ordenar_por` ordenan en el mismo almacenamiento y son estables: los elementos iguales conservan su orden. Las cadenas se comparan por punto de código, así que las mayúsculas van antes que las minúsculas. `ordenar_por` recibe una lista de claves `[entero]`, `[decimal]` o `[cadena]` con la misma longitud que la lista (otra longitud es un error de ejecución): el elemento `i` queda donde quedaría `claves[i]`, y las claves no se modifican.
+`ordenar` y `ordenar_por` ordenan la propia lista y son estables: los elementos iguales conservan su orden. Las cadenas se comparan por punto de código, así que las mayúsculas van antes que las minúsculas. `ordenar_por` recibe una lista de claves `[entero]`, `[decimal]` o `[cadena]` con la misma longitud que la lista (otra longitud es un error de ejecución): el elemento `i` queda donde quedaría `claves[i]`, y las claves no se modifican.
 
 ```cometa
 var puntos = [30, 10, 20]
@@ -370,13 +370,27 @@ imprimir(valores.buscar_indice(20) o -1)
 imprimir(valores.obtener(99) o 0)
 ```
 
-El operador `+` une dos listas del mismo tipo y devuelve una lista nueva con almacenamiento independiente; ninguna de las dos se modifica. `lista += otra` equivale a `lista = lista + otra`. Para añadir un solo elemento se usa `agregar`.
+El operador `+` une dos listas del mismo tipo y devuelve una lista nueva e independiente; ninguna de las dos se modifica. `lista += otra` equivale a `lista = lista + otra`. Para añadir un solo elemento se usa `agregar`.
 
 ```cometa
 var cuadros = normales + espejados
 ```
 
-La asignación de una lista copia su descriptor de slice: cada alias conserva su propia longitud, aunque puede compartir el almacenamiento de los elementos. Por eso agregar mediante un alias no cambia la longitud de los demás; escribir, insertar, eliminar o invertir puede hacer visibles cambios de elementos en aliases que todavía compartan almacenamiento. Cambiar la longitud de un parámetro de lista tampoco cambia la variable del llamador. `copiar()` crea almacenamiento independiente, pero conserva las referencias contenidas.
+Las listas se comparten por completo, igual que los mapas y los tipos declarados: asignar una lista a otra variable, guardarla en un campo o pasarla a una función no la copia. Todos se refieren a la misma lista, con los mismos elementos y la misma longitud, así que `agregar`, `insertar`, `eliminar` o una escritura hechos desde cualquiera de ellos los ven los demás. Asignar otra lista a una variable o a un parámetro (`l = [0]`) solo cambia a cuál se refiere ese nombre. `copiar()` devuelve una lista independiente, aunque conserva las referencias contenidas.
+
+```cometa
+fn quitar_primero(l [entero])
+	l.eliminar(0)
+
+fn inicio()
+	var numeros = [1, 2, 3]
+	var alias = numeros
+	quitar_primero(numeros)
+	imprimir(alias)              // [2, 3]
+	var aparte = numeros.copiar()
+	aparte.agregar(9)
+	imprimir(numeros.longitud()) // 2
+```
 
 Los campos y métodos de una variable se acceden con `.`. El marcador `@` sigue reservado para el receptor del método actual.
 
@@ -562,6 +576,16 @@ Dentro de un `casos` usado como sentencia, `romper` y `continuar` siguen control
 
 `==` y `!=` comparan un enum con una variante sin payload, en cualquier orden: `si estado == .Corriendo`, `si Estado.Fin != e`. Solo se compara la variante. Comparar dos valores de enum entre sí, o con una variante que tiene payload, es un error que remite a `casos`.
 
+Los opcionales y los resultados se comparan igual, con el tipo tomado del otro operando: `si buscado == .Ninguno`, `si guardar() != .Ok`. Con ellos también se puede escribir el payload cuando es `entero`, `decimal`, `cadena` o `bool`; entonces deben coincidir la variante y el valor: `si elegido == .Alguno("Ana")`, `si dividir(6, 3) == .Ok(2)`. Dos opcionales o dos resultados no se comparan entre sí.
+
+```cometa
+fn mas_peligrosa(criaturas [Criatura]) cadena?
+	...
+
+si mas_peligrosa(lista) == .Ninguno
+	imprimir("no hay peligro")
+```
+
 ### `casos` sobre valores simples
 
 Con un `entero`, una `cadena` o un `bool`, las ramas usan literales (`1`, `-1`, `"a"`, `verdadero`) o nombres de constantes de este archivo declaradas con `const` y un valor literal (`moneda =>`); una rama puede listar varios separados por comas. No se admiten expresiones, interpolación, decimales ni el nombre `|x|`. Cada valor puede aparecer una sola vez, también si se escribe una vez como literal y otra como constante. Las constantes de otros módulos (`mod.nombre`) todavía no se admiten como ramas.
@@ -663,6 +687,16 @@ repetir (0..3) imprimir("hola") // sin variables: repite 3 veces
 repetir (0..2) |valor, indice|
 	imprimir(valor) // 0.5, 1.5
 ```
+
+Una sola expresión `entero` entre los paréntesis es una cantidad de vueltas: `repetir (n)` da `n` vueltas y equivale a contar desde `0` hasta `n - 1`. La cantidad se evalúa una vez, antes del ciclo; si es cero o negativa no hay ninguna vuelta (nunca cuenta hacia atrás). Las variables son opcionales: la primera recibe el número de vuelta y una segunda recibe lo mismo.
+
+```cometa
+var veces = 3
+repetir (veces) imprimir("hola")   // 3 veces
+repetir (veces) |i| imprimir(i)    // 0, 1, 2
+```
+
+Al recorrer una lista, un mapa o una cadena la variable del elemento es obligatoria.
 
 `continuar` salta a la siguiente iteración y `romper` termina el ciclo más cercano. Solo pueden usarse dentro de un `repetir`.
 

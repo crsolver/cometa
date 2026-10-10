@@ -32,7 +32,7 @@ fn inicio()
 	// La copia es superficial: los objetos anidados se comparten.
 	b.arma.dano = 50
 	imprimir(a.arma.dano)
-	// Las listas comparten sus elementos pero agregar a una copia de la lista no afecta a la otra.
+	// Las listas también se comparten: agregar desde la copia se ve en el original.
 	b.items.agregar("escudo")
 	imprimir(a.items.longitud())
 	var caja = Caja<entero> {valor: 1}
@@ -49,7 +49,7 @@ fn inicio()
 	if err != nil {
 		t.Fatal(err)
 	}
-	runGeneratedGo(t, got, "Ana 10 | Bea 3\n50\n1\n1 2\n99\n10\n")
+	runGeneratedGo(t, got, "Ana 10 | Bea 3\n50\n2\n1 2\n99\n10\n")
 }
 
 func TestStructCopiarErrors(t *testing.T) {

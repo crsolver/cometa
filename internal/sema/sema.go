@@ -63,6 +63,7 @@ func newChecker(filename string) *checker {
 		Calls:         map[*ast.CallExpr]CallInfo{},
 		Builtins:      map[*ast.CallExpr]Builtin{},
 		EnumCompares:  map[*ast.BinaryExpr]EnumCompare{},
+		CountLoops:    map[*ast.RepeatStmt]bool{},
 		LocalNames:    map[string]bool{},
 		ExpectedTypes: map[ast.Expr]Type{},
 		PatternTypes:  map[*ast.MatchArm]Type{},

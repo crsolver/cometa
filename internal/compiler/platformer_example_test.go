@@ -35,7 +35,7 @@ func arena() *Mundo {
  for y:=int64(1);y<67;y++ {for x:=int64(1);x<239;x++ {m.Poner(x,y,0)}}
  for x:=int64(1);x<239;x++ {m.Poner(x,20,3)}
  m.Jugador=&Cuerpo{Pos:_hgVec2{160,149},Ancho:6,Alto:11,Suelo:true}
- m.Enemigos=nil;m.Invulnerable=0;m.Camara()
+ m.Enemigos=&[]*Enemigo{};m.Invulnerable=0;m.Camara()
  return m
 }
 func jump(held bool) float64 {
@@ -50,17 +50,17 @@ func jump(held bool) float64 {
 func main() {
  for _,seed:=range []int64{1,2,42,2026,999999} {
   m:=&Mundo{};m.Generar(seed);n:=&Mundo{};n.Generar(seed)
-  require(len(m.Celdas)==240*68,"map size")
+  require(len((*m.Celdas))==240*68,"map size")
   require(!m.Choca(m.Jugador.Pos,6,11),"spawn obstructed")
   materials:=map[int64]bool{}
-  for i,v:=range m.Celdas {require(v==n.Celdas[i],"seed not deterministic");materials[v]=true}
+  for i,v:=range (*m.Celdas) {require(v==(*n.Celdas)[i],"seed not deterministic");materials[v]=true}
   require(len(materials)==6,"missing material")
-  for _,e:=range m.Enemigos {require(!m.Choca(e.Cuerpo.Pos,8,7),"enemy spawned in terrain")}
-  require(len(m.Enemigos)>10,"world unpopulated")
+  for _,e:=range (*m.Enemigos) {require(!m.Choca(e.Cuerpo.Pos,8,7),"enemy spawned in terrain")}
+  require(len((*m.Enemigos))>10,"world unpopulated")
   // Flood all air from the spawn: every section's main gallery must connect.
   start:=int64(12*240+8);queue:=[]int64{start};seen:=map[int64]bool{start:true}
   for h:=0;h<len(queue);h++ {i:=queue[h];for _,d:=range []int64{-1,1,-240,240} {
-   j:=i+d;if j>=0&&j<int64(len(m.Celdas))&&!seen[j]&&m.Celdas[j]==0 {seen[j]=true;queue=append(queue,j)}
+   j:=i+d;if j>=0&&j<int64(len((*m.Celdas)))&&!seen[j]&&(*m.Celdas)[j]==0 {seen[j]=true;queue=append(queue,j)}
   }}
   for s:=int64(0);s<6;s++ {x:=s*40+8;for level:=int64(0);level<2;level++ {
    y:=33+level*21+int64(math.Floor(math.Sin(float64(x)*0.045)*2))-2
@@ -106,20 +106,20 @@ func main() {
  for _,d:=range []_hgVec2{{1,0},{-1,0},{0,1},{0,-1},{0.707,0.707},{-0.707,-0.707}} {
   m=arena();p:=_hgVec2{500,100};target:=_hgadd(p,_hgscale(d,18))
   e:=&Enemigo{Cuerpo:&Cuerpo{Pos:_hgsub(target,_hgVec2{4,3}),Ancho:8,Alto:7},Vida:3}
-  m.Enemigos=[]*Enemigo{e};m.Balas=[]*Bala{{Pos:p,Dir:d,Vida:1}}
-  m.Combatir(0.1);require(e.Vida==2&&len(m.Balas)==0,"directional projectile missed")
+  m.Enemigos=&[]*Enemigo{e};m.Balas=&[]*Bala{{Pos:p,Dir:d,Vida:1}}
+  m.Combatir(0.1);require(e.Vida==2&&len((*m.Balas))==0,"directional projectile missed")
  }
  m=arena();m.Poner(23,18,3)
  e:=&Enemigo{Cuerpo:&Cuerpo{Pos:_hgVec2{198,146},Ancho:8,Alto:7},Vida:3}
- m.Enemigos=[]*Enemigo{e};m.Balas=[]*Bala{{Pos:_hgVec2{163,150},Dir:_hgVec2{1,0},Vida:1}}
- m.Combatir(0.2);require(e.Vida==3&&len(m.Balas)==0,"shot passed through terrain")
+ m.Enemigos=&[]*Enemigo{e};m.Balas=&[]*Bala{{Pos:_hgVec2{163,150},Dir:_hgVec2{1,0},Vida:1}}
+ m.Combatir(0.2);require(e.Vida==3&&len((*m.Balas))==0,"shot passed through terrain")
  m=arena();e=&Enemigo{Cuerpo:&Cuerpo{Pos:m.Jugador.Pos,Ancho:8,Alto:7},Vida:3}
- m.Enemigos=[]*Enemigo{e};m.Criaturas(0);require(m.Vida==4,"contact damage")
+ m.Enemigos=&[]*Enemigo{e};m.Criaturas(0);require(m.Vida==4,"contact damage")
  m.Criaturas(0);require(m.Vida==4,"invulnerability")
  m.Invulnerable=0;m.Vida=1;m.Criaturas(0);require(m.Vida==5&&m.Jugador.Pos.X==61,"death respawn")
- m=arena();m.Emitir(_hgVec2{},0,500);require(len(m.Particulas)==180,"particle cap")
+ m=arena();m.Emitir(_hgVec2{},0,500);require(len(*m.Particulas)==180,"particle cap")
  for i:=0;i<120;i++ {m.Actualizar(&Control{},1.0/60)}
- require(len(m.Particulas)<10,"particles did not expire")
+ require(len(*m.Particulas)<10,"particles did not expire")
 }
 `
 	runGeneratedGo(t, append(generated, []byte(harness)...), "")

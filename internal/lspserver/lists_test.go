@@ -60,7 +60,7 @@ func TestListMethodHoverShowsConcreteSignatureAndMutation(t *testing.T) {
 		t.Fatal("hover is nil")
 	}
 	value := hover.Contents.Value()
-	if !strings.Contains(value, "fn agregar(valor entero)") || !strings.Contains(value, "actualiza esta variable de lista") {
+	if !strings.Contains(value, "fn agregar(valor entero)") || !strings.Contains(value, "al final de esta lista") {
 		t.Fatalf("unexpected hover: %q", value)
 	}
 }

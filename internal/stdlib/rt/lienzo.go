@@ -63,22 +63,22 @@ func _hglienzoTexto(filas []string, colores map[rune]_hgColor, cuadro int) *_hgI
 	}
 	return img
 }
-func _hglienzoDesdeTexto(filas []string, colores map[string]_hgColor) *_hgImagen {
-	return _hglienzoTexto(filas, _hglienzoColores(colores), -1)
+func _hglienzoDesdeTexto(filas *[]string, colores map[string]_hgColor) *_hgImagen {
+	return _hglienzoTexto(*filas, _hglienzoColores(colores), -1)
 }
-func _hglienzoHojaDesdeTexto(cuadros [][]string, colores map[string]_hgColor) []*_hgImagen {
-	if len(cuadros) == 0 {
+func _hglienzoHojaDesdeTexto(cuadros *[]*[]string, colores map[string]_hgColor) *[]*_hgImagen {
+	if len(*cuadros) == 0 {
 		panic("lienzo.hoja_desde_texto requiere al menos un cuadro")
 	}
 	paleta := _hglienzoColores(colores)
-	out := make([]*_hgImagen, len(cuadros))
-	for i, filas := range cuadros {
-		out[i] = _hglienzoTexto(filas, paleta, i)
+	out := make([]*_hgImagen, len(*cuadros))
+	for i, filas := range *cuadros {
+		out[i] = _hglienzoTexto(*filas, paleta, i)
 		if out[i].pixels.Rect != out[0].pixels.Rect {
 			panic(fmt.Sprintf("lienzo.hoja_desde_texto: el cuadro %d no mide lo mismo que el primero", i+1))
 		}
 	}
-	return out
+	return &out
 }
 func _hglienzoAncho(img *_hgImagen) int64 { return int64(img.bounds().Dx()) }
 func _hglienzoAlto(img *_hgImagen) int64  { return int64(img.bounds().Dy()) }

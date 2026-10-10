@@ -73,7 +73,6 @@ fn inicio()
 	for _, tc := range []struct{ name, source, want string }{
 		{"estructuras", "tipo P\n\tx entero\nfn inicio()\n\tvar l = [P {}]\n\tl.ordenar()\n", "solo admite listas de entero, decimal o cadena"},
 		{"claves bool", "fn inicio()\n\tvar l = [1]\n\tl.ordenar_por([verdadero])\n", "las claves de ordenar_por deben ser una lista de entero, decimal o cadena, no [bool]"}, {"sin claves", "fn inicio()\n\tvar l = [1]\n\tl.ordenar_por()\n", `falta el parámetro "claves"`},
-		{"no asignable", "fn inicio()\n\t[2, 1].ordenar()\n", "requiere una lista asignable"},
 		{"descendente", "fn inicio()\n\tvar l = [1]\n\tl.ordenar(1)\n", "debe ser bool"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

@@ -58,7 +58,7 @@ func (g *generator) flowMapCall(call *ast.CallExpr, operation string, indent int
 			binding = "_, " + item
 		}
 		g.line(indent, "for %s := range %s { %s = append(%s, %s) }", binding, object, result, result, item)
-		return result
+		return "&" + result
 	}
 	panic("unknown map method")
 }

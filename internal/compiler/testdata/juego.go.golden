@@ -969,7 +969,7 @@ func _hsformato(v reflect.Value, nested bool, depth int) string {
 		}
 		return "[" + strings.Join(items, ", ") + "]"
 	case reflect.Ptr:
-		if !v.IsNil() && v.Elem().Kind() == reflect.Struct {
+		if !v.IsNil() && (v.Elem().Kind() == reflect.Struct || v.Elem().Kind() == reflect.Slice) {
 			return _hsformato(v.Elem(), nested, depth)
 		}
 	case reflect.Struct:

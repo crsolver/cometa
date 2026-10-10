@@ -73,7 +73,7 @@ func _hsformato(v reflect.Value, nested bool, depth int) string {
 		}
 		return "[" + strings.Join(items, ", ") + "]"
 	case reflect.Ptr:
-		if !v.IsNil() && v.Elem().Kind() == reflect.Struct {
+		if !v.IsNil() && (v.Elem().Kind() == reflect.Struct || v.Elem().Kind() == reflect.Slice) {
 			return _hsformato(v.Elem(), nested, depth)
 		}
 	case reflect.Struct:
@@ -135,7 +135,7 @@ type Usuario struct {
 		tag      int
 		payload1 *Usuario
 	}
-	Amigos []*Usuario
+	Amigos *[]*Usuario
 }
 
 func (*Usuario) _cometa_public_Activar(_ bool)  {}
@@ -219,31 +219,31 @@ func Procesar_usuario(usuario *Usuario) {
 	_cometa35(_cometa36)
 }
 
-func Procesar_lista(usuarios []*Usuario) {
+func Procesar_lista(usuarios *[]*Usuario) {
 	_cometa37 := _hsimprimir
-	var _cometa38 []*Usuario = usuarios
+	var _cometa38 *[]*Usuario = usuarios
 	_cometa37(_cometa38)
 }
 
 func main() {
-	var _cometa39 *Usuario = &Usuario{}
+	var _cometa39 *Usuario = &Usuario{Amigos: &[]*Usuario{}}
 	var usuario1 *Usuario = _cometa39
-	var _cometa40 *Usuario = &Usuario{}
+	var _cometa40 *Usuario = &Usuario{Amigos: &[]*Usuario{}}
 	var usuario2 *Usuario = _cometa40
 	var _cometa41 *Usuario = usuario1
 	var _cometa42 *Usuario = usuario2
-	var _cometa43 []*Usuario = []*Usuario{_cometa41, _cometa42}
-	var lista []*Usuario = _cometa43
-	var _cometa44 []*Usuario = lista
+	var _cometa43 *[]*Usuario = &[]*Usuario{_cometa41, _cometa42}
+	var lista *[]*Usuario = _cometa43
+	var _cometa44 *[]*Usuario = lista
 	var _cometa45 int64 = 4
-	var _ *Usuario = _cometa44[_cometa45]
+	var _ *Usuario = (*_cometa44)[_cometa45]
 
 	_cometa47 := Procesar_lista
-	var _cometa48 []*Usuario = lista
+	var _cometa48 *[]*Usuario = lista
 	_cometa47(_cometa48)
 	_cometa49 := Procesar_usuario
-	var _cometa50 []*Usuario = lista
+	var _cometa50 *[]*Usuario = lista
 	var _cometa51 int64 = 0
-	var _cometa52 *Usuario = _cometa50[_cometa51]
+	var _cometa52 *Usuario = (*_cometa50)[_cometa51]
 	_cometa49(_cometa52)
 }

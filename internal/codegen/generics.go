@@ -43,12 +43,8 @@ func (g *generator) emitInterface(d *ast.InterfaceDecl) {
 	for _, n := range names {
 		f := info.Methods[n]
 		var params []string
-		for i, t := range f.Params {
-			name := goType(t)
-			if f.Decl.Params[i].Variadic {
-				name = "..." + goType(*t.Elem)
-			}
-			params = append(params, name)
+		for _, t := range f.Params {
+			params = append(params, goType(t))
 		}
 		result := ""
 		if f.Return.Kind != sema.Void {
@@ -93,14 +89,8 @@ func (g *generator) emitDefaultBridge(d *ast.FuncDecl, f sema.FuncInfo) {
 		args = append(args, "false")
 	}
 	for i, p := range d.Params {
-		t := goType(f.Params[i])
-		arg := localName(p.Name)
-		if p.Variadic {
-			t = "..." + goType(*f.Params[i].Elem)
-			arg += "..."
-		}
-		params = append(params, localName(p.Name)+" "+t)
-		args = append(args, arg)
+		params = append(params, localName(p.Name)+" "+goType(f.Params[i]))
+		args = append(args, localName(p.Name))
 	}
 	result, ret := "", ""
 	if f.Return.Kind != sema.Void {

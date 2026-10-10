@@ -5,12 +5,6 @@ import (
 	"github.com/crsolver/cometa/internal/diagnostic"
 )
 
-var listMutators = map[string]bool{
-	"agregar": true, "extender": true, "insertar": true,
-	"eliminar": true, "invertir": true,
-	"ordenar": true, "ordenar_por": true,
-}
-
 // ListMethods returns the concrete built-in method signatures for a list type.
 // The declarations are synthetic and exist so normal argument binding and
 // editor signature rendering share one source of truth.
@@ -60,13 +54,13 @@ func ListMethodDocumentation(name string) string {
 		"obtener":       "Devuelve el elemento del índice, o .Ninguno si el índice no es válido.",
 		"primero":       "Devuelve el primer elemento, o .Ninguno si la lista está vacía.",
 		"ultimo":        "Devuelve el último elemento, o .Ninguno si la lista está vacía.",
-		"agregar":       "Agrega un elemento y actualiza esta variable de lista.",
-		"extender":      "Agrega los elementos de otra lista y actualiza esta variable de lista.",
-		"insertar":      "Inserta un elemento y actualiza esta variable de lista; devuelve falso si el índice no es válido.",
-		"eliminar":      "Elimina un elemento y actualiza esta variable de lista; devuelve falso si el índice no es válido.",
-		"copiar":        "Devuelve una copia superficial con almacenamiento independiente.",
-		"invertir":      "Invierte los elementos de esta lista en el mismo almacenamiento.",
-		"ordenar":       "Ordena de menor a mayor una lista de entero, decimal o cadena en el mismo almacenamiento; con descendente = verdadero, de mayor a menor.",
+		"agregar":       "Agrega un elemento al final de esta lista.",
+		"extender":      "Agrega al final los elementos de otra lista.",
+		"insertar":      "Inserta un elemento antes del índice; devuelve falso si el índice no es válido.",
+		"eliminar":      "Elimina el elemento del índice; devuelve falso si el índice no es válido.",
+		"copiar":        "Devuelve una lista nueva e independiente con los mismos elementos (copia superficial).",
+		"invertir":      "Invierte el orden de los elementos de esta lista.",
+		"ordenar":       "Ordena esta lista de entero, decimal o cadena de menor a mayor; con descendente = verdadero, de mayor a menor.",
 		"ordenar_por":   "Ordena esta lista según una lista de claves (entero, decimal o cadena) de la misma longitud: el elemento i se coloca donde quedaría claves[i]. Los empates conservan su orden y las claves no se modifican.",
 	}[name]
 }
@@ -82,23 +76,11 @@ func listElementComparable(t Type) bool {
 
 func sortable(t Type) bool { return t.Kind == Integer || t.Kind == Decimal || t.Kind == String }
 
-func assignableListReceiver(expr ast.Expr) bool {
-	switch expr.(type) {
-	case *ast.IdentExpr, *ast.ReceiverExpr, *ast.MemberExpr, *ast.IndexExpr:
-		return true
-	default:
-		return false
-	}
-}
-
 func (c *checker) checkListCall(call *ast.CallExpr, member *ast.MemberExpr, list Type) (Type, error) {
 	methods := ListMethods(list)
 	signature, exists := methods[member.Name]
 	if !exists {
 		return Type{}, c.fail(member.Pos, "el método %q no existe en %s%s", member.Name, list.String(), diagnostic.Hint(member.Name, sortedKeys(methods)))
-	}
-	if listMutators[member.Name] && !assignableListReceiver(member.Object) {
-		return Type{}, c.fail(member.Object.Position(), "el método %q requiere una lista asignable", member.Name)
 	}
 	if (member.Name == "contiene" || member.Name == "buscar_indice") && !listElementComparable(*list.Elem) {
 		return Type{}, c.fail(member.Pos, "el método %q no admite elementos de tipo %s", member.Name, list.Elem.String())

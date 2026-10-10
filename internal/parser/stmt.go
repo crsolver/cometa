@@ -147,8 +147,9 @@ func (p *parser) parseRepeatStmt() (ast.Stmt, error) {
 		if _, err = p.expect(token.RParen, "se esperaba ')' después de la lista o rango del ciclo"); err != nil {
 			return nil, err
 		}
-		if stmt.RangeEnd != nil && !p.at(token.Pipe) {
-			// A range loop may omit its variables to just repeat N times.
+		if !p.at(token.Pipe) {
+			// A range or a count may omit its variables to just repeat N times;
+			// the checker rejects a collection without them.
 			stmt.Iterable = iterable
 			body, bodyErr := p.parseSuite()
 			if bodyErr != nil {
