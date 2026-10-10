@@ -6,6 +6,7 @@ import (
 )
 
 func TestStringInterpolationConcatenationAndMethodsRuntime(t *testing.T) {
+	t.Parallel()
 	runCometa(t, `fn saludar(nombre cadena, prefijo cadena = "Hola " + nombre) cadena prefijo
 fn inicio()
 	var nombre = "Ana"
@@ -35,9 +36,10 @@ fn inicio()
 }
 
 func TestStringDiagnosticsAndConstants(t *testing.T) {
+	t.Parallel()
 	tests := []struct{ name, source, want string }{
 		{"mixed concatenation", "fn inicio() imprimir(\"x\" + 1)\n", `no acepta cadena y entero`},
-		{"interpolation type", "fn inicio() imprimir(\"${[1]}\")\n", `requiere cadena, entero, decimal o bool`},
+		{"interpolation type", "fn nada()\n\tvar x = 1\nfn inicio() imprimir(\"${nada()}\")\n", `la interpolación requiere un valor`},
 		{"empty interpolation", "fn inicio() imprimir(\"${}\")\n", `no puede estar vacía`},
 		{"unclosed interpolation", "fn inicio() imprimir(\"${1\")\n", `interpolación sin cerrar`},
 		{"interpolated const", "const x = \"${1}\"\nfn inicio() imprimir(x)\n", `inicializador de una constante`},
@@ -56,6 +58,7 @@ func TestStringDiagnosticsAndConstants(t *testing.T) {
 }
 
 func TestInterpolationEvaluationOrderNestingAndPropagation(t *testing.T) {
+	t.Parallel()
 	runCometa(t, `var contador = 0
 fn siguiente() entero
 	contador = contador + 1
@@ -71,6 +74,7 @@ fn inicio()
 }
 
 func TestInterpolationBindsImportedReferences(t *testing.T) {
+	t.Parallel()
 	entry, loader := memoryProject(t, map[string]string{
 		"main.cometa":  "usar datos como d\nfn inicio() imprimir(\"valor ${d.valor()}\")\n",
 		"datos.cometa": "pub fn valor() cadena \"externo\"\n",

@@ -43,14 +43,14 @@ cometa biblioteca std/<módulo>        muestra las declaraciones reales de un m�
 
 - Fuente en `.cometa`. **La indentación usa tabuladores** (nunca espacios). Los comentarios empiezan con `//`.
 - No hay `fin`, llaves de bloque ni `:` al declarar. Las llaves solo delimitan literales: `Punto {x: 1, y: 2}`.
-- Tipos: `entero`, `decimal`, `cadena`, `bool`, listas `[T]` (se unen con `+` en una lista nueva), mapas `[K: V]`, opcionales `T?`, resultados `T!` o `T!E`. `entero` se convierte solo a `decimal`; `5 / 2` es `2`. No existe `num`.
+- Tipos: `entero`, `decimal`, `cadena`, `bool`, listas `[T]` (se unen con `+` en una lista nueva; `lista.ordenar()` y `lista.ordenar_por(claves)`), mapas `[K: V]` (listas y mapas se comparten al asignarlos o pasarlos a una función; `.copiar()` da uno independiente), opcionales `T?`, resultados `T!` o `T!E`. `entero` se convierte solo a `decimal`; `5 / 2` es `2`. No existe `num`.
 - Variables: `var x = 1`, constantes `const N entero = 10`. Asignación compuesta: `x += 1`; en un mapa, `conteo[k] += 1` trata la clave ausente como 0.
 - Cadenas con interpolación: `"Hola ${nombre}"`. Booleanos: `verdadero` / `falso`; operadores `&&`, `||`, `!`.
 - Funciones: `fn nombre(a entero, b entero = 0) entero`. Un cuerpo corto puede ir en la misma línea. **La última expresión se devuelve sola**; `retornar` sale antes. El punto de entrada es `fn inicio()`.
 - `tipo` declara estructuras (con referencia, no copia; usa `.copiar()`). Los miembros del objeto se usan con `@` dentro de sus métodos (`@vida`). Todo es privado al archivo salvo lo marcado con `pub`.
 - `enum` con variantes que llevan como mucho un dato; `casos` las examina y debe cubrirlas todas (o terminar en `_`). Escalares también: `casos n` con literales y, sobre enteros, rangos de fin exclusivo (`0..60 =>`).
-- `si` / `osi` / `sino`; también sirve como valor (`si a 1 sino 2`). Bucles: `repetir (1..6) |i|`, `repetir (lista) |x, indice|`, `mientras cond`, `repetir` infinito; `romper` y `continuar`.
-- Opcionales y errores: `.Alguno(x)` / `.Ninguno`, `.Ok(x)` / `.Error("mensaje")`. Para extraer: `valor o defecto` (opcionales y resultados), `si opcional |x|`, `resultado atrapar |e|` (maneja el error; siempre con `|e|` si hay valor), `intentar resultado`.
+- `si` / `osi` / `sino`; también sirve como valor (`si a 1 sino 2`, `si izquierda -1 sino 0`, `si grande .Claro sino .Oscuro`). Bucles: `repetir (3)` (tres veces), `repetir (1..6) |i|` (solo cuenta hacia adelante; hacia atrás o a saltos con `repetir (5..0, paso = -1) |i|`), `repetir (lista) |x, indice|`, `repetir (texto) |letra|`, `mientras cond`, `repetir` infinito; `romper` y `continuar`.
+- Opcionales y errores: `.Alguno(x)` / `.Ninguno`, `.Ok(x)` / `.Error("mensaje")`. Para extraer: `valor o defecto` (opcionales y resultados), `si opcional |x|`, `resultado atrapar |e|` (maneja el error; siempre con `|e|` si hay valor), `intentar resultado`. Para solo preguntar: `si opcional == .Ninguno`, `si resultado != .Ok`.
 - `interfaz` estructural (implícita), genéricos `<T>` y `<T Interfaz>`.
 - Módulos: `usar std/mate`, `usar ./otro como o`. Cada archivo importa lo que usa.
 - `imprimir(valor)` escribe en consola. Para leer lo que escribe la persona: `usar std/consola` y `consola.leer_linea()` (`cadena?`, `Ninguno` al acabarse la entrada); `consola.escribir(texto)` escribe sin salto de línea.

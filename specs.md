@@ -18,7 +18,7 @@ Un AST o modelo parcial nunca permite generar Go, construir ni ejecutar. Los err
 
 `usar std/mate` y `usar std/azar` importan matemáticas y azar sin Ebitengine. `usar std/consola` expone `leer_linea() cadena?`, que espera una línea de la entrada estándar y la devuelve sin su salto de línea (`\n` o `\r\n`), o `Ninguno` cuando la entrada se acaba; una última línea sin salto final también se devuelve. `consola.escribir(texto cadena)` escribe sin salto de línea final. Tampoco requiere Ebitengine. Véase [el ejemplo de entrada](examples/basico/14_entrada.cometa). `usar std/pincel` importa el núcleo de Pincel (`pincel.ejecutar` y la interfaz `pincel.Juego`). El resto de Pincel son módulos independientes bajo `std/pincel/`: `graficos`, `color`, `entrada`, `audio`, `ventana`, `tiempo`, `recursos`, `retro`, `lienzo`, `rejilla`, `datos` y `ui`. El último segmento es el alias predeterminado; se admite `como`. `usar std/pincel` no importa los submódulos; no existe importación comodín ni reexportación implícita. Cada archivo importa lo que utiliza. `./std/...` sigue siendo una ruta local.
 
-Los tipos se califican: `mate.Vec2`, `mate.Rect`, `graficos.Camara2D`, `color.Color`, `entrada.Tecla`, `entrada.BotonRaton`, `graficos.Imagen`, `graficos.Fuente`, `audio.Sonido` y `audio.Reproduccion`. Los seis primeros conservan semántica de valor; los recursos son handles opacos compartidos. Sus nombres no están reservados globalmente. Se conservan operadores vectoriales, métodos, literales nombrados/posicionales y constantes contextuales.
+Los tipos se califican: `mate.Vec2`, `mate.Rect`, `graficos.Camara2D`, `color.Color`, `entrada.Tecla`, `entrada.BotonRaton`, `graficos.Imagen`, `graficos.Fuente`, `audio.Sonido` y `audio.Reproduccion`. Los seis primeros conservan semántica de valor; los recursos son handles opacos compartidos. Sus nombres no están reservados globalmente. Se conservan operadores vectoriales, métodos, literales nombrados/posicionales y constantes contextuales. Una constante también puede escribirse con su tipo, `modulo.Tipo.Constante` (`color.Color.Rojo`, `entrada.Tecla.Espacio`, `retro.Icono.Arriba`), lo que no requiere un tipo esperado: `var fondo = color.Color.Rojo`. En `==` y `!=` el otro operando da el tipo, así que `tecla == .Espacio` es válido.
 
 `fn inicio()` es el único punto de entrada. Se llama explícitamente a `pincel.ejecutar(instancia, ...)`, que recibe un objeto compatible con la interfaz estructural `pincel.Juego`: métodos `pub fn actualizar(dt decimal)` y `pub fn pintar()`, ambos sin resultado. La biblioteca invoca esos métodos; pueden pertenecer a un módulo importado. Los nombres de funciones globales no activan ningún perfil. No se invoca `iniciar` automáticamente y se elimina `pincel.configuracion`.
 
@@ -46,7 +46,7 @@ cometa captura juego.cometa -o captura.png --escala 4 --cuadros 30
 
 Sin `-o`, la salida usa el mismo nombre base con la extensión `.go`. El compilador formatea y verifica los tipos del código Go antes de escribirlo. Los errores incluyen archivo, línea y columna.
 
-`captura` construye y ejecuta un juego de Pincel con la ventana oculta, guarda la pantalla lógica como PNG después de `--cuadros` actualizaciones (1 por defecto), ampliada por vecino más cercano con `--escala` (1–64), y termina. Sin `-o` escribe `<archivo>.png`. Los programas sin `pincel.ejecutar` se rechazan. `--cuadros 100,300,900` toma varias capturas en una ejecución (`<salida>_100.png`, …). `--entrada guion.txt` sustituye el teclado y el ratón por un guion de líneas `<cuadro> <acciones>`: `+Tecla` mantiene, `-Tecla` suelta, `Tecla` pulsa un cuadro y `raton x y` mueve el puntero; los botones del ratón se escriben `RatonIzquierdo`, `RatonDerecho` y `RatonMedio`, y `#` inicia un comentario. Con guion y sin `--cuadros`, la captura se toma un cuadro después de la última acción. Ver [la guía de lienzo](docs/lienzo.md#simular-la-entrada).
+`captura` construye y ejecuta un juego de Pincel con la ventana oculta, guarda la pantalla lógica como PNG después de `--cuadros` actualizaciones (1 por defecto), ampliada por vecino más cercano con `--escala` (1–64), y termina. Sin `-o` escribe `<archivo>.png`. Los programas sin `pincel.ejecutar` se rechazan. `--cuadros 100,300,900` toma varias capturas en una ejecución (`<salida>_100.png`, …). `--entrada guion.txt` sustituye el teclado y el ratón por un guion de líneas `<cuadro> <acciones>`: `+Tecla` mantiene, `-Tecla` suelta, `Tecla` pulsa un cuadro y `raton x y` mueve el puntero; los botones del ratón se escriben `RatonIzquierdo`, `RatonDerecho` y `RatonMedio`; `texto "hola"` teclea caracteres, `rueda x y` mueve la rueda un cuadro, `+MandoA`/`-MandoA`/`MandoA` usan botones del mando 0 y `eje IzquierdoX 1` fija una palanca; y `#` inicia un comentario. Con guion y sin `--cuadros`, la captura se toma un cuadro después de la última acción. Ver [la guía de lienzo](docs/lienzo.md#simular-la-entrada). `std/pincel/datos` trabaja sobre una carpeta temporal vacía en lugar de los datos guardados del jugador; `--datos carpeta` usa esa carpeta (`carpeta/datos.json`) y conserva lo que se escriba. `probar` hace lo mismo.
 
 El mismo ejecutable inicia el servidor LSP mediante `cometa lsp`. El servidor se comunica por entrada/salida estándar, publica los errores del compilador al abrir, cambiar o guardar un documento, ofrece el esquema jerárquico del archivo, completa campos y métodos después de `.` o de `@` dentro de métodos, y muestra los tipos inferidos de variables y las firmas de funciones al pasar el cursor. Las líneas `//` consecutivas inmediatamente anteriores a una función se muestran como su documentación.
 
@@ -76,7 +76,7 @@ fn inicio()
 ```
 
 - Solo el último parámetro de una función o método puede ser variádico: `nombre ...T`. Dentro del cuerpo tiene tipo `[T]`.
-- Una llamada posicional proporciona cero o más elementos `T`, o una única lista `[T]` seguida de `...` como último argumento. No se pueden combinar elementos variádicos individuales con una expansión. La expansión comparte el almacenamiento de la lista; sin elementos se genera una lista Go nil. Los elementos individuales forman una lista nueva.
+- Una llamada posicional proporciona cero o más elementos `T`, o una única lista `[T]` seguida de `...` como último argumento. No se pueden combinar elementos variádicos individuales con una expansión. La expansión entrega la misma lista, así que lo que la función le cambie lo ve quien la pasó; los elementos individuales forman una lista nueva, vacía si no hay ninguno.
 - Los argumentos nombrados usan `nombre = expresión` y pueden aparecer en cualquier orden después de los posicionales. No se permiten posicionales después de nombrados, nombres desconocidos, parámetros duplicados ni parámetros obligatorios ausentes.
 - Un argumento variádico nombrado recibe la lista completa: `valores = lista`; también admite `valores = lista...` si es el último argumento. Se puede omitir el parámetro variádico.
 - El receptor se evalúa primero y los argumentos se evalúan una vez, en el orden escrito, aunque sus nombres requieran reordenarlos en Go.
@@ -123,6 +123,10 @@ fn inicio()
 - Un campo con valor predeterminado queda exento de la regla de inicialización obligatoria, incluyendo la de los ciclos de campos requeridos: un tipo autorreferencial que sería rechazado como ciclo sin valor predeterminado se acepta si el campo que cierra el ciclo lo tiene, aunque construir una instancia sin una anulación explícita que termine la recursión sigue siendo responsabilidad de quien llama.
 - Los campos embebidos no admiten valores predeterminados. Los campos declarados directamente como un parámetro de tipo `T` siguen requiriendo inicialización explícita en cada instanciación.
 
+## Nombres
+
+Los nombres distinguen mayúsculas de minúsculas: `punto` y `Punto` son nombres distintos, así que una función `punto` puede convivir con un tipo `Punto`. La excepción son los nombres que solo se diferencian en la mayúscula de la primera letra dentro del mismo grupo, que se rechazan con un error: dos tipos (`caja` y `Caja`, incluidos enums e interfaces) o dos miembros del mismo tipo (un campo `valor` y un método `Valor`).
+
 ## Tipos
 
 | Cometa | Go |
@@ -152,13 +156,15 @@ b.arma.dano = 50     // a.arma.dano sí cambia: el arma se comparte
 
 Listas y ramas numéricas sin tipo explícito infieren `decimal` si contienen algún resultado decimal. Los contenedores ya construidos conservan su tipo: `[entero]` no se convierte a `[decimal]`, ni `entero?` a `decimal?`. Un valor entero individual sí puede promoverse antes de envolverse una vez en `decimal?` o `decimal!`. Las interfaces conservan la identidad dinámica de `entero` y `decimal`; las firmas de métodos y los argumentos genéricos siguen siendo exactos.
 
+Un literal `entero` también puede escribirse en hexadecimal (`0xFF`, `0xff0000`) o en binario (`0b1010`); es el mismo valor que su forma decimal. No hay operadores de bits: `std/mate` ofrece `bit_y`, `bit_o`, `bit_xor`, `bit_no`, `desplazar_izquierda` y `desplazar_derecha` sobre `entero`.
+
 `decimal(valor)` hace explícita la promoción opcional. `entero(valor)` trunca hacia cero y produce un error de ejecución en español ante NaN, infinito o valores fuera de `int64`. `mate.piso`, `mate.techo` y `mate.redondear` devuelven `entero`, con la misma validación después de redondear; los empates de `redondear` se alejan de cero. `mate.absoluto`, `minimo`, `maximo` y `limitar` conservan enteros si todos sus argumentos son enteros, y producen decimal si alguno es decimal.
 
 La promoción a `decimal` usa redondeo IEEE-754: por encima de `2^53` algunos enteros pierden precisión. La aritmética entera en ejecución sigue las reglas de `int64` de Go, incluido desbordamiento; la división entera por cero falla. Las expresiones constantes no representables son errores de compilación. La aritmética decimal admite NaN e infinitos en ejecución.
 
 ### Cadenas
 
-`+` concatena dos valores `cadena`; no convierte otros tipos automáticamente. Una cadena puede incluir expresiones con `${expresión}`. La interpolación acepta `cadena`, `entero`, `decimal` y `bool`, evalúa cada expresión una sola vez de izquierda a derecha y representa booleanos como `verdadero` o `falso`. `\${` escribe los caracteres `${` literalmente. Las cadenas interpoladas son expresiones de ejecución y no se admiten en `const`.
+`+` concatena dos valores `cadena`; no convierte otros tipos automáticamente. Una cadena puede incluir expresiones con `${expresión}`. La expresión puede llevar espacios alrededor: `"${ nombre }"`. La interpolación acepta cualquier valor, evalúa cada expresión una sola vez de izquierda a derecha y representa booleanos como `verdadero` o `falso`. Las listas, mapas, estructuras, enums, opcionales y resultados se escriben igual que con `imprimir`: `"Notas: ${notas}"` produce `Notas: [7, 9, 6]`, y `cadena(valor)` hace lo mismo. Solo se rechaza una expresión que no produce ningún valor. `\${` escribe los caracteres `${` literalmente. Las cadenas interpoladas son expresiones de ejecución y no se admiten en `const`.
 
 ```cometa
 var nombre = "Ana"
@@ -185,6 +191,11 @@ Los índices y longitudes cuentan puntos de código Unicode. Los índices deben 
 | `subcadena(inicio entero, fin entero)` | `cadena?` |
 | `a_entero()` | `entero?` |
 | `a_decimal()` | `decimal?` |
+| `rellenar_izquierda(ancho entero, relleno cadena = " ")` | `cadena` |
+| `rellenar_derecha(ancho entero, relleno cadena = " ")` | `cadena` |
+| `repetir(veces entero)` | `cadena` |
+
+`rellenar_izquierda` y `rellenar_derecha` añaden `relleno` (repetido y cortado si hace falta) hasta que la cadena mide `ancho` puntos de código; una cadena que ya los tiene, o un relleno vacío, la dejan igual. Un marcador con ceros es `cadena(puntos).rellenar_izquierda(7, "0")`. `repetir(veces)` devuelve la cadena repetida, o la cadena vacía con `veces` menor que 1; es el único uso de la palabra `repetir` como nombre de método.
 
 `a_entero()` y `a_decimal()` convierten texto a número y devuelven `.Ninguno` si no es válido: no aceptan espacios (usa `recortar()` antes), `a_decimal` usa el punto como separador (`"3.5"`) y rechaza `inf`, `nan` y valores fuera de rango, y `a_entero` rechaza los valores que no caben en 64 bits. Para la conversión contraria, `cadena(valor)` convierte un `entero`, `decimal`, `bool` o `cadena` a texto igual que `"${valor}"`.
 
@@ -193,7 +204,7 @@ var edad = "42".a_entero() o 0
 imprimir("Puntos: " + cadena(edad))
 ```
 
-Los números `entero` y `decimal` tienen el método `formato(decimales entero)`, que devuelve una `cadena` con exactamente esa cantidad de decimales (entre 0 y 20; los valores fuera de ese rango se ajustan): `3.14159.formato(2)` es `"3.14"` y `7.formato(2)` no existe como literal (el lexer lee `7.` como decimal), pero una variable entera sí: `var n = 7`, `n.formato(2)` es `"7.00"`.
+Los números `entero` y `decimal` tienen el método `formato(decimales entero)`, que devuelve una `cadena` con exactamente esa cantidad de decimales (entre 0 y 20; los valores fuera de ese rango se ajustan): `3.14159.formato(2)` es `"3.14"` y `7.formato(2)` es `"7.00"`.
 
 `dividir("")` divide por punto de código y devuelve una lista vacía para la cadena vacía. `reemplazar("", texto)` inserta el reemplazo en los límites entre puntos de código, incluidos ambos extremos. Los métodos no modifican el receptor.
 
@@ -231,6 +242,7 @@ fn describir<T Describible>(valor T) cadena valor.describir()
 - Una interfaz compuesta combina las firmas incorporadas. Firmas idénticas se combinan; firmas incompatibles y ciclos de incorporación se rechazan. Si las firmas incorporadas usan nombres de parámetros diferentes, la interfaz debe redeclarar explícitamente el método con los nombres elegidos.
 - Las llamadas por interfaz usan los nombres de parámetros de esa interfaz y suministran todos los argumentos no variádicos. Los valores predeterminados de un método concreto solo se aplican en llamadas a través de su tipo concreto.
 - Un valor concreto compatible se asigna implícitamente a una interfaz. Una interfaz se asigna a otra si garantiza sus métodos. Solo se exponen los métodos declarados por el tipo estático.
+- Cuando un tipo no cumple la interfaz esperada, el error añade el primer motivo, por orden alfabético de los métodos: `a Lobo le falta el método atacar() entero`, `Lobo.atacar devuelve decimal y Criatura pide entero`, `Lobo.atacar existe pero no es pub` o `Lobo.atacar viene del tipo embebido Animal, que no es pub`.
 - Los campos de interfaz requieren inicialización explícita, también dentro de estructuras anidadas. No existe una interfaz nula; `I?` representa ausencia. Guardar una estructura en una interfaz conserva la referencia original.
 - Las listas, estructuras/enums genéricos y wrappers ya construidos conservan sus argumentos exactos: `[Usuario]` no se convierte en `[Describible]`. Un literal con tipo esperado `[Describible]` sí acepta elementos individuales compatibles. Una conversión incorporada a `I?` o `I!E` puede envolver una vez un valor compatible con `I`.
 - No se permite igualdad entre interfaces. Guardar o pasar explícitamente un resultado sigue contando como uso; no se agregan reglas de consumo dinámico para resultados guardados dentro de interfaces.
@@ -285,7 +297,7 @@ Los inicializadores de `var` admiten literales compuestos, constructores, refere
 
 ## Variables y literales compuestos
 
-Dentro de una función, `var` declara una variable local. El tipo puede inferirse desde el valor o escribirse entre el nombre y `=`. Un literal de estructura puede indicar su tipo (`Usuario { ... }`) o recibirlo de la declaración (`var usuario Usuario = { ... }`). Los campos omitidos reciben un valor predeterminado válido: escalares en cero, listas vacías, opcionales ausentes y estructuras nuevas construidas recursivamente. Los campos de resultado o enum requieren inicialización explícita, incluso dentro de estructuras anidadas. El diagnóstico indica la ruta del campo que falta. Se rechazan ciclos directos e indirectos de campos de estructura obligatorios; los opcionales y las listas permiten recursión. Cada construcción crea sus propios objetos predeterminados, sin compartirlos con otras instancias.
+Dentro de una función, `var` declara una variable local. El tipo puede inferirse desde el valor o escribirse entre el nombre y `=`. Un literal de estructura puede indicar su tipo (`Usuario { ... }`) o recibirlo de la declaración (`var usuario Usuario = { ... }`). Los campos omitidos reciben un valor predeterminado válido: escalares en cero, listas vacías, opcionales ausentes y estructuras nuevas construidas recursivamente. Los campos de resultado o enum requieren inicialización explícita, incluso dentro de estructuras anidadas, salvo que el tipo que los declara les dé un valor predeterminado: una estructura omitida se construye igual que su literal vacío. El diagnóstico indica la ruta del campo que falta. Se rechazan ciclos directos e indirectos de campos de estructura obligatorios; los opcionales y las listas permiten recursión. Cada construcción crea sus propios objetos predeterminados, sin compartirlos con otras instancias.
 
 Un literal puede usar valores posicionales, que corresponden a los campos directos en el orden de su declaración. Los campos embebidos ocupan una posición; los campos promovidos no. Se permite proporcionar solo un prefijo y los campos restantes usan las mismas reglas de valores predeterminados o de inicialización obligatoria. Un literal no puede mezclar valores posicionales y campos nombrados. Cambiar el orden de los campos cambia el significado de los literales posicionales existentes.
 
@@ -320,7 +332,7 @@ var primero = usuarios[0]
 procesar_usuario(usuarios[1])
 ```
 
-Las listas ofrecen métodos incorporados. Los métodos `agregar`, `extender`, `insertar`, `eliminar` e `invertir` actualizan directamente la variable, parámetro, campo o elemento de lista que recibe la llamada. Los demás métodos aceptan también expresiones temporales.
+Las listas ofrecen métodos incorporados. Los métodos `agregar`, `extender`, `insertar`, `eliminar`, `invertir`, `ordenar` y `ordenar_por` cambian la lista que recibe la llamada, y el cambio lo ven todas las variables, parámetros y campos que se refieren a ella.
 
 | Método sobre `[T]` | Resultado | Comportamiento |
 |---|---|---|
@@ -334,10 +346,23 @@ Las listas ofrecen métodos incorporados. Los métodos `agregar`, `extender`, `i
 | `extender(otra [T])` | sin valor | Agrega todos los elementos de otra lista |
 | `insertar(indice entero, valor T)` | `bool` | Inserta antes del índice; permite el final |
 | `eliminar(indice entero)` | `bool` | Elimina el elemento conservando el orden |
-| `copiar()` | `[T]` | Copia superficial con almacenamiento independiente |
-| `invertir()` | sin valor | Invierte los elementos en el mismo almacenamiento |
+| `copiar()` | `[T]` | Lista nueva e independiente con los mismos elementos (copia superficial) |
+| `invertir()` | sin valor | Invierte el orden de los elementos |
+| `ordenar(descendente bool = falso)` | sin valor | Ordena de menor a mayor una lista de `entero`, `decimal` o `cadena` |
+| `ordenar_por(claves, descendente bool = falso)` | sin valor | Ordena cualquier lista según una lista paralela de claves |
 
 Los índices de estos métodos deben tener tipo `entero` y estar dentro del rango. Los decimales se rechazan durante el chequeo de tipos. `insertar` y `eliminar` devuelven `falso` sin modificar la lista ante un índice inválido. `obtener` devuelve `.Ninguno`. `contiene` y `buscar_indice` admiten números, cadenas, booleanos y estructuras, que se comparan por identidad; todavía no admiten enums, interfaces, wrappers, listas anidadas ni parámetros de tipo.
+
+`ordenar` y `ordenar_por` ordenan la propia lista y son estables: los elementos iguales conservan su orden. Las cadenas se comparan por punto de código, así que las mayúsculas van antes que las minúsculas. `ordenar_por` recibe una lista de claves `[entero]`, `[decimal]` o `[cadena]` con la misma longitud que la lista (otra longitud es un error de ejecución): el elemento `i` queda donde quedaría `claves[i]`, y las claves no se modifican.
+
+```cometa
+var puntos = [30, 10, 20]
+puntos.ordenar(descendente = verdadero) // [30, 20, 10]
+
+var alturas [decimal] = []
+repetir (sprites) |sprite| alturas.agregar(sprite.y)
+sprites.ordenar_por(alturas) // los de más arriba se dibujan primero
+```
 
 ```cometa
 var valores = [10, 20]
@@ -346,13 +371,27 @@ imprimir(valores.buscar_indice(20) o -1)
 imprimir(valores.obtener(99) o 0)
 ```
 
-El operador `+` une dos listas del mismo tipo y devuelve una lista nueva con almacenamiento independiente; ninguna de las dos se modifica. `lista += otra` equivale a `lista = lista + otra`. Para añadir un solo elemento se usa `agregar`.
+El operador `+` une dos listas del mismo tipo y devuelve una lista nueva e independiente; ninguna de las dos se modifica. `lista += otra` equivale a `lista = lista + otra`. Para añadir un solo elemento se usa `agregar`.
 
 ```cometa
 var cuadros = normales + espejados
 ```
 
-La asignación de una lista copia su descriptor de slice: cada alias conserva su propia longitud, aunque puede compartir el almacenamiento de los elementos. Por eso agregar mediante un alias no cambia la longitud de los demás; escribir, insertar, eliminar o invertir puede hacer visibles cambios de elementos en aliases que todavía compartan almacenamiento. Cambiar la longitud de un parámetro de lista tampoco cambia la variable del llamador. `copiar()` crea almacenamiento independiente, pero conserva las referencias contenidas.
+Las listas se comparten por completo, igual que los mapas y los tipos declarados: asignar una lista a otra variable, guardarla en un campo o pasarla a una función no la copia. Todos se refieren a la misma lista, con los mismos elementos y la misma longitud, así que `agregar`, `insertar`, `eliminar` o una escritura hechos desde cualquiera de ellos los ven los demás. Asignar otra lista a una variable o a un parámetro (`l = [0]`) solo cambia a cuál se refiere ese nombre. `copiar()` devuelve una lista independiente, aunque conserva las referencias contenidas.
+
+```cometa
+fn quitar_primero(l [entero])
+	l.eliminar(0)
+
+fn inicio()
+	var numeros = [1, 2, 3]
+	var alias = numeros
+	quitar_primero(numeros)
+	imprimir(alias)              // [2, 3]
+	var aparte = numeros.copiar()
+	aparte.agregar(9)
+	imprimir(numeros.longitud()) // 2
+```
 
 Los campos y métodos de una variable se acceden con `.`. El marcador `@` sigue reservado para el receptor del método actual.
 
@@ -462,6 +501,15 @@ Un condicional también puede producir un valor. En ese caso requiere `sino` y t
 @activo = si (@edad < 18) falso sino verdadero
 ```
 
+En la forma de una línea no hay ninguna marca entre la condición y su valor. Cuando la lectura normal de la condición se queda sin valor (llega directamente a `sino` u `osi`), un `.`, `-` o `(` escrito después de un espacio y pegado a lo que sigue comienza el valor de la rama:
+
+```cometa
+var direccion = si izquierda -1 osi derecha 1 sino 0
+var tono Tono = si grande .Claro sino .Oscuro
+```
+
+Con espacios a ambos lados (`a - 1`), sin espacios (`a-1`, `f(x)`, `luz.alta`) o dentro de paréntesis, corchetes o llaves, la condición se lee como siempre; `si vidas -1 > 0 "sigue" sino "fin"` conserva la resta.
+
 Una función con resultado puede terminar en un condicional multilínea. Cada camino debe terminar en una expresión compatible con el resultado declarado.
 
 ```cometa
@@ -529,6 +577,16 @@ Dentro de un `casos` usado como sentencia, `romper` y `continuar` siguen control
 
 `==` y `!=` comparan un enum con una variante sin payload, en cualquier orden: `si estado == .Corriendo`, `si Estado.Fin != e`. Solo se compara la variante. Comparar dos valores de enum entre sí, o con una variante que tiene payload, es un error que remite a `casos`.
 
+Los opcionales y los resultados se comparan igual, con el tipo tomado del otro operando: `si buscado == .Ninguno`, `si guardar() != .Ok`. Con ellos también se puede escribir el payload cuando es `entero`, `decimal`, `cadena` o `bool`; entonces deben coincidir la variante y el valor: `si elegido == .Alguno("Ana")`, `si dividir(6, 3) == .Ok(2)`. Dos opcionales o dos resultados no se comparan entre sí.
+
+```cometa
+fn mas_peligrosa(criaturas [Criatura]) cadena?
+	...
+
+si mas_peligrosa(lista) == .Ninguno
+	imprimir("no hay peligro")
+```
+
 ### `casos` sobre valores simples
 
 Con un `entero`, una `cadena` o un `bool`, las ramas usan literales (`1`, `-1`, `"a"`, `verdadero`) o nombres de constantes de este archivo declaradas con `const` y un valor literal (`moneda =>`); una rama puede listar varios separados por comas. No se admiten expresiones, interpolación, decimales ni el nombre `|x|`. Cada valor puede aparecer una sola vez, también si se escribe una vez como literal y otra como constante. Las constantes de otros módulos (`mod.nombre`) todavía no se admiten como ramas.
@@ -565,7 +623,7 @@ Los opcionales y resultados son constructores de tipos incorporados; no requiere
 | `T?!` | Resultado cuyo éxito contiene un opcional |
 | `(T!)?` | Opcional que contiene un resultado |
 
-`?` envuelve el tipo anterior. `!E` introduce un resultado. El tipo de error se escribe inmediatamente después de `!`, sin espacio; así `fn f(n entero) entero! n` tiene resultado con error cadena y cuerpo `n`. Los errores compuestos y resultados repetidos se agrupan con paréntesis, por ejemplo `T!(E?)` y `(T!E)!F`. `T!E?` no sustituye a una agrupación explícita. La forma sin valor `!E` también puede usarse en campos, listas y parámetros.
+`?` envuelve el tipo anterior. `!E` introduce un resultado. El tipo de error se escribe inmediatamente después de `!`, sin espacio; así `fn f(n entero) entero! n` tiene resultado con error cadena y cuerpo `n`. En la cabecera de una función, el `!` del resultado va pegado a su tipo: un `!` escrito después de un espacio y pegado a lo que sigue es la negación con la que empieza el cuerpo de una línea, de modo que `fn en_suelo() bool !@cabe()` devuelve `bool`. El éxito sin valor se sigue escribiendo solo (`fn guardar() !`, `fn guardar() !E`). Los errores compuestos y resultados repetidos se agrupan con paréntesis, por ejemplo `T!(E?)` y `(T!E)!F`. `T!E?` no sustituye a una agrupación explícita. La forma sin valor `!E` también puede usarse en campos, listas y parámetros.
 
 Los constructores contextuales son `.Alguno(valor)` y `.Ninguno` para opcionales, y `.Ok(valor)` y `.Error(error)` para resultados. El éxito sin valor se escribe `.Ok`, sin paréntesis. Requieren un tipo esperado. Una expresión de tipo `T` se convierte implícitamente a presencia o éxito cuando se espera `T?` o `T!E`. Se añade una sola capa por conversión; un destino anidado no convierte recursivamente un valor simple. Por ejemplo, `entero?!` acepta `.Ok(.Ninguno)` o `.Ok(1)`, pero no `1` directamente. Un opcional puede envolverse en resultado si es exactamente su tipo de éxito, conservando su ausencia interna; nunca se transforma ausencia en error automáticamente.
 
@@ -601,7 +659,7 @@ Cada operando se evalúa una sola vez, en el orden escrito; las alternativas y l
 
 ## Ciclos
 
-`repetir` recorre una lista y liga cada elemento a la variable escrita entre `|`. Una segunda variable opcional recibe el índice como `entero`, comenzando en `0`. Ambas variables solo existen dentro del cuerpo del ciclo.
+`repetir` recorre una lista, un mapa o una cadena y liga cada elemento a la variable escrita entre `|`. Una segunda variable opcional recibe el índice como `entero`, comenzando en `0`. Ambas variables solo existen dentro del cuerpo del ciclo.
 
 ```cometa
 repetir (usuarios) |usuario|
@@ -613,16 +671,34 @@ repetir (usuarios) |usuario, indice|
 	imprimir(usuario)
 ```
 
-Los rangos `inicio..final` solo se permiten dentro de los paréntesis de `repetir`; no son valores que puedan guardarse, pasarse a funciones o incluirse en listas. Ambos límites deben ser expresiones `entero` y se evalúan una sola vez, de izquierda a derecha, antes del ciclo. El inicio se incluye y el final se excluye. El paso es `1` si el inicio es menor y `-1` si es mayor; límites iguales producen cero iteraciones. Se permiten límites negativos; los límites decimales se rechazan. La variable del ciclo es `entero`; una segunda variable opcional recibe el índice desde `0`. Modificar estas variables dentro del cuerpo no altera la progresión del rango.
+Una `cadena` se recorre letra por letra: cada elemento es una `cadena` con un solo punto de código y el índice cuenta letras, no bytes, igual que con `texto.dividir("")`. La cadena vacía produce cero iteraciones.
+
+```cometa
+repetir ("año") |letra, indice|
+	imprimir("${indice}: ${letra}") // 0: a, 1: ñ, 2: o
+```
+
+Los rangos `inicio..final` solo se permiten dentro de los paréntesis de `repetir`; no son valores que puedan guardarse, pasarse a funciones o incluirse en listas. Ambos límites deben ser expresiones `entero` y se evalúan una sola vez, de izquierda a derecha, antes del ciclo. El inicio se incluye y el final se excluye. Un rango cuenta hacia adelante de uno en uno: si el inicio es igual o mayor que el final no hay ninguna vuelta, de modo que `repetir (0..lista.longitud() - 1)` no hace nada con una lista vacía. Para contar hacia atrás o saltar valores se escribe el paso después del rango, `repetir (inicio..final, paso = n)`: con un paso negativo el ciclo baja mientras el valor sea mayor que el final, y con uno positivo sube mientras sea menor. El paso es una expresión `entero` que se evalúa una vez, después de los límites; un paso `0` es un error. La dirección nunca se deduce de los límites: `repetir (5..0)` con dos límites literales se rechaza al compilar con la sugerencia de escribir `paso = -1`. Se permiten límites negativos; los límites decimales se rechazan. La variable del ciclo es `entero`; una segunda variable opcional recibe el índice desde `0`. Modificar estas variables dentro del cuerpo no altera la progresión del rango.
 
 ```cometa
 repetir (0..5) |i| imprimir(i) // 0, 1, 2, 3, 4
-repetir (5..0) |i|
+repetir (5..0, paso = -1) |i|
 	imprimir(i) // 5, 4, 3, 2, 1
+repetir (0..10, paso = 2) |i| imprimir(i) // 0, 2, 4, 6, 8
 repetir (0..3) imprimir("hola") // sin variables: repite 3 veces
 repetir (0..2) |valor, indice|
 	imprimir(valor) // 0.5, 1.5
 ```
+
+Una sola expresión `entero` entre los paréntesis es una cantidad de vueltas: `repetir (n)` da `n` vueltas y equivale a contar desde `0` hasta `n - 1`. La cantidad se evalúa una vez, antes del ciclo; si es cero o negativa no hay ninguna vuelta (nunca cuenta hacia atrás). Las variables son opcionales: la primera recibe el número de vuelta y una segunda recibe lo mismo.
+
+```cometa
+var veces = 3
+repetir (veces) imprimir("hola")   // 3 veces
+repetir (veces) |i| imprimir(i)    // 0, 1, 2
+```
+
+Al recorrer una lista, un mapa o una cadena la variable del elemento es obligatoria.
 
 `continuar` salta a la siguiente iteración y `romper` termina el ciclo más cercano. Solo pueden usarse dentro de un `repetir`.
 
@@ -631,6 +707,19 @@ Sin una lista ni variables, `repetir` crea un ciclo infinito. Su cuerpo también
 ```cometa
 repetir imprimir("hola")
 ```
+
+Un ciclo infinito sin `romper` solo se abandona con `retornar`, así que una función con resultado puede terminar en él sin un valor final:
+
+```cometa
+fn primer_multiplo(numero entero, desde entero) entero
+	var candidato = desde
+	repetir
+		si candidato % numero == 0
+			retornar candidato
+		candidato += 1
+```
+
+Con un `romper` (o con `mientras`, que termina cuando su condición es falsa) el ciclo puede acabar y la función necesita un valor después.
 
 ### `mientras`
 

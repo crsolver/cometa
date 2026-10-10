@@ -7,6 +7,7 @@ import (
 )
 
 func TestUnusedBindingsPreserveEffects(t *testing.T) {
+	t.Parallel()
 	for _, flow := range []bool{false, true} {
 		source := "fn efecto() entero\n\timprimir(7)\n\t3\nfn inicio()\n\tvar descartado = efecto()\n\tvar muerto = 42\n\tvar copia = muerto\n\tvar usado = 5\n\timprimir(usado)\n"
 		if flow {

@@ -22,6 +22,16 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libc6-dev libgl1-mesa-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev libxxf86vm-dev libasound2-dev pkg-config xvfb
+      - name: Format and module file
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          unformatted="$(gofmt -l cmd internal pkg scripts tools)"
+          if [ -n "$unformatted" ]; then
+            echo "::error title=gofmt::Archivos sin formatear: ${unformatted//$'\n'/, }"
+            exit 1
+          fi
+          go mod tidy -diff
       - name: Vet
         run: go vet ./...
       - name: Test (Linux, virtual display)

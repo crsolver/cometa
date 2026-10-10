@@ -7,6 +7,7 @@ import (
 )
 
 func TestNoiseNumerics(t *testing.T) {
+	t.Parallel()
 	generated, err := Compile("ruido.cometa", []byte("usar std/mate/ruido\n"))
 	if err != nil {
 		t.Fatal(err)
@@ -65,6 +66,7 @@ func main() {
 }
 
 func TestNoiseCalls(t *testing.T) {
+	t.Parallel()
 	runCometa(t, `usar std/mate/ruido como r
 fn inicio()
 	imprimir(r.suave(0, 0) == r.suave(y = 0, x = 0, semilla = 0))
@@ -96,6 +98,7 @@ fn inicio()
 }
 
 func TestNoiseExample(t *testing.T) {
+	t.Parallel()
 	source, err := os.ReadFile("testdata/programas/ruido.cometa")
 	if err != nil {
 		t.Fatal(err)

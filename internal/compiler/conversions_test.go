@@ -6,6 +6,7 @@ import (
 )
 
 func TestTextNumberConversions(t *testing.T) {
+	t.Parallel()
 	source := `fn leer(texto cadena) cadena
 	var n = texto.a_entero() o -1
 	"${n}"
@@ -40,6 +41,8 @@ fn inicio()
 	imprimir("Puntaje ${puntaje.formato(3)}")
 	imprimir(1.999.formato(1))
 	imprimir(0.1.formato(25).longitud())
+	imprimir(7.formato(2))
+	imprimir((-3).formato(1))
 `
 	got, err := Compile("conv.cometa", []byte(source))
 	if err != nil {
@@ -51,17 +54,19 @@ fn inicio()
 		"12", "-1", "16",
 		"Puntos: 15", "Pi: 3.5", "Bien: verdadero", "ya es texto",
 		"3.14", "2", "7.00", "Puntaje 12.500", "2.0", "22",
+		"7.00", "-3.0",
 	}, "\n") + "\n"
 	runGeneratedGo(t, got, want)
 }
 
 func TestConversionErrors(t *testing.T) {
+	t.Parallel()
 	cases := []struct{ name, source, want string }{
 		{"a_entero args", "fn inicio()\n\timprimir(\"1\".a_entero(2))\n", "argumento"},
 		{"formato needs arg", "fn inicio()\n\timprimir(1.5.formato())\n", "decimales"},
 		{"formato typo", "fn inicio()\n\timprimir(1.5.formatos(1))\n", `¿quisiste decir "formato"?`},
 		{"formato decimal arg", "fn inicio()\n\timprimir(1.5.formato(1.5))\n", "entero"},
-		{"cadena of list", "fn inicio()\n\timprimir(cadena([1]))\n", "requiere"},
+		{"cadena sin valor", "fn nada()\n\tvar x = 1\nfn inicio()\n\timprimir(cadena(nada()))\n", "requiere un valor"},
 		{"cadena bare", "fn inicio()\n\tvar x = cadena\n", "se esperaba una expresión"},
 	}
 	for _, tc := range cases {

@@ -6,6 +6,7 @@ import (
 )
 
 func TestScopeCleanup(t *testing.T) {
+	t.Parallel()
 	runCometa(t, `tipo Ambito
 	n entero
 	pub fn entrar() imprimir(@n)
@@ -36,6 +37,7 @@ fn inicio()
 }
 
 func TestScopeProtocol(t *testing.T) {
+	t.Parallel()
 	for _, source := range []string{
 		"fn inicio()\n\tcon 1\n\t\timprimir(1)\n",
 		"tipo A\n\tpub fn entrar(n entero = 0) retornar\n\tpub fn salir() retornar\nfn inicio()\n\tcon A {}\n\t\timprimir(1)\n",
@@ -48,6 +50,7 @@ func TestScopeProtocol(t *testing.T) {
 }
 
 func TestScopeInterfacesAndReturnSnapshot(t *testing.T) {
+	t.Parallel()
 	runCometa(t, `interfaz Ambito
 	fn entrar()
 	fn salir()
@@ -74,6 +77,7 @@ fn inicio()
 }
 
 func TestScopeModuleBinding(t *testing.T) {
+	t.Parallel()
 	entry, loader := memoryProject(t, map[string]string{
 		"main.cometa": "usar util\nfn inicio()\n\tcon util.crear()\n\t\tvar n = 7\n\t\timprimir(n)\n\tvar n = 8\n\timprimir(n)\n",
 		"util.cometa": "tipo A\n\tpub fn entrar() imprimir(1)\n\tpub fn salir() imprimir(2)\npub fn crear() A A {}\n",

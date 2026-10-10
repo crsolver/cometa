@@ -3,7 +3,6 @@ package compiler
 import (
 	"errors"
 	"github.com/crsolver/cometa/internal/diagnostic"
-	"github.com/crsolver/cometa/internal/sema"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -11,6 +10,7 @@ import (
 )
 
 func TestMultipleFrontendDiagnostics(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name, source string
 		count        int
@@ -84,6 +84,7 @@ func FuzzAnalyzeRecovery(f *testing.F) {
 }
 
 func TestRecoveryAtEverySourcePrefix(t *testing.T) {
+	t.Parallel()
 	seeds := []string{
 		"fn inicio()\n\tvar a = [1, 2]\n\trepetir n en a\n\t\tsi n == 1\n\t\t\timprimir(\"${n}\")\n\t\tsino\n\t\t\tcontinuar\n",
 		"enum E\n\tA\n\tB entero\nfn f(e E) entero\n\tcasos e |n|\n\t\t.A => 1\n\t\t.B => n\n",
@@ -97,8 +98,9 @@ func TestRecoveryAtEverySourcePrefix(t *testing.T) {
 }
 
 func TestDiagnosticErrorCompatibilityAndLimit(t *testing.T) {
+	t.Parallel()
 	_, _, err := Analyze("errores.cometa", []byte("fn inicio()\n\tvar a bool = 1\n\tvar b bool = 2\n"))
-	var semantic *sema.Error
+	var semantic *diagnostic.Error
 	if !errors.As(err, &semantic) {
 		t.Fatalf("errors.As: %v", err)
 	}
@@ -110,6 +112,7 @@ func TestDiagnosticErrorCompatibilityAndLimit(t *testing.T) {
 }
 
 func TestProjectMultipleDiagnostics(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	sources := map[string]string{
 		"inicio.cometa": "usar a\nusar b\nusar ausente\nfn inicio()\n\tvar x bool = 1\n\tausente.hacer()\n",

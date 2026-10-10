@@ -1,18 +1,40 @@
 package stdlib
 
 import (
- "os"
- "os/exec"
- "path/filepath"
- "runtime"
- "testing"
+	"go/parser"
+	"go/token"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
+	"testing"
 )
+
+// runtimeDeclarations returns the text of a file of package rt from its first
+// declaration on, without the package clause and the imports.
+func runtimeDeclarations(t *testing.T, name string) string {
+	t.Helper()
+	source, err := runtimeFS.ReadFile("rt/" + name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, name, source, parser.ImportsOnly)
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := fset.Position(file.Name.End()).Offset
+	for _, d := range file.Decls {
+		start = fset.Position(d.End()).Offset
+	}
+	return string(source[start:])
+}
 
 // Compile the actual embedded engine against tiny data-only graphics types.
 // This catches runtime Go errors and exercises layout without a window/backend.
 func TestUICore(t *testing.T) {
- dir:=t.TempDir()
- source:=`package main
+	dir := t.TempDir()
+	source := `package main
 import("math";"strings";"strconv";"testing")
 type _hgVec2 struct { X,Y float64 }
 type _hgRect struct { Pos,Tamano _hgVec2 }
@@ -20,7 +42,7 @@ type _hgColor struct { R,G,B,A uint8 }
 type _hgFuente struct{}
 type _hgImagen struct{}
 func _hgUIBegin(c *_hgContexto) {}
-`+uiCoreSource+`
+` + runtimeDeclarations(t, "ui_core.go") + `
 func frame(c *_hgContexto,in _hgUIInput) {c.begin(_hgVec2{320,180},in,func(s string,t _hgTema)float64{return float64(len([]rune(s)))*8});_hgUIActive=c}
 func end(c *_hgContexto) {c.finish();_hgUIActive=nil}
 func fixed(v float64)*_hgMedida{return _hguiFijo(v)}
@@ -102,7 +124,17 @@ func TestTextColor(t *testing.T){
 }
 func TestThemeSnapshot(t *testing.T){c:=_hguiCrear();frame(c,_hgUIInput{});theme:=_hguiRetro(2);s:=_hguiTema(theme);theme.Espacio=99;s.Entrar();_hguiTexto("a",fit(),fit(),_hgColor{});s.Salir();end(c);near(t,c.previous[1].theme.Espacio,4)}
 `
- file:=filepath.Join(dir,"ui_test.go");if err:=os.WriteFile(file,[]byte(source),0600);err!=nil {t.Fatal(err)}
- exe:=filepath.Join(runtime.GOROOT(),"bin","go");if runtime.GOOS=="windows" {exe+=".exe"}
- cmd:=exec.Command(exe,"test",file,"-count=1");out,err:=cmd.CombinedOutput();if err!=nil {t.Fatalf("UI core: %v\n%s",err,out)}
+	file := filepath.Join(dir, "ui_test.go")
+	if err := os.WriteFile(file, []byte(source), 0600); err != nil {
+		t.Fatal(err)
+	}
+	exe := filepath.Join(runtime.GOROOT(), "bin", "go")
+	if runtime.GOOS == "windows" {
+		exe += ".exe"
+	}
+	cmd := exec.Command(exe, "test", file, "-count=1")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("UI core: %v\n%s", err, out)
+	}
 }

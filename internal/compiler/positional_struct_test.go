@@ -6,6 +6,7 @@ import (
 )
 
 func TestPositionalStructLiteralsRuntime(t *testing.T) {
+	t.Parallel()
 	runCometa(t, `tipo Base
 	n entero
 tipo Punto
@@ -37,6 +38,7 @@ fn inicio()
 }
 
 func TestPositionalBuiltInStructLiterals(t *testing.T) {
+	t.Parallel()
 	source := `fn actualizar(dt decimal)
 	var v = mate.Vec2 {1, 2}
 	imprimir(v.x + v.y + dt)
@@ -56,6 +58,7 @@ fn pintar()
 }
 
 func TestPositionalStructLiteralDiagnostics(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name   string
 		source string

@@ -1,20 +1,17 @@
 package compiler
 
 import (
-	"context"
 	"image"
 	"image/color"
 	"image/png"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestLienzoAPI(t *testing.T) {
+	t.Parallel()
 	got, err := Compile("lienzo.cometa", []byte("usar std/pincel/lienzo\nvar s = lienzo.desde_texto([\"a.\"], [\"a\": .Rojo])\nfn inicio()\n\tlienzo.pixel(s, 1, 0, .Azul)\n\timprimir(lienzo.ancho(s))\n"))
 	if err != nil {
 		t.Fatal(err)
@@ -45,6 +42,7 @@ func TestLienzoAPI(t *testing.T) {
 
 // Canvas programs run without a window; results are compared pixel by pixel.
 func TestLienzoRuntime(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("generated program")
 	}
@@ -125,40 +123,30 @@ func expectPNG(t *testing.T, path string, palette map[rune]color.NRGBA, rows ...
 }
 
 func TestLienzoRuntimeErrors(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("generated program")
 	}
 	for source, want := range map[string]string{
 		"lienzo.desde_texto([\"ab\", \"a\"], [\"a\": .Rojo, \"b\": .Azul])": "la fila 2 mide 1 caracteres",
-		"lienzo.desde_texto([\"ax\"], [\"a\": .Rojo])":                     "el carácter 'x' de la fila 1 no tiene color",
-		"lienzo.desde_texto([\"a\"], [\"ab\": .Rojo])":                     "debe ser un solo carácter",
-		"lienzo.hoja_desde_texto([[\"a\"], [\"aa\"]], [\"a\": .Rojo])":     "el cuadro 2 no mide lo mismo",
-		"lienzo.nuevo(0, 4)":                                               "el tamaño de lienzo",
+		"lienzo.desde_texto([\"ax\"], [\"a\": .Rojo])":                      "el carácter 'x' de la fila 1 no tiene color",
+		"lienzo.desde_texto([\"a\"], [\"ab\": .Rojo])":                      "debe ser un solo carácter",
+		"lienzo.hoja_desde_texto([[\"a\"], [\"aa\"]], [\"a\": .Rojo])":      "el cuadro 2 no mide lo mismo",
+		"lienzo.nuevo(0, 4)": "el tamaño de lienzo",
 	} {
 		generated, err := Compile("error.cometa", []byte("usar std/pincel/lienzo\nfn inicio()\n\tvar img = "+source+"\n\timprimir(img)\n"))
 		if err != nil {
 			t.Fatal(err)
 		}
-		dir := t.TempDir()
-		file := filepath.Join(dir, "main.go")
-		if err := os.WriteFile(file, generated, 0600); err != nil {
-			t.Fatal(err)
-		}
-		goName := "go"
-		if runtime.GOOS == "windows" {
-			goName += ".exe"
-		}
-		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-		out, err := exec.CommandContext(ctx, filepath.Join(runtime.GOROOT(), "bin", goName), "run", file).CombinedOutput()
-		cancel()
-		if err == nil || !strings.Contains(string(out), want) {
-			t.Fatalf("%s: err=%v, output lacks %q:\n%s", source, err, want, out)
+		if out := runGoExpectingFailure(t, generated); !strings.Contains(out, want) {
+			t.Fatalf("%s: output lacks %q:\n%s", source, want, out)
 		}
 	}
 }
 
 // Edited canvases must re-upload before their next draw.
 func TestLienzoGPUUpload(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("desktop rendering")
 	}

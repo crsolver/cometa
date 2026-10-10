@@ -1,10 +1,10 @@
 package compiler
 
 import (
+	"fmt"
 	"github.com/crsolver/cometa/internal/ast"
 	"github.com/crsolver/cometa/internal/diagnostic"
 	"path/filepath"
-	"reflect"
 	"strings"
 )
 
@@ -16,6 +16,9 @@ type binder struct {
 	types   map[string]bool
 	errors  diagnostic.List
 	scope   map[string]bool // locals visible to the name being resolved, for suggestions
+	// receiver is the type whose method is being bound, to suggest '@nombre'
+	// when a member is written without it.
+	receiver *ast.TypeDecl
 }
 
 func copyScope(scope map[string]bool, names ...string) map[string]bool {
@@ -74,6 +77,9 @@ func (b *binder) name(name string, pos ast.Pos) string {
 			if foreign := diagnostic.Foreign(name); foreign != "" {
 				hint = "; " + foreign
 			}
+			if b.hasMember(b.module, b.receiver, name, map[*ast.TypeDecl]bool{}) {
+				hint = "; para usar un campo o método del objeto escribe '@" + name + "'"
+			}
 			b.fail(pos, "el nombre %q no existe%s", name, hint)
 		} else {
 			b.fail(pos, "el módulo %s no tiene %q%s", strings.TrimSuffix(filepath.Base(m.Path), ".cometa"), name, diagnostic.Hint(name, candidates))
@@ -82,6 +88,56 @@ func (b *binder) name(name string, pos ast.Pos) string {
 	invalid := "\x00" + m.Path + ":" + name
 	b.project.Program.InvalidNames[invalid] = pos
 	return invalid
+}
+
+// hasMember reports whether a type declared in module m has a field or method
+// called name, directly or through the types it embeds. It runs before type
+// checking and only feeds a hint, so it reads the declarations as written.
+func (b *binder) hasMember(m *Module, t *ast.TypeDecl, name string, seen map[*ast.TypeDecl]bool) bool {
+	if t == nil || seen[t] {
+		return false
+	}
+	seen[t] = true
+	for _, method := range t.Methods {
+		if method.Name == name {
+			return true
+		}
+	}
+	for _, field := range t.Fields {
+		if field.Name == name {
+			return true
+		}
+		if !field.Embedded {
+			continue
+		}
+		if owner, embedded := b.embeddedType(m, field.Type.Name); embedded != nil && b.hasMember(owner, embedded, name, seen) {
+			return true
+		}
+	}
+	return false
+}
+
+// embeddedType finds the declaration of a type embedded in a type of module
+// m. The name is as written (`Base`, `alias.Base`) in a declaration that is
+// not bound yet, and the unique symbol of the type in one that is.
+func (b *binder) embeddedType(m *Module, name string) (*Module, *ast.TypeDecl) {
+	owner := m
+	if alias, rest, qualified := strings.Cut(name, "."); qualified && m.Imports[alias] != nil {
+		owner, name = m.Imports[alias], rest
+	}
+	if d := owner.Declarations[name]; d != nil {
+		if t, ok := d.Node.(*ast.TypeDecl); ok {
+			return owner, t
+		}
+	}
+	for _, module := range b.project.Modules {
+		for _, d := range module.Declarations {
+			if t, ok := d.Node.(*ast.TypeDecl); ok && d.Symbol == name {
+				return module, t
+			}
+		}
+	}
+	return nil, nil
 }
 
 func (b *binder) fail(pos ast.Pos, format string, args ...any) {
@@ -130,10 +186,12 @@ func (b *binder) bind() error {
 				b.typeRef(&f.Type)
 				f.Default = b.expr(f.Default, map[string]bool{})
 			}
+			b.receiver = d
 			for _, f := range d.Methods {
 				f.Receiver = symbol
 				b.function(f)
 			}
+			b.receiver = nil
 		case *ast.EnumDecl:
 			b.parameters(d.TypeParams)
 			d.Name = symbol
@@ -201,9 +259,16 @@ func (b *binder) statements(body []ast.Stmt, parent map[string]bool) {
 		case *ast.RepeatStmt:
 			s.Iterable = b.expr(s.Iterable, scope)
 			s.RangeEnd = b.expr(s.RangeEnd, scope)
+			s.Step = b.expr(s.Step, scope)
 			b.statements(s.Body, copyScope(scope, s.Element, s.Index))
+		case *ast.ExprStmt:
+			s.Expr = b.expr(s.Expr, scope)
+		case *ast.AssignStmt:
+			s.Target = b.expr(s.Target, scope)
+			s.Value = b.expr(s.Value, scope)
+		case *ast.ContinueStmt, *ast.BreakStmt:
 		default:
-			b.children(reflect.ValueOf(stmt), scope)
+			panic(fmt.Sprintf("binder: unknown statement %T", stmt))
 		}
 	}
 }
@@ -225,6 +290,7 @@ func (b *binder) expr(expr ast.Expr, scope map[string]bool) ast.Expr {
 			name := b.name(id.Name+"."+e.Name, id.Pos)
 			return &ast.IdentExpr{Pos: e.NamePos, Name: name}
 		}
+		e.Object = b.expr(e.Object, scope)
 	case *ast.InstantiateExpr:
 		original := e.Name
 		e.Name = b.name(e.Name, e.Pos)
@@ -278,51 +344,46 @@ func (b *binder) expr(expr ast.Expr, scope map[string]bool) ast.Expr {
 			b.statements(arm.Body, copyScope(scope, e.Binding))
 		}
 		return e
+	// The remaining nodes open no scope: only their operands are bound.
+	case *ast.ReceiverExpr, *ast.LiteralExpr, *ast.ContextualVariantExpr:
+	case *ast.MapLiteralExpr:
+		for i := range e.Entries {
+			e.Entries[i].Key = b.expr(e.Entries[i].Key, scope)
+			e.Entries[i].Value = b.expr(e.Entries[i].Value, scope)
+		}
+	case *ast.RangeLabel:
+		e.Start = b.expr(e.Start, scope)
+		e.End = b.expr(e.End, scope)
+	case *ast.InterpolatedStringExpr:
+		for i := range e.Parts {
+			e.Parts[i].Expr = b.expr(e.Parts[i].Expr, scope)
+		}
+	case *ast.UnaryExpr:
+		e.Value = b.expr(e.Value, scope)
+	case *ast.BinaryExpr:
+		e.Left = b.expr(e.Left, scope)
+		e.Right = b.expr(e.Right, scope)
+	case *ast.CallExpr:
+		e.Callee = b.expr(e.Callee, scope)
+		for i := range e.Args {
+			e.Args[i] = b.expr(e.Args[i], scope)
+		}
+	case *ast.IndexExpr:
+		e.Object = b.expr(e.Object, scope)
+		e.Index = b.expr(e.Index, scope)
+	case *ast.ListLiteralExpr:
+		for i := range e.Elements {
+			e.Elements[i] = b.expr(e.Elements[i], scope)
+		}
+	case *ast.ReturnExpr:
+		e.Value = b.expr(e.Value, scope)
+	case *ast.TryExpr:
+		e.Value = b.expr(e.Value, scope)
+	case *ast.AssertExpr:
+		e.Value = b.expr(e.Value, scope)
+		b.typeRef(&e.Target)
+	default:
+		panic(fmt.Sprintf("binder: unknown expression %T", expr))
 	}
-	b.children(reflect.ValueOf(expr), scope)
 	return expr
-}
-
-// Ordinary AST nodes have no scope boundaries. Walk their typed children while
-// retaining the explicit handling above for declarations and lexical scopes.
-func (b *binder) children(v reflect.Value, scope map[string]bool) {
-	if !v.IsValid() {
-		return
-	}
-	if v.Kind() == reflect.Interface {
-		if v.IsNil() {
-			return
-		}
-		if e, ok := v.Interface().(ast.Expr); ok {
-			v.Set(reflect.ValueOf(b.expr(e, scope)))
-			return
-		}
-		b.children(v.Elem(), scope)
-		return
-	}
-	if v.Kind() == reflect.Pointer {
-		if v.IsNil() {
-			return
-		}
-		if t, ok := v.Interface().(*ast.TypeRef); ok {
-			b.typeRef(t)
-			return
-		}
-		b.children(v.Elem(), scope)
-		return
-	}
-	if v.Kind() == reflect.Struct {
-		if v.Type() == reflect.TypeOf(ast.TypeRef{}) {
-			b.typeRef(v.Addr().Interface().(*ast.TypeRef))
-			return
-		}
-		for i := 0; i < v.NumField(); i++ {
-			b.children(v.Field(i), scope)
-		}
-	}
-	if v.Kind() == reflect.Slice {
-		for i := 0; i < v.Len(); i++ {
-			b.children(v.Index(i), scope)
-		}
-	}
 }

@@ -7,6 +7,7 @@ import (
 )
 
 func TestWrapperExample(t *testing.T) {
+	t.Parallel()
 	source, err := os.ReadFile("testdata/programas/errores.cometa")
 	if err != nil {
 		t.Fatal(err)
@@ -15,6 +16,7 @@ func TestWrapperExample(t *testing.T) {
 }
 
 func TestUnusedOptionalLocalsCompile(t *testing.T) {
+	t.Parallel()
 	source := `tipo Usuario
 	nombre cadena
 	mascota cadena?
@@ -32,6 +34,7 @@ fn nulable()
 }
 
 func TestWrapperContextsAndLoops(t *testing.T) {
+	t.Parallel()
 	runCometa(t, `tipo Caja
 	valor entero?
 	pendiente (entero!)?
@@ -84,6 +87,7 @@ fn inicio()
 }
 
 func TestWrapperShortCircuitAndReferenceCapture(t *testing.T) {
+	t.Parallel()
 	runCometa(t, `tipo Caja
 	n entero
 	fn leer(ignorado entero, valor entero) entero @n + valor
@@ -108,6 +112,7 @@ fn inicio()
 }
 
 func TestReturnsInsideValueConstruction(t *testing.T) {
+	t.Parallel()
 	runCometa(t, `fn aceptar(n entero) entero n
 fn llamada() entero!
 	var valor = aceptar(retornar .Error("llamada"))
@@ -141,6 +146,7 @@ fn inicio()
 }
 
 func TestWrappersRuntime(t *testing.T) {
+	t.Parallel()
 	runCometa(t, `tipo Direccion
 	ciudad cadena
 tipo Usuario
@@ -198,6 +204,7 @@ fn inicio()
 }
 
 func TestWrapperPropagationOrderAndLaziness(t *testing.T) {
+	t.Parallel()
 	runCometa(t, `tipo Contador
 	n entero
 fn paso(c Contador, n entero) entero
@@ -239,6 +246,7 @@ fn inicio()
 }
 
 func TestWrapperDiagnostics(t *testing.T) {
+	t.Parallel()
 	cases := []struct{ name, source, want string }{
 		{"unchecked field", "tipo U\n\tn entero\nfn f(u U?) entero u.n\n", "no tiene miembros"},
 		{"unchecked argument", "fn f(n entero) entero n\nfn g(n entero?) entero f(n)\n", "entero"},

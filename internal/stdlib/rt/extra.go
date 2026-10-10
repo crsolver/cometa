@@ -1,0 +1,861 @@
+package rt
+
+import (
+	"encoding/json"
+	"fmt"
+	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
+	"image"
+	"math"
+	"math/rand/v2"
+	"os"
+	"path/filepath"
+	"sort"
+	"strconv"
+	"strings"
+	"unicode"
+)
+
+// Native implementations for azar.semilla, datos, gamepad input, graficos.Hoja and std/pincel/rejilla.
+
+// --- audio: sounds built in memory. Like loaded sounds they are 48 kHz, 16-bit, stereo PCM.
+type _hgOnda int64
+
+const _hgaudioFrecuencia = 48000
+
+// _hgaudioMuestras turns one sample per frame (-1..1) into PCM, with a 5 ms fade at both ends so the sound does not click.
+func _hgaudioMuestras(duracion, volumen float64, muestra func(i int) float64) *_hgSonido {
+	if !(duracion > 0) {
+		return &_hgSonido{pcm: []byte{}}
+	}
+	if duracion > 30 {
+		duracion = 30
+	}
+	if !(volumen > 0) {
+		volumen = 0
+	}
+	if volumen > 1 {
+		volumen = 1
+	}
+	n, borde := int(duracion*_hgaudioFrecuencia), _hgaudioFrecuencia/200
+	if borde*2 > n {
+		borde = n / 2
+	}
+	pcm := make([]byte, n*4)
+	for i := 0; i < n; i++ {
+		v := muestra(i) * volumen * 0.5
+		if i < borde {
+			v *= float64(i) / float64(borde)
+		}
+		if n-1-i < borde {
+			v *= float64(n-1-i) / float64(borde)
+		}
+		s := int16(v * 32767)
+		pcm[i*4], pcm[i*4+1], pcm[i*4+2], pcm[i*4+3] = byte(s), byte(s>>8), byte(s), byte(s>>8)
+	}
+	return &_hgSonido{pcm}
+}
+func _hgaudioTono(frecuencia, duracion float64, onda _hgOnda, hasta, volumen float64) *_hgSonido {
+	if !(frecuencia > 0) {
+		frecuencia = 0
+	}
+	if !(hasta > 0) {
+		hasta = frecuencia
+	}
+	if frecuencia > 20000 {
+		frecuencia = 20000
+	}
+	if hasta > 20000 {
+		hasta = 20000
+	}
+	n := duracion * _hgaudioFrecuencia
+	fase := 0.0
+	return _hgaudioMuestras(duracion, volumen, func(i int) float64 {
+		// The phase accumulates, so a frequency slide stays continuous.
+		f := frecuencia
+		if n > 1 {
+			f += (hasta - frecuencia) * float64(i) / n
+		}
+		p := fase
+		fase += f / _hgaudioFrecuencia
+		fase -= math.Floor(fase)
+		switch onda {
+		case 1:
+			return 1 - 4*math.Abs(p-0.5)
+		case 2:
+			return 2*p - 1
+		case 3:
+			return math.Sin(2 * math.Pi * p)
+		}
+		if p < 0.5 {
+			return 1
+		}
+		return -1
+	})
+}
+func _hgaudioRuido(duracion, volumen float64) *_hgSonido {
+	// A fixed xorshift seed: the same noise on every run, independent of std/azar.
+	estado := uint32(0x9e3779b9)
+	return _hgaudioMuestras(duracion, volumen, func(int) float64 {
+		estado ^= estado << 13
+		estado ^= estado >> 17
+		estado ^= estado << 5
+		return float64(estado)/2147483648 - 1
+	})
+}
+
+// _hgaudioRemuestrear plays a sound faster and higher (pitch > 1) or slower and lower, by linear interpolation.
+func _hgaudioRemuestrear(sound *_hgSonido, pitch float64) *_hgSonido {
+	if !(pitch > 0) || pitch == 1 {
+		return sound
+	}
+	if pitch < 0.25 {
+		pitch = 0.25
+	}
+	if pitch > 4 {
+		pitch = 4
+	}
+	frames := len(sound.pcm) / 4
+	n := int(float64(frames) / pitch)
+	if frames < 2 || n < 1 {
+		return sound
+	}
+	at := func(frame, canal int) float64 {
+		return float64(int16(uint16(sound.pcm[frame*4+canal*2]) | uint16(sound.pcm[frame*4+canal*2+1])<<8))
+	}
+	pcm := make([]byte, n*4)
+	for i := 0; i < n; i++ {
+		pos := float64(i) * pitch
+		a := int(pos)
+		if a > frames-1 {
+			a = frames - 1
+		}
+		b := a + 1
+		if b > frames-1 {
+			b = frames - 1
+		}
+		t := pos - float64(a)
+		for canal := 0; canal < 2; canal++ {
+			s := int16(at(a, canal) + (at(b, canal)-at(a, canal))*t)
+			pcm[i*4+canal*2], pcm[i*4+canal*2+1] = byte(s), byte(s>>8)
+		}
+	}
+	return &_hgSonido{pcm}
+}
+
+// --- azar: a private generator so a seed makes a run reproducible.
+var _hgazarGen = rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64()))
+
+func _hgazarSemilla(n int64) {
+	_hgazarGen = rand.New(rand.NewPCG(uint64(n), uint64(n)^0x9e3779b97f4a7c15))
+}
+
+// --- datos: a small key-value store kept in the user's config folder. _hgdatosCarpeta is defined by the compiler.
+var _hgdatosDatos map[string]string
+
+// datos.juego replaces the compiler's project-derived folder with a stable name.
+var _hgdatosNombre string
+
+func _hgdatosJuego(nombre string) {
+	var b strings.Builder
+	for _, r := range strings.TrimSpace(nombre) {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_' || r == '-' {
+			b.WriteRune(r)
+		} else {
+			b.WriteByte('_')
+		}
+	}
+	if b.Len() == 0 {
+		panic("datos.juego: el nombre no puede estar vacío")
+	}
+	_hgdatosNombre = b.String()
+	_hgdatosDatos = nil
+}
+func _hgdatosArchivo() (string, string, error) {
+	// cometa captura y cometa probar apuntan aquí a una carpeta propia para no tocar los datos del jugador.
+	if dir := os.Getenv("COMETA_DATOS"); dir != "" {
+		return dir, filepath.Join(dir, "datos.json"), nil
+	}
+	base, err := os.UserConfigDir()
+	if err != nil {
+		return "", "", err
+	}
+	carpeta := _hgdatosCarpeta
+	if _hgdatosNombre != "" {
+		carpeta = _hgdatosNombre
+	}
+	dir := filepath.Join(base, "cometa", carpeta)
+	return dir, filepath.Join(dir, "datos.json"), nil
+}
+func _hgdatosClaves() *[]string {
+	_hgdatosCargar()
+	out := make([]string, 0, len(_hgdatosDatos))
+	for k := range _hgdatosDatos {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return &out
+}
+func _hgdatosGuardarEntero(clave string, valor int64) struct {
+	tag      int
+	payload2 string
+} {
+	return _hgdatosGuardar(clave, strconv.FormatInt(valor, 10))
+}
+func _hgdatosGuardarDecimal(clave string, valor float64) struct {
+	tag      int
+	payload2 string
+} {
+	if math.IsNaN(valor) || math.IsInf(valor, 0) {
+		return struct {
+			tag      int
+			payload2 string
+		}{tag: 2, payload2: "el valor debe ser un número finito"}
+	}
+	return _hgdatosGuardar(clave, strconv.FormatFloat(valor, 'g', -1, 64))
+}
+func _hgdatosLeerEntero(clave string) struct {
+	tag      int
+	payload1 int64
+} {
+	v := _hgdatosLeer(clave)
+	if n, err := strconv.ParseInt(strings.TrimSpace(v.payload1), 10, 64); v.tag == 1 && err == nil {
+		return struct {
+			tag      int
+			payload1 int64
+		}{tag: 1, payload1: n}
+	}
+	return struct {
+		tag      int
+		payload1 int64
+	}{}
+}
+func _hgdatosLeerDecimal(clave string) struct {
+	tag      int
+	payload1 float64
+} {
+	v := _hgdatosLeer(clave)
+	if n, err := strconv.ParseFloat(strings.TrimSpace(v.payload1), 64); v.tag == 1 && err == nil && !math.IsNaN(n) && !math.IsInf(n, 0) {
+		return struct {
+			tag      int
+			payload1 float64
+		}{tag: 1, payload1: n}
+	}
+	return struct {
+		tag      int
+		payload1 float64
+	}{}
+}
+func _hgdatosCargar() {
+	if _hgdatosDatos != nil {
+		return
+	}
+	_hgdatosDatos = map[string]string{}
+	_, file, err := _hgdatosArchivo()
+	if err != nil {
+		return
+	}
+	data, err := os.ReadFile(file)
+	if err != nil {
+		return
+	}
+	loaded := map[string]string{}
+	if json.Unmarshal(data, &loaded) == nil {
+		_hgdatosDatos = loaded
+	}
+}
+func _hgdatosEscribir() error {
+	dir, file, err := _hgdatosArchivo()
+	if err != nil {
+		return err
+	}
+	if err = os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	data, err := json.MarshalIndent(_hgdatosDatos, "", " ")
+	if err != nil {
+		return err
+	}
+	tmp := file + ".tmp"
+	if err = os.WriteFile(tmp, data, 0o644); err != nil {
+		return err
+	}
+	return os.Rename(tmp, file)
+}
+func _hgdatosLeer(clave string) struct {
+	tag      int
+	payload1 string
+} {
+	_hgdatosCargar()
+	if v, ok := _hgdatosDatos[clave]; ok {
+		return struct {
+			tag      int
+			payload1 string
+		}{tag: 1, payload1: v}
+	}
+	return struct {
+		tag      int
+		payload1 string
+	}{}
+}
+func _hgdatosGuardar(clave, valor string) struct {
+	tag      int
+	payload2 string
+} {
+	if clave == "" {
+		return struct {
+			tag      int
+			payload2 string
+		}{tag: 2, payload2: "la clave no puede estar vacía"}
+	}
+	_hgdatosCargar()
+	_hgdatosDatos[clave] = valor
+	if err := _hgdatosEscribir(); err != nil {
+		return struct {
+			tag      int
+			payload2 string
+		}{tag: 2, payload2: "no se pudieron guardar los datos: " + err.Error()}
+	}
+	return struct {
+		tag      int
+		payload2 string
+	}{tag: 1}
+}
+func _hgdatosBorrar(clave string) struct {
+	tag      int
+	payload2 string
+} {
+	_hgdatosCargar()
+	if _, ok := _hgdatosDatos[clave]; !ok {
+		return struct {
+			tag      int
+			payload2 string
+		}{tag: 1}
+	}
+	delete(_hgdatosDatos, clave)
+	if err := _hgdatosEscribir(); err != nil {
+		return struct {
+			tag      int
+			payload2 string
+		}{tag: 2, payload2: "no se pudieron guardar los datos: " + err.Error()}
+	}
+	return struct {
+		tag      int
+		payload2 string
+	}{tag: 1}
+}
+
+// --- gamepad: only pads with the standard layout, numbered from 0 in a stable order.
+type _hgBotonMando ebiten.StandardGamepadButton
+type _hgEjeMando ebiten.StandardGamepadAxis
+
+func _hgmandoIds() []ebiten.GamepadID {
+	var ids []ebiten.GamepadID
+	for _, id := range ebiten.AppendGamepadIDs(nil) {
+		if ebiten.IsStandardGamepadLayoutAvailable(id) {
+			ids = append(ids, id)
+		}
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	return ids
+}
+func _hgmandos() int64 {
+	if _hgguionActivo {
+		if _hgsimMando {
+			return 1
+		}
+		return 0
+	}
+	return int64(len(_hgmandoIds()))
+}
+func _hgmandoId(m int64) (ebiten.GamepadID, bool) {
+	ids := _hgmandoIds()
+	if m < 0 || m >= int64(len(ids)) {
+		return 0, false
+	}
+	return ids[m], true
+}
+func _hgmandoBoton(m int64, b _hgBotonMando) bool {
+	if _hgguionActivo {
+		return m == 0 && _hgsimMantenida(-100-int(b))
+	}
+	id, ok := _hgmandoId(m)
+	return ok && ebiten.IsStandardGamepadButtonPressed(id, ebiten.StandardGamepadButton(b))
+}
+func _hgmandoBotonPresionado(m int64, b _hgBotonMando) bool {
+	if _hgguionActivo {
+		return m == 0 && _hgsimPresionada(-100-int(b))
+	}
+	id, ok := _hgmandoId(m)
+	return ok && inpututil.IsStandardGamepadButtonJustPressed(id, ebiten.StandardGamepadButton(b))
+}
+func _hgmandoEje(m int64, e _hgEjeMando, zonaMuerta float64) float64 {
+	var v float64
+	if _hgguionActivo {
+		if m != 0 {
+			return 0
+		}
+		v = _hgsimEjes[int(e)]
+	} else {
+		id, ok := _hgmandoId(m)
+		if !ok {
+			return 0
+		}
+		v = ebiten.StandardGamepadAxisValue(id, ebiten.StandardGamepadAxis(e))
+	}
+	if math.Abs(v) < zonaMuerta {
+		return 0
+	}
+	return v
+}
+
+// --- graficos.Hoja: an image cut into equal cells numbered left to right, top to bottom.
+type _hgHoja struct {
+	img                *_hgImagen
+	cw, ch, cols, rows int64
+}
+
+func _hghoja(img *_hgImagen, cw, ch int64) *_hgHoja {
+	b := img.bounds()
+	w, h := int64(b.Dx()), int64(b.Dy())
+	if cw <= 0 || ch <= 0 {
+		panic("graficos.hoja: el tamaño de cada cuadro debe ser positivo")
+	}
+	if cw > w || ch > h {
+		panic(fmt.Sprintf("graficos.hoja: un cuadro de %dx%d no cabe en una imagen de %dx%d", cw, ch, w, h))
+	}
+	return &_hgHoja{img, cw, ch, w / cw, h / ch}
+}
+func _hgcuadros(h *_hgHoja) int64        { return h.cols * h.rows }
+func _hgtamanoCuadro(h *_hgHoja) _hgVec2 { return _hgVec2{float64(h.cw), float64(h.ch)} }
+
+// Indexes outside the sheet draw nothing, so -1 works as an empty tile.
+func _hgcuadro(h *_hgHoja, i int64, p, o, s _hgVec2, r float64, c _hgColor, espejoH, espejoV bool, f _hgColor) {
+	if i < 0 || i >= h.cols*h.rows {
+		return
+	}
+	if espejoH {
+		s.X = -s.X
+		o.X = float64(h.cw) - o.X
+	}
+	if espejoV {
+		s.Y = -s.Y
+		o.Y = float64(h.ch) - o.Y
+	}
+	src := _hgRect{_hgVec2{float64((i % h.cols) * h.cw), float64((i / h.cols) * h.ch)}, _hgVec2{float64(h.cw), float64(h.ch)}}
+	_hgregion(h.img, src, p, o, s, r, c, f)
+}
+func _hgcuadroXY(h *_hgHoja, i int64, x, y float64, o, s _hgVec2, r float64, c _hgColor, espejoH, espejoV bool, f _hgColor) {
+	_hgcuadro(h, i, _hgVec2{x, y}, o, s, r, c, espejoH, espejoV, f)
+}
+
+// --- rejilla.Rejilla: a grid of integers, typically tile indexes (-1 for empty).
+type _hgRejilla struct {
+	cols, rows int64
+	cells      []int64
+}
+
+func _hgrejillaNueva(cols, rows, valor int64) *_hgRejilla {
+	if cols <= 0 || rows <= 0 || cols > 65536 || rows > 65536 || cols*rows > 16777216 {
+		panic("rejilla.nueva: las columnas y filas deben ser positivas (máximo 16 millones de celdas)")
+	}
+	cells := make([]int64, cols*rows)
+	if valor != 0 {
+		for i := range cells {
+			cells[i] = valor
+		}
+	}
+	return &_hgRejilla{cols, rows, cells}
+}
+func _hgrejillaDesdeTexto(lista *[]string, simbolos map[string]int64) *_hgRejilla {
+	filas := *lista
+	if len(filas) == 0 {
+		panic("rejilla.desde_texto requiere al menos una fila")
+	}
+	width := len([]rune(filas[0]))
+	if width == 0 {
+		panic("rejilla.desde_texto: la primera fila está vacía")
+	}
+	g := &_hgRejilla{int64(width), int64(len(filas)), make([]int64, width*len(filas))}
+	for y, fila := range filas {
+		runes := []rune(fila)
+		if len(runes) != width {
+			panic(fmt.Sprintf("rejilla.desde_texto: la fila %d mide %d caracteres y la primera %d", y+1, len(runes), width))
+		}
+		for x, r := range runes {
+			v, ok := simbolos[string(r)]
+			if !ok {
+				panic(fmt.Sprintf("rejilla.desde_texto: el símbolo %q (fila %d, columna %d) no está en el mapa de símbolos", string(r), y+1, x+1))
+			}
+			g.cells[y*width+x] = v
+		}
+	}
+	return g
+}
+
+// One row per line, integers separated by commas. A line starting with "#" names the layer that follows and
+// "//" starts a comment. An empty capa selects the first layer (or the whole text when it has no headers).
+func _hgrejillaDesdeCsv(texto, capa string) *_hgRejilla {
+	var cells []int64
+	var capas []string
+	width, rows, actual := 0, 0, ""
+	for n, linea := range strings.Split(strings.TrimPrefix(texto, "\xEF\xBB\xBF"), "\n") {
+		linea = strings.TrimSpace(linea)
+		if linea == "" || strings.HasPrefix(linea, "//") || strings.HasPrefix(linea, "@") {
+			continue
+		}
+		if strings.HasPrefix(linea, "#") {
+			if capa == "" && rows > 0 {
+				break
+			}
+			actual = strings.TrimSpace(linea[1:])
+			capas = append(capas, actual)
+			continue
+		}
+		if capa != "" && actual != capa {
+			continue
+		}
+		valores := strings.Split(linea, ",")
+		if rows == 0 {
+			width = len(valores)
+		}
+		if len(valores) != width {
+			panic(fmt.Sprintf("rejilla.desde_csv: la línea %d tiene %d valores y la primera fila %d", n+1, len(valores), width))
+		}
+		for x, s := range valores {
+			s = strings.TrimSpace(s)
+			v, err := strconv.ParseInt(s, 10, 64)
+			if strings.HasPrefix(s, "0x") {
+				v, err = strconv.ParseInt(s[2:], 16, 64)
+			}
+			if err != nil {
+				panic(fmt.Sprintf("rejilla.desde_csv: %q (línea %d, columna %d) no es un número entero", s, n+1, x+1))
+			}
+			cells = append(cells, v)
+		}
+		rows++
+	}
+	if rows == 0 {
+		if capa != "" {
+			panic(fmt.Sprintf("rejilla.desde_csv: no hay una capa %q con filas (capas del texto: %s)", capa, strings.Join(capas, ", ")))
+		}
+		panic("rejilla.desde_csv: el texto no tiene ninguna fila")
+	}
+	return &_hgRejilla{int64(width), int64(rows), cells}
+}
+func (g *_hgRejilla) Columnas() int64        { return g.cols }
+func (g *_hgRejilla) Filas() int64           { return g.rows }
+func (g *_hgRejilla) dentro(x, y int64) bool { return x >= 0 && y >= 0 && x < g.cols && y < g.rows }
+func (g *_hgRejilla) Obtener(x, y int64) struct {
+	tag      int
+	payload1 int64
+} {
+	if !g.dentro(x, y) {
+		return struct {
+			tag      int
+			payload1 int64
+		}{}
+	}
+	return struct {
+		tag      int
+		payload1 int64
+	}{tag: 1, payload1: g.cells[y*g.cols+x]}
+}
+func (g *_hgRejilla) Poner(x, y, valor int64) bool {
+	if !g.dentro(x, y) {
+		return false
+	}
+	g.cells[y*g.cols+x] = valor
+	return true
+}
+func (g *_hgRejilla) Rellenar(valor int64) {
+	for i := range g.cells {
+		g.cells[i] = valor
+	}
+}
+func (g *_hgRejilla) Buscar(valor int64) *[]_hgVec2 {
+	out := []_hgVec2{}
+	for i, v := range g.cells {
+		if v == valor {
+			out = append(out, _hgVec2{float64(int64(i) % g.cols), float64(int64(i) / g.cols)})
+		}
+	}
+	return &out
+}
+
+// cubiertas calls f(x, y, value) for every grid cell touched by area, row by row, until f returns true.
+func (g *_hgRejilla) cubiertas(area _hgRect, celda _hgVec2, f func(x, y, v int64) bool) bool {
+	if !(area.Tamano.X > 0) || !(area.Tamano.Y > 0) {
+		return false
+	}
+	fx0, fx1 := math.Floor(area.Pos.X/celda.X), math.Ceil((area.Pos.X+area.Tamano.X)/celda.X)-1
+	fy0, fy1 := math.Floor(area.Pos.Y/celda.Y), math.Ceil((area.Pos.Y+area.Tamano.Y)/celda.Y)-1
+	x0, x1 := int64(math.Max(fx0, 0)), int64(math.Min(fx1, float64(g.cols-1)))
+	y0, y1 := int64(math.Max(fy0, 0)), int64(math.Min(fy1, float64(g.rows-1)))
+	for y := y0; y <= y1; y++ {
+		for x := x0; x <= x1; x++ {
+			if f(x, y, g.cells[y*g.cols+x]) {
+				return true
+			}
+		}
+	}
+	return false
+}
+func _hgrejillaCelda(nombre string, celda _hgVec2) {
+	if !(celda.X > 0) || !(celda.Y > 0) || math.IsInf(celda.X, 0) || math.IsInf(celda.Y, 0) {
+		panic("rejilla." + nombre + ": el tamaño de celda debe ser positivo")
+	}
+}
+func _hgrejillaEn(v int64, lista []int64) bool {
+	for _, s := range lista {
+		if s == v {
+			return true
+		}
+	}
+	return false
+}
+
+// Choca reports whether any cell touched by area holds one of the solid values; cells outside the grid are never solid.
+func (g *_hgRejilla) Choca(area _hgRect, celda _hgVec2, solidos *[]int64) bool {
+	_hgrejillaCelda("choca", celda)
+	return g.cubiertas(area, celda, func(_, _, v int64) bool { return _hgrejillaEn(v, *solidos) })
+}
+func (g *_hgRejilla) Celda_en(punto, celda _hgVec2) struct {
+	tag      int
+	payload1 int64
+} {
+	_hgrejillaCelda("celda_en", celda)
+	if math.IsNaN(punto.X) || math.IsNaN(punto.Y) {
+		return struct {
+			tag      int
+			payload1 int64
+		}{}
+	}
+	fx, fy := math.Floor(punto.X/celda.X), math.Floor(punto.Y/celda.Y)
+	if fx < 0 || fy < 0 || fx >= float64(g.cols) || fy >= float64(g.rows) {
+		return struct {
+			tag      int
+			payload1 int64
+		}{}
+	}
+	return g.Obtener(int64(fx), int64(fy))
+}
+
+// Valores_en lists the distinct values under area, in row order of first appearance.
+func (g *_hgRejilla) Valores_en(area _hgRect, celda _hgVec2) *[]int64 {
+	_hgrejillaCelda("valores_en", celda)
+	out := []int64{}
+	g.cubiertas(area, celda, func(_, _, v int64) bool {
+		if !_hgrejillaEn(v, out) {
+			out = append(out, v)
+		}
+		return false
+	})
+	return &out
+}
+
+// Mover slides area by delta (x first, then y) and returns the displacement actually applied: it stops flush against solid cells.
+// Platform cells only stop downward movement that starts above their top edge, so they can be crossed from below.
+func (g *_hgRejilla) Mover(area _hgRect, celda, delta _hgVec2, solidos, plataformas *[]int64) _hgVec2 {
+	_hgrejillaCelda("mover", celda)
+	var out _hgVec2
+	out.X = g.moverEje(area, celda, delta.X, true, *solidos, nil)
+	area.Pos.X += out.X
+	out.Y = g.moverEje(area, celda, delta.Y, false, *solidos, *plataformas)
+	return out
+}
+func (g *_hgRejilla) moverEje(area _hgRect, celda _hgVec2, d float64, horizontal bool, solidos, plataformas []int64) float64 {
+	if d == 0 || math.IsNaN(d) || math.IsInf(d, 0) {
+		return 0
+	}
+	size := celda.Y
+	if horizontal {
+		size = celda.X
+	}
+	n := math.Ceil(math.Abs(d) / (size / 2))
+	if n > 4096 {
+		n = 4096
+	}
+	step := d / n
+	base := area.Pos.Y + area.Tamano.Y
+	hit := func(s float64) bool {
+		a := area
+		if horizontal {
+			a.Pos.X += s
+		} else {
+			a.Pos.Y += s
+		}
+		if g.Choca(a, celda, &solidos) {
+			return true
+		}
+		if d <= 0 || len(plataformas) == 0 {
+			return false
+		}
+		return g.cubiertas(a, celda, func(_, y, v int64) bool { return _hgrejillaEn(v, plataformas) && float64(y)*celda.Y >= base-1e-9 })
+	}
+	moved := 0.0
+	for i := 0.0; i < n; i++ {
+		if !hit(moved + step) {
+			moved += step
+			continue
+		}
+		lo, hi := moved, moved+step
+		for j := 0; j < 30; j++ {
+			m := (lo + hi) / 2
+			if hit(m) {
+				hi = m
+			} else {
+				lo = m
+			}
+		}
+		return lo
+	}
+	return d
+}
+
+// Animated values are replaced by one of their frames, chosen from the update counter so every tile stays in step.
+// A color grid holds 0xRRGGBB per cell; negative cells and cells outside it keep the tint.
+func _hgrejillaDibujar(g *_hgRejilla, h *_hgHoja, pos, escala _hgVec2, tinte _hgColor, animaciones map[int64]*[]int64, fps float64, colores struct {
+	tag      int
+	payload1 *_hgRejilla
+}) {
+	_hgdraw()
+	w, hh := _hgtamano().X, _hgtamano().Y
+	dx, dy := float64(h.cw)*escala.X, float64(h.ch)*escala.Y
+	paso := int64(0)
+	if fps > 0 && !math.IsInf(fps, 0) {
+		paso = int64(float64(_hgtick) * fps / float64(_hgconfig.Tps))
+	}
+	for y := int64(0); y < g.rows; y++ {
+		for x := int64(0); x < g.cols; x++ {
+			v := g.cells[y*g.cols+x]
+			if cuadros := animaciones[v]; cuadros != nil && len(*cuadros) > 0 {
+				v = (*cuadros)[paso%int64(len(*cuadros))]
+			}
+			if v < 0 || v >= h.cols*h.rows {
+				continue
+			}
+			dest := _hgVec2{pos.X + float64(x)*dx, pos.Y + float64(y)*dy}
+			if _hgcamara.Rotacion == 0 {
+				p := _hgpoint(dest)
+				if p.X+math.Abs(dx)*_hgcamara.Zoom < 0 || p.Y+math.Abs(dy)*_hgcamara.Zoom < 0 || p.X > w || p.Y > hh {
+					continue
+				}
+			}
+			c := tinte
+			if colores.tag == 1 && colores.payload1.dentro(x, y) {
+				if rgb := colores.payload1.cells[y*colores.payload1.cols+x]; rgb >= 0 {
+					c = _hgColor{R: uint8(rgb >> 16), G: uint8(rgb >> 8), B: uint8(rgb), A: 255}
+				}
+			}
+			_hgcuadro(h, v, dest, _hgVec2{}, escala, 0, c, false, false, _hgColor{})
+		}
+	}
+}
+
+// Camera helpers mirror _hgcameraMatrix: pantalla = rotar(mundo-pos, -rotacion)*zoom + origen.
+func (c _hgCamara2D) zoom() float64 {
+	if !(c.Zoom > 0) || math.IsInf(c.Zoom, 0) {
+		panic("zoom debe ser positivo y finito")
+	}
+	return c.Zoom
+}
+func (c _hgCamara2D) A_mundo(p _hgVec2) _hgVec2 {
+	return _hgadd(_hgrotar(_hgscale(_hgsub(p, c.Origen), 1/c.zoom()), c.Rotacion), c.Pos)
+}
+func (c _hgCamara2D) A_pantalla(p _hgVec2) _hgVec2 {
+	return _hgadd(_hgscale(_hgrotar(_hgsub(p, c.Pos), -c.Rotacion), c.zoom()), c.Origen)
+}
+func (c _hgCamara2D) Siguiendo(objetivo _hgVec2, suavizado float64) _hgCamara2D {
+	if math.IsNaN(suavizado) {
+		panic("suavizado inválido")
+	}
+	c.Pos = _hgadd(c.Pos, _hgscale(_hgsub(objetivo, c.Pos), _hglimitar(suavizado, 0, 1)))
+	return c
+}
+
+// Visible is the world-space bounding box of the logical screen.
+func (c _hgCamara2D) Visible() _hgRect {
+	s := _hgtamano()
+	x0, y0, x1, y1 := math.Inf(1), math.Inf(1), math.Inf(-1), math.Inf(-1)
+	for _, q := range []_hgVec2{{0, 0}, {s.X, 0}, {0, s.Y}, {s.X, s.Y}} {
+		p := c.A_mundo(q)
+		x0, y0, x1, y1 = math.Min(x0, p.X), math.Min(y0, p.Y), math.Max(x1, p.X), math.Max(y1, p.Y)
+	}
+	return _hgRect{_hgVec2{x0, y0}, _hgVec2{x1 - x0, y1 - y0}}
+}
+
+// Limitada keeps the (unrotated) view inside mundo, centering on axes where the world is smaller than the view.
+func (c _hgCamara2D) Limitada(mundo _hgRect) _hgCamara2D {
+	z, s := c.zoom(), _hgtamano()
+	eje := func(pos, origen, pantalla, inicio, largo float64) float64 {
+		ancho := pantalla / z
+		izq := pos - origen/z
+		if ancho >= largo {
+			izq = inicio + (largo-ancho)/2
+		} else {
+			izq = _hglimitar(izq, inicio, inicio+largo-ancho)
+		}
+		return izq + origen/z
+	}
+	c.Pos = _hgVec2{eje(c.Pos.X, c.Origen.X, s.X, mundo.Pos.X, mundo.Tamano.X), eje(c.Pos.Y, c.Origen.Y, s.Y, mundo.Pos.Y, mundo.Tamano.Y)}
+	return c
+}
+func (c _hgCamara2D) Sacudida(intensidad float64) _hgCamara2D {
+	if !(intensidad > 0) || math.IsInf(intensidad, 0) {
+		return c
+	}
+	c.Pos = _hgadd(c.Pos, _hgVec2{_hgazarReal(-intensidad, intensidad), _hgazarReal(-intensidad, intensidad)})
+	return c
+}
+
+type _hgTemporizador struct {
+	duracion, transcurrido float64
+	repetir                bool
+}
+
+func _hgtemporizador(duracion float64, repetir bool) *_hgTemporizador {
+	if !(duracion > 0) || math.IsInf(duracion, 0) {
+		panic("tiempo.temporizador: la duración debe ser positiva y finita")
+	}
+	return &_hgTemporizador{duracion: duracion, repetir: repetir}
+}
+
+// Avanzar reports whether the timer fired during this step; a repeating timer keeps the overflow.
+func (t *_hgTemporizador) Avanzar(dt float64) bool {
+	if !(dt >= 0) || math.IsInf(dt, 0) {
+		panic("temporizador.avanzar: dt debe ser positivo y finito")
+	}
+	if t.Terminado() {
+		return false
+	}
+	t.transcurrido += dt
+	if t.transcurrido < t.duracion {
+		return false
+	}
+	if t.repetir {
+		t.transcurrido = math.Mod(t.transcurrido, t.duracion)
+	} else {
+		t.transcurrido = t.duracion
+	}
+	return true
+}
+func (t *_hgTemporizador) Terminado() bool   { return !t.repetir && t.transcurrido >= t.duracion }
+func (t *_hgTemporizador) Terminar()         { t.transcurrido = t.duracion }
+func (t *_hgTemporizador) Reiniciar()        { t.transcurrido = 0 }
+func (t *_hgTemporizador) Restante() float64 { return math.Max(0, t.duracion-t.transcurrido) }
+func (t *_hgTemporizador) Progreso() float64 { return math.Min(1, t.transcurrido/t.duracion) }
+
+func _hgventanaCursor(visible bool) {
+	if visible {
+		ebiten.SetCursorMode(ebiten.CursorModeVisible)
+	} else {
+		ebiten.SetCursorMode(ebiten.CursorModeHidden)
+	}
+}
+func _hgventanaIcono(img *_hgImagen) {
+	if p := img.cpu(); p != nil {
+		ebiten.SetWindowIcon([]image.Image{p})
+	}
+}
+func _hgesPantallaCompleta() bool { return ebiten.IsFullscreen() }

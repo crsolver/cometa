@@ -103,68 +103,14 @@ func (g *generator) scalarCase(arm *ast.MatchArm, indent int, subject string) {
 	literals := make([]string, len(arm.Literals))
 	for i, literal := range arm.Literals {
 		if r, ok := literal.(*ast.RangeLabel); ok {
-			literals[i] = fmt.Sprintf("%s >= %s && %s < %s", subject, g.expr(r.Start), subject, g.expr(r.End))
+			literals[i] = fmt.Sprintf("%s >= %s && %s < %s", subject, g.constExpr(r.Start), subject, g.constExpr(r.End))
 		} else if subject != "" {
-			literals[i] = fmt.Sprintf("%s == %s", subject, g.expr(literal))
+			literals[i] = fmt.Sprintf("%s == %s", subject, g.constExpr(literal))
 		} else {
-			literals[i] = g.expr(literal)
+			literals[i] = g.constExpr(literal)
 		}
 	}
 	g.line(indent, "case %s:", strings.Join(literals, ", "))
-}
-
-func (g *generator) emitScalarMatch(m *ast.MatchExpr, indent int, returnValue bool) {
-	name := g.freshName()
-	g.line(indent, "{")
-	g.line(indent+1, "%s := %s", name, g.expr(m.Value))
-	subject := g.scalarSwitch(m, name, indent+1)
-	wildcard := false
-	for _, arm := range m.Arms {
-		g.scalarCase(arm, indent+1, subject)
-		wildcard = wildcard || arm.Pattern == "_"
-		g.emitBlock(arm.Body, indent+2, returnValue)
-	}
-	// A bool match may be exhaustive without '_'; the default keeps Go's return checker satisfied.
-	if !wildcard {
-		g.line(indent+1, "default:")
-		g.line(indent+2, "panic(\"valor de casos inválido\")")
-	}
-	g.line(indent+1, "}")
-	g.line(indent, "}")
-}
-
-func (g *generator) emitMatch(m *ast.MatchExpr, indent int, returnValue bool) {
-	if g.scalarMatch(m) {
-		g.emitScalarMatch(m, indent, returnValue)
-		return
-	}
-	name := g.freshName()
-	info := g.model.Enums[g.model.ExprTypes[m.Value].Name]
-	g.line(indent, "{")
-	g.line(indent+1, "%s := %s", name, g.expr(m.Value))
-	g.line(indent+1, "switch %s.tag {", name)
-	wildcard := false
-	for _, arm := range m.Arms {
-		if arm.Pattern == "_" {
-			wildcard = true
-			g.line(indent+1, "default:")
-		} else {
-			variant := info.Variants[arm.Pattern]
-			g.line(indent+1, "case %d:", variant.Tag)
-			if m.Binding != "" && variant.Payload.Kind != sema.Void {
-				binding := localName(m.Binding)
-				g.line(indent+2, "%s := %s.payload%d", binding, name, variant.Tag)
-			}
-		}
-		g.emitBlock(arm.Body, indent+2, returnValue)
-	}
-	// The default also makes exhaustiveness visible to Go's return checker.
-	if !wildcard {
-		g.line(indent+1, "default:")
-		g.line(indent+2, "panic(\"valor enum inválido\")")
-	}
-	g.line(indent+1, "}")
-	g.line(indent, "}")
 }
 
 // Only breaks enclosed in a match need labels. Nested loops handle their own
@@ -173,7 +119,9 @@ func needsLoopLabel(body []ast.Stmt, inMatch bool) bool {
 	for _, stmt := range body {
 		switch s := stmt.(type) {
 		case *ast.ScopeStmt:
-			if needsLoopLabel(s.Body, inMatch) { return true }
+			if needsLoopLabel(s.Body, inMatch) {
+				return true
+			}
 		case *ast.BreakStmt:
 			if inMatch {
 				return true

@@ -6,6 +6,7 @@ import (
 )
 
 func TestPruebasAssertions(t *testing.T) {
+	t.Parallel()
 	generated, err := Compile("p.cometa", []byte("usar std/pruebas\n"))
 	if err != nil {
 		t.Fatal(err)

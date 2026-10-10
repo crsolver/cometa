@@ -1,6 +1,11 @@
 package sema
 
-import "github.com/crsolver/cometa/internal/ast"
+import (
+	"fmt"
+	"strings"
+
+	"github.com/crsolver/cometa/internal/ast"
+)
 
 func (c *checker) assertionTarget(source Type, ref ast.TypeRef) (Type, error) {
 	target, err := c.resolveType(ref)
@@ -11,7 +16,7 @@ func (c *checker) assertionTarget(source Type, ref ast.TypeRef) (Type, error) {
 		return Type{}, c.fail(ref.Pos, "como requiere una interfaz, no %s", source.String())
 	}
 	if target.Kind != Interface && target.Kind != TypeParameter && !c.model.Assignable(target, source) {
-		return Type{}, c.fail(ref.Pos, "%s no puede implementar %s", target.String(), source.String())
+		return Type{}, c.fail(ref.Pos, "%s no puede implementar %s%s", target.String(), source.String(), c.unmet(target, source))
 	}
 	return target, nil
 }
@@ -101,9 +106,7 @@ func (c *checker) checkTypeMatch(m *ast.MatchExpr, value bool, expected *Type, s
 				}
 			} else {
 				for _, stmt := range arm.Body {
-					if err := c.checkStmt(stmt); err != nil {
-						return err
-					}
+					c.checkStmt(stmt)
 				}
 			}
 			return nil
@@ -122,4 +125,95 @@ func (c *checker) checkTypeMatch(m *ast.MatchExpr, value bool, expected *Type, s
 	}
 	c.model.ExprTypes[m] = result
 	return result, nil
+}
+
+// Unmet explains why from does not implement the interface to, naming the first
+// requirement (in alphabetical order) that fails. It returns "" when to is not
+// an interface or from implements it. It follows the rules of Assignable.
+func (m *Model) Unmet(from, to Type) string {
+	if to.Wrapped() && !from.Wrapped() {
+		to = *to.Elem
+	}
+	if to.Kind != Interface || from.Kind == Void || from.Kind == Invalid || m.Assignable(from, to) {
+		return ""
+	}
+	if from.Kind == Map {
+		return "las operaciones de un mapa no cuentan como métodos de una interfaz"
+	}
+	wanted := m.Methods(to)
+	have := m.Methods(from)
+	var members map[string]MemberInfo
+	if from.Kind == Named {
+		members = m.Members(from)
+	}
+	for _, name := range sortedKeys(wanted) {
+		want := wanted[name]
+		full := from.String() + "." + name
+		member, declared := members[name]
+		switch {
+		case member.Ambiguous:
+			return full + " es ambiguo: llega por más de un tipo embebido"
+		case declared && member.Method.Decl == nil:
+			return full + " es un campo, no un método"
+		}
+		actual, ok := have[name]
+		if !ok {
+			return "a " + from.String() + " le falta el método " + methodSignature(name, want)
+		}
+		if declared && !member.Public() {
+			for _, field := range member.Path {
+				if !field.Public {
+					return full + " viene del tipo embebido " + field.Name + ", que no es pub"
+				}
+			}
+			return full + " existe pero no es pub"
+		}
+		if sameSignature(actual, want) {
+			continue
+		}
+		if sameSignature(FuncInfo{Decl: actual.Decl, Params: actual.Params, Return: want.Return}, want) {
+			return full + " " + returns(actual.Return, "devuelve %s", "no devuelve nada") + " y " + to.String() + " pide " + returns(want.Return, "%s", "que no devuelva nada")
+		}
+		return full + " es " + methodSignature(name, actual) + " y " + to.String() + " pide " + methodSignature(name, want)
+	}
+	return ""
+}
+
+func returns(t Type, format, none string) string {
+	if t.Kind == Void {
+		return none
+	}
+	return fmt.Sprintf(format, t.String())
+}
+
+// methodSignature writes a method the way its declaration does, without 'fn'.
+func methodSignature(name string, f FuncInfo) string {
+	var b strings.Builder
+	b.WriteString(name + "(")
+	for i, param := range f.Params {
+		if i > 0 {
+			b.WriteString(", ")
+		}
+		if f.Decl != nil && i < len(f.Decl.Params) {
+			b.WriteString(f.Decl.Params[i].Name + " ")
+			if f.Decl.Params[i].Variadic && param.Kind == Slice {
+				b.WriteString("..." + param.Elem.String())
+				continue
+			}
+		}
+		b.WriteString(param.String())
+	}
+	b.WriteString(")")
+	if f.Return.Kind != Void {
+		b.WriteString(" " + f.Return.String())
+	}
+	return b.String()
+}
+
+// unmet is Unmet as the ending of a type mismatch message.
+func (c *checker) unmet(from, to Type) string {
+	if reason := c.model.Unmet(from, to); reason != "" {
+		return ": " + reason
+	}
+	return ""
 }

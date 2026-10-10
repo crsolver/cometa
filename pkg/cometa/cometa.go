@@ -102,7 +102,10 @@ func run(entry string, options Options, generate bool) ([]byte, error) {
 	)
 	switch {
 	case !generate:
-		_, err = compiler.AnalyzeProject(entry, loader)
+		var project *compiler.Project
+		if project, err = compiler.AnalyzeProject(entry, loader); err == nil {
+			err = project.LoadAssets()
+		}
 	case options.LineDirectives:
 		generated, err = compiler.CompileProjectForRun(entry, loader)
 	default:
@@ -187,6 +190,12 @@ func (m *memoryProject) load(path string) ([]byte, error) {
 
 // key maps a canonical path back to the caller's spelling of it.
 func (m *memoryProject) key(path string) string {
+	// Diagnostics carry display paths, which keep the case the caller wrote.
+	if canonical, err := compiler.CanonicalPath(path); err == nil {
+		if key, ok := m.keys[canonical]; ok {
+			return key
+		}
+	}
 	if key, ok := m.keys[path]; ok {
 		return key
 	}

@@ -85,13 +85,16 @@ func TestMemoryMissingFiles(t *testing.T) {
 }
 
 func TestMemoryLineDirectivesAreRelative(t *testing.T) {
-	files := project(map[string]string{"principal.cometa": "fn inicio()\n\timprimir(1)\n"})
+	files := project(map[string]string{"principal.cometa": "fn inicio()\n\tvar lista = [1]\n\timprimir(lista[0])\n"})
 	generated, err := cometa.Compile("principal.cometa", cometa.Options{Files: files, LineDirectives: true})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !bytes.Contains(generated, []byte("//line principal.cometa:")) {
 		t.Fatalf("missing relative //line directive:\n%s", generated)
+	}
+	if !bytes.Contains(generated, []byte("/*line principal.cometa#16:3*/")) {
+		t.Fatalf("missing relative column directive:\n%s", generated)
 	}
 	if bytes.Contains(generated, []byte("cometa-memoria")) {
 		t.Fatal("virtual directory leaked into generated code")

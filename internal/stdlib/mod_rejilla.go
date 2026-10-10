@@ -1,0 +1,45 @@
+package stdlib
+
+var rejillaModule = Module{
+	Name: "rejilla",
+	Path: "std/pincel/rejilla",
+	Doc:  "Una cuadrícula de números para mapas de tiles: crearla, leer y escribir celdas, dibujarla con una hoja de sprites y comprobar colisiones con celdas sólidas.",
+	Types: []Type{
+		{
+			Name: "Rejilla",
+			Doc:  "Una cuadrícula de enteros (por ejemplo un mapa de tiles) creada con rejilla.nueva, rejilla.desde_texto o rejilla.desde_csv; es un objeto compartido, como los demás tipos.",
+			Methods: []Function{
+				{Name: "columnas", Signature: "() entero", GoName: "columnas",
+					Doc: "La cantidad de columnas de la rejilla."},
+				{Name: "filas", Signature: "() entero", GoName: "filas",
+					Doc: "La cantidad de filas de la rejilla."},
+				{Name: "obtener", Signature: "(x entero, y entero) entero?", GoName: "obtener",
+					Doc: "El valor de la celda (x, y), o .Ninguno si está fuera de la rejilla."},
+				{Name: "poner", Signature: "(x entero, y entero, valor entero) bool", GoName: "poner",
+					Doc: "Escribe `valor` en la celda (x, y); devuelve falso si está fuera de la rejilla."},
+				{Name: "rellenar", Signature: "(valor entero)", GoName: "rellenar",
+					Doc: "Pone `valor` en todas las celdas."},
+				{Name: "buscar", Signature: "(valor entero) [Vec2]", GoName: "buscar",
+					Doc: "Las celdas (columna, fila) que contienen `valor`, de arriba abajo y de izquierda a derecha. Sirve para leer de una capa de objetos dónde empieza el jugador o dónde están las llaves: repetir (objetos.buscar(llave)) |celda| ..."},
+				{Name: "choca", Signature: "(area Rect, tamano_celda Vec2, solidos [entero]) bool", GoName: "choca",
+					Doc: "verdadero si `area` toca alguna celda cuyo valor esté en `solidos`; `tamano_celda` es el tamaño de cada celda en el mundo. Lo que queda fuera de la rejilla nunca es sólido."},
+				{Name: "mover", Signature: "(area Rect, tamano_celda Vec2, delta Vec2, solidos [entero], plataformas [entero] = []) Vec2", GoName: "mover",
+					Doc: "Desplaza `area` según `delta` (primero en x y luego en y) sin atravesar celdas sólidas y devuelve lo que realmente se movió: si el resultado en un eje es menor que `delta`, hubo un choque en ese eje. Usa pasos menores que una celda por llamada. Las celdas con un valor de `plataformas` solo frenan al caer sobre ellas desde arriba: se atraviesan al saltar desde abajo o al moverse de lado."},
+				{Name: "celda_en", Signature: "(punto Vec2, tamano_celda Vec2) entero?", GoName: "celdaEn",
+					Doc: "El valor de la celda que contiene el punto del mundo dado, o Ninguno si queda fuera de la rejilla. Útil con el ratón (junto con Camara2D.a_mundo)."},
+				{Name: "valores_en", Signature: "(area Rect, tamano_celda Vec2) [entero]", GoName: "valoresEn",
+					Doc: "Los valores distintos de las celdas que toca `area`, sin repetir. Por ejemplo, un rectángulo de 1 píxel bajo los pies dice si el jugador pisa hielo o pinchos."},
+			},
+		},
+	},
+	Functions: []Function{
+		{Name: "nueva", Signature: "(columnas entero, filas entero, valor entero = 0) Rejilla", GoName: "rejillaNueva",
+			Doc: "Crea una rejilla de `columnas` x `filas` con todas las celdas en `valor` (usa -1 para «vacío» si vas a dibujarla con una hoja)."},
+		{Name: "desde_texto", Signature: "(filas [cadena], simbolos [cadena: entero]) Rejilla", GoName: "rejillaDesdeTexto",
+			Doc: "Crea una rejilla a partir de una fila de texto por fila de celdas; `simbolos` dice qué número vale cada carácter, por ejemplo [\"#\": 1, \".\": 0]. Un carácter desconocido o filas de distinto largo detienen el programa con un mensaje claro."},
+		{Name: "desde_csv", Signature: `(texto cadena, capa cadena = "") Rejilla`, GoName: "rejillaDesdeCsv",
+			Doc: "Crea una rejilla a partir de texto con una fila por línea y los valores separados por comas (el formato `.mapa.txt` de tools/mapa-editor). Una línea que empieza por `#` da nombre a la capa que sigue y `//` inicia un comentario; las líneas de marcas (`@ nombre columna,fila`) se saltan. Los valores pueden escribirse en hexadecimal (`0xFFB915`), como hace el editor con los colores. `capa` elige una capa por su nombre; sin ella se lee la primera. Un valor que no es un entero, filas de distinto largo o una capa que no existe detienen el programa con un mensaje que indica la línea."},
+		{Name: "dibujar", Signature: "(mapa Rejilla, hoja Hoja, pos Vec2 = {}, escala Vec2 = {x: 1, y: 1}, tinte Color = .Blanco, animaciones [entero: [entero]] = [:], cuadros_por_segundo decimal = 8, colores Rejilla? = .Ninguno)", GoName: "rejillaDibujar", Draw: true,
+			Doc: "Dibuja cada celda de la rejilla como el cuadro con ese índice de la hoja, con la esquina superior izquierda en `pos`. Las celdas negativas o fuera de la hoja se omiten y las que quedan fuera de la pantalla no se dibujan. `animaciones` asocia un valor de celda con una lista de cuadros (por ejemplo `[5: [5, 6, 7]]` para agua), que se recorren a `cuadros_por_segundo`. `colores` es otra rejilla con el color de cada celda como número 0xRRGGBB (rojo * 65536 + verde * 256 + azul); las celdas negativas o fuera de ella usan `tinte`."},
+	},
+}

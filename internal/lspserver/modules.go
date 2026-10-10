@@ -11,25 +11,14 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/owenrumney/go-lsp/lsp"
 	"github.com/crsolver/cometa/internal/ast"
 	"github.com/crsolver/cometa/internal/compiler"
 	"github.com/crsolver/cometa/internal/diagnostic"
 	"github.com/crsolver/cometa/internal/lexer"
-	"github.com/crsolver/cometa/internal/parser"
 	"github.com/crsolver/cometa/internal/sema"
 	"github.com/crsolver/cometa/internal/stdlib"
+	"github.com/owenrumney/go-lsp/lsp"
 )
-
-func hasImports(text string) bool {
-	for _, line := range strings.Split(text, "\n") {
-		trimmed := strings.TrimLeft(line, "\t ")
-		if trimmed == "usar" || strings.HasPrefix(trimmed, "usar ") || strings.HasPrefix(trimmed, "usar\t") {
-			return true
-		}
-	}
-	return false
-}
 
 func pathFromURI(uri lsp.DocumentURI) (string, error) {
 	u, err := url.Parse(string(uri))
@@ -60,13 +49,22 @@ func fileURI(path string) lsp.DocumentURI {
 	return lsp.DocumentURI((&url.URL{Scheme: "file", Path: path}).String())
 }
 
-// File-backed analysis must resolve resources against a decoded filesystem
-// path, not the editor's URI spelling (which may encode the drive colon).
-func analysisFilename(uri lsp.DocumentURI) string {
-	if path, err := pathFromURI(uri); err == nil {
-		return path
+// moduleURI is the URI an editor knows a module by: the one it opened the
+// document with, or else the display path of the file. The canonical path is
+// lower-cased on Windows, and an editor would treat that as another document.
+func (h *Handler) moduleURI(p *compiler.Project, path string) lsp.DocumentURI {
+	if strings.HasPrefix(path, "cometa-std:///") {
+		return lsp.DocumentURI(path)
 	}
-	return string(uri)
+	for _, uri := range h.documents.URIs() {
+		if open, err := pathFromURI(uri); err == nil && open == path {
+			return uri
+		}
+	}
+	if p != nil {
+		path = p.DisplayPath(path)
+	}
+	return fileURI(path)
 }
 
 func (h *Handler) sourceLoader() (compiler.SourceLoader, map[string]lsp.DocumentURI) {
@@ -88,10 +86,42 @@ func (h *Handler) sourceLoader() (compiler.SourceLoader, map[string]lsp.Document
 	}, uris
 }
 
+// project analyzes the document and the modules it imports, reading unsaved
+// buffers instead of their files. A document that is not a file (an untitled
+// buffer) is analyzed alone. The result is cached until some text changes.
+// override replaces the text of the document itself, for completion probes,
+// and is never cached.
 func (h *Handler) project(uri lsp.DocumentURI, override *string) (*compiler.Project, error) {
+	if override != nil {
+		return h.analyze(uri, override)
+	}
+	h.analysisMu.Lock()
+	generation := h.generation
+	cached, ok := h.analyses[uri]
+	h.analysisMu.Unlock()
+	if ok && cached.generation == generation {
+		return cached.project, cached.err
+	}
+	p, err := h.analyze(uri, nil)
+	h.analysisMu.Lock()
+	if h.analyses == nil {
+		h.analyses = map[lsp.DocumentURI]analysis{}
+	}
+	// Stored under the generation it was computed for: if the text changed
+	// meanwhile, the next request sees a stale entry and analyzes again.
+	h.analyses[uri] = analysis{generation: generation, project: p, err: err}
+	h.analysisMu.Unlock()
+	return p, err
+}
+
+func (h *Handler) analyze(uri lsp.DocumentURI, override *string) (*compiler.Project, error) {
 	path, err := pathFromURI(uri)
 	if err != nil {
-		return nil, err
+		text, _ := h.documents.Text(uri)
+		if override != nil {
+			text = *override
+		}
+		return compiler.AnalyzeSource(string(uri), []byte(text))
 	}
 	loader, _ := h.sourceLoader()
 	if override != nil {
@@ -111,18 +141,11 @@ func errorFile(err error) string {
 		file, _, _, _ := d.Diagnostic()
 		return file
 	}
-	switch e := err.(type) {
-	case *lexer.Error:
-		return e.Filename
-	case *parser.Error:
-		return e.Filename
-	case *sema.Error:
-		return e.Filename
-	}
 	return ""
 }
 
 func (h *Handler) DidChangeWatchedFiles(ctx context.Context, params *lsp.DidChangeWatchedFilesParams) error {
+	h.invalidate()
 	for _, change := range params.Changes {
 		if err := h.publishProjectDiagnostics(ctx, change.URI); err != nil {
 			return err
@@ -152,6 +175,9 @@ func (h *Handler) publishProjectDiagnostics(ctx context.Context, changed lsp.Doc
 		if !open[uri] {
 			delete(h.reports, uri)
 			delete(h.projects, uri)
+			h.analysisMu.Lock()
+			delete(h.analyses, uri)
+			h.analysisMu.Unlock()
 		}
 	}
 	for _, uri := range h.documents.URIs() {
@@ -166,10 +192,14 @@ func (h *Handler) publishProjectDiagnostics(ctx context.Context, changed lsp.Doc
 		var analysisErr error
 		if _, pathErr := pathFromURI(uri); pathErr == nil {
 			p, err := h.project(uri, nil)
+			if err == nil {
+				// Analysis skips resource files; the cache decodes each one once.
+				err = p.CheckAssets(&h.assets)
+			}
 			h.projects[uri], analysisErr = p, err
 		} else {
 			delete(h.projects, uri)
-			_, _, analysisErr = compiler.Analyze(analysisFilename(uri), []byte(text))
+			_, analysisErr = h.project(uri, nil)
 		}
 		for _, analysisErr := range diagnostic.Flatten(analysisErr) {
 			text := text
@@ -178,7 +208,7 @@ func (h *Handler) publishProjectDiagnostics(ctx context.Context, changed lsp.Doc
 				if original, ok := uris[path]; ok {
 					destination = original
 				} else {
-					destination = fileURI(path)
+					destination = h.moduleURI(h.projects[uri], path)
 				}
 				if data, err := loader(path); err == nil {
 					text = string(data)
@@ -279,7 +309,6 @@ func (h *Handler) moduleHover(params *lsp.HoverParams, text string) *lsp.Hover {
 	if !ok {
 		return nil
 	}
-	id.Pos.Filename = p.Root.Path
 	detail, docs := "", ""
 	if target := p.Root.Imports[id.Lexeme]; target != nil && p.References[id.Pos] != nil {
 		return &lsp.Hover{Contents: lsp.NewHoverContents(lsp.Markdown, "módulo `"+id.Lexeme+"`"), Range: &span}
@@ -339,7 +368,7 @@ func (h *Handler) Definition(_ context.Context, params *lsp.DefinitionParams) ([
 	for _, imp := range p.Root.Program.Imports {
 		if imp.Pos.Line-1 == params.Position.Line {
 			if target := p.Root.Imports[imp.Alias]; target != nil {
-				return []lsp.Location{{URI: fileURI(target.Path), Range: lsp.Range{}}}, nil
+				return []lsp.Location{{URI: h.moduleURI(p, target.Path), Range: lsp.Range{}}}, nil
 			}
 		}
 	}
@@ -351,12 +380,11 @@ func (h *Handler) Definition(_ context.Context, params *lsp.DefinitionParams) ([
 	if !ok {
 		return nil, nil
 	}
-	id.Pos.Filename = p.Root.Path
 	if target := p.Root.Imports[id.Lexeme]; target != nil && p.References[id.Pos] != nil {
-		return []lsp.Location{{URI: fileURI(target.Path), Range: lsp.Range{}}}, nil
+		return []lsp.Location{{URI: h.moduleURI(p, target.Path), Range: lsp.Range{}}}, nil
 	}
 	if d := p.References[id.Pos]; d != nil {
-		return []lsp.Location{declarationLocation(d.Pos, string(d.Module.Source))}, nil
+		return []lsp.Location{declarationLocation(h.moduleURI(p, d.Pos.Filename), d.Pos, string(d.Module.Source))}, nil
 	}
 	if p.Model != nil {
 		for call, info := range p.Model.Calls {
@@ -427,20 +455,20 @@ func calleePosition(expr ast.Expr) ast.Pos {
 
 func (h *Handler) locations(p *compiler.Project, pos ast.Pos) []lsp.Location {
 	if m := p.Modules[pos.Filename]; m != nil {
-		return []lsp.Location{declarationLocation(pos, string(m.Source))}
+		return []lsp.Location{declarationLocation(h.moduleURI(p, pos.Filename), pos, string(m.Source))}
 	}
 	if strings.HasPrefix(pos.Filename, "cometa-std:///") {
 		path := strings.TrimSuffix(strings.TrimPrefix(pos.Filename, "cometa-std:///"), ".cometa")
 		if source, ok := stdlib.Source(path); ok {
-			return []lsp.Location{declarationLocation(pos, source)}
+			return []lsp.Location{declarationLocation(h.moduleURI(p, pos.Filename), pos, source)}
 		}
 	}
 	return nil
 }
 
-func declarationLocation(pos ast.Pos, text string) lsp.Location {
+func declarationLocation(uri lsp.DocumentURI, pos ast.Pos, text string) lsp.Location {
 	start, end := diagnosticRange(pos, text)
-	return lsp.Location{URI: fileURI(pos.Filename), Range: lsp.Range{Start: start, End: end}}
+	return lsp.Location{URI: uri, Range: lsp.Range{Start: start, End: end}}
 }
 
 var moduleSelector = regexp.MustCompile(`([\p{L}_][\p{L}\p{N}_]*(?:\.[\p{L}_][\p{L}\p{N}_]*)*(?:<[^\n]+>)?)\.[\p{L}\p{N}_]*$`)
@@ -492,6 +520,12 @@ func (h *Handler) moduleCompletion(params *lsp.CompletionParams, text string) *l
 	if list, handled := usarPathCompletion(lines, line, prefix); handled {
 		return list
 	}
+	// `Evento<entero>.` names the variants of an instantiated enum, further down.
+	if dot := strings.LastIndex(prefix, "."); dot >= 0 && strings.LastIndex(prefix, "@") < dot && !(dot > 0 && prefix[dot-1] == '>') {
+		if list, handled := h.contextualCompletion(params.TextDocument.URI, lines, line, prefix, dot, memberReceiverStart(prefix, dot)); handled {
+			return list
+		}
+	}
 	match := moduleSelector.FindStringSubmatch(prefix)
 	receiver := ""
 	if len(match) > 0 {
@@ -514,12 +548,13 @@ func (h *Handler) moduleCompletion(params *lsp.CompletionParams, text string) *l
 	if p != nil && p.Model != nil {
 		var selected ast.Expr
 		var resolved sema.Type
-		sema.WalkSyntax(p.Root.Bound, func(node any) {
+		ast.Inspect(p.Root.Bound, func(node any) bool {
 			if member, ok := node.(*ast.MemberExpr); ok && member.Name == "__cometa_probe__" && member.Pos.Line == line+1 {
 				if t, ok := p.Model.ExprTypes[member.Object]; ok {
 					selected, resolved = member.Object, t
 				}
 			}
+			return true
 		})
 		probeResolved := selected != nil
 		for expr, t := range p.Model.ExprTypes {
@@ -533,6 +568,9 @@ func (h *Handler) moduleCompletion(params *lsp.CompletionParams, text string) *l
 			}
 		}
 		if selected != nil {
+			if id, ok := selected.(*ast.IdentExpr); ok && stdlib.Constants[id.Name] != nil {
+				return displayItems(p, constantCompletion(resolved))
+			}
 			if resolved.Numeric() {
 				return displayItems(p, memberItems(p.Model, resolved))
 			}
@@ -696,23 +734,6 @@ func (h *Handler) moduleContextualCompletion(params *lsp.CompletionParams, lines
 			}
 		}
 	}
-	if dot >= 0 {
-		p := h.completionProject(params.TextDocument.URI, lines, line, closeCompletionDelimiters(prefix[:dot+1]+"__cometa_probe__"))
-		if p != nil && p.Model != nil {
-			for expr, t := range p.Model.ExpectedTypes {
-				variant, ok := expr.(*ast.ContextualVariantExpr)
-				if !ok || variant.Name != "__cometa_probe__" || expr.Position().Filename != p.Root.Path || expr.Position().Line != line+1 {
-					continue
-				}
-				if list := gameConstantCompletion(t); list != nil {
-					return displayItems(p, list)
-				}
-				if info := p.Model.EnumFor(t); info != nil {
-					return displayItems(p, enumCompletionItems(info))
-				}
-			}
-		}
-	}
 	if dot < 0 && at < 0 {
 		header := ""
 		for _, line := range lines {
@@ -735,6 +756,7 @@ func (h *Handler) moduleContextualCompletion(params *lsp.CompletionParams, lines
 			for _, alias := range names {
 				list.Items = append(list.Items, lsp.CompletionItem{Label: alias, Kind: &kind, Detail: "módulo " + alias})
 			}
+			list.Items = append(list.Items, builtinTypeCompletion(prefix).Items...)
 			return list
 		}
 	}

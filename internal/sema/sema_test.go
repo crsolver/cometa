@@ -1,9 +1,11 @@
 package sema
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
+	"github.com/crsolver/cometa/internal/diagnostic"
 	"github.com/crsolver/cometa/internal/lexer"
 	"github.com/crsolver/cometa/internal/parser"
 )
@@ -42,7 +44,8 @@ func TestSemanticErrors(t *testing.T) {
 		{"index requires number", "fn inicio()\n\tvar lista = [1]\n\tvar x = lista[falso]\n", "el índice de una lista debe ser entero, no bool"},
 		{"unknown member", "tipo Usuario\n\tnombre cadena\nfn inicio()\n\tvar usuario = Usuario {}\n\tusuario.activar()\n", `el método "activar" no existe en Usuario`},
 		{"branch local does not escape", "fn inicio()\n\tsi verdadero\n\t\tvar local = 1\n\timprimir(local)\n", `el nombre "local" no existe`},
-		{"repeat requires collection", "fn inicio()\n\trepetir (1) |valor| imprimir(valor)\n", "repetir requiere una lista o mapa, no entero"},
+		{"repeat requires collection", "fn inicio()\n\trepetir (1.5) |valor| imprimir(valor)\n", "repetir requiere una lista, un mapa, una cadena o una cantidad entera de vueltas, no decimal"},
+		{"repeat over a list needs a variable", "fn inicio()\n\tvar xs = [1]\n\trepetir (xs) imprimir(1)\n", "para recorrer [entero] falta el nombre de cada elemento: repetir (...) |elemento|"},
 		{"range start type", "fn inicio()\n\trepetir (falso..5) |i| imprimir(i)\n", "el inicio del rango debe ser entero"},
 		{"range end type", "fn inicio()\n\trepetir (0..\"fin\") |i| imprimir(i)\n", "el final del rango debe ser entero"},
 		{"range binding scope", "fn inicio()\n\trepetir (0..5) |i| imprimir(i)\n\timprimir(i)\n", `el nombre "i" no existe`},
@@ -81,5 +84,51 @@ func TestAllPathsProduceDeclaredType(t *testing.T) {
 	source := "fn f(n entero) entero\n\tsi (n < 0) 0\n\tosi (n == 0) 1\n\tsino 2\n"
 	if err := checkSource(source); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestMissingResultPointsAtDeclaredType(t *testing.T) {
+	err := checkSource("fn sx(x decimal) entero\n\timprimir(\"\")\n")
+	var found *diagnostic.Error
+	if !errors.As(err, &found) {
+		t.Fatalf("se esperaba un diagnóstico; got %v", err)
+	}
+	if !strings.Contains(found.Message, "debe producir entero en todos los caminos") {
+		t.Fatalf("mensaje inesperado: %v", err)
+	}
+	if found.Pos.Line != 1 || found.Pos.Column != 18 {
+		t.Fatalf("el error debe marcar el tipo declarado (1:18); got %d:%d", found.Pos.Line, found.Pos.Column)
+	}
+}
+
+func TestUnmetInterfaceSaysWhy(t *testing.T) {
+	const criatura = "interfaz Criatura\n\tfn atacar() entero\n"
+	tests := []struct {
+		name   string
+		source string
+		want   string
+	}{
+		{"missing method", criatura + "tipo Lobo\n\tvida entero\nfn inicio()\n\tvar c Criatura = Lobo {}\n", "el literal es Lobo, pero se esperaba Criatura: a Lobo le falta el método atacar() entero"},
+		{"other result", criatura + "tipo Lobo\n\tpub fn atacar() decimal 1.5\nfn inicio()\n\tvar c Criatura = Lobo {}\n", "Lobo.atacar devuelve decimal y Criatura pide entero"},
+		{"no result", criatura + "tipo Lobo\n\tpub fn atacar()\n\t\timprimir(1)\nfn inicio()\n\tvar c Criatura = Lobo {}\n", "Lobo.atacar no devuelve nada y Criatura pide entero"},
+		{"other parameters", criatura + "tipo Lobo\n\tpub fn atacar(fuerza entero) entero fuerza\nfn inicio()\n\tvar c Criatura = Lobo {}\n", "Lobo.atacar es atacar(fuerza entero) entero y Criatura pide atacar() entero"},
+		{"private method", criatura + "tipo Lobo\n\tfn atacar() entero 1\nfn inicio()\n\tvar c Criatura = Lobo {}\n", "Lobo.atacar existe pero no es pub"},
+		{"private embedding", criatura + "tipo Animal\n\tpub fn atacar() entero 1\ntipo Lobo\n\tAnimal\nfn inicio()\n\tvar c Criatura = Lobo {}\n", "Lobo.atacar viene del tipo embebido Animal, que no es pub"},
+		{"field", criatura + "tipo Lobo\n\tpub atacar entero\nfn inicio()\n\tvar c Criatura = Lobo {}\n", "Lobo.atacar es un campo, no un método"},
+		{"list element", criatura + "tipo Lobo\n\tvida entero\nfn inicio()\n\tvar lobo = Lobo {}\n\tvar cs [Criatura] = [lobo]\n", "el elemento debe ser Criatura, no Lobo: a Lobo le falta el método atacar() entero"},
+		{"assignment", criatura + "tipo Golem\n\tvida entero\nfn inicio()\n\tvar golem = Golem {}\n\tvar c Criatura = golem\n", "no se puede asignar Golem a Criatura: a Golem le falta el método atacar() entero"},
+		{"argument", criatura + "tipo Lobo\n\tvida entero\nfn ver(c Criatura)\n\timprimir(c.atacar())\nfn inicio()\n\tvar lobo = Lobo {}\n\tver(lobo)\n", "el argumento 1 debe ser Criatura, no Lobo: a Lobo le falta el método atacar() entero"},
+		{"optional interface", criatura + "tipo Lobo\n\tvida entero\nfn inicio()\n\tvar lobo = Lobo {}\n\tvar c Criatura? = lobo\n", "a Lobo le falta el método atacar() entero"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := checkSource(test.source)
+			if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("error = %v, want substring %q", err, test.want)
+			}
+		})
+	}
+	if err := checkSource("fn inicio()\n\tvar n entero = 1.5\n"); err == nil || strings.HasSuffix(err.Error(), ": ") || strings.Contains(err.Error(), "entero: ") {
+		t.Fatalf("un error sin interfaces no lleva motivo: %v", err)
 	}
 }

@@ -40,9 +40,9 @@ type _hgConfigJuego struct {
 }
 type _hgColor = color.NRGBA
 type _hgImagen struct {
-	image  *ebiten.Image
-	pixels *image.NRGBA
-	dirty  bool
+	image           *ebiten.Image
+	pixels          *image.NRGBA
+	dirty, gpuNueva bool
 }
 type _hgFuente struct{ source *text.GoTextFaceSource }
 type _hgSonido struct{ pcm []byte }
@@ -200,6 +200,22 @@ func _hgdistanciaXY(x1, y1, x2, y2 float64) float64 { return math.Hypot(x2-x1, y
 func _hganguloXY(x1, y1, x2, y2 float64) float64    { return math.Atan2(y2-y1, x2-x1) }
 func _hgradianes(g float64) float64                 { return g * math.Pi / 180 }
 func _hggrados(r float64) float64                   { return r * 180 / math.Pi }
+func _hgbitY(a, b int64) int64                      { return a & b }
+func _hgbitO(a, b int64) int64                      { return a | b }
+func _hgbitXor(a, b int64) int64                    { return a ^ b }
+func _hgbitNo(v int64) int64                        { return ^v }
+func _hgdesplazarIzquierda(v, n int64) int64 {
+	if n < 0 {
+		panic("no se puede desplazar una cantidad negativa de bits")
+	}
+	return v << uint64(n)
+}
+func _hgdesplazarDerecha(v, n int64) int64 {
+	if n < 0 {
+		panic("no se puede desplazar una cantidad negativa de bits")
+	}
+	return v >> uint64(n)
+}
 func _hgazarReal(a, b float64) float64 {
 	if math.IsNaN(a) || math.IsNaN(b) || math.IsInf(a, 0) || math.IsInf(b, 0) || a > b || math.IsInf(b-a, 0) {
 		panic("rango aleatorio inválido")
@@ -412,13 +428,43 @@ func _hgregionRect(img *_hgImagen, source, d _hgRect, o _hgVec2, r float64, c, f
 
 var _hgsinRecorte *ebiten.Image
 
-func _hgrecortar(r _hgRect) {
+type _hgRecorte struct {
+	area                 image.Rectangle
+	pantalla, sinRecorte *ebiten.Image
+}
+
+func _hgrecortar(r _hgRect) *_hgRecorte {
 	_hgdraw()
+	c := &_hgRecorte{pantalla: _hgscreen, sinRecorte: _hgsinRecorte}
 	if _hgsinRecorte == nil {
 		_hgsinRecorte = _hgscreen
 	}
-	area := image.Rect(int(math.Floor(r.Pos.X)), int(math.Floor(r.Pos.Y)), int(math.Ceil(r.Pos.X+r.Tamano.X)), int(math.Ceil(r.Pos.Y+r.Tamano.Y))).Intersect(_hgsinRecorte.Bounds())
-	_hgscreen = _hgsinRecorte.SubImage(area).(*ebiten.Image)
+	c.area = image.Rect(int(math.Floor(r.Pos.X)), int(math.Floor(r.Pos.Y)), int(math.Ceil(r.Pos.X+r.Tamano.X)), int(math.Ceil(r.Pos.Y+r.Tamano.Y))).Intersect(_hgsinRecorte.Bounds())
+	_hgscreen = _hgsinRecorte.SubImage(c.area).(*ebiten.Image)
+	return c
+}
+func (c *_hgRecorte) base() *ebiten.Image {
+	if c.sinRecorte != nil {
+		return c.sinRecorte
+	}
+	return c.pantalla
+}
+func (c *_hgRecorte) vigente() bool {
+	return _hgsinRecorte == c.base() || (_hgsinRecorte == nil && _hgscreen == c.base())
+}
+func (c *_hgRecorte) Entrar() {
+	_hgdraw()
+	if !c.vigente() {
+		return
+	}
+	_hgsinRecorte = c.base()
+	_hgscreen = _hgsinRecorte.SubImage(c.area.Intersect(c.pantalla.Bounds())).(*ebiten.Image)
+}
+func (c *_hgRecorte) Salir() {
+	_hgdraw()
+	if c.vigente() {
+		_hgscreen, _hgsinRecorte = c.pantalla, c.sinRecorte
+	}
 }
 func _hgquitarRecorte() {
 	_hgdraw()
@@ -426,6 +472,47 @@ func _hgquitarRecorte() {
 		_hgscreen = _hgsinRecorte
 		_hgsinRecorte = nil
 	}
+}
+
+var _hgdestinoActual *_hgImagen
+
+type _hgDestino struct {
+	img, previo          *_hgImagen
+	pantalla, sinRecorte *ebiten.Image
+	camara               _hgCamara2D
+	dentro               bool
+}
+
+func _hgpintarEn(img *_hgImagen) *_hgDestino { return &_hgDestino{img: img} }
+func (d *_hgDestino) Entrar() {
+	if d.dentro || d.img == _hgdestinoActual {
+		panic("ya se está pintando en esta imagen")
+	}
+	d.pantalla, d.sinRecorte, d.camara, d.previo = _hgscreen, _hgsinRecorte, _hgcamara, _hgdestinoActual
+	_hgscreen = d.img.gpu()
+	d.img.gpuNueva = true
+	_hgsinRecorte = nil
+	_hgcamara = _hgCamara2D{Zoom: 1}
+	_hgdestinoActual = d.img
+	d.dentro = true
+}
+func (d *_hgDestino) Salir() {
+	if !d.dentro {
+		return
+	}
+	_hgscreen, _hgsinRecorte, _hgcamara, _hgdestinoActual = d.pantalla, d.sinRecorte, d.camara, d.previo
+	d.dentro = false
+}
+func _hgliberar(img *_hgImagen) {
+	if img == _hgdestinoActual {
+		panic("no se puede liberar una imagen mientras se pinta en ella")
+	}
+	if img.image != nil {
+		img.image.Deallocate()
+		img.image = nil
+	}
+	img.gpuNueva = false
+	img.dirty = false
 }
 func _hgtransform(p, o, s _hgVec2, r float64, destinationOrigin bool) ebiten.GeoM {
 	var m ebiten.GeoM
@@ -493,6 +580,9 @@ func _hgejecutar(instancia _hgJuego, w, h int64, title string, scale float64, re
 	}{1, ""}
 }
 func (i *_hgImagen) gpu() *ebiten.Image {
+	if i == _hgdestinoActual {
+		panic("no se puede dibujar una imagen sobre sí misma")
+	}
 	if i.image == nil {
 		i.image = ebiten.NewImageFromImage(i.pixels)
 		i.dirty = false
@@ -502,6 +592,23 @@ func (i *_hgImagen) gpu() *ebiten.Image {
 		i.dirty = false
 	}
 	return i.image
+}
+func (i *_hgImagen) cpu() *image.NRGBA {
+	if i.gpuNueva {
+		b := i.image.Bounds()
+		pix := make([]byte, 4*b.Dx()*b.Dy())
+		func() {
+			defer func() {
+				if recover() != nil {
+					panic("leer una imagen en la que se pintó con graficos.pintar_en requiere que el juego esté en marcha")
+				}
+			}()
+			i.image.ReadPixels(pix)
+		}()
+		i.pixels = _hgnrgba(&image.RGBA{Pix: pix, Stride: 4 * b.Dx(), Rect: image.Rect(0, 0, b.Dx(), b.Dy())})
+		i.gpuNueva = false
+	}
+	return i.pixels
 }
 func (i *_hgImagen) bounds() image.Rectangle {
 	if i.pixels != nil {
@@ -517,6 +624,16 @@ func _hgpremultiplicar(pix []byte) []byte {
 		out[i+1] = uint8(uint32(pix[i+1]) * a / 255)
 		out[i+2] = uint8(uint32(pix[i+2]) * a / 255)
 		out[i+3] = pix[i+3]
+	}
+	return out
+}
+func _hgnrgba(src image.Image) *image.NRGBA {
+	b := src.Bounds()
+	out := image.NewNRGBA(image.Rect(0, 0, b.Dx(), b.Dy()))
+	for y := 0; y < b.Dy(); y++ {
+		for x := 0; x < b.Dx(); x++ {
+			out.Set(x, y, src.At(b.Min.X+x, b.Min.Y+y))
+		}
 	}
 	return out
 }
@@ -547,6 +664,7 @@ type _hgEventoGuion struct {
 	tipo   byte
 	codigo int
 	x, y   float64
+	texto  string
 }
 
 const (
@@ -554,13 +672,19 @@ const (
 	_hgguionSoltar
 	_hgguionPulsar
 	_hgguionMover
+	_hgguionTexto
+	_hgguionRueda
+	_hgguionEje
 )
 
 var _hgguion []_hgEventoGuion
 var _hgguionActivo bool
 var _hgsimAhora, _hgsimAntes = map[int]bool{}, map[int]bool{}
 var _hgsimSoltar []int
-var _hgsimCursor _hgVec2
+var _hgsimCursor, _hgsimRueda _hgVec2
+var _hgsimTexto []rune
+var _hgsimEjes = map[int]float64{}
+var _hgsimMando bool
 
 func _hgavanzarGuion() {
 	if !_hgguionActivo {
@@ -574,9 +698,14 @@ func _hgavanzarGuion() {
 		delete(_hgsimAhora, c)
 	}
 	_hgsimSoltar = nil
+	_hgsimRueda = _hgVec2{}
+	_hgsimTexto = nil
 	for len(_hgguion) > 0 && _hgguion[0].cuadro <= _hgtick {
 		e := _hgguion[0]
 		_hgguion = _hgguion[1:]
+		if e.codigo <= -100 || e.tipo == _hgguionEje {
+			_hgsimMando = true
+		}
 		switch e.tipo {
 		case _hgguionMantener:
 			_hgsimAhora[e.codigo] = true
@@ -587,6 +716,12 @@ func _hgavanzarGuion() {
 			_hgsimSoltar = append(_hgsimSoltar, e.codigo)
 		case _hgguionMover:
 			_hgsimCursor = _hgVec2{e.x, e.y}
+		case _hgguionTexto:
+			_hgsimTexto = append(_hgsimTexto, []rune(e.texto)...)
+		case _hgguionRueda:
+			_hgsimRueda = _hgVec2{_hgsimRueda.X + e.x, _hgsimRueda.Y + e.y}
+		case _hgguionEje:
+			_hgsimEjes[e.codigo] = e.x
 		}
 	}
 }
@@ -749,6 +884,10 @@ func (_hgCamara2D) _cometa_public_Limitada()     {}
 func (_hgCamara2D) _cometa_public_Sacudida()     {}
 func (_hgCamara2D) _cometa_public_Siguiendo()    {}
 func (_hgCamara2D) _cometa_public_Visible()      {}
+func (*_hgDestino) _cometa_public_Entrar()       {}
+func (*_hgDestino) _cometa_public_Salir()        {}
+func (*_hgRecorte) _cometa_public_Entrar()       {}
+func (*_hgRecorte) _cometa_public_Salir()        {}
 func (_hgRect) _cometa_public_Centro()           {}
 func (_hgRect) _cometa_public_Colision_circulo() {}
 func (_hgRect) _cometa_public_Contiene()         {}
@@ -830,7 +969,7 @@ func _hsformato(v reflect.Value, nested bool, depth int) string {
 		}
 		return "[" + strings.Join(items, ", ") + "]"
 	case reflect.Ptr:
-		if !v.IsNil() && v.Elem().Kind() == reflect.Struct {
+		if !v.IsNil() && (v.Elem().Kind() == reflect.Struct || v.Elem().Kind() == reflect.Slice) {
 			return _hsformato(v.Elem(), nested, depth)
 		}
 	case reflect.Struct:
@@ -867,7 +1006,7 @@ func _hsformato(v reflect.Value, nested bool, depth int) string {
 			}
 			return "Alguno(" + _hsformato(v.Field(1), true, depth+1) + ")"
 		}
-		if t.Name() != "" && t.Field(0).Name != "tag" {
+		if t.Name() != "" && (t.NumField() == 0 || t.Field(0).Name != "tag") {
 			items := make([]string, 0, t.NumField())
 			for i := 0; i < t.NumField(); i++ {
 				name := []rune(t.Field(i).Name)

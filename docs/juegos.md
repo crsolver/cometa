@@ -11,7 +11,7 @@ Pincel es la familia de bibliotecas de juego incluida con Cometa. Se importa cad
 | `std/pincel/graficos` | Dibujo, cámara, `graficos.Imagen` y `graficos.Fuente` |
 | `std/pincel/color` | `color.Color` y `rgba` |
 | `std/pincel/entrada` | Teclado y ratón |
-| `std/pincel/audio` | `audio.Sonido`, `audio.Reproduccion` y reproducción |
+| `std/pincel/audio` | `audio.Sonido`, `audio.Reproduccion`, reproducción y sonidos creados en código (`tono`, `ruido`) |
 | `std/pincel/ventana` | Propiedades de ventana |
 | `std/pincel/tiempo` | FPS y TPS |
 | `std/pincel/recursos` | Carga y empaquetado de recursos |
@@ -77,15 +77,20 @@ Firmas (todos los dibujos requieren la fase `pintar`):
 
 ```cometa
 retro.texto(texto cadena, x entero, y entero, escala entero = 1, color color.Color = .Blanco)
-retro.icono(icono retro.Icono, x entero, y entero, escala entero = 1, color color.Color = .Blanco)
-retro.glifo(indice entero, x entero, y entero, escala entero = 1, color color.Color = .Blanco, atlas retro.Atlas = .Dungeon)
+retro.icono(icono retro.Icono, x entero, y entero, escala entero = 1, color color.Color = .Blanco, voltear_h bool = falso, voltear_v bool = falso)
+retro.glifo(indice entero, x entero, y entero, escala entero = 1, color color.Color = .Blanco, atlas retro.Atlas = .Dungeon, voltear_h bool = falso, voltear_v bool = falso)
+retro.hoja(atlas retro.Atlas = .Dungeon) graficos.Hoja
 ```
+
+`voltear_h` y `voltear_v` dibujan el icono o el glifo espejado dentro de su misma celda: `retro.icono(.Derecha, x, y, voltear_h = verdadero)` apunta a la izquierda.
+
+`retro.hoja` devuelve el atlas como hoja de cuadros de 8×8: el cuadro `i` es el glifo que dibuja `retro.glifo(i)`, así que una rejilla de índices se pinta con `rejilla.dibujar(mapa, retro.hoja(), tinte = .Gris)`, o con un color por celda mediante `colores`. No requiere la fase `pintar`; ver [el editor de mapas](#editor-de-mapas).
 
 Las posiciones son píxeles de la esquina superior izquierda; cada celda ocupa `8 * escala` píxeles. La escala debe ser un entero positivo. Los píxeles negros del atlas se vuelven transparentes; los blancos toman el color indicado. Para fondos, dibuja antes un rectángulo.
 
-`texto` usa Dungeon-437: incluye `áéíóúüñÑ¿¡`, símbolos y líneas de caja. Los caracteres ausentes aparecen como `?` (por ejemplo, no todas las vocales mayúsculas acentuadas están presentes). Un espacio avanza una celda sin dibujar; `\n` empieza otra línea de ocho píxeles escalados, `\t` avanza hasta el siguiente múltiplo de cuatro columnas y `\r` se ignora.
+`texto` usa Dungeon-437: incluye `áéíóúüñÑ¿¡`, símbolos y líneas de caja. La fuente no tiene `Á`, `Í`, `Ó` ni `Ú` (sí `É` y `Ü`): se dibujan con la letra sin tilde, de modo que `"LA PIRÁMIDE"` se lee «LA PIRAMIDE». Los demás caracteres ausentes aparecen como `?`. Un espacio avanza una celda sin dibujar; `\n` empieza otra línea de ocho píxeles escalados, `\t` avanza hasta el siguiente múltiplo de cuatro columnas y `\r` se ignora.
 
-Iconos disponibles: `.Corazon`, `.CorazonVacio`, `.Espada`, `.Escudo`, `.Llave`, `.Calavera`, `.Arriba`, `.Abajo`, `.Izquierda`, `.Derecha`. `glifo` acepta índices de 0 a 255, calculados como `fila * 16 + columna`, y `.Dungeon` o `.ASCII` como atlas. Índices o escalas inválidos producen un error en ejecución.
+Iconos disponibles: `.Corazon`, `.CorazonVacio`, `.Espada`, `.Escudo`, `.Llave`, `.Calavera`, `.Arriba`, `.Abajo`, `.Izquierda`, `.Derecha`, `.Cara`, `.CirculoRelleno`, `.Punto`, `.Masculino`, `.Femenino`, `.CirculoPunteado`, `.Puntero`, `.Bloque`, `.Equis`, `.Anillo`, `.Hoja`, `.Nota`, `.Notas`, `.Esquinas`, `.Oro`, `.Nivel`, `.Casa`, `.Castillo`, `.Marco`, `.Candado`, `.Estadisticas`, `.Mano`, `.Baculo`, `.Bolsa`, `.Cerrar`, `.Libro`, `.Mesa`, `.Objetivo`, `.Mas`, `.Estrella`, `.Diana`, `.Hueso`, `.Damero`, `.Gato`, `.Craneo`, `.Demonio`, `.Monstruo`, `.Sombrero`, `.Armadura`, `.Manzana`, `.SelectorV`, `.SelectorH`. `glifo` acepta índices de 0 a 255, calculados como `fila * 16 + columna`, y `.Dungeon` o `.ASCII` como atlas. Índices o escalas inválidos producen un error en ejecución.
 
 `pincel.ejecutar` acepta los parámetros finales `pixelado bool = falso` y `retro bool = falso`. Con `pixelado = verdadero` desactiva el filtro de presentación de Ebitengine; combínalo con una ventana fija a escala entera, como 4. El muestreo de los glifos siempre usa vecino más cercano. Las posiciones decimales (de sprites o de la cámara) no desenfocan: las imágenes se dibujan con vecino más cercano, así que no hace falta redondearlas. Lo que da píxeles de distinto grosor son las escalas o el zoom no enteros, las rotaciones y las escalas de ventana fraccionarias. No se implementa letterboxing entero al redimensionar.
 
@@ -138,10 +143,14 @@ X crece a la derecha, Y hacia abajo. Distancias en píxeles lógicos y ángulos 
 radianes. `mate.Vec2` admite suma/resta de vectores, negación, multiplicación por escalar
 en ambos órdenes y división por escalar. Normalizar cero devuelve cero. Se admiten literales nombrados y posicionales, además de `{2, 3}` cuando se conoce el tipo esperado.
 
-`color.Color`, `entrada.Tecla`, `entrada.BotonRaton`, `entrada.BotonMando` y `entrada.EjeMando` son valores opacos con constantes contextuales:
+`color.Color`, `entrada.Tecla`, `entrada.BotonRaton`, `entrada.BotonMando` y `entrada.EjeMando` son valores opacos con constantes contextuales (`.Rojo`). Cuando no hay un tipo esperado, por ejemplo en `var fondo = color.Color.Rojo` o en una rama de `casos`, la constante se escribe con su tipo: `color.Color.Rojo`, `entrada.Tecla.Espacio`, `retro.Icono.Arriba`.
+
+Las constantes de cada tipo:
 
 - color.Color: los 24 tonos de la paleta siguiente y `.Transparente` (RGBA 0, 0, 0, 0).
   `color.rgba` permite colores personalizados y limita los canales a 0–255.
+  `color.mezclar(a, b, t)` interpola dos colores (desvanecimientos y degradados), `c.con_alfa(128)`
+  devuelve el mismo color con otra opacidad y `c.r`, `c.g`, `c.b`, `c.a` leen sus canales.
 - entrada.Tecla: `.A` a `.Z`, los dígitos `.Cero` a `.Nueve`, `.F1` a `.F12`, `.Izquierda`,
   `.Derecha`, `.Arriba`, `.Abajo`, `.Espacio`, `.Escape`, `.Enter`, `.Tab`, `.Retroceso`,
   `.Shift`, `.Control`, `.Alt`, `.Suprimir`, `.Inicio`, `.Fin`, `.RePag`, `.AvPag`,
@@ -204,11 +213,13 @@ usar std/pincel/recursos
 var sprite = recursos.imagen("assets/jugador.png")
 var fuente = recursos.fuente("assets/texto.ttf")
 var sonido = recursos.sonido("assets/recoger.wav")
+var nivel = recursos.texto("assets/nivel.mapa.txt")
 ```
 
 Las llamadas de recursos solo se aceptan como inicializadores globales directos,
 con rutas literales relativas al módulo que las declara. Se validan los datos y
 se incorporan al Go generado. Formatos: PNG/JPEG, TTF/OTF, WAV/Ogg Vorbis/MP3.
+`recursos.texto` acepta cualquier archivo de texto en UTF-8 y devuelve una `cadena`.
 WAV admite PCM de 8/16 bits, mono/estéreo. Audio se carga completo en memoria y se
 decodifica a PCM estéreo de 48 kHz. No se necesitan archivos externos al ejecutar.
 
@@ -265,10 +276,20 @@ mate.distancia(x1 decimal, y1 decimal, x2 decimal, y2 decimal) decimal
 mate.angulo(x1 decimal, y1 decimal, x2 decimal, y2 decimal) decimal
 mate.radianes(grados decimal) decimal
 mate.grados(radianes decimal) decimal
+mate.bit_y(a entero, b entero) entero             // bits encendidos en ambos: leer una máscara
+mate.bit_o(a entero, b entero) entero             // bits encendidos en alguno: encender una bandera
+mate.bit_xor(a entero, b entero) entero           // bits que difieren
+mate.bit_no(valor entero) entero                  // invierte los bits: bit_y(banderas, bit_no(mascara)) apaga
+mate.desplazar_izquierda(valor entero, bits entero) entero
+mate.desplazar_derecha(valor entero, bits entero) entero // conserva el signo
 azar.real(minimo decimal, maximo decimal) decimal
 azar.entero(minimo entero, maximo entero) entero  // incluye minimo, excluye maximo: un dado es azar.entero(1, 7)
 azar.semilla(valor entero)                          // partidas reproducibles
 color.rgba(r entero, g entero, b entero, a entero = 255) color.Color
+color.mezclar(a color.Color, b color.Color, t decimal) color.Color // t = 0 es a, t = 1 es b
+color.a_entero(c color.Color) entero               // 0xRRGGBB, el formato de las rejillas de color
+color.desde_entero(valor entero) color.Color
+color.Color.con_alfa(alfa entero) color.Color      // y los canales de lectura .r .g .b .a
 
 graficos.limpiar(color color.Color)
 graficos.rectangulo(x decimal, y decimal, ancho decimal, alto decimal, color color.Color, origen mate.Vec2 = {}, rotacion decimal = 0)
@@ -296,8 +317,10 @@ graficos.cuadro_v(hoja graficos.Hoja, indice entero, pos mate.Vec2, origen mate.
 graficos.texto_depuracion(texto cadena, x decimal = 0, y decimal = 0)
 graficos.texto_depuracion_v(texto cadena, pos mate.Vec2 = {})
 graficos.tamano() mate.Vec2
-graficos.recortar(rect mate.Rect)                 // solo dibuja dentro de rect (pantalla)
-graficos.quitar_recorte()
+graficos.recortar(rect mate.Rect) graficos.Recorte // solo dibuja dentro de rect (pantalla); úsalo con `con`
+graficos.quitar_recorte()                         // solo para un recortar suelto, sin `con`
+graficos.pintar_en(imagen graficos.Imagen) graficos.Destino // dibuja en la imagen; úsalo con `con`
+graficos.liberar(imagen graficos.Imagen)          // libera su copia en la tarjeta gráfica
 graficos.usar_camara(camara graficos.Camara2D)
 graficos.restablecer_camara()
 graficos.Camara2D.a_mundo(punto mate.Vec2) mate.Vec2
@@ -332,18 +355,22 @@ datos.leer_decimal(clave cadena) decimal?
 
 rejilla.nueva(columnas entero, filas entero, valor entero = 0) rejilla.Rejilla
 rejilla.desde_texto(filas [cadena], simbolos [cadena: entero]) rejilla.Rejilla
-rejilla.dibujar(mapa rejilla.Rejilla, hoja graficos.Hoja, pos mate.Vec2 = {}, escala mate.Vec2 = {x: 1, y: 1}, tinte color.Color = .Blanco, animaciones [entero: [entero]] = [:], cuadros_por_segundo decimal = 8)
+rejilla.desde_csv(texto cadena, capa cadena = "") rejilla.Rejilla
+rejilla.dibujar(mapa rejilla.Rejilla, hoja graficos.Hoja, pos mate.Vec2 = {}, escala mate.Vec2 = {x: 1, y: 1}, tinte color.Color = .Blanco, animaciones [entero: [entero]] = [:], cuadros_por_segundo decimal = 8, colores rejilla.Rejilla? = .Ninguno)
 rejilla.Rejilla.columnas() entero
 rejilla.Rejilla.filas() entero
 rejilla.Rejilla.obtener(x entero, y entero) entero?
 rejilla.Rejilla.poner(x entero, y entero, valor entero) bool
 rejilla.Rejilla.rellenar(valor entero)
+rejilla.Rejilla.buscar(valor entero) [mate.Vec2]   // celdas (columna, fila) con ese valor
 rejilla.Rejilla.choca(area mate.Rect, tamano_celda mate.Vec2, solidos [entero]) bool
 rejilla.Rejilla.mover(area mate.Rect, tamano_celda mate.Vec2, delta mate.Vec2, solidos [entero], plataformas [entero] = []) mate.Vec2
 rejilla.Rejilla.celda_en(punto mate.Vec2, tamano_celda mate.Vec2) entero?
 rejilla.Rejilla.valores_en(area mate.Rect, tamano_celda mate.Vec2) [entero]
 
-audio.reproducir(sonido audio.Sonido, volumen decimal = 1, bucle bool = falso) audio.Reproduccion
+audio.reproducir(sonido audio.Sonido, volumen decimal = 1, bucle bool = falso, tono decimal = 1) audio.Reproduccion
+audio.tono(frecuencia decimal, duracion decimal, onda audio.Onda = .Cuadrada, hasta decimal = 0, volumen decimal = 1) audio.Sonido
+audio.ruido(duracion decimal, volumen decimal = 1) audio.Sonido
 audio.pausar(reproduccion audio.Reproduccion)
 audio.reanudar(reproduccion audio.Reproduccion)
 audio.detener(reproduccion audio.Reproduccion)
@@ -356,6 +383,7 @@ ventana.icono(imagen graficos.Imagen)
 ventana.es_pantalla_completa() bool
 tiempo.fps() decimal
 tiempo.tps() decimal
+tiempo.ahora() decimal                              // segundos desde que empezó el programa
 tiempo.temporizador(duracion decimal, bucle bool = falso) tiempo.Temporizador
 tiempo.Temporizador.avanzar(dt decimal) bool
 tiempo.Temporizador.terminado() bool
@@ -366,6 +394,7 @@ tiempo.Temporizador.progreso() decimal
 recursos.imagen(ruta cadena) graficos.Imagen
 recursos.fuente(ruta cadena) graficos.Fuente
 recursos.sonido(ruta cadena) audio.Sonido
+recursos.texto(ruta cadena) cadena
 ```
 
 `azar` incluye el mínimo y excluye el máximo cuando son distintos; límites iguales
@@ -392,18 +421,60 @@ graficos.cuadro(@hoja, @cuadro, @pos.x, @pos.y, relleno = color.rgba(255, 255, 2
 ```
 
 `graficos.recortar(rect)` limita el dibujo a un rectángulo de la pantalla (no le
-afecta la cámara) hasta `graficos.quitar_recorte()` o el siguiente cuadro; sirve para
-deslizar una sala o un texto dentro de un marco sin tapar lo que sobresale.
+afecta la cámara); sirve para deslizar una sala o un texto dentro de un marco sin
+tapar lo que sobresale. Con `con`, el recorte dura lo que el bloque y se quita solo,
+también si se sale con `retornar`:
+
+```cometa
+con graficos.recortar(mate.Rect {pos: {40, 20}, tamano: {240, 140}})
+	graficos.imagen(@sala, @desplazamiento, 20)
+graficos.texto_depuracion("fuera del marco")
+```
+
+Un `con` anidado se limita al recorte que lo contiene. Llamado suelto, el recorte
+dura hasta `graficos.quitar_recorte()` o el siguiente cuadro.
+
+`graficos.pintar_en(imagen)` hace que lo que se dibuja dentro de su bloque `con` vaya
+a una imagen en vez de a la pantalla: un minimapa, una escena a baja resolución que
+luego se amplía o un fondo que se pinta una sola vez. La imagen es una
+`graficos.Imagen` cualquiera (por ejemplo de `lienzo.nuevo`) y después se dibuja
+como siempre:
+
+```cometa
+var escena = lienzo.nuevo(160, 90)
+
+pub fn pintar()
+	con graficos.pintar_en(escena)
+		graficos.limpiar(.Negro)
+		graficos.circulo(80, 45, 20, .Rojo)
+	graficos.imagen(escena, 0, 0, escala = {x: 2, y: 2})
+```
+
+Dentro del bloque no hay cámara ni recorte y las coordenadas son píxeles de la
+imagen; al salir, también con `retornar`, vuelven la pantalla, la cámara y el
+recorte de antes. La imagen no se limpia sola: conserva lo pintado hasta que se
+llame a `graficos.limpiar`. El bloque puede usarse en cualquier momento, no solo
+desde `pintar` (por ejemplo para preparar un fondo en `inicio`), se puede anidar y
+admite `graficos.recortar`. Una imagen no puede dibujarse sobre sí misma.
+
+El dibujo lo hace la tarjeta gráfica. Las funciones de `lienzo` ven el resultado
+(`lienzo.leer_pixel`, `lienzo.guardar`), pero para eso hay que traer la imagen de
+vuelta a la memoria, lo cual es lento y solo funciona con el juego en marcha:
+conviene no mezclar ambas cosas en cada cuadro.
+
+`graficos.liberar(imagen)` libera en el momento la copia de la imagen en la tarjeta
+gráfica. La imagen sigue siendo válida y vuelve a subirse sola la próxima vez que se
+dibuje, pero lo pintado en ella con `pintar_en` se pierde (cópiala antes con
+`lienzo.copiar` para conservarlo). No hace falta para un juego normal: sirve para
+soltar imágenes grandes que ya no se usan.
 mate.Rectángulos y texto aplican origen, rotación y posición antes de la cámara.
 Todas las rotaciones son radianes y valen cero por defecto. Círculos, líneas y
 texto de depuración no tienen rotación. Los métodos de mate.Vec2 devuelven valores
 nuevos y no mutan el receptor; normalizar cero devuelve cero.
 
-El compilador rechaza dibujo alcanzable desde globales,
-inicialización o actualización, incluyendo helpers, métodos y defaults.
-Para interfaces comprueba conservadoramente los métodos con ese nombre.
-Los helpers llamados desde `pintar` pueden dibujar; el runtime también verifica
-el contexto. Lea los estados presionado/soltado en `actualizar`: corresponden al tick.
+Dibujar en la pantalla solo se permite desde `pintar` y los helpers que llama; la
+biblioteca lo comprueba al ejecutar. Dentro de un bloque `con graficos.pintar_en`
+se puede dibujar en cualquier momento. Lea los estados presionado/soltado en `actualizar`: corresponden al tick.
 
 Audio retiene las reproducciones activas aunque se descarte el handle. Al terminar
 libera el reproductor; `reanudar` reinicia un sonido terminado/detenido. Volumen 0–1.
@@ -467,6 +538,87 @@ rejilla.dibujar(@mapa, @hoja, animaciones = [4: [4, 5, 6]], cuadros_por_segundo 
 Para varias capas (suelo, decoración, objetos) usa una rejilla por capa con la misma hoja y dibújalas en orden; colisiona solo contra la que tenga los sólidos.
 Ver [el ejemplo del laberinto](../examples/pincel/11_mapa.cometa).
 
+### Editor de mapas
+
+`cometa mapa` abre el editor de mapas en el navegador, sin instalar nada (en el repositorio es `tools/mapa-editor/index.html`). La paleta es el atlas dungeon de `std/pincel/retro`: eliges un icono (por su dibujo o buscando su nombre, como `Llave`) y lo pintas en la rejilla. Cada celda lleva su propio color, elegido de la paleta de `color.Color`. Tiene pintar, borrar, rellenar, rectángulo y cuentagotas, capas con nombre, marcas, deshacer y rehacer, y conserva el mapa en el navegador entre sesiones.
+
+**Guardar .mapa.txt** escribe un archivo de texto: una fila por línea, los índices del atlas separados por comas (`-1` es una celda vacía), una línea `# nombre` antes de cada capa y `//` para comentarios. Los colores de la capa `suelo` van en otra capa, `suelo.color`, con un número `0xRRGGBB` por celda. Las marcas van al final, una por línea: `@ nombre columna,fila`. Se puede editar a mano y volver a abrir.
+
+```text
+# suelo
+209,209,209,209
+209,7,7,209
+209,209,209,209
+
+# suelo.color
+0x52524C,0x52524C,0x52524C,0x52524C
+0x52524C,0x443F41,0x443F41,0x4772BF
+0x4772BF,0x4772BF,0x4772BF,0x4772BF
+
+@ jugador 1,1
+@ enemigo 2,1
+```
+
+En el juego, `retro.cargar_mapa` carga el archivo (como los demás recursos, en una variable global con la ruta literal) y `retro.mapa` lo dibuja con sus iconos y colores, tal como se ve en el editor:
+
+```cometa
+usar std/pincel/retro
+
+var nivel = retro.cargar_mapa("nivel.mapa.txt")
+
+// En pintar():
+retro.mapa(nivel)
+```
+
+```cometa
+retro.cargar_mapa(ruta cadena) retro.Mapa
+retro.mapa(mapa retro.Mapa, x entero = 0, y entero = 0, escala entero = 1, capa cadena = "", tinte color.Color = .Blanco)
+retro.Mapa.columnas() entero
+retro.Mapa.filas() entero
+retro.Mapa.capas() [cadena]
+retro.Mapa.capa(nombre cadena) rejilla.Rejilla
+retro.Mapa.colores(nombre cadena) rejilla.Rejilla
+retro.Mapa.marcas(nombre cadena) [mate.Vec2]
+```
+
+`retro.mapa` pinta todas las capas, de abajo arriba; con `capa = "suelo"` pinta solo esa, para dibujar algo entre dos capas. `Mapa.capa(nombre)` devuelve la rejilla de iconos de una capa, la misma que se dibuja: sirve para consultar celdas y colisiones (`obtener`, `choca`, `mover`) y para cambiar el mapa mientras se juega (`nivel.capa("objetos").poner(x, y, -1)` borra un objeto). El valor de cada celda es el índice del atlas, el mismo que usan `retro.glifo` y los iconos con nombre. Una capa que no existe detiene el programa con la lista de capas.
+
+`Mapa.colores(nombre)` devuelve la rejilla de colores de la capa, con un número `0xRRGGBB` por celda; las celdas con `-1` usan `tinte`. `color.a_entero(.Rojo)` da ese número y `color.desde_entero(n)` lo convierte en un color: `colores.poner(x, y, color.a_entero(.Rojo))`.
+
+Una **marca** le pone nombre a una celda sin dibujar nada en ella: dónde empieza el jugador, dónde aparece cada enemigo, a qué celda lleva una puerta. En el editor, escribe el nombre en «Marcas», elige la herramienta Marca (tecla M) y haz clic en la celda; el clic derecho la quita. El mismo nombre puede estar en varias celdas. `Mapa.marcas(nombre)` devuelve la columna y la fila de cada una, en el orden en que se pusieron, así que también sirven para trazar la ruta de una patrulla. Un nombre que el mapa no usa da una lista vacía.
+
+```cometa
+var salida = nivel.marcas("jugador")[0]
+var jugador = Jugador {x: entero(salida.x), y: entero(salida.y)}
+
+repetir (nivel.marcas("enemigo")) |celda|
+	enemigos.agregar(Enemigo {pos: celda * 8})
+```
+
+Las piezas de abajo también están disponibles por separado: `recursos.texto` incorpora cualquier archivo de texto, `rejilla.desde_csv(texto, capa = "suelo")` lee una capa como `Rejilla`, `retro.hoja()` da el atlas como hoja y el parámetro `colores` de `rejilla.dibujar` recibe una rejilla de colores.
+
+**Exportar .cometa** escribe en su lugar un módulo con `pub const columnas`, `pub const filas` y dos funciones por capa (`pub fn suelo() rejilla.Rejilla` y `pub fn suelo_color() rejilla.Rejilla`) con los números a la vista, más `pub fn marcas(nombre cadena) [mate.Vec2]` si el mapa tiene marcas. Se importa con `usar nivel` y no necesita el archivo de texto. Ver [el ejemplo de la cripta](../examples/pincel/16_editor_mapas.cometa).
+
+## Sonidos sin archivos
+
+`std/pincel/audio` puede crear sonidos en memoria, igual que `lienzo` crea imágenes, así que un juego suena sin buscar ni grabar nada:
+
+```cometa
+usar std/pincel/audio
+
+var salto = audio.tono(330, 0.12, hasta = 660)       // sube de 330 a 660 Hz
+var laser = audio.tono(880, 0.15, .Sierra, hasta = 220)
+var explosion = audio.ruido(0.3)
+
+// dentro de actualizar:
+audio.reproducir(salto)
+audio.reproducir(explosion, tono = 0.6)              // más grave y más lenta
+```
+
+`audio.tono(frecuencia, duracion)` genera un tono en hercios (440 es un la; el doble es una octava más) que dura `duracion` segundos, hasta 30. `onda` elige el timbre: `.Cuadrada` (consola antigua), `.Triangular` (suave), `.Sierra` (áspera) o `.Seno` (pura). Con `hasta` mayor que 0 la frecuencia se desliza hasta ese valor. `audio.ruido(duracion)` genera ruido blanco, siempre el mismo. Crea cada sonido una vez, en una variable global o en un campo, y reprodúcelo cuantas veces haga falta.
+
+El parámetro `tono` de `audio.reproducir` cambia la altura y la velocidad a la vez, entre 0.25 y 4: `tono = 2` suena una octava más aguda y dura la mitad. Sirve para variar un efecto (`tono = 1 + combo * 0.1`) o acelerar la música con el nivel, y vale también para los sonidos cargados con `recursos.sonido`.
+
 ## Guardar datos
 
 `std/pincel/datos` guarda pares clave-texto en un archivo dentro de la carpeta de
@@ -481,6 +633,8 @@ Para números usa `guardar_entero`/`leer_entero` y `guardar_decimal`/`leer_decim
 `var mejor = datos.leer_entero("mejor") o 0` (devuelven `Ninguno` si la clave falta o no
 contiene un número). `datos.claves()` lista las claves guardadas en orden alfabético.
 `guardar`, `guardar_*` y `borrar` devuelven un resultado (`!`) porque el disco puede fallar.
+
+`cometa captura` y `cometa probar` no usan esa carpeta: trabajan sobre una temporal vacía, así que una captura no deja una mejor puntuación falsa. Con `--datos carpeta` leen y escriben `carpeta/datos.json`.
 
 ## Mandos
 

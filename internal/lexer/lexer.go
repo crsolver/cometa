@@ -10,20 +10,6 @@ import (
 	"github.com/crsolver/cometa/internal/token"
 )
 
-type Error struct {
-	Filename string
-	Pos      ast.Pos
-	Message  string
-}
-
-func (e *Error) Error() string {
-	return fmt.Sprintf("%s:%d:%d: %s", e.Filename, e.Pos.Line, e.Pos.Column, e.Message)
-}
-
-func (e *Error) Diagnostic() (string, ast.Pos, string, string) {
-	return e.Filename, e.Pos, "lexer", e.Message
-}
-
 var keywords = map[string]token.Kind{
 	"pub":      token.Pub,
 	"con":      token.Con,
@@ -38,8 +24,21 @@ var keywords = map[string]token.Kind{
 	"verdadero": token.True, "falso": token.False,
 }
 
+// Two-character operators are tried before single characters.
+var pairs = map[string]token.Kind{"..": token.Range, "+=": token.PlusAssign, "-=": token.MinusAssign, "*=": token.StarAssign, "/=": token.SlashAssign, "%=": token.PercentAssign, "=>": token.Arrow, "==": token.Equal, "!=": token.NotEqual, "<=": token.LessEq, ">=": token.GreaterEq, "&&": token.And, "||": token.Or}
+
+var singles = map[rune]token.Kind{
+	'(': token.LParen, ')': token.RParen, '[': token.LBracket, ']': token.RBracket,
+	'{': token.LBrace, '}': token.RBrace, ',': token.Comma, ':': token.Colon, '.': token.Dot,
+	'|': token.Pipe,
+	'@': token.At, '=': token.Assign, '+': token.Plus, '-': token.Minus,
+	'*': token.Star, '/': token.Slash, '%': token.Percent, '<': token.Less,
+	'>': token.Greater, '!': token.Bang, '?': token.Question,
+}
+
 // Lex converts source text into tokens, including Python-style INDENT and DEDENT
-// markers. Tabs are the only permitted indentation characters.
+// markers. Tabs are the only permitted indentation characters. Every token
+// carries filename in its position.
 func Lex(filename, source string) ([]token.Token, error) {
 	// Some Windows editors and PowerShell save UTF-8 files with a BOM.
 	source = strings.TrimPrefix(source, "\ufeff")
@@ -108,7 +107,29 @@ func Lex(filename, source string) ([]token.Token, error) {
 		out = append(out, token.Token{Kind: token.Dedent, Pos: ast.Pos{Line: eofLine, Column: 1}})
 	}
 	out = append(out, token.Token{Kind: token.EOF, Pos: ast.Pos{Line: eofLine, Column: 1}})
+	for i := range out {
+		out[i].Pos.Filename = filename
+	}
 	return out, errors.Err()
+}
+
+// LexExpression lexes an expression embedded in a line, such as the inside of
+// "${...}". pos is where source starts, so tokens and errors carry real
+// positions. Indentation plays no part: the text may start with spaces.
+func LexExpression(filename, source string, pos ast.Pos) ([]token.Token, error) {
+	runes := []rune(source)
+	tokens, err := lexLine(filename, pos.Line, 0, runes)
+	if err != nil {
+		failure := *err.(*diagnostic.Error)
+		failure.Pos.Column += pos.Column - 1
+		return nil, &failure
+	}
+	for i := range tokens {
+		tokens[i].Pos.Filename = pos.Filename
+		tokens[i].Pos.Column += pos.Column - 1
+	}
+	end := ast.Pos{Filename: pos.Filename, Line: pos.Line, Column: pos.Column + len(runes)}
+	return append(tokens, token.Token{Kind: token.EOF, Pos: end}), nil
 }
 
 func lexLine(filename string, lineNo, start int, runes []rune) ([]token.Token, error) {
@@ -137,17 +158,36 @@ func lexLine(filename string, lineNo, start int, runes []rune) ([]token.Token, e
 			i = j
 			continue
 		}
-		if unicode.IsDigit(ch) {
-			j := i + 1
-			for j < len(runes) && unicode.IsDigit(runes[j]) {
+		if ch == '0' && i+1 < len(runes) && (runes[i+1] == 'x' || runes[i+1] == 'b') {
+			// 0xFF y 0b1010: enteros escritos en hexadecimal o en binario.
+			digits, name := "0123456789abcdefABCDEF", "hexadecimal"
+			if runes[i+1] == 'b' {
+				digits, name = "01", "binario"
+			}
+			j := i + 2
+			for j < len(runes) && strings.ContainsRune(digits, runes[j]) {
 				j++
 			}
-			if j < len(runes) && runes[j] == '.' && !(j+1 < len(runes) && runes[j+1] == '.') {
+			if j == i+2 || j < len(runes) && (unicode.IsLetter(runes[j]) || unicode.IsDigit(runes[j]) || runes[j] == '_') {
+				return nil, lexError(filename, lineNo, j+1, "se esperaba un dígito "+name+" después de '"+string(runes[i:i+2])+"'")
+			}
+			out = append(out, token.Token{Kind: token.Number, Lexeme: string(runes[i:j]), Pos: pos})
+			i = j
+			continue
+		}
+		if isDigit(ch) {
+			j := i + 1
+			for j < len(runes) && isDigit(runes[j]) {
 				j++
-				if j >= len(runes) || !unicode.IsDigit(runes[j]) {
+			}
+			// `7..9` es un rango y `7.formato(2)` una llamada de método: el punto
+			// solo pertenece al número cuando no le sigue otro punto ni un nombre.
+			if j < len(runes) && runes[j] == '.' && !(j+1 < len(runes) && (runes[j+1] == '.' || unicode.IsLetter(runes[j+1]) || runes[j+1] == '_')) {
+				j++
+				if j >= len(runes) || !isDigit(runes[j]) {
 					return nil, lexError(filename, lineNo, j+1, "se esperaba un dígito después del punto decimal")
 				}
-				for j < len(runes) && unicode.IsDigit(runes[j]) {
+				for j < len(runes) && isDigit(runes[j]) {
 					j++
 				}
 			}
@@ -175,20 +215,11 @@ func lexLine(filename string, lineNo, start int, runes []rune) ([]token.Token, e
 		}
 		if i+1 < len(runes) {
 			pair := string(runes[i : i+2])
-			pairs := map[string]token.Kind{"..": token.Range, "+=": token.PlusAssign, "-=": token.MinusAssign, "*=": token.StarAssign, "/=": token.SlashAssign, "%=": token.PercentAssign, "=>": token.Arrow, "==": token.Equal, "!=": token.NotEqual, "<=": token.LessEq, ">=": token.GreaterEq, "&&": token.And, "||": token.Or}
 			if kind, ok := pairs[pair]; ok {
 				out = append(out, token.Token{Kind: kind, Lexeme: pair, Pos: pos})
 				i += 2
 				continue
 			}
-		}
-		singles := map[rune]token.Kind{
-			'(': token.LParen, ')': token.RParen, '[': token.LBracket, ']': token.RBracket,
-			'{': token.LBrace, '}': token.RBrace, ',': token.Comma, ':': token.Colon, '.': token.Dot,
-			'|': token.Pipe,
-			'@': token.At, '=': token.Assign, '+': token.Plus, '-': token.Minus,
-			'*': token.Star, '/': token.Slash, '%': token.Percent, '<': token.Less,
-			'>': token.Greater, '!': token.Bang, '?': token.Question,
 		}
 		kind, ok := singles[ch]
 		if !ok {
@@ -199,6 +230,10 @@ func lexLine(filename string, lineNo, start int, runes []rune) ([]token.Token, e
 	}
 	return out, nil
 }
+
+// isDigit accepts the digits of a number. unicode.IsDigit would also take
+// digits of other scripts, which Go cannot read back as a number.
+func isDigit(r rune) bool { return r >= '0' && r <= '9' }
 
 func unclosedInterpolation(runes []rune, start int) int {
 	for i := start; i+1 < len(runes); i++ {
@@ -264,7 +299,7 @@ func scanInterpolation(runes []rune, start int) (int, bool) {
 }
 
 func lexError(filename string, line, column int, message string) error {
-	return &Error{Filename: filename, Pos: ast.Pos{Line: line, Column: column}, Message: message}
+	return &diagnostic.Error{Stage: diagnostic.Lexer, Filename: filename, Pos: ast.Pos{Line: line, Column: column}, Message: message}
 }
 
 // unexpectedCharacter explains characters that exist in other languages but
@@ -286,6 +321,9 @@ func unexpectedCharacter(ch rune) string {
 	}
 	if ch < 32 || ch == 127 {
 		return fmt.Sprintf("carácter de control inesperado (código %d)", ch)
+	}
+	if unicode.IsDigit(ch) {
+		return fmt.Sprintf("carácter inesperado '%c'; los números se escriben con los dígitos del 0 al 9", ch)
 	}
 	return fmt.Sprintf("carácter inesperado '%c'", ch)
 }

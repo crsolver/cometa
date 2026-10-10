@@ -40,7 +40,7 @@ cd cometa/vscode-extension
 npm install
 npm run build
 npx @vscode/vsce package
-code --install-extension cometa-language-0.1.0.vsix
+code --install-extension cometa-language-0.1.1.vsix
 ```
 
 Si solo quieres probarla sin instalarla, abre la carpeta `cometa` en VS Code y pulsa `F5` (**Run Cometa Extension**).

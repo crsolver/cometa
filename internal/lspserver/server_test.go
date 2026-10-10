@@ -12,7 +12,7 @@ import (
 
 	"github.com/crsolver/cometa/internal/ast"
 	"github.com/crsolver/cometa/internal/compiler"
-	"github.com/crsolver/cometa/internal/sema"
+	"github.com/crsolver/cometa/internal/diagnostic"
 )
 
 var (
@@ -278,7 +278,7 @@ func TestDocumentSymbolsAreHierarchical(t *testing.T) {
 }
 
 func TestDiagnosticColumnsUseUTF16(t *testing.T) {
-	err := &sema.Error{Pos: ast.Pos{Line: 1, Column: 2}, Message: "error"}
+	err := &diagnostic.Error{Stage: diagnostic.Sema, Pos: ast.Pos{Line: 1, Column: 2}, Message: "error"}
 	diagnostic := diagnosticFromError(err, "😀x")
 	if diagnostic.Range.Start.Character != 2 {
 		t.Fatalf("UTF-16 character = %d, want 2", diagnostic.Range.Start.Character)

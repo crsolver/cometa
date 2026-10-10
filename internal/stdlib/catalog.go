@@ -1,254 +1,343 @@
-// Package stdlib is the compiler-owned, backend-independent game API catalog.
+// Package stdlib is the compiler-owned catalog of the standard library: the
+// modules a program can import, with their types, constants and functions, and
+// the Go runtime that implements them.
 package stdlib
 
 import (
-	"github.com/crsolver/cometa/internal/ast"
-	"github.com/crsolver/cometa/internal/lexer"
-	"github.com/crsolver/cometa/internal/parser"
-	"strconv"
+	"regexp"
+	"sort"
 	"strings"
 )
 
 const EbitenVersion = "v2.10.1"
 
+// Module is one importable part of the library. Each one is declared in its
+// mod_*.go file and listed in Modules; the type checker, the code generator,
+// the editor and the reference all read it from there, so adding a function
+// or a type means adding one entry (and its Go implementation to the runtime).
+type Module struct {
+	Name string // the namespace programs write: graficos.limpiar
+	Path string // what `usar` imports: std/pincel/graficos
+	Doc  string
+	// Notes are extra lines of the reference header, such as limits and ranges.
+	Notes     []string
+	Types     []Type
+	Constants []Constant
+	Functions []Function
+	// OnlyCalled makes the runtime carry just the functions a program calls
+	// instead of the whole module. std/pincel/tiempo needs it: its clock and
+	// timers work without a window, but fps and tps bring in Ebitengine.
+	OnlyCalled bool
+
+	phased bool // some function or type has a Phase
+}
+
+// Type is a library type. Its Go type is "_hg" followed by its name.
+type Type struct {
+	Name string
+	Doc  string
+	// Fields holds one "nombre tipo" per public field, with "= valor" after
+	// it when a literal that omits the field should not get the zero value. A
+	// type without fields is opaque: programs get its values from the
+	// library, never from a literal.
+	Fields []string
+	// Value types are copied on assignment, like numbers. The rest are
+	// references, like the types a program declares.
+	Value bool
+	// Interface types are implemented by programs; Methods are what they require.
+	Interface bool
+	// Constants maps each `.Nombre` of the type to its Go expression.
+	Constants map[string]string
+	Methods   []Function
+	// Arithmetic gives the type the operators of a vector.
+	Arithmetic *Arithmetic
+	// Channels are members that can be read but never assigned, and that do
+	// not make the type a structure: it stays opaque.
+	Channels []Channel
+	// ReadOnly is the error for an assignment to a channel.
+	ReadOnly string
+	// Wrapper is the Go type that carries Methods when the type itself cannot:
+	// an alias of a type of another Go package has no methods of its own.
+	Wrapper string
+	// Phase names the only game callback where a value of the type may open a
+	// `con` block, when it has that restriction.
+	Phase string
+
+	module *Module
+}
+
+// Arithmetic names the runtime functions behind the operators of a vector
+// type, without their "_hg" prefix: a + b, a - b, and a * n, n * a, a / n and
+// -a, which all scale.
+type Arithmetic struct{ Add, Sub, Scale string }
+
+// Channel is a read-only member of a type, held in a field of its Go type.
+// Channels are integers.
+type Channel struct{ Name, GoField string }
+
+// Overload says how a function accepts more than the types of its signature.
+type Overload int
+
+const (
+	// Numeric functions are written for decimals and also work on integers:
+	// when every argument is an integer, so are the parameters and the result.
+	// The runtime holds that variant as GoName followed by "Entero".
+	Numeric Overload = iota + 1
+	// Scalar functions take, as their first two parameters, two values of the
+	// same built-in type. The runtime holds one variant for each: GoName
+	// followed by "Entero", "Decimal", "Cadena" or "Bool".
+	Scalar
+)
+
+// Constant is a named value of a module, such as mate.pi.
+type Constant struct {
+	Name     string
+	Type     string // a built-in type
+	Value    string // as written in Cometa, for the reference
+	GoValue  string
+	GoImport string // the Go package GoValue needs, if any
+
+	module *Module
+}
+
+// Function is a function of a module or a method of a library type.
 type Function struct {
-	Namespace, Name, Signature, GoName string
-	Draw, Resource                     bool
+	// Namespace is the module name of a function and the symbol of the
+	// receiver type of a method. The catalog fills it in.
+	Namespace string
+	Name      string
+	// Signature is the parameter list and result in Cometa syntax:
+	// "(x decimal, y decimal = 0) decimal".
+	Signature string
+	// GoName is the runtime function without its "_hg" prefix, or the Go
+	// method of the receiver.
+	GoName string
+	// Draw functions paint, so they are only valid while the game paints.
+	Draw bool
+	// Resource functions embed a file: they take one literal path and are
+	// only valid as the initializer of a global.
+	Resource bool
+	// Visual functions step or paint a game, so they need Ebitengine even
+	// when the rest of their module does not.
+	Visual bool
+	// Phase names the only game callback the function may run from
+	// ("actualizar" or "pintar"), when it has that restriction.
+	Phase    string
+	Overload Overload
+	Doc      string
+
+	module *Module
+	owner  *Type // the receiver type of a method
 }
 
-var Functions = []Function{
-	{"pruebas", "afirmar", `condicion bool, mensaje cadena = "")`, "pruebasAfirmar", false, false},
-	{"pruebas", "igual", `esperado cadena, obtenido cadena, mensaje cadena = "")`, "pruebasIgual", false, false},
-	{"pruebas", "casi_igual", `esperado decimal, obtenido decimal, tolerancia decimal = 0.000001, mensaje cadena = "")`, "pruebasCasiIgual", false, false},
-	{"pruebas", "fallar", "mensaje cadena)", "pruebasFallar", false, false},
-	{"pruebas", "avanzar", "juego Juego, cuadros entero = 1, ancho entero = 320, alto entero = 180, tps entero = 60)", "pruebasAvanzar", false, false},
-	{"pruebas", "pantalla", ") Imagen", "pruebasPantalla", false, false},
-	{"pruebas", "pixel", `x entero, y entero, esperado Color, tolerancia entero = 0, mensaje cadena = "")`, "pruebasPixel", false, false},
-	{"ruido", "suave", "x decimal, y decimal, semilla entero = 0) decimal", "ruidoSuave", false, false},
-	{"ruido", "fractal", "x decimal, y decimal, semilla entero = 0, octavas entero = 4, persistencia decimal = 0.5, lacunaridad decimal = 2.0) decimal", "ruidoFractal", false, false},
-	{"curvas", "lineal", "progreso decimal) decimal", "curva_lineal", false, false},
-	{"curvas", "cuadratica_entrada", "progreso decimal) decimal", "curva_cuadratica_entrada", false, false},
-	{"curvas", "cuadratica_salida", "progreso decimal) decimal", "curva_cuadratica_salida", false, false},
-	{"curvas", "cuadratica_entrada_salida", "progreso decimal) decimal", "curva_cuadratica_entrada_salida", false, false},
-	{"curvas", "cubica_entrada", "progreso decimal) decimal", "curva_cubica_entrada", false, false},
-	{"curvas", "cubica_salida", "progreso decimal) decimal", "curva_cubica_salida", false, false},
-	{"curvas", "cubica_entrada_salida", "progreso decimal) decimal", "curva_cubica_entrada_salida", false, false},
-	{"curvas", "cuartica_entrada", "progreso decimal) decimal", "curva_cuartica_entrada", false, false},
-	{"curvas", "cuartica_salida", "progreso decimal) decimal", "curva_cuartica_salida", false, false},
-	{"curvas", "cuartica_entrada_salida", "progreso decimal) decimal", "curva_cuartica_entrada_salida", false, false},
-	{"curvas", "quintica_entrada", "progreso decimal) decimal", "curva_quintica_entrada", false, false},
-	{"curvas", "quintica_salida", "progreso decimal) decimal", "curva_quintica_salida", false, false},
-	{"curvas", "quintica_entrada_salida", "progreso decimal) decimal", "curva_quintica_entrada_salida", false, false},
-	{"curvas", "senoidal_entrada", "progreso decimal) decimal", "curva_senoidal_entrada", false, false},
-	{"curvas", "senoidal_salida", "progreso decimal) decimal", "curva_senoidal_salida", false, false},
-	{"curvas", "senoidal_entrada_salida", "progreso decimal) decimal", "curva_senoidal_entrada_salida", false, false},
-	{"curvas", "circular_entrada", "progreso decimal) decimal", "curva_circular_entrada", false, false},
-	{"curvas", "circular_salida", "progreso decimal) decimal", "curva_circular_salida", false, false},
-	{"curvas", "circular_entrada_salida", "progreso decimal) decimal", "curva_circular_entrada_salida", false, false},
-	{"curvas", "exponencial_entrada", "progreso decimal) decimal", "curva_exponencial_entrada", false, false},
-	{"curvas", "exponencial_salida", "progreso decimal) decimal", "curva_exponencial_salida", false, false},
-	{"curvas", "exponencial_entrada_salida", "progreso decimal) decimal", "curva_exponencial_entrada_salida", false, false},
-	{"curvas", "elastica_entrada", "progreso decimal) decimal", "curva_elastica_entrada", false, false},
-	{"curvas", "elastica_salida", "progreso decimal) decimal", "curva_elastica_salida", false, false},
-	{"curvas", "elastica_entrada_salida", "progreso decimal) decimal", "curva_elastica_entrada_salida", false, false},
-	{"curvas", "retroceso_entrada", "progreso decimal) decimal", "curva_retroceso_entrada", false, false},
-	{"curvas", "retroceso_salida", "progreso decimal) decimal", "curva_retroceso_salida", false, false},
-	{"curvas", "retroceso_entrada_salida", "progreso decimal) decimal", "curva_retroceso_entrada_salida", false, false},
-	{"curvas", "rebote_entrada", "progreso decimal) decimal", "curva_rebote_entrada", false, false},
-	{"curvas", "rebote_salida", "progreso decimal) decimal", "curva_rebote_salida", false, false},
-	{"curvas", "rebote_entrada_salida", "progreso decimal) decimal", "curva_rebote_entrada_salida", false, false},
-	{"pincel", "ejecutar", `instancia Juego, ancho entero = 320, alto entero = 180, titulo cadena = "Cometa", escala decimal = 1, redimensionable bool = falso, pantalla_completa bool = falso, tps entero = 60, pixelado bool = falso, retro bool = falso) !`, "ejecutar", false, false},
-	{"pincel", "salir", ")", "salir", false, false},
-	{"retro", "texto", "texto cadena, x entero, y entero, escala entero = 1, color Color = .Blanco)", "retroTexto", true, false},
-	{"retro", "ancho_texto", "texto cadena, escala entero = 1) entero", "retroAnchoTexto", false, false},
-	{"retro", "icono", "icono Icono, x entero, y entero, escala entero = 1, color Color = .Blanco)", "retroIcono", true, false},
-	{"retro", "glifo", "indice entero, x entero, y entero, escala entero = 1, color Color = .Blanco, atlas Atlas = .Dungeon)", "retroGlifo", true, false},
-	{"retro", "ejecutar", `instancia Juego, ancho entero = 320, alto entero = 200, titulo cadena = "Cometa", escala decimal = 4, redimensionable bool = falso, pantalla_completa bool = falso, tps entero = 60, pixelado bool = verdadero, retro bool = falso) !`, "retroEjecutar", false, false},
-	{"mate", "absoluto", "valor decimal) decimal", "abs", false, false},
-	{"mate", "minimo", "a decimal, b decimal) decimal", "min", false, false},
-	{"mate", "maximo", "a decimal, b decimal) decimal", "max", false, false},
-	{"mate", "limitar", "valor decimal, minimo decimal, maximo decimal) decimal", "limitar", false, false},
-	{"mate", "interpolar", "a decimal, b decimal, t decimal) decimal", "interpolar", false, false},
-	{"mate", "piso", "valor decimal) entero", "piso", false, false},
-	{"mate", "techo", "valor decimal) entero", "techo", false, false},
-	{"mate", "redondear", "valor decimal) entero", "redondear", false, false},
-	{"mate", "raiz", "valor decimal) decimal", "raiz", false, false},
-	{"mate", "seno", "angulo decimal) decimal", "seno", false, false},
-	{"mate", "coseno", "angulo decimal) decimal", "coseno", false, false},
-	{"mate", "atan2", "y decimal, x decimal) decimal", "atan2", false, false},
-	{"mate", "tangente", "angulo decimal) decimal", "tangente", false, false},
-	{"mate", "potencia", "base decimal, exponente decimal) decimal", "potencia", false, false},
-	{"mate", "signo", "valor decimal) decimal", "signo", false, false},
-	{"mate", "distancia", "x1 decimal, y1 decimal, x2 decimal, y2 decimal) decimal", "distanciaXY", false, false},
-	{"mate", "angulo", "x1 decimal, y1 decimal, x2 decimal, y2 decimal) decimal", "anguloXY", false, false},
-	{"mate", "radianes", "grados decimal) decimal", "radianes", false, false},
-	{"mate", "grados", "radianes decimal) decimal", "grados", false, false},
-	{"azar", "real", "minimo decimal, maximo decimal) decimal", "azarReal", false, false},
-	{"azar", "entero", "minimo entero, maximo entero) entero", "azarEntero", false, false},
-	{"azar", "semilla", "valor entero)", "azarSemilla", false, false},
-	{"consola", "leer_linea", ") cadena?", "consolaLeerLinea", false, false},
-	{"consola", "escribir", "texto cadena)", "consolaEscribir", false, false},
-	{"datos", "guardar", "clave cadena, valor cadena) !", "datosGuardar", false, false},
-	{"datos", "leer", "clave cadena) cadena?", "datosLeer", false, false},
-	{"datos", "borrar", "clave cadena) !", "datosBorrar", false, false},
-	{"datos", "juego", "nombre cadena)", "datosJuego", false, false},
-	{"datos", "claves", ") [cadena]", "datosClaves", false, false},
-	{"datos", "guardar_entero", "clave cadena, valor entero) !", "datosGuardarEntero", false, false},
-	{"datos", "leer_entero", "clave cadena) entero?", "datosLeerEntero", false, false},
-	{"datos", "guardar_decimal", "clave cadena, valor decimal) !", "datosGuardarDecimal", false, false},
-	{"datos", "leer_decimal", "clave cadena) decimal?", "datosLeerDecimal", false, false},
-	{"rejilla", "nueva", "columnas entero, filas entero, valor entero = 0) Rejilla", "rejillaNueva", false, false},
-	{"rejilla", "desde_texto", "filas [cadena], simbolos [cadena: entero]) Rejilla", "rejillaDesdeTexto", false, false},
-	{"rejilla", "dibujar", "mapa Rejilla, hoja Hoja, pos Vec2 = {}, escala Vec2 = {x: 1, y: 1}, tinte Color = .Blanco, animaciones [entero: [entero]] = [:], cuadros_por_segundo decimal = 8)", "rejillaDibujar", true, false},
-	{"color", "rgba", "r entero, g entero, b entero, a entero = 255) Color", "rgba", false, false},
-	{"graficos", "limpiar", "color Color)", "limpiar", true, false},
-	{"graficos", "rectangulo", "x decimal, y decimal, ancho decimal, alto decimal, color Color, origen Vec2 = {}, rotacion decimal = 0)", "rectanguloXY", true, false},
-	{"graficos", "rectangulo_v", "pos Vec2, tamano Vec2, color Color, origen Vec2 = {}, rotacion decimal = 0)", "rectangulo", true, false},
-	{"graficos", "rectangulo_rect", "rect Rect, color Color, origen Vec2 = {}, rotacion decimal = 0)", "rectanguloRect", true, false},
-	{"graficos", "circulo", "x decimal, y decimal, radio decimal, color Color)", "circuloXY", true, false},
-	{"graficos", "circulo_v", "centro Vec2, radio decimal, color Color)", "circulo", true, false},
-	{"graficos", "linea", "x1 decimal, y1 decimal, x2 decimal, y2 decimal, color Color, grosor decimal = 1)", "lineaXY", true, false},
-	{"graficos", "linea_v", "a Vec2, b Vec2, color Color, grosor decimal = 1)", "linea", true, false},
-	{"graficos", "imagen", "imagen Imagen, x decimal, y decimal, origen Vec2 = {}, escala Vec2 = {x: 1, y: 1}, rotacion decimal = 0, tinte Color = .Blanco, relleno Color = .Transparente)", "imagenXY", true, false},
-	{"graficos", "imagen_v", "imagen Imagen, pos Vec2, origen Vec2 = {}, escala Vec2 = {x: 1, y: 1}, rotacion decimal = 0, tinte Color = .Blanco, relleno Color = .Transparente)", "imagen", true, false},
-	{"graficos", "imagen_rect", "imagen Imagen, destino Rect, origen Vec2 = {}, rotacion decimal = 0, tinte Color = .Blanco, relleno Color = .Transparente)", "imagenRect", true, false},
-	{"graficos", "region", "imagen Imagen, fuente Rect, x decimal, y decimal, origen Vec2 = {}, escala Vec2 = {x: 1, y: 1}, rotacion decimal = 0, tinte Color = .Blanco, relleno Color = .Transparente)", "regionXY", true, false},
-	{"graficos", "region_v", "imagen Imagen, fuente Rect, pos Vec2, origen Vec2 = {}, escala Vec2 = {x: 1, y: 1}, rotacion decimal = 0, tinte Color = .Blanco, relleno Color = .Transparente)", "region", true, false},
-	{"graficos", "region_rect", "imagen Imagen, fuente Rect, destino Rect, origen Vec2 = {}, rotacion decimal = 0, tinte Color = .Blanco, relleno Color = .Transparente)", "regionRect", true, false},
-	{"graficos", "texto", "texto cadena, fuente Fuente, x decimal, y decimal, tamano decimal = 20, color Color = .Blanco, origen Vec2 = {}, rotacion decimal = 0)", "textoXY", true, false},
-	{"graficos", "texto_v", "texto cadena, fuente Fuente, pos Vec2, tamano decimal = 20, color Color = .Blanco, origen Vec2 = {}, rotacion decimal = 0)", "texto", true, false},
-	{"graficos", "hoja", "imagen Imagen, ancho_cuadro entero, alto_cuadro entero) Hoja", "hoja", false, false},
-	{"graficos", "cuadros", "hoja Hoja) entero", "cuadros", false, false},
-	{"graficos", "tamano_cuadro", "hoja Hoja) Vec2", "tamanoCuadro", false, false},
-	{"graficos", "cuadro", "hoja Hoja, indice entero, x decimal, y decimal, origen Vec2 = {}, escala Vec2 = {x: 1, y: 1}, rotacion decimal = 0, tinte Color = .Blanco, espejo_h bool = falso, espejo_v bool = falso, relleno Color = .Transparente)", "cuadroXY", true, false},
-	{"graficos", "cuadro_v", "hoja Hoja, indice entero, pos Vec2, origen Vec2 = {}, escala Vec2 = {x: 1, y: 1}, rotacion decimal = 0, tinte Color = .Blanco, espejo_h bool = falso, espejo_v bool = falso, relleno Color = .Transparente)", "cuadro", true, false},
-	{"graficos", "medir_texto", "texto cadena, fuente Fuente, tamano decimal = 20) Vec2", "medirTexto", false, false},
-	{"graficos", "fuente_predeterminada", ") Fuente", "fuentePredeterminada", false, false},
-	{"graficos", "texto_depuracion", "texto cadena, x decimal = 0, y decimal = 0)", "textoDepuracionXY", true, false},
-	{"graficos", "texto_depuracion_v", "texto cadena, pos Vec2 = {})", "textoDepuracion", true, false},
-	{"graficos", "tamano", ") Vec2", "tamano", false, false},
-	{"graficos", "recortar", "rect Rect)", "recortar", true, false},
-	{"graficos", "quitar_recorte", ")", "quitarRecorte", true, false},
-	{"graficos", "usar_camara", "camara Camara2D)", "usarCamara", true, false},
-	{"graficos", "restablecer_camara", ")", "restablecerCamara", true, false},
-	{"entrada", "tecla_mantenida", "tecla Tecla) bool", "teclaMantenida", false, false},
-	{"entrada", "tecla_presionada", "tecla Tecla) bool", "teclaPresionada", false, false},
-	{"entrada", "tecla_soltada", "tecla Tecla) bool", "teclaSoltada", false, false},
-	{"entrada", "raton_mantenido", "boton BotonRaton) bool", "ratonMantenido", false, false},
-	{"entrada", "raton_presionado", "boton BotonRaton) bool", "ratonPresionado", false, false},
-	{"entrada", "raton_soltado", "boton BotonRaton) bool", "ratonSoltado", false, false},
-	{"entrada", "posicion_raton", ") Vec2", "posicionRaton", false, false},
-	{"entrada", "rueda", ") Vec2", "rueda", false, false},
-	{"entrada", "mandos", ") entero", "mandos", false, false},
-	{"entrada", "mando_boton", "mando entero, boton BotonMando) bool", "mandoBoton", false, false},
-	{"entrada", "mando_boton_presionado", "mando entero, boton BotonMando) bool", "mandoBotonPresionado", false, false},
-	{"entrada", "mando_eje", "mando entero, eje EjeMando, zona_muerta decimal = 0.15) decimal", "mandoEje", false, false},
-	{"audio", "reproducir", "sonido Sonido, volumen decimal = 1, bucle bool = falso) Reproduccion", "reproducir", false, false},
-	{"audio", "pausar", "reproduccion Reproduccion)", "pausar", false, false},
-	{"audio", "reanudar", "reproduccion Reproduccion)", "reanudar", false, false},
-	{"audio", "detener", "reproduccion Reproduccion)", "detener", false, false},
-	{"audio", "volumen", "reproduccion Reproduccion, valor decimal)", "volumen", false, false},
-	{"ventana", "titulo", "titulo cadena)", "titulo", false, false},
-	{"ventana", "pantalla_completa", "activa bool)", "pantallaCompleta", false, false},
-	{"ventana", "tamano", ") Vec2", "ventanaTamano", false, false},
-	{"ventana", "cursor", "visible bool)", "ventanaCursor", false, false},
-	{"ventana", "icono", "imagen Imagen)", "ventanaIcono", false, false},
-	{"ventana", "es_pantalla_completa", ") bool", "esPantallaCompleta", false, false},
-	{"tiempo", "fps", ") decimal", "fps", false, false},
-	{"tiempo", "tps", ") decimal", "tps", false, false},
-	{"tiempo", "temporizador", "duracion decimal, bucle bool = falso) Temporizador", "temporizador", false, false},
-	{"lienzo", "nuevo", "ancho entero, alto entero, color Color = .Transparente) Imagen", "lienzoNuevo", false, false},
-	{"lienzo", "desde_texto", "filas [cadena], colores [cadena: Color]) Imagen", "lienzoDesdeTexto", false, false},
-	{"lienzo", "hoja_desde_texto", "cuadros [[cadena]], colores [cadena: Color]) [Imagen]", "lienzoHojaDesdeTexto", false, false},
-	{"lienzo", "ancho", "imagen Imagen) entero", "lienzoAncho", false, false},
-	{"lienzo", "alto", "imagen Imagen) entero", "lienzoAlto", false, false},
-	{"lienzo", "copiar", "imagen Imagen) Imagen", "lienzoCopiar", false, false},
-	{"lienzo", "limpiar", "imagen Imagen, color Color = .Transparente)", "lienzoLimpiar", false, false},
-	{"lienzo", "pixel", "imagen Imagen, x entero, y entero, color Color)", "lienzoPixel", false, false},
-	{"lienzo", "leer_pixel", "imagen Imagen, x entero, y entero) Color?", "lienzoLeerPixel", false, false},
-	{"lienzo", "rect", "imagen Imagen, x entero, y entero, ancho entero, alto entero, color Color, relleno bool = verdadero)", "lienzoRect", false, false},
-	{"lienzo", "linea", "imagen Imagen, x1 entero, y1 entero, x2 entero, y2 entero, color Color)", "lienzoLinea", false, false},
-	{"lienzo", "circulo", "imagen Imagen, x entero, y entero, radio entero, color Color, relleno bool = verdadero)", "lienzoCirculo", false, false},
-	{"lienzo", "rellenar", "imagen Imagen, x entero, y entero, color Color)", "lienzoRellenar", false, false},
-	{"lienzo", "pegar", "destino Imagen, fuente Imagen, x entero, y entero, espejo_h bool = falso, espejo_v bool = falso)", "lienzoPegar", false, false},
-	{"lienzo", "guardar", "imagen Imagen, ruta cadena, escala entero = 1) !", "lienzoGuardar", false, false},
-	{"recursos", "imagen", "ruta cadena) Imagen", "cargarImagen", false, true},
-	{"recursos", "fuente", "ruta cadena) Fuente", "cargarFuente", false, true},
-	{"recursos", "sonido", "ruta cadena) Sonido", "cargarSonido", false, true},
+// Phased reports whether the module of f restricts anything to one game
+// callback, so a program that calls f needs its callbacks checked.
+func (f Function) Phased() bool { return f.module != nil && f.module.phased }
+
+// Integer is the variant of a Numeric function that works on integers.
+func (f Function) Integer() Function {
+	f.GoName += "Entero"
+	f.Signature = strings.ReplaceAll(f.Signature, "decimal", "entero")
+	return f
 }
 
-// Methods use Namespace as the receiver type, never as a callable namespace.
-var Methods = []Function{
-	{"Vec2", "longitud", ") decimal", "longitud", false, false},
-	{"Vec2", "normalizado", ") Vec2", "normalizar", false, false},
-	{"Vec2", "distancia_a", "otro Vec2) decimal", "distancia", false, false},
-	{"Vec2", "producto_punto", "otro Vec2) decimal", "productoPunto", false, false},
-	{"Vec2", "rotado", "angulo decimal) Vec2", "rotar", false, false},
-	{"Vec2", "colision_circulo", "radio decimal, otro Vec2, radio_otro decimal) bool", "circulos", false, false},
-	{"Rect", "interseca", "otro Rect) bool", "rectangulos", false, false},
-	{"Rect", "contiene", "punto Vec2) bool", "contiene", false, false},
-	{"Vec2", "angulo", ") decimal", "anguloVec", false, false},
-	{"Vec2", "interpolar", "otro Vec2, t decimal) Vec2", "interpolarVec", false, false},
-	{"Vec2", "reflejar", "normal Vec2) Vec2", "reflejar", false, false},
-	{"Vec2", "perpendicular", ") Vec2", "perpendicular", false, false},
-	{"Rect", "centro", ") Vec2", "centroRect", false, false},
-	{"Rect", "interseccion", "otro Rect) Rect", "interseccionRect", false, false},
-	{"Rect", "desplazado", "delta Vec2) Rect", "desplazadoRect", false, false},
-	{"Rect", "colision_circulo", "centro Vec2, radio decimal) bool", "circuloRect", false, false},
-	{"Rejilla", "columnas", ") entero", "columnas", false, false},
-	{"Rejilla", "filas", ") entero", "filas", false, false},
-	{"Rejilla", "obtener", "x entero, y entero) entero?", "obtener", false, false},
-	{"Rejilla", "poner", "x entero, y entero, valor entero) bool", "poner", false, false},
-	{"Rejilla", "rellenar", "valor entero)", "rellenar", false, false},
-	{"Rejilla", "choca", "area Rect, tamano_celda Vec2, solidos [entero]) bool", "choca", false, false},
-	{"Rejilla", "mover", "area Rect, tamano_celda Vec2, delta Vec2, solidos [entero], plataformas [entero] = []) Vec2", "mover", false, false},
-	{"Rejilla", "celda_en", "punto Vec2, tamano_celda Vec2) entero?", "celdaEn", false, false},
-	{"Rejilla", "valores_en", "area Rect, tamano_celda Vec2) [entero]", "valoresEn", false, false},
-	{"Camara2D", "a_mundo", "punto Vec2) Vec2", "aMundo", false, false},
-	{"Camara2D", "a_pantalla", "punto Vec2) Vec2", "aPantalla", false, false},
-	{"Camara2D", "siguiendo", "objetivo Vec2, suavizado decimal) Camara2D", "siguiendo", false, false},
-	{"Camara2D", "limitada", "mundo Rect) Camara2D", "limitada", false, false},
-	{"Camara2D", "sacudida", "intensidad decimal) Camara2D", "sacudida", false, false},
-	{"Camara2D", "visible", ") Rect", "visible", false, false},
-	{"Temporizador", "avanzar", "dt decimal) bool", "avanzar", false, false},
-	{"Temporizador", "terminado", ") bool", "terminado", false, false},
-	{"Temporizador", "terminar", ")", "terminar", false, false},
-	{"Temporizador", "reiniciar", ")", "reiniciar", false, false},
-	{"Temporizador", "restante", ") decimal", "restante", false, false},
-	{"Temporizador", "progreso", ") decimal", "progreso", false, false},
+// Variant is the variant of a Scalar function for a built-in type, named as
+// the runtime does: "Entero", "Decimal", "Cadena" or "Bool".
+func (f Function) Variant(kind string) Function {
+	f.GoName += kind
+	return f
 }
 
-var Fields = map[string]string{
-	"Icono": "", "Atlas": "",
-	"Vec2": "x decimal\ny decimal", "Rect": "pos Vec2\ntamano Vec2",
-	"Camara2D": "pos Vec2\norigen Vec2\nzoom decimal\nrotacion decimal",
-	"Color":    "", "Imagen": "", "Fuente": "", "Sonido": "", "Reproduccion": "", "Tecla": "", "BotonRaton": "",
-	"BotonMando": "", "EjeMando": "", "Hoja": "", "Rejilla": "", "Temporizador": "",
+// ScalarVariants are the suffixes of the variants of a Scalar function.
+var ScalarVariants = []string{"Entero", "Decimal", "Cadena", "Bool"}
+
+// Modules lists every module of the library.
+var Modules = []*Module{
+	&azarModule, &consolaModule, &mateModule, &curvasModule, &ruidoModule, &pincelModule, &audioModule,
+	&colorModule, &datosModule, &entradaModule, &graficosModule, &lienzoModule, &recursosModule,
+	&rejillaModule, &retroModule, &tiempoModule, &uiModule, &ventanaModule, &pruebasModule,
 }
 
-// Native Go names are deliberately outside the exported user-name space.
-func GoType(name string) string {
-	if IsType(name) {
-		return "_hg" + PublicName(name)
+// Functions lists the functions of every module, in catalog order.
+var Functions []Function
+
+// Constants maps the symbol of each type that has constants to them.
+var Constants = map[string]map[string]string{}
+
+// The lookups below are filled once, from Modules.
+var (
+	modulesByPath   = map[string]*Module{}
+	modulesByName   = map[string]*Module{}
+	typesBySymbol   = map[string]*Type{}
+	functionsByName = map[string]*Function{} // by symbol
+	constantsByName = map[string]*Constant{} // by symbol
+	typeName        *regexp.Regexp
+	display         *strings.Replacer
+)
+
+func init() {
+	var types []string
+	// Longest first: a function symbol can start with the spelling of a type.
+	var symbols []string
+	shown := map[string]string{}
+	for _, m := range Modules {
+		modulesByPath[m.Path] = m
+		modulesByName[m.Name] = m
+		for i := range m.Types {
+			t := &m.Types[i]
+			t.module = m
+			m.phased = m.phased || t.Phase != ""
+			typesBySymbol[Symbol(t.Name)] = t
+			types = append(types, t.Name)
+			symbols = append(symbols, Symbol(t.Name))
+			shown[Symbol(t.Name)] = m.Name + "." + t.Name
+			if len(t.Constants) > 0 {
+				Constants[Symbol(t.Name)] = t.Constants
+			}
+			for j := range t.Methods {
+				method := &t.Methods[j]
+				method.Namespace, method.module, method.owner = Symbol(t.Name), m, t
+			}
+		}
+		for i := range m.Constants {
+			c := &m.Constants[i]
+			c.module = m
+			symbol := FunctionSymbol(m.Name, c.Name)
+			constantsByName[symbol] = c
+			symbols = append(symbols, symbol)
+			shown[symbol] = m.Name + "." + c.Name
+		}
+		for i := range m.Functions {
+			f := &m.Functions[i]
+			f.Namespace, f.module = m.Name, m
+			m.phased = m.phased || f.Phase != ""
+			symbol := FunctionSymbol(m.Name, f.Name)
+			functionsByName[symbol] = f
+			symbols = append(symbols, symbol)
+			shown[symbol] = m.Name + "." + f.Name
+		}
+	}
+	for _, m := range Modules {
+		Functions = append(Functions, m.Functions...)
+	}
+	typeName = regexp.MustCompile(`\b(` + strings.Join(types, "|") + `)\b`)
+	sort.SliceStable(symbols, func(i, j int) bool { return len(symbols[i]) > len(symbols[j]) })
+	var pairs []string
+	for _, symbol := range symbols {
+		pairs = append(pairs, symbol, shown[symbol])
+	}
+	display = strings.NewReplacer(pairs...)
+}
+
+// Symbols are private linkage identities, never source-level names.
+func Symbol(name string) string                    { return "__std_" + name }
+func PublicName(name string) string                { return strings.TrimPrefix(name, "__std_") }
+func FunctionSymbol(namespace, name string) string { return Symbol(namespace + "_" + name) }
+
+// Reserved reports whether a program may not declare name.
+func Reserved(name string) bool {
+	return name == "entero" || name == "decimal" || strings.HasPrefix(name, "_hg") || strings.HasPrefix(name, "__std_")
+}
+
+// LookupModule returns the module imported as path ("std/mate").
+func LookupModule(path string) (*Module, bool) {
+	m, ok := modulesByPath[path]
+	return m, ok
+}
+
+// ModulePaths lists every importable "std/..." path, for editor completion.
+func ModulePaths() []string {
+	var paths []string
+	for _, m := range Modules {
+		paths = append(paths, m.Path)
+	}
+	sort.Strings(paths)
+	return paths
+}
+
+// LookupSymbol returns the function a symbol names.
+func LookupSymbol(symbol string) (Function, bool) {
+	if f := functionsByName[symbol]; f != nil {
+		return *f, true
+	}
+	return Function{}, false
+}
+
+// LookupConstant returns the module constant a symbol names, such as mate.pi.
+func LookupConstant(symbol string) (Constant, bool) {
+	if c := constantsByName[symbol]; c != nil {
+		return *c, true
+	}
+	return Constant{}, false
+}
+
+// LookupType returns the library type a symbol names, interfaces included.
+func LookupType(symbol string) (*Type, bool) {
+	t, ok := typesBySymbol[symbol]
+	return t, ok
+}
+
+// IsType reports whether symbol names a concrete library type. The interfaces
+// programs implement (pincel.Juego) are not included.
+func IsType(symbol string) bool {
+	t := typesBySymbol[symbol]
+	return t != nil && !t.Interface
+}
+
+// IsValue reports whether symbol names a library type that is copied on assignment.
+func IsValue(symbol string) bool {
+	t := typesBySymbol[symbol]
+	return t != nil && t.Value
+}
+
+// IsOpaque reports whether symbol names a library type that has no fields, so
+// only the library can make its values.
+func IsOpaque(symbol string) bool {
+	t := typesBySymbol[symbol]
+	return t != nil && !t.Interface && len(t.Fields) == 0
+}
+
+// GoType returns the Go type of a concrete library type, or "". Native Go
+// names are deliberately outside the exported user-name space.
+func GoType(symbol string) string {
+	if IsType(symbol) {
+		return "_hg" + PublicName(symbol)
 	}
 	return ""
 }
-func IsType(name string) bool { _, ok := Fields[name]; return ok }
-func IsValue(name string) bool {
-	if name == Symbol("Bordes") || name == Symbol("Alineacion") {
-		return true
+
+// GoInterface returns the Go type of a library interface, or "".
+func GoInterface(symbol string) string {
+	if t := typesBySymbol[symbol]; t != nil && t.Interface {
+		return "_hg" + t.Name
 	}
-	if name == Symbol("Icono") || name == Symbol("Atlas") {
-		return true
+	return ""
+}
+
+// Vector returns the arithmetic of a library type that has operators, or nil.
+func Vector(symbol string) *Arithmetic {
+	if t := typesBySymbol[symbol]; t != nil {
+		return t.Arithmetic
 	}
-	return name == Symbol("Vec2") || name == Symbol("Rect") || name == Symbol("Camara2D") || name == Symbol("Color") || name == Symbol("Tecla") || name == Symbol("BotonRaton") || name == Symbol("BotonMando") || name == Symbol("EjeMando")
+	return nil
 }
-// VisualTest reports whether f is one of the std/pruebas functions that step
-// and paint a game. Only they need Ebitengine, so their runtime is emitted
-// only for projects that also import a std/pincel module.
-func VisualTest(f Function) bool {
-	return f.Namespace == "pruebas" && (f.Name == "avanzar" || f.Name == "pantalla" || f.Name == "pixel")
+
+// Channel returns the Go field behind a read-only member of a library type,
+// or "" when the type has no such member.
+func (t *Type) Channel(name string) string {
+	for _, channel := range t.Channels {
+		if channel.Name == name {
+			return channel.GoField
+		}
+	}
+	return ""
 }
+
+// Symbol is the identity of the type in a checked program.
+func (t *Type) Symbol() string { return Symbol(t.Name) }
+
+// Module is the module that declares the type.
+func (t *Type) Module() *Module { return t.module }
 
 // UsesPincel reports whether any imported native module belongs to Pincel.
 func UsesPincel(modules []string) bool {
@@ -259,170 +348,14 @@ func UsesPincel(modules []string) bool {
 	}
 	return false
 }
-func IsNamespace(name string) bool {
-	for _, f := range Functions {
-		if f.Namespace == name {
-			return true
-		}
-	}
-	return false
-}
-func Reserved(name string) bool {
-	return name == "entero" || name == "decimal" || strings.HasPrefix(name, "_hg") || strings.HasPrefix(name, "__std_")
-}
-func Lookup(namespace, name string) (Function, bool) {
-	for _, f := range Functions {
-		if f.Namespace == namespace && f.Name == name {
-			return f, true
-		}
-	}
-	return Function{}, false
-}
-func (f Function) Declaration() *ast.FuncDecl {
-	tokens, err := lexer.Lex("<stdlib>", "fn "+f.Name+"("+f.Signature+"\n\timprimir(0)\n")
-	if err != nil {
-		panic(err)
-	}
-	for i := range tokens {
-		tokens[i].Pos.Filename = "<stdlib>"
-	}
-	p, err := parser.Parse("<stdlib>", tokens)
-	if err != nil {
-		panic(err)
-	}
-	d := p.Decls[0].(*ast.FuncDecl)
-	d.Public = true
-	if f.Namespace == "ui" {
-		for _, param := range d.Params {
-			if call, ok := param.Default.(*ast.CallExpr); ok {
-				if id, ok := call.Callee.(*ast.IdentExpr); ok {
-					id.Name = FunctionSymbol("ui", id.Name)
-				}
-			}
-		}
-	}
-	relocate(d, f.Namespace, "fn "+f.Name+"(")
-	BindTypes(d)
-	d.Name = FunctionSymbol(f.Namespace, f.Name)
-	return d
-}
-func TypeDeclaration(name string) *ast.TypeDecl {
-	if Fields[name] == "" {
-		return &ast.TypeDecl{Name: name, Public: true}
-	}
-	source := "pub tipo " + PublicName(name) + "\n"
-	if Fields[name] != "" {
-		source += "\tpub " + strings.ReplaceAll(Fields[name], "\n", "\n\tpub ") + "\n"
-	}
-	tokens, err := lexer.Lex("<stdlib>", source)
-	if err != nil {
-		panic(err)
-	}
-	for i := range tokens {
-		tokens[i].Pos.Filename = "<stdlib>"
-	}
-	p, err := parser.Parse("<stdlib>", tokens)
-	if err != nil {
-		panic(err)
-	}
-	d := p.Decls[0].(*ast.TypeDecl)
-	d.Public = true
-	for _, field := range d.Fields {
-		field.Public = true
-	}
-	relocate(d, TypeModules[PublicName(name)], "pub tipo "+PublicName(name))
-	d.Name = name
-	BindTypes(d)
-	return d
+
+// QualifiedSignature writes the library types of a signature with their
+// module: "(pos Vec2)" becomes "(pos mate.Vec2)".
+func QualifiedSignature(signature string) string {
+	return typeName.ReplaceAllStringFunc(signature, func(name string) string {
+		return typesBySymbol[Symbol(name)].module.Name + "." + name
+	})
 }
 
-var Constants = map[string]map[string]string{
-	"Atlas": {"Dungeon": "_hgAtlas(0)", "ASCII": "_hgAtlas(1)"},
-	"Icono": {"Corazon": "_hgIcono(3)", "CorazonVacio": "_hgIcono(19)", "Espada": "_hgIcono(156)", "Escudo": "_hgIcono(157)", "Llave": "_hgIcono(175)", "Calavera": "_hgIcono(237)", "Derecha": "_hgIcono(12)", "Izquierda": "_hgIcono(13)", "Arriba": "_hgIcono(14)", "Abajo": "_hgIcono(15)"},
-	"Color": {
-		"Negro":         "_hgColor{0,0,0,255}",
-		"Rojo":          "_hgColor{255,0,0,255}",
-		"Verde":         "_hgColor{0,255,0,255}",
-		"Azul":          "_hgColor{0,0,255,255}",
-		"Amarillo":      "_hgColor{255,255,0,255}",
-		"Cian":          "_hgColor{0,255,255,255}",
-		"Magenta":       "_hgColor{255,0,255,255}",
-		"VerdePino":     "_hgColor{0,43,36,255}",
-		"AzulNoche":     "_hgColor{24,30,42,255}",
-		"Oliva":         "_hgColor{84,106,0,255}",
-		"Indigo":        "_hgColor{25,17,74,255}",
-		"VioletaOscuro": "_hgColor{47,42,76,255}",
-		"Carbon":        "_hgColor{68,63,65,255}",
-		"Petroleo":      "_hgColor{8,66,72,255}",
-		"VerdeBosque":   "_hgColor{40,84,72,255}",
-		"Gris":          "_hgColor{82,82,76,255}",
-		"Marron":        "_hgColor{115,97,80,255}",
-		"Caqui":         "_hgColor{119,120,91,255}",
-		"Malva":         "_hgColor{94,82,107,255}",
-		"Ocre":          "_hgColor{130,91,49,255}",
-		"Carmesi":       "_hgColor{181,59,89,255}",
-		"Rosa":          "_hgColor{255,87,119,255}",
-		"Ambar":         "_hgColor{255,185,21,255}",
-		"Crema":         "_hgColor{255,224,119,255}",
-		"AzulIndigo":    "_hgColor{67,62,166,255}",
-		"Cobalto":       "_hgColor{71,114,191,255}",
-		"Violeta":       "_hgColor{150,102,238,255}",
-		"Hierba":        "_hgColor{87,176,103,255}",
-		"Celeste":       "_hgColor{153,215,229,255}",
-		"Marfil":        "_hgColor{255,249,228,255}",
-		"Blanco":        "_hgColor{255,255,255,255}",
-		"Transparente":  "_hgColor{}",
-	},
-	"Tecla":      {"Izquierda": "_hgTecla(ebiten.KeyArrowLeft)", "Derecha": "_hgTecla(ebiten.KeyArrowRight)", "Arriba": "_hgTecla(ebiten.KeyArrowUp)", "Abajo": "_hgTecla(ebiten.KeyArrowDown)", "Espacio": "_hgTecla(ebiten.KeySpace)", "Escape": "_hgTecla(ebiten.KeyEscape)", "Enter": "_hgTecla(ebiten.KeyEnter)", "Tab": "_hgTecla(ebiten.KeyTab)", "Retroceso": "_hgTecla(ebiten.KeyBackspace)", "Shift": "_hgTecla(ebiten.KeyShift)", "Control": "_hgTecla(ebiten.KeyControl)"},
-	"BotonMando": {
-		"A": "_hgBotonMando(ebiten.StandardGamepadButtonRightBottom)", "B": "_hgBotonMando(ebiten.StandardGamepadButtonRightRight)",
-		"X": "_hgBotonMando(ebiten.StandardGamepadButtonRightLeft)", "Y": "_hgBotonMando(ebiten.StandardGamepadButtonRightTop)",
-		"Arriba": "_hgBotonMando(ebiten.StandardGamepadButtonLeftTop)", "Abajo": "_hgBotonMando(ebiten.StandardGamepadButtonLeftBottom)",
-		"Izquierda": "_hgBotonMando(ebiten.StandardGamepadButtonLeftLeft)", "Derecha": "_hgBotonMando(ebiten.StandardGamepadButtonLeftRight)",
-		"HombroIzquierdo": "_hgBotonMando(ebiten.StandardGamepadButtonFrontTopLeft)", "HombroDerecho": "_hgBotonMando(ebiten.StandardGamepadButtonFrontTopRight)",
-		"GatilloIzquierdo": "_hgBotonMando(ebiten.StandardGamepadButtonFrontBottomLeft)", "GatilloDerecho": "_hgBotonMando(ebiten.StandardGamepadButtonFrontBottomRight)",
-		"Atras": "_hgBotonMando(ebiten.StandardGamepadButtonCenterLeft)", "Inicio": "_hgBotonMando(ebiten.StandardGamepadButtonCenterRight)",
-		"PalancaIzquierda": "_hgBotonMando(ebiten.StandardGamepadButtonLeftStick)", "PalancaDerecha": "_hgBotonMando(ebiten.StandardGamepadButtonRightStick)",
-	},
-	"EjeMando": {
-		"IzquierdoX": "_hgEjeMando(ebiten.StandardGamepadAxisLeftStickHorizontal)", "IzquierdoY": "_hgEjeMando(ebiten.StandardGamepadAxisLeftStickVertical)",
-		"DerechoX": "_hgEjeMando(ebiten.StandardGamepadAxisRightStickHorizontal)", "DerechoY": "_hgEjeMando(ebiten.StandardGamepadAxisRightStickVertical)",
-	},
-	"BotonRaton": {"Izquierdo": "_hgBotonRaton(ebiten.MouseButtonLeft)", "Derecho": "_hgBotonRaton(ebiten.MouseButtonRight)", "Medio": "_hgBotonRaton(ebiten.MouseButtonMiddle)"},
-}
-
-func init() {
-	installUI()
-	fields := map[string]string{}
-	for name, value := range Fields {
-		fields[Symbol(name)] = value
-	}
-	Fields = fields
-	constants := map[string]map[string]string{}
-	for name, value := range Constants {
-		constants[Symbol(name)] = value
-	}
-	Constants = constants
-	for i := range Methods {
-		Methods[i].Namespace = Symbol(Methods[i].Namespace)
-	}
-	digits := []string{"Cero", "Uno", "Dos", "Tres", "Cuatro", "Cinco", "Seis", "Siete", "Ocho", "Nueve"}
-	for i, name := range digits {
-		Constants[Symbol("Tecla")][name] = "_hgTecla(ebiten.KeyDigit" + string(rune('0'+i)) + ")"
-	}
-	for i := 1; i <= 12; i++ {
-		Constants[Symbol("Tecla")]["F"+itoa(i)] = "_hgTecla(ebiten.KeyF" + itoa(i) + ")"
-	}
-	for name, key := range map[string]string{
-		"Alt": "Alt", "Suprimir": "Delete", "Inicio": "Home", "Fin": "End", "RePag": "PageUp", "AvPag": "PageDown",
-		"ShiftIzquierdo": "ShiftLeft", "ShiftDerecho": "ShiftRight",
-		"ControlIzquierdo": "ControlLeft", "ControlDerecho": "ControlRight",
-	} {
-		Constants[Symbol("Tecla")][name] = "_hgTecla(ebiten.Key" + key + ")"
-	}
-	for c := 'A'; c <= 'Z'; c++ {
-		Constants[Symbol("Tecla")][string(c)] = "_hgTecla(ebiten.Key" + string(c) + ")"
-	}
-}
-
-func itoa(n int) string { return strconv.Itoa(n) }
+// Display replaces the symbols in a message with the names programs write.
+func Display(text string) string { return display.Replace(text) }

@@ -6,6 +6,7 @@ import (
 )
 
 func TestContextualEnumRuntime(t *testing.T) {
+	t.Parallel()
 	runCometa(t, `enum IP
 	V4
 	V6
@@ -51,6 +52,7 @@ fn inicio()
 }
 
 func TestContextualPayloadReferences(t *testing.T) {
+	t.Parallel()
 	runCometa(t, `tipo Caja
 	valor cadena
 enum Evento
@@ -69,6 +71,7 @@ fn inicio()
 }
 
 func TestContextualEnumErrors(t *testing.T) {
+	t.Parallel()
 	const declarations = "enum IP\n\tV4\n\tV6\n\tOtro IP\nenum Otro\n\tV4\nfn f(ip IP)\n\timprimir(ip)\nfn inicio()\n\t"
 	for _, tt := range []struct{ source, want string }{
 		{"var ip = .V4", "no se puede inferir"},

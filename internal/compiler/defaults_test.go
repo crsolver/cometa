@@ -6,6 +6,7 @@ import (
 )
 
 func TestDefaultsRuntime(t *testing.T) {
+	t.Parallel()
 	runCometa(t, `fn inicio()
 	imprimir(sumar())
 	imprimir(sumar(0))
@@ -27,6 +28,7 @@ fn anidada(a entero = sumar(), b entero = si (a > 0) a sino 0,) entero b
 }
 
 func TestDefaultEvaluationOrderAndScope(t *testing.T) {
+	t.Parallel()
 	runCometa(t, `tipo Caja
 	valor entero
 	fn siguiente() entero
@@ -54,6 +56,7 @@ fn inicio()
 }
 
 func TestDefaultContextAndFreshReferences(t *testing.T) {
+	t.Parallel()
 	runCometa(t, `tipo Caja
 	valor entero
 enum E
@@ -81,6 +84,7 @@ fn inicio()
 }
 
 func TestInvalidDefaults(t *testing.T) {
+	t.Parallel()
 	cases := []struct{ source, message string }{
 		{"fn f(a entero = verdadero) entero a\n", "debe ser entero"},
 		{"fn f(a ...entero = []) entero 0\n", "variádico"},

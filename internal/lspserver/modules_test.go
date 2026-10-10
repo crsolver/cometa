@@ -4,7 +4,6 @@ import (
 	"context"
 	"github.com/owenrumney/go-lsp/lsp"
 	"github.com/owenrumney/go-lsp/servertest"
-	"github.com/crsolver/cometa/internal/compiler"
 	"os"
 	"path/filepath"
 	"strings"
@@ -30,7 +29,8 @@ pub var contador = 0
 
 func moduleURIs(t *testing.T) (lsp.DocumentURI, lsp.DocumentURI) {
 	t.Helper()
-	dir, err := compiler.CanonicalPath(t.TempDir())
+	// The paths keep their case, as in the URIs an editor sends.
+	dir, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

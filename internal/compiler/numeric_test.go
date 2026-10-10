@@ -8,6 +8,7 @@ import (
 )
 
 func TestNumericRuntime(t *testing.T) {
+	t.Parallel()
 	runCometa(t, `interfaz Valor
 enum E
 	A
@@ -59,6 +60,7 @@ fn inicio()
 }
 
 func TestNumericSimpleAndFlowGeneration(t *testing.T) {
+	t.Parallel()
 	for _, forceFlow := range []string{"", "\tvar activar entero? = 0\n"} {
 		source := `enum E
 	A
@@ -84,6 +86,7 @@ fn inicio()
 }
 
 func TestNumericGameRuntime(t *testing.T) {
+	t.Parallel()
 	source := `fn iniciar()
 	var n = 3
 	var a entero = mate.minimo(n, 2)
@@ -115,6 +118,7 @@ func main() {
 }
 
 func TestNumericDiagnostics(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct{ source, want string }{
 		{"fn f(x num) num x\n", "num fue eliminado; use entero o decimal"},
 		{"fn inicio()\n\tvar n = [1][1.7]\n", "índice de una lista debe ser entero"},
@@ -138,6 +142,7 @@ func TestNumericDiagnostics(t *testing.T) {
 }
 
 func TestNumericConversionFailureRuntime(t *testing.T) {
+	t.Parallel()
 	generated, err := Compile("numeric.cometa", []byte("fn inicio() imprimir(entero(1.5))\n"))
 	if err != nil {
 		t.Fatal(err)
@@ -156,6 +161,7 @@ func main() {
 }
 
 func TestNumericExamples(t *testing.T) {
+	t.Parallel()
 	// Entry programs live one level down (basico/, pincel/); deeper files are imported modules.
 	paths, err := filepath.Glob("../../examples/*/*.cometa")
 	if err != nil {

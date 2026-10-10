@@ -6,6 +6,7 @@ import (
 )
 
 func TestStandardMathWithoutGame(t *testing.T) {
+	t.Parallel()
 	source := "usar std/mate\nfn inicio()\n\tvar v = mate.Vec2 {3, 4}\n\timprimir(v.longitud())\n\timprimir(mate.piso(3.8))\n\timprimir((v + v).x)\n"
 	generated, err := Compile("math.cometa", []byte(source))
 	if err != nil {
@@ -18,6 +19,7 @@ func TestStandardMathWithoutGame(t *testing.T) {
 }
 
 func TestPincelExplicitStartup(t *testing.T) {
+	t.Parallel()
 	source := "usar std/pincel\nusar std/pincel/graficos\ntipo Demo\n\tpub fn actualizar(dt decimal) imprimir(dt)\n\tpub fn pintar() graficos.limpiar(.Negro)\nfn inicio()\n\tpincel.ejecutar(Demo {}) atrapar |error|\n\t\timprimir(error)\n"
 	generated, err := Compile("game.cometa", []byte(source))
 	if err != nil {
@@ -31,6 +33,7 @@ func TestPincelExplicitStartup(t *testing.T) {
 }
 
 func TestStandardLibraryVisibility(t *testing.T) {
+	t.Parallel()
 	for _, source := range []string{
 		"fn inicio() imprimir(mate.pi)\n",
 		"fn inicio()\n\tvar v = Vec2 {}\n",
@@ -60,6 +63,7 @@ func TestStandardLibraryVisibility(t *testing.T) {
 }
 
 func TestStandardMathModuleAndTypeIdentity(t *testing.T) {
+	t.Parallel()
 	entry, loader := memoryProject(t, map[string]string{
 		"main.cometa":   "usar std/mate como m\nusar helper\nfn inicio()\n\tvar p m.Vec2 = helper.punto()\n\timprimir(p.longitud())\n",
 		"helper.cometa": "usar std/mate\npub fn punto() mate.Vec2\n\tmate.Vec2 {3,4}\n",

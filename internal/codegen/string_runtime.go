@@ -8,6 +8,18 @@ func _hsformatoNumero(v float64, decimales int64) string {
 	return strconv.FormatFloat(v, 'f', int(decimales), 64)
 }
 func _hsbool(v bool) string { if v { return "verdadero" }; return "falso" }
+func _hsrepetir(s string, veces int64) string {
+	if veces <= 0 { return "" }
+	return strings.Repeat(s, int(veces))
+}
+func _hsrellenar(s string, ancho int64, relleno string, izquierda bool) string {
+	falta, piezas := ancho-int64(len([]rune(s))), []rune(relleno)
+	if falta <= 0 || len(piezas) == 0 { return s }
+	extra := make([]rune, falta)
+	for i := range extra { extra[i] = piezas[i%len(piezas)] }
+	if izquierda { return string(extra) + s }
+	return s + string(extra)
+}
 func _hsindice(s, buscar string) int {
 	i := strings.Index(s, buscar)
 	if i < 0 { return -1 }
@@ -74,7 +86,7 @@ func _hsformato(v reflect.Value, nested bool, depth int) string {
 		}
 		return "[" + strings.Join(items, ", ") + "]"
 	case reflect.Ptr:
-		if !v.IsNil() && v.Elem().Kind() == reflect.Struct {
+		if !v.IsNil() && (v.Elem().Kind() == reflect.Struct || v.Elem().Kind() == reflect.Slice) {
 			return _hsformato(v.Elem(), nested, depth)
 		}
 	case reflect.Struct:
@@ -103,7 +115,7 @@ func _hsformato(v reflect.Value, nested bool, depth int) string {
 			if v.Field(0).Int() != 1 { return "Ninguno" }
 			return "Alguno(" + _hsformato(v.Field(1), true, depth+1) + ")"
 		}
-		if t.Name() != "" && t.Field(0).Name != "tag" {
+		if t.Name() != "" && (t.NumField() == 0 || t.Field(0).Name != "tag") {
 			items := make([]string, 0, t.NumField())
 			for i := 0; i < t.NumField(); i++ {
 				name := []rune(t.Field(i).Name)

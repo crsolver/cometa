@@ -79,7 +79,7 @@ func (c *checker) checkMapCall(call *ast.CallExpr, member *ast.MemberExpr, t Typ
 	}
 	result, err := c.bindArguments(call, f)
 	if err == nil {
-		c.model.MapCalls[call] = member.Name
+		c.model.Builtins[call] = Builtin{Kind: MapMethod, Name: member.Name}
 	}
 	return result, err
 }
@@ -131,7 +131,7 @@ func (c *checker) checkMapLiteral(expr *ast.MapLiteralExpr, expected *Type) (Typ
 			inferred := v
 			value = &inferred
 		} else if !c.model.Assignable(v, *value) {
-			c.report(c.fail(entry.Value.Position(), "el valor debe ser %s, no %s", value.String(), v.String()))
+			c.report(c.fail(entry.Value.Position(), "el valor debe ser %s, no %s%s", value.String(), v.String(), c.unmet(v, *value)))
 			broken = true
 		}
 	}

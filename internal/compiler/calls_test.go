@@ -6,6 +6,7 @@ import (
 )
 
 func TestVariadicAndNamedRuntime(t *testing.T) {
+	t.Parallel()
 	runCometa(t, `tipo Contador
 	valor entero
 	fn siguiente() entero
@@ -49,6 +50,7 @@ fn inicio()
 }
 
 func TestInvalidCallArguments(t *testing.T) {
+	t.Parallel()
 	cases := []struct{ name, source, message string }{
 		{"variadic first", "fn f(a ...entero, b entero) entero b\n", "último"},
 		{"two variadics", "fn f(a ...entero, b ...entero) entero 0\n", "último"},
@@ -82,6 +84,7 @@ func TestInvalidCallArguments(t *testing.T) {
 }
 
 func TestNamedReceiverOrderAndVariadicReferences(t *testing.T) {
+	t.Parallel()
 	runCometa(t, `tipo Caja
 	valor entero
 	fn poner(a entero, b entero)

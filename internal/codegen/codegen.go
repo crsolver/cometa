@@ -8,10 +8,10 @@ import (
 	"go/parser"
 	"go/token"
 	"go/types"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
-	"unicode"
 
 	"github.com/crsolver/cometa/internal/ast"
 	"github.com/crsolver/cometa/internal/sema"
@@ -20,19 +20,20 @@ import (
 
 type generator struct {
 	receiver       string
-	flow           bool
 	returnType     sema.Type
 	buffer         bytes.Buffer
 	model          *sema.Model
+	names          *goNames
 	nextName       int
 	loopLabel      string
 	scopes         []string
 	loopScopeDepth int
 	defaultFlags   map[*ast.FuncDecl][]string
 	lineDirectives bool
+	displayPath    func(string) string
 	position       ast.Pos // Cometa statement being lowered, for //line directives
 	directiveDone  bool    // the directive for the next line was already written
-	printing       bool // imprimir is used, so the print runtime is emitted
+	printing       bool    // imprimir is used, so the print runtime is emitted
 }
 
 // Options tunes code generation without changing the language semantics.
@@ -40,6 +41,9 @@ type Options struct {
 	// LineDirectives emits //line comments so Go build errors and runtime
 	// panics report Cometa file and line numbers.
 	LineDirectives bool
+	// DisplayPath maps the canonical path of a source file to the one written
+	// in those directives. Nil keeps the canonical path.
+	DisplayPath func(string) string
 }
 
 func Generate(filename string, program *ast.Program, model *sema.Model) ([]byte, error) {
@@ -48,32 +52,25 @@ func Generate(filename string, program *ast.Program, model *sema.Model) ([]byte,
 
 func GenerateWithOptions(filename string, program *ast.Program, model *sema.Model, options Options) ([]byte, error) {
 
-	g := &generator{model: model, defaultFlags: map[*ast.FuncDecl][]string{}, lineDirectives: options.LineDirectives}
-	g.printing = usesPrint(program)
-	g.flow = model.HasScopes
-	if model.Game.Used {
-		g.flow = true
-	}
-	if len(model.ListCalls) > 0 {
-		g.flow = true
-	}
-	if len(model.StructCopies) > 0 {
-		g.flow = true
-	}
-	stringFeatures := len(model.StringCalls) > 0 || len(model.NumberCalls) > 0
-	if stringFeatures {
-		g.flow = true
-	}
-	for expr, t := range model.ExprTypes {
-		if t.Wrapped() || t.Kind == sema.Map {
-			g.flow = true
-		}
-		switch expr.(type) {
-		case *ast.ReturnExpr, *ast.TryExpr, *ast.RecoverExpr, *ast.BlockExpr:
-			g.flow = true
-		case *ast.InterpolatedStringExpr:
-			g.flow = true
+	g := &generator{model: model, names: newGoNames(model), defaultFlags: map[*ast.FuncDecl][]string{}, lineDirectives: options.LineDirectives, displayPath: options.DisplayPath}
+	g.printing = usesPrint(program) || model.FormatsValues
+	// What the built-in calls of the program need from Go and from the runtime.
+	stringFeatures, sorts, sortsByKey, converts := false, false, false, false
+	for _, builtin := range model.Builtins {
+		switch builtin.Kind {
+		case sema.StringMethod, sema.NumberMethod:
 			stringFeatures = true
+		case sema.ListMethod:
+			sorts = sorts || builtin.Name == "ordenar" || builtin.Name == "ordenar_por"
+			sortsByKey = sortsByKey || builtin.Name == "ordenar_por"
+		case sema.Conversion:
+			converts = true
+		}
+	}
+	for expr := range model.ExprTypes {
+		if _, ok := expr.(*ast.InterpolatedStringExpr); ok {
+			stringFeatures = true
+			break
 		}
 	}
 	register := func(decl *ast.FuncDecl) {
@@ -84,12 +81,7 @@ func GenerateWithOptions(filename string, program *ast.Program, model *sema.Mode
 		}
 	}
 	for _, decl := range program.Decls {
-		if len(model.TypeParams[decl]) > 0 {
-			g.flow = true
-		}
 		switch d := decl.(type) {
-		case *ast.InterfaceDecl:
-			g.flow = true
 		case *ast.FuncDecl:
 			register(d)
 		case *ast.TypeDecl:
@@ -100,7 +92,11 @@ func GenerateWithOptions(filename string, program *ast.Program, model *sema.Mode
 	}
 	g.line(0, "package main")
 	g.line(0, "")
-	runtimeSource, runtimeImports, err := stdlib.Runtime(model.Game.Modules)
+	called := map[string]bool{}
+	for _, f := range model.Stdlib.Calls {
+		called[f.Namespace+"."+f.Name] = true
+	}
+	runtimeSource, runtimeImports, err := stdlib.RuntimeFor(model.Stdlib.Modules, called)
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +104,7 @@ func GenerateWithOptions(filename string, program *ast.Program, model *sema.Mode
 	for _, path := range runtimeImports {
 		imports[path] = true
 	}
-	if usesPrint(program) {
+	if g.printing {
 		for _, path := range []string{"fmt", "reflect", "sort", "strconv", "strings", "unicode"} {
 			imports[`"`+path+`"`] = true
 		}
@@ -116,6 +112,12 @@ func GenerateWithOptions(filename string, program *ast.Program, model *sema.Mode
 	if stringFeatures {
 		imports[`"strconv"`] = true
 		imports[`"strings"`] = true
+	}
+	if sorts {
+		imports[`"sort"`] = true
+	}
+	if sortsByKey {
+		imports[`"fmt"`] = true
 	}
 	var paths []string
 	for path := range imports {
@@ -135,7 +137,7 @@ func GenerateWithOptions(filename string, program *ast.Program, model *sema.Mode
 	}
 	if runtimeSource != "" {
 		g.write("%s\n", runtimeSource)
-		for _, module := range model.Game.Modules {
+		for _, module := range model.Stdlib.Modules {
 			if module == "std/pincel/datos" {
 				// Saved data belongs to the project, not to the window title,
 				// so it can be read before pincel.ejecutar runs.
@@ -145,6 +147,9 @@ func GenerateWithOptions(filename string, program *ast.Program, model *sema.Mode
 		}
 		var nativeNames []string
 		for name := range model.Types {
+			if native, ok := stdlib.LookupType(name); ok && native.Wrapper != "" {
+				continue // an alias of a Go type cannot receive marker methods
+			}
 			if native := stdlib.GoType(name); native != "" && strings.Contains(runtimeSource, "type "+strings.TrimPrefix(native, "*")+" ") {
 				nativeNames = append(nativeNames, name)
 			}
@@ -157,10 +162,10 @@ func GenerateWithOptions(filename string, program *ast.Program, model *sema.Mode
 	if stringFeatures {
 		g.write("%s\n", stringRuntime)
 	}
-	if usesPrint(program) {
+	if g.printing {
 		g.write("%s\n", printRuntime)
 	}
-	if len(model.NumericCalls) > 0 || model.Game.Used {
+	if converts || model.Stdlib.Used {
 		g.write("%s\n", numericRuntime)
 	}
 
@@ -191,12 +196,12 @@ func GenerateWithOptions(filename string, program *ast.Program, model *sema.Mode
 		}
 	}
 
-	formatted, err := eliminateUnusedLocals(g.buffer.Bytes())
+	formatted, err := eliminateUnusedLocals(resolveLocations(g.buffer.Bytes()))
 	if err != nil {
 		return nil, fmt.Errorf("no se pudo formatear el Go generado: %w\n%s", err, g.buffer.String())
 	}
-	if !strings.Contains(strings.Join(runtimeImports, " "), "github.com/") {
-		if err = validate(filename, formatted); err != nil {
+	if SelfCheck && !strings.Contains(strings.Join(runtimeImports, " "), "github.com/") {
+		if err = Validate(filename, formatted); err != nil {
 			return nil, err
 		}
 	}
@@ -206,11 +211,11 @@ func GenerateWithOptions(filename string, program *ast.Program, model *sema.Mode
 func (g *generator) emitGlobal(decl *ast.GlobalDecl) {
 	info := g.model.Globals[decl.Name]
 	if decl.Constant {
-		g.line(0, "const %s %s = %s", g.globalName(decl.Name), goType(info.Type), g.expr(decl.Value))
+		g.line(0, "const %s %s = %s", g.globalName(decl.Name), goType(info.Type), g.constExpr(decl.Value))
 		g.line(0, "")
 		return
 	}
-	child := &generator{model: g.model, flow: true, nextName: g.nextName, defaultFlags: g.defaultFlags, lineDirectives: g.lineDirectives, position: g.position}
+	child := &generator{model: g.model, names: g.names, nextName: g.nextName, defaultFlags: g.defaultFlags, lineDirectives: g.lineDirectives, displayPath: g.displayPath, position: g.position}
 	child.line(0, "func() %s {", goType(info.Type))
 	value := child.flowExpr(decl.Value, 1)
 	child.line(1, "return %s", value)
@@ -248,11 +253,7 @@ func (g *generator) emitFunction(decl *ast.FuncDecl) {
 		g.write("func (_self *%s%s) %s(", exported(decl.Receiver), typeArguments(g.model.TypeParams[g.model.Types[decl.Receiver].Decl]), name)
 	} else {
 		signature = g.model.Functions[decl.Name]
-		name := exported(decl.Name)
-		if decl.Name == "inicio" {
-			name = "main"
-		}
-		g.write("func %s%s(", name, g.typeParams(decl))
+		g.write("func %s%s(", g.funcName(decl.Name), g.typeParams(decl))
 	}
 	for _, flag := range g.defaultFlags[decl] {
 		g.write("%s bool, ", flag)
@@ -261,11 +262,7 @@ func (g *generator) emitFunction(decl *ast.FuncDecl) {
 		if index > 0 {
 			g.write(", ")
 		}
-		paramType := goType(signature.Params[index])
-		if param.Variadic {
-			paramType = "..." + goType(*signature.Params[index].Elem)
-		}
-		g.write("%s %s", localName(param.Name), paramType)
+		g.write("%s %s", localName(param.Name), goType(signature.Params[index]))
 	}
 	g.write(")")
 	if signature.Return.Kind != sema.Void {
@@ -277,34 +274,18 @@ func (g *generator) emitFunction(decl *ast.FuncDecl) {
 	for _, param := range decl.Params {
 		if param.Default != nil {
 			g.line(1, "if %s {", g.defaultFlags[decl][flagIndex])
-			value := ""
-			if g.flow {
-				value = g.flowExpr(param.Default, 2)
-			} else {
-				value = g.expr(param.Default)
-			}
-			g.line(2, "%s = %s", localName(param.Name), value)
+			g.line(2, "%s = %s", localName(param.Name), g.flowExpr(param.Default, 2))
 			g.line(1, "}")
 			flagIndex++
 		}
 	}
-	if g.flow {
-		target := ""
-		if signature.Return.Kind != sema.Void {
-			target = "return"
-		}
-		g.flowBlock(decl.Body, 1, target)
-	} else {
-		g.emitBlock(decl.Body, 1, signature.Return.Kind != sema.Void)
+	target := ""
+	if signature.Return.Kind != sema.Void {
+		target = "return"
 	}
+	g.flowBlock(decl.Body, 1, target)
 	g.line(0, "}")
 	g.line(0, "")
-}
-
-func (g *generator) emitBlock(body []ast.Stmt, indent int, returnFinal bool) {
-	for index, stmt := range body {
-		g.emitStmt(stmt, indent, returnFinal && index == len(body)-1)
-	}
 }
 
 // directive maps the following generated lines back to a Cometa source line.
@@ -318,255 +299,103 @@ func (g *generator) directive(pos ast.Pos) {
 }
 
 func (g *generator) writeDirective() {
-	fmt.Fprintf(&g.buffer, "//line %s:%d\n", g.position.Filename, g.position.Line)
+	fmt.Fprintf(&g.buffer, "//line %s:%d\n", g.file(g.position), g.position.Line)
 }
 
-func (g *generator) emitStmt(stmt ast.Stmt, indent int, returnValue bool) {
-	g.directive(stmt.Position())
-	switch statement := stmt.(type) {
-	case *ast.MatchStmt:
-		g.emitMatch(statement.Match, indent, returnValue)
-	case *ast.ExprStmt:
-		expression := g.expr(statement.Expr)
-		_, constructor := g.model.Constructors[statement.Expr]
-		if call, ok := statement.Expr.(*ast.CallExpr); ok {
-			_, numeric := g.model.NumericCalls[call]
-			constructor = constructor || numeric
-		}
-		if returnValue {
-			g.line(indent, "return %s", expression)
-		} else if _, call := statement.Expr.(*ast.CallExpr); call && !constructor {
-			g.line(indent, "%s", expression)
-		} else {
-			g.line(indent, "_ = %s", expression)
-		}
-	case *ast.AssignStmt:
-		g.line(indent, "%s = %s", g.expr(statement.Target), g.expr(statement.Value))
-	case *ast.VarDeclStmt:
-		name := localName(statement.Name)
-		value := g.expr(statement.Value)
-		if g.model.VarTypes[statement].Numeric() {
-			value = goType(g.model.VarTypes[statement]) + "(" + value + ")"
-		}
-		g.line(indent, "%s := %s", name, value)
-	case *ast.IfStmt:
-		g.emitIf(statement, indent, returnValue)
-	case *ast.RepeatStmt:
-		g.emitRepeat(statement, indent)
-	case *ast.ContinueStmt:
-		g.line(indent, "continue")
-	case *ast.BreakStmt:
-		if g.loopLabel != "" {
-			g.line(indent, "break %s", g.loopLabel)
-		} else {
-			g.line(indent, "break")
-		}
+// file is the path of pos as line directives spell it.
+func (g *generator) file(pos ast.Pos) string {
+	if g.displayPath != nil {
+		return g.displayPath(pos.Filename)
 	}
+	return pos.Filename
 }
 
-func (g *generator) emitRepeat(stmt *ast.RepeatStmt, indent int) {
-	outerLabel := g.loopLabel
-	g.loopLabel = ""
-	defer func() { g.loopLabel = outerLabel }()
-	if stmt.RangeEnd != nil {
-		g.emitRange(stmt, indent)
-		return
+// located marks an expression that can fail at run time (an index or a
+// division) with its column. A panic trace only carries file and line, so the
+// column travels in the file name of an inline directive, `juego.cometa#17:4`,
+// which cmd/cometa reads back. The parentheses keep gofmt from moving a
+// directive that starts a statement onto its own line.
+//
+// What follows the expression must return to the enclosing position, which
+// is only known later: the mark left after value names the statement, and an
+// enclosing located expression rewrites the marks inside it to itself.
+// resolveLocations turns the remaining ones into directives.
+func (g *generator) located(pos ast.Pos, value string) string {
+	if !g.lineDirectives || value == "" || pos.Filename == "" || pos.Line <= 0 || pos.Column <= 0 || g.position.Line <= 0 {
+		return value
 	}
-	if needsLoopLabel(stmt.Body, false) {
-		g.loopLabel = g.freshName()
-		g.line(indent, "%s:", g.loopLabel)
-	}
-	if stmt.Iterable == nil {
-		g.line(indent, "for {")
-		g.emitBlock(stmt.Body, indent+1, false)
-		g.line(indent, "}")
-		return
-	}
+	here := fmt.Sprintf("/*line %s#%d:%d*/", g.file(pos), pos.Column, pos.Line)
+	value = pendingLocation.ReplaceAllLiteralString(value, here)
+	return fmt.Sprintf("(%s%s\x00%s:%d\x01)", here, value, g.file(g.position), g.position.Line)
+}
 
-	element := localName(stmt.Element)
-	if stmt.Index == "" {
-		g.line(indent, "for _, %s := range %s {", element, g.expr(stmt.Iterable))
+var pendingLocation = regexp.MustCompile("\x00[^\x01]*\x01")
+
+func resolveLocations(source []byte) []byte {
+	return pendingLocation.ReplaceAllFunc(source, func(mark []byte) []byte {
+		return []byte("/*line " + string(mark[1:len(mark)-1]) + "*/")
+	})
+}
+
+// emitStringRepeat opens a loop over the code points of a string: the element
+// is a one-character string and the index counts characters, not bytes.
+func (g *generator) emitStringRepeat(stmt *ast.RepeatStmt, iterable string, indent int) {
+	index, letter := "_", g.freshName()
+	if stmt.Index != "" {
+		index = g.freshName()
+	}
+	g.line(indent, "for %s, %s := range []rune(%s) {", index, letter, iterable)
+	if stmt.Element == "_" {
+		g.line(indent+1, "_ = %s", letter)
 	} else {
-		index := localName(stmt.Index)
-		g.line(indent, "for %s, %s := range %s {", index, element, g.expr(stmt.Iterable))
-		g.line(indent+1, "%s := int64(%s)", index, index)
-	}
-	g.emitBlock(stmt.Body, indent+1, false)
-	g.line(indent, "}")
-}
-
-func (g *generator) emitRange(stmt *ast.RepeatStmt, indent int) {
-	current, end, step, index := g.freshName(), g.freshName(), g.freshName(), g.freshName()
-	// Evaluate bounds once, in source order, before introducing loop bindings.
-	g.line(indent, "{")
-	indent++
-	g.line(indent, "%s := int64(%s)", current, g.expr(stmt.Iterable))
-	g.line(indent, "%s := int64(%s)", end, g.expr(stmt.RangeEnd))
-	g.line(indent, "%s := int64(1)", step)
-	g.line(indent, "if %s > %s { %s = -1 }", current, end, step)
-	if needsLoopLabel(stmt.Body, false) {
-		g.loopLabel = g.freshName()
-		g.line(indent, "%s:", g.loopLabel)
-	}
-	g.line(indent, "for %s := int64(0); (%s > 0 && %s < %s) || (%s < 0 && %s > %s); %s, %s = %s + %s, %s + 1 {", index, step, current, end, step, current, end, current, index, current, step, index)
-	if stmt.Element != "" {
-		g.line(indent+1, "%s := %s", localName(stmt.Element), current)
+		g.line(indent+1, "%s := string(%s)", localName(stmt.Element), letter)
 	}
 	if stmt.Index != "" {
-		g.line(indent+1, "%s := %s", localName(stmt.Index), index)
+		g.line(indent+1, "%s := int64(%s)", localName(stmt.Index), index)
 	}
-	g.emitBlock(stmt.Body, indent+1, false)
-	g.line(indent, "}")
-	g.line(indent-1, "}")
 }
 
-func (g *generator) emitIf(stmt *ast.IfStmt, indent int, returnValue bool) {
-	for index, branch := range stmt.Branches {
-		prefix := "if"
-		if index > 0 {
-			prefix = "} else if"
-		}
-		g.line(indent, "%s %s {", prefix, g.expr(branch.Condition))
-		g.emitBlock(branch.Body, indent+1, returnValue)
-	}
-	if len(stmt.Else) > 0 {
-		g.line(indent, "} else {")
-		g.emitBlock(stmt.Else, indent+1, returnValue)
-	}
-	g.line(indent, "}")
-}
-
-func (g *generator) expr(expr ast.Expr) string {
-	value := g.rawExpr(expr)
+// constExpr writes an expression that sema accepted as constant: the value of
+// a `const` or a label of `casos`. Go needs these as constant expressions, so
+// they cannot go through flow lowering, which stores operands in variables.
+func (g *generator) constExpr(expr ast.Expr) string {
+	value := g.rawConstExpr(expr)
 	if _, ok := g.model.NumericCoercions[expr]; ok {
 		return "float64(" + value + ")"
 	}
 	return value
 }
 
-func (g *generator) rawExpr(expr ast.Expr) string {
-	if value, ok := g.model.Game.Constants[expr]; ok {
+func (g *generator) rawConstExpr(expr ast.Expr) string {
+	if value, ok := g.model.Stdlib.Constants[expr]; ok {
 		return value
 	}
-	if constructor, ok := g.model.Constructors[expr]; ok {
-		fields := fmt.Sprintf("tag: %d", constructor.Variant.Tag)
-		if call, ok := expr.(*ast.CallExpr); ok {
-			fields += fmt.Sprintf(", payload%d: %s", constructor.Variant.Tag, g.expr(call.Args[0]))
-		}
-		return "(&" + exported(constructor.Enum.Decl.Name) + "{" + fields + "})"
-	}
-	switch expression := expr.(type) {
-	case *ast.MatchExpr:
-		child := &generator{model: g.model, nextName: g.nextName, lineDirectives: g.lineDirectives, position: g.position}
-		raw := g.model.ExprTypes[expr]
-		if _, ok := g.model.NumericCoercions[expr]; ok {
-			raw = sema.Type{Kind: sema.Integer}
-		}
-		child.line(0, "func() %s {", goType(raw))
-		child.emitMatch(expression, 1, true)
-		child.line(0, "}()")
-		g.nextName = child.nextName
-		return strings.TrimSpace(child.buffer.String())
-	case *ast.IdentExpr:
-		if g.model.GlobalRefs[expression] != nil {
-			return g.globalName(expression.Name)
-		}
-		return localName(expression.Name)
-	case *ast.ReceiverExpr:
-		if expression.Name == "" {
-			return "_self"
-		}
-		return "_self." + g.fieldName(sema.Type{Kind: sema.Named, Name: g.receiver}, expression.Name)
-	case *ast.MemberExpr:
-		return g.expr(expression.Object) + "." + g.fieldName(g.model.ExprTypes[expression.Object], expression.Name)
-	case *ast.IndexExpr:
-		return g.expr(expression.Object) + "[" + g.expr(expression.Index) + "]"
+	switch e := expr.(type) {
 	case *ast.LiteralExpr:
-		if expression.Kind == "bool" {
-			if expression.Value == "verdadero" {
-				return "true"
-			}
-			return "false"
-		}
-		return expression.Value
-	case *ast.InterpolatedStringExpr:
-		return g.interpolated(expression, func(e ast.Expr) string { return g.expr(e) })
+		return literal(e)
+	case *ast.IdentExpr:
+		return g.globalName(e.Name)
 	case *ast.UnaryExpr:
-		return "(" + expression.Operator + g.expr(expression.Value) + ")"
+		return "(" + e.Operator + g.constExpr(e.Value) + ")"
 	case *ast.BinaryExpr:
-		if compare, ok := g.model.EnumCompares[expression]; ok {
-			return "(" + g.expr(compare.Value) + ".tag " + expression.Operator + " " + strconv.Itoa(compare.Tag) + ")"
+		binary := "(" + g.constExpr(e.Left) + " " + e.Operator + " " + g.constExpr(e.Right) + ")"
+		if e.Operator == "/" || e.Operator == "%" {
+			return g.located(e.Pos, binary)
 		}
-		if list := g.model.ExprTypes[expression.Left]; list.Kind == sema.Slice && expression.Operator == "+" {
-			return listConcat(list, g.expr(expression.Left), g.expr(expression.Right))
-		}
-		return "(" + g.expr(expression.Left) + " " + expression.Operator + " " + g.expr(expression.Right) + ")"
-	case *ast.CallExpr:
-		if t, ok := g.model.NumericCalls[expression]; ok {
-			return g.numericCall(expression, t, g.expr(expression.Args[0]))
-		}
-		var callee string
-		switch called := expression.Callee.(type) {
-		case *ast.IdentExpr:
-			if called.Name == "imprimir" {
-				callee = "_hsimprimir"
-			} else if called.Name == "inicio" {
-				callee = "main"
-			} else {
-				callee = exported(called.Name)
-			}
-		case *ast.ReceiverExpr:
-			callee = "_self." + exported(called.Name)
-		case *ast.MemberExpr:
-			callee = g.expr(called)
-		}
-		return g.call(expression, callee)
-	case *ast.StructLiteralExpr:
-		typeInfo := g.model.ExprTypes[expr]
-		explicit := g.literalFields(typeInfo, expression)
-		fields := make([]string, len(explicit))
-		for index, field := range explicit {
-			fields[index] = g.fieldName(typeInfo, field.Name) + ": " + g.expr(field.Value)
-		}
-		fields = append(fields, g.defaultFields(typeInfo, explicit, 0)...)
-		if stdlib.IsValue(typeInfo.Name) {
-			return goType(typeInfo) + "{" + strings.Join(fields, ", ") + "}"
-		}
-		return "&" + namedGoType(typeInfo) + "{" + strings.Join(fields, ", ") + "}"
-	case *ast.ListLiteralExpr:
-		typeInfo := g.model.ExprTypes[expr]
-		elements := make([]string, len(expression.Elements))
-		for index, element := range expression.Elements {
-			elements[index] = g.expr(element)
-		}
-		return goType(typeInfo) + "{" + strings.Join(elements, ", ") + "}"
-	case *ast.IfExpr:
-		resultType := goType(g.model.ExprTypes[expr])
-		if _, ok := g.model.NumericCoercions[expr]; ok {
-			resultType = "int64"
-		}
-		var out strings.Builder
-		out.WriteString("func() ")
-		out.WriteString(resultType)
-		out.WriteString(" { ")
-		for index, branch := range expression.Branches {
-			if index == 0 {
-				out.WriteString("if ")
-			} else {
-				out.WriteString(" else if ")
-			}
-			out.WriteString(g.expr(branch.Condition))
-			out.WriteString(" { return ")
-			out.WriteString(g.expr(branch.Value))
-			out.WriteString(" }")
-		}
-		out.WriteString("; return ")
-		out.WriteString(g.expr(expression.Else))
-		out.WriteString(" }()")
-		return out.String()
-	default:
-		panic(fmt.Sprintf("unsupported expression %T", expr))
+		return binary
 	}
+	panic(fmt.Sprintf("unsupported constant expression %T", expr))
+}
+
+// literal writes a Cometa literal in Go.
+func literal(e *ast.LiteralExpr) string {
+	if e.Kind == "bool" {
+		if e.Value == "verdadero" {
+			return "true"
+		}
+		return "false"
+	}
+	return e.Value
 }
 
 func (g *generator) interpolated(expression *ast.InterpolatedStringExpr, emit func(ast.Expr) string) string {
@@ -587,6 +416,9 @@ func (g *generator) interpolated(expression *ast.InterpolatedStringExpr, emit fu
 			value = "strconv.FormatInt(" + value + ", 10)"
 		case sema.Boolean:
 			value = "_hsbool(" + value + ")"
+		case sema.String, sema.Never:
+		default:
+			value = "_hsformato(reflect.ValueOf(" + value + "), false, 0)"
 		}
 		parts = append(parts, value)
 	}
@@ -597,8 +429,8 @@ func (g *generator) interpolated(expression *ast.InterpolatedStringExpr, emit fu
 }
 
 func goType(t sema.Type) string {
-	if t.Name == stdlib.Symbol("Juego") && t.Kind == sema.Interface {
-		return "_hgJuego"
+	if name := stdlib.GoInterface(t.Name); name != "" && t.Kind == sema.Interface {
+		return name
 	}
 	if name := stdlib.GoType(t.Name); name != "" && t.Kind == sema.Named {
 		if stdlib.IsValue(t.Name) {
@@ -636,7 +468,7 @@ func goType(t sema.Type) string {
 	case sema.Named, sema.Enum:
 		return "*" + namedGoType(t)
 	case sema.Slice:
-		return "[]" + goType(*t.Elem)
+		return "*" + listStorage(t)
 	case sema.Map:
 		return "map[" + goType(*t.Key) + "]" + goType(*t.Elem)
 	default:
@@ -644,188 +476,33 @@ func goType(t sema.Type) string {
 	}
 }
 
-var goKeywords = map[string]bool{
-	"break": true, "default": true, "func": true, "interface": true, "select": true,
-	"case": true, "defer": true, "go": true, "map": true, "struct": true,
-	"chan": true, "else": true, "goto": true, "package": true, "switch": true,
-	"const": true, "fallthrough": true, "if": true, "range": true, "type": true,
-	"continue": true, "for": true, "import": true, "return": true, "var": true,
-}
-
-func exported(name string) string {
-	runes := []rune(name)
-	if len(runes) == 0 {
-		return name
-	}
-	runes[0] = unicode.ToUpper(runes[0])
-	result := string(runes)
-	if goKeywords[result] {
-		return "H_" + result
-	}
-	return result
-}
-
-func localName(name string) string {
-	if goKeywords[name] || name == "_self" {
-		return "h_" + name
-	}
-	return name
-}
+// listStorage is the Go slice behind a list. A list is a pointer to it, so
+// every alias and parameter sees the same elements and the same length.
+func listStorage(t sema.Type) string { return "[]" + goType(*t.Elem) }
 
 func usesPrint(program *ast.Program) bool {
-	for _, decl := range program.Decls {
-		switch declaration := decl.(type) {
-		case *ast.FuncDecl:
-			if functionUsesPrint(declaration) {
-				return true
-			}
-		case *ast.TypeDecl:
-			for _, method := range declaration.Methods {
-				if functionUsesPrint(method) {
-					return true
-				}
-			}
-		case *ast.GlobalDecl:
-			if exprUsesPrint(declaration.Value) {
-				return true
+	found := false
+	ast.Inspect(program, func(node any) bool {
+		if call, ok := node.(*ast.CallExpr); ok {
+			if ident, ok := call.Callee.(*ast.IdentExpr); ok && ident.Name == "imprimir" {
+				found = true
 			}
 		}
-	}
-	return false
+		return !found
+	})
+	return found
 }
 
-func functionUsesPrint(decl *ast.FuncDecl) bool {
-	for _, param := range decl.Params {
-		if param.Default != nil && exprUsesPrint(param.Default) {
-			return true
-		}
-	}
-	return blockUsesPrint(decl.Body)
-}
+// SelfCheck makes Generate type-check its own output with Validate. The test
+// suites turn it on, so every program they compile also proves that the Go
+// generated for it is valid. It stays off otherwise: the check runs the Go
+// toolchain (about a second per program) and `go build` repeats it anyway.
+// Programs that import Ebitengine are never checked here.
+var SelfCheck bool
 
-func blockUsesPrint(body []ast.Stmt) bool {
-	for _, stmt := range body {
-		switch statement := stmt.(type) {
-		case *ast.MatchStmt:
-			if exprUsesPrint(statement.Match) {
-				return true
-			}
-		case *ast.ExprStmt:
-			if exprUsesPrint(statement.Expr) {
-				return true
-			}
-		case *ast.AssignStmt:
-			if exprUsesPrint(statement.Target) || exprUsesPrint(statement.Value) {
-				return true
-			}
-		case *ast.VarDeclStmt:
-			if exprUsesPrint(statement.Value) {
-				return true
-			}
-		case *ast.IfStmt:
-			for _, branch := range statement.Branches {
-				if exprUsesPrint(branch.Condition) || blockUsesPrint(branch.Body) {
-					return true
-				}
-			}
-			if blockUsesPrint(statement.Else) {
-				return true
-			}
-		case *ast.ScopeStmt:
-			if exprUsesPrint(statement.Value) || blockUsesPrint(statement.Body) {
-				return true
-			}
-		case *ast.RepeatStmt:
-			if statement.RangeEnd != nil && exprUsesPrint(statement.RangeEnd) {
-				return true
-			}
-			if statement.Iterable != nil && exprUsesPrint(statement.Iterable) {
-				return true
-			}
-			if blockUsesPrint(statement.Body) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func exprUsesPrint(expr ast.Expr) bool {
-	switch expression := expr.(type) {
-	case *ast.AssertExpr:
-		return exprUsesPrint(expression.Value)
-	case *ast.ReturnExpr:
-		return exprUsesPrint(expression.Value)
-	case *ast.TryExpr:
-		return exprUsesPrint(expression.Value)
-	case *ast.RecoverExpr:
-		return exprUsesPrint(expression.Value) || blockUsesPrint(expression.Body)
-	case *ast.BlockExpr:
-		return blockUsesPrint(expression.Body)
-	case *ast.MatchExpr:
-		if exprUsesPrint(expression.Value) {
-			return true
-		}
-		for _, arm := range expression.Arms {
-			if blockUsesPrint(arm.Body) {
-				return true
-			}
-		}
-	case *ast.IndexExpr:
-		return exprUsesPrint(expression.Object) || exprUsesPrint(expression.Index)
-	case *ast.CallExpr:
-		if ident, ok := expression.Callee.(*ast.IdentExpr); ok && ident.Name == "imprimir" {
-			return true
-		}
-		if exprUsesPrint(expression.Callee) {
-			return true
-		}
-		for _, arg := range expression.Args {
-			if exprUsesPrint(arg) {
-				return true
-			}
-		}
-	case *ast.UnaryExpr:
-		return exprUsesPrint(expression.Value)
-	case *ast.BinaryExpr:
-		return exprUsesPrint(expression.Left) || exprUsesPrint(expression.Right)
-	case *ast.IfExpr:
-		for _, branch := range expression.Branches {
-			if exprUsesPrint(branch.Condition) || exprUsesPrint(branch.Value) {
-				return true
-			}
-		}
-		return exprUsesPrint(expression.Else)
-	case *ast.MemberExpr:
-		return exprUsesPrint(expression.Object)
-	case *ast.StructLiteralExpr:
-		for _, field := range expression.Fields {
-			if exprUsesPrint(field.Value) {
-				return true
-			}
-		}
-		for _, value := range expression.Values {
-			if exprUsesPrint(value) {
-				return true
-			}
-		}
-	case *ast.ListLiteralExpr:
-		for _, element := range expression.Elements {
-			if exprUsesPrint(element) {
-				return true
-			}
-		}
-	case *ast.MapLiteralExpr:
-		for _, entry := range expression.Entries {
-			if exprUsesPrint(entry.Key) || exprUsesPrint(entry.Value) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func validate(filename string, source []byte) error {
+// Validate type-checks generated Go that only imports the standard library.
+// A failure is a defect of the compiler, never of the Cometa program.
+func Validate(filename string, source []byte) error {
 	set := token.NewFileSet()
 	file, err := parser.ParseFile(set, filename+".go", source, parser.AllErrors)
 	if err != nil {

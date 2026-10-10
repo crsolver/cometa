@@ -27,6 +27,7 @@ func memoryProject(t *testing.T, files map[string]string) (string, SourceLoader)
 }
 
 func TestProjectQualifiedDeclarations(t *testing.T) {
+	t.Parallel()
 	entry, loader := memoryProject(t, map[string]string{
 		"main.cometa": `usar modelos como m
 usar util
@@ -71,6 +72,7 @@ pub fn saludar(nombre cadena = "mundo", saludo cadena = "hola ") cadena saludo
 }
 
 func TestProjectEmbeddingAndDefaultsRuntime(t *testing.T) {
+	t.Parallel()
 	entry, loader := memoryProject(t, map[string]string{
 		"main.cometa": `usar modelos como m
 pub tipo Grupo
@@ -104,6 +106,7 @@ pub tipo Usuario
 }
 
 func TestProjectStableOutputAndNoEntry(t *testing.T) {
+	t.Parallel()
 	files := map[string]string{"main.cometa": "usar a\npub fn crear() a.Usuario a.Usuario {}\n", "a.cometa": "pub tipo Usuario\n\tpub x entero\n"}
 	first, loadFirst := memoryProject(t, files)
 	second, loadSecond := memoryProject(t, files)
@@ -121,6 +124,7 @@ func TestProjectStableOutputAndNoEntry(t *testing.T) {
 }
 
 func TestProjectPhysicalIdentity(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	lib := filepath.Join(dir, "lib.cometa")
 	if err := os.WriteFile(lib, []byte("pub fn f() imprimir(1)\n"), 0600); err != nil {
@@ -139,8 +143,12 @@ func TestProjectPhysicalIdentity(t *testing.T) {
 }
 
 func TestProjectFailures(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct{ name, root, a, b, want string }{
-		{"missing", "usar ausente\n", "", "", "no se pudo importar"},
+		{"missing", "usar ausente\n", "", "", "no existe el archivo ausente.cometa (se buscó en la carpeta de main.cometa)"},
+		{"missing in folder", "usar sub/ausente\n", "", "", "no existe el archivo sub/ausente.cometa (se buscó desde la carpeta de main.cometa)"},
+		{"missing in dependency", "usar a\n", "usar ausente\n", "", "(se buscó en la carpeta de a.cometa) (cadena: main.cometa -> a.cometa -> ausente.cometa)"},
+		{"cycle chain", "usar a\n", "usar main\n", "", "ciclo de importaciones: main.cometa -> a.cometa -> main.cometa"},
 		{"cycle", "usar a\n", "usar main\n", "", "ciclo"},
 		{"self", "usar main\n", "", "", "ciclo"},
 		{"duplicate", "usar a\nusar ./a como otro\n", "", "", "duplicada"},
@@ -165,6 +173,7 @@ func TestProjectFailures(t *testing.T) {
 }
 
 func TestProjectDiamondAndShadowing(t *testing.T) {
+	t.Parallel()
 	entry, loader := memoryProject(t, map[string]string{
 		"main.cometa":  "usar a\nusar sub/b como b\nfn inicio()\n\tvar a = b.crear()\n\timprimir(a.nombre)\n",
 		"a.cometa":     "usar comun\npub fn crear() comun.Usuario comun.Usuario {}\n",
@@ -184,5 +193,62 @@ func TestProjectDiamondAndShadowing(t *testing.T) {
 	}
 	if strings.Count(string(generated), "Usuario struct") != 1 {
 		t.Fatal(string(generated))
+	}
+}
+
+// Windows file names ignore case, so modules are identified by a lower-cased
+// path, but what people read (diagnostics, line directives) must show the
+// file as it is named on disk, however the command line spelled it.
+func TestDiagnosticsKeepTheCaseOfFileNames(t *testing.T) {
+	t.Parallel()
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	write := func(name, source string) string {
+		path := filepath.Join(dir, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(source), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+	entry := write("Proyecto/Juego.cometa", "usar Mundo/Mapa\nfn inicio()\n\timprimir(Mapa.ancho())\n\timprimir(nada)\n")
+	module := write("Proyecto/Mundo/Mapa.cometa", "pub fn ancho() entero\n\tfalta\n")
+	typed := entry
+	if filepath.Separator == '\\' {
+		// What a user may type on a case-insensitive file system.
+		typed = filepath.Join(dir, "proyecto", "JUEGO.cometa")
+	}
+
+	_, err = CompileProject(typed, nil)
+	if err == nil {
+		t.Fatal("se esperaban errores")
+	}
+	for _, want := range []string{entry + ":4:11: ", module + ":2:2: "} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("falta %q en:\n%v", want, err)
+		}
+	}
+
+	// Tooling keeps the canonical path, which is the key of Project.Modules.
+	p, analysisErr := AnalyzeProject(typed, nil)
+	key, _ := CanonicalPath(entry)
+	if analysisErr == nil || !strings.Contains(analysisErr.Error(), key+":4:11: ") || p.Modules[key] == nil || p.DisplayPath(key) != entry {
+		t.Fatalf("AnalyzeProject debe conservar la ruta canónica %q: %v", key, analysisErr)
+	}
+
+	write("Proyecto/Juego.cometa", "usar Mundo/Mapa\nfn inicio()\n\timprimir(Mapa.ancho())\n")
+	write("Proyecto/Mundo/Mapa.cometa", "pub fn ancho() entero\n\t3\n")
+	generated, err := CompileProjectForRun(typed, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"//line " + entry + ":3\n", "//line " + module + ":2\n"} {
+		if !strings.Contains(string(generated), want) {
+			t.Errorf("falta %q en el Go generado", want)
+		}
 	}
 }

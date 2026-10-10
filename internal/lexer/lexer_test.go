@@ -123,3 +123,31 @@ func TestIgnoresLeadingBOM(t *testing.T) {
 		t.Fatalf("first token = %v", tokens[0])
 	}
 }
+
+func TestNumbersUseASCIIDigits(t *testing.T) {
+	_, err := Lex("digitos.cometa", "var x = ٣\n")
+	if err == nil || !strings.Contains(err.Error(), "digitos.cometa:1:9: carácter inesperado '٣'; los números se escriben con los dígitos del 0 al 9") {
+		t.Fatalf("se esperaba un error por el dígito, se obtuvo %v", err)
+	}
+	// Inside a name such a digit is a letter-like character, as before.
+	if _, err := Lex("digitos.cometa", "var nivel٣ = 12٣\n"); err == nil || !strings.Contains(err.Error(), "1:16:") {
+		t.Fatalf("un número no puede continuar con otro tipo de dígito: %v", err)
+	}
+	if _, err := Lex("digitos.cometa", "var nivel٣ = 12\n"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Every token names its file, the structural ones included, so nothing
+// downstream has to fill positions in.
+func TestTokensCarryTheFilename(t *testing.T) {
+	tokens, err := Lex("bloque.cometa", "fn inicio()\n\tsi verdadero\n\t\timprimir(1)\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tok := range tokens {
+		if tok.Pos.Filename != "bloque.cometa" {
+			t.Fatalf("token %v has file %q", tok, tok.Pos.Filename)
+		}
+	}
+}

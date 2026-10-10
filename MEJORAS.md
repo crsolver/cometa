@@ -4,25 +4,25 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 
 ## Lenguaje
 
-### Un literal entero no admite llamadas de método (`7.formato(2)`)
+### `imprimir` muestra el campo embebido en minúscula
 
-- **Observado:** `7.formato(2)` falla con «se esperaba un dígito después del punto decimal» porque el lexer lee `7.` como el inicio de un decimal; `3.5.formato(2)` sí funciona.
-- **Problema:** obliga a usar una variable o paréntesis para un caso poco común, con un mensaje que no lo explica.
-- **Posible solución:** que el lexer no consuma el punto si le sigue una letra, o mejorar el mensaje para sugerir `(7).formato(2)`.
+- **Observado:** con `tipo Lobo` que embebe `Posicion`, `imprimir(lobo)` escribe `Lobo {posicion: Posicion {x: 2, y: 0}, vida: 5}`.
+- **Problema:** en el código el campo se llama `Posicion` (`lobo.Posicion`, `Lobo {Posicion: {...}}`); `posicion` en minúscula no existe y copiarlo de la salida da un error.
+- **Posible solución:** imprimir el nombre del campo embebido con la capitalización del tipo.
 
-### `repetir` no recorre cadenas
+### En las pruebas, dos `pruebas.pulsar` en cuadros seguidos cuentan como una sola pulsación
 
-- **Observado:** `repetir (texto) |letra|` falla con «repetir requiere una lista o mapa, no cadena» (`internal/sema/sema.go`). Hay que escribir `repetir (texto.dividir("")) |letra|`.
-- **Problema:** recorrer las letras de un texto es un ejercicio típico de principiantes, y el truco de `dividir("")` no es evidente.
-- **Posible solución:** aceptar `cadena` en `repetir`, ligando cada punto de código como `cadena` (y el índice opcional como `entero`), igual que `dividir("")`; o al menos sugerir `dividir("")` en el mensaje de error.
+- **Observado:** en las pruebas de `25-escenas`. `pruebas.pulsar(.Derecha)` seguido de `pruebas.avanzar(juego, 1)`, repetido tres veces, solo produce un `entrada.tecla_presionada`. Con `pruebas.avanzar(juego, 2)` después de cada pulsación funcionan las tres.
+- **Problema:** `docs/pruebas.md` dice que la tecla «se suelta al cuadro siguiente», pero no que una nueva pulsación en ese mismo cuadro se pierde. La prueba falla con un número de pasos menor sin ninguna pista de por qué.
+- **Posible solución:** que `pulsar` sobre una tecla que se está soltando cuente como pulsación nueva, o documentar que entre dos pulsaciones de la misma tecla hace falta un cuadro libre.
 
 ## Herramientas
 
-### Los errores en tiempo de ejecución no indican la columna
+### El Go generado guarda cada operando en una variable temporal
 
-- **Observado:** un pánico (índice fuera de rango, división entre cero) ahora muestra archivo, línea y el texto de la línea, pero no la columna ni qué expresión falló.
-- **Problema:** en una línea con varias listas o divisiones no se sabe cuál causó el error.
-- **Posible solución:** emitir directivas `//line archivo:línea:columna` (Go las admite) en las expresiones que pueden fallar (índices y divisiones), no solo en cada sentencia.
+- **Observado:** al unificar los dos generadores de código. `var lista = [1, 2, 3]` se convierte en cuatro líneas de Go (`var _cometa1 int64 = 1`, …, `var lista []int64 = _cometa4`). Antes los programas más simples (sin listas, cadenas ni biblioteca) salían en una forma directa; ahora todos pasan por el mismo camino, que conserva el orden de evaluación.
+- **Problema:** `cometa compilar` sirve también para leer el Go que produce un programa, y las temporales lo alargan. No afecta a lo que hace el programa ni, en la práctica, a su velocidad.
+- **Posible solución:** una pasada final (junto a `eliminateUnusedLocals`) que sustituya las temporales de un solo uso cuyo valor es un literal; es segura porque un literal no depende del momento en que se evalúa.
 
 ### El manejo de fallos de juegos Ebitengine no está probado de extremo a extremo
 
@@ -30,11 +30,11 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 - **Problema:** una actualización de Ebitengine podría cambiar el formato del pánico sin que ninguna prueba lo detecte.
 - **Posible solución:** una prueba opcional (activada por variable de entorno) que ejecute con `cometa captura` un juego que falle y compruebe el mensaje traducido; correrla en CI.
 
-### Los flujos de CI y de publicación no se han ejecutado
+### `TestHuertoRenderingRuntime` falla a veces en el CI de Linux
 
-- **Observado:** `.github/workflows/ci.yml` y `release.yml`, junto con `.goreleaser.yaml`, se escribieron sin poder ejecutarlos.
-- **Problema:** el trabajo de Linux supone que una pantalla virtual (`xvfb`) basta para la prueba de captura con ventana oculta, y el empaquetado de los `.vsix` por plataforma no se ha probado.
-- **Posible solución:** publicar una etiqueta de prueba (`v0.0.1-rc1`) en un repositorio de ensayo y corregir lo que falle.
+- **Observado:** en la ejecución de CI de `main` del 1 de octubre de 2026 (`b52dcd2`, un commit que solo tocaba `release.yml`). El programa generado terminó con `signal: segmentation fault` bajo `xvfb`, después de los avisos `libEGL warning: DRI3 error`. El commit anterior había pasado con el mismo código.
+- **Problema:** el CI de Linux queda en rojo sin que haya cambiado nada, y `release.yml` no ejecuta las pruebas, así que una etiqueta se publica igual.
+- **Posible solución:** forzar el renderizado por software en el trabajo de Linux (`LIBGL_ALWAYS_SOFTWARE=1`) o reintentar una vez las pruebas con ventana oculta, y hacer que la publicación dependa de un CI en verde.
 
 ### `cometa nuevo` no ofrece plantillas más allá de consola y un juego mínimo
 
@@ -42,11 +42,11 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 - **Problema:** no hay punto de partida para un juego con varios archivos (el ejemplo `12_escenas` muestra las escenas, pero no hay plantilla).
 - **Posible solución:** más plantillas (`--plantilla plataformas`, `menu`) cuando existan esos ejemplos.
 
-### El guion de `cometa captura --entrada` no escribe texto ni usa mandos
+### La entrada simulada solo controla el mando 0
 
-- **Observado:** el guion simula teclas, botones y posición del ratón, pero no la escritura de caracteres (`ui.campo_texto` recibe texto vacío) ni los mandos, y la rueda siempre vale cero.
-- **Problema:** no se puede capturar un formulario rellenado ni un juego que solo se controle con mando.
-- **Posible solución:** acciones `texto "hola"`, `rueda 0 -1` y `+MandoA`/`eje IzquierdoX 1` en el guion, leídas por los ayudantes de `entrada` igual que las teclas.
+- **Observado:** `pruebas.mantener_mando`, `pruebas.eje_mando` y el guion de `cometa captura --entrada` (`+MandoA`, `eje IzquierdoX 1`) afectan solo al mando 0; `entrada.mandos()` vale 0 o 1 mientras se simula.
+- **Problema:** un juego de dos jugadores con un mando cada uno no se puede probar ni capturar.
+- **Posible solución:** un parámetro `mando` opcional en las funciones de `pruebas` y un prefijo en el guion (`+Mando1A`), con los códigos de botón desplazados por mando.
 
 ## Biblioteca estándar
 
@@ -73,11 +73,3 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 - **Observado:** el campo de texto de `std/pincel/ui` inserta y borra caracteres y mueve el cursor con las flechas/Inicio/Fin, pero no se puede seleccionar texto (arrastrar o Mayús+flecha), hacer clic para posicionar el cursor en medio del texto, ni pegar desde el portapapeles.
 - **Problema:** cubre el caso de un campo corto (nombre, valor numérico), pero cualquier edición más larga es incómoda: no hay forma de reemplazar todo el contenido de una vez ni de corregir un error a mitad de la palabra sin usar solo las flechas.
 - **Posible solución:** añadir un segundo índice de selección al nodo, resaltar el rango seleccionado al dibujar, calcular la posición de clic contra las líneas medidas, y usar las funciones de portapapeles de Ebitengine para copiar/pegar.
-
-## Plataforma de ejercicios
-
-### Las pruebas visuales no pueden simular teclado ni ratón
-
-- **Observado:** `pruebas.avanzar` ignora los dispositivos reales, pero no hay forma de pulsar una tecla o mover el ratón desde una prueba; el guion de `cometa captura --entrada` no está expuesto en `std/pruebas`.
-- **Problema:** un ejercicio del tipo «al pulsar D el jugador se mueve» solo se puede comprobar llamando a los métodos del juego, no a través de `entrada`.
-- **Posible solución:** `pruebas.mantener(tecla)`, `pruebas.soltar(tecla)`, `pruebas.pulsar(tecla)` y `pruebas.raton(x, y)` que escriban en el estado simulado (`_hgsimAhora`, `_hgsimCursor`) que ya leen los ayudantes de `entrada`.

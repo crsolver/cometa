@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -36,7 +37,7 @@ fn prueba_crash()
 	imprimir(v[i])
 `,
 	})
-	report, code := probar(entry, "", time.Minute, true)
+	report, code := probar(entry, "", time.Minute, true, "")
 	if code != exitTestsFailed || report.Status != "fallo" || report.Total != 3 || report.Passed != 1 || report.Failed != 2 {
 		t.Fatalf("unexpected report %+v code %d", report, code)
 	}
@@ -57,12 +58,12 @@ fn prueba_crash()
 
 func TestProbarTimeoutAndCompileError(t *testing.T) {
 	entry := writeProject(t, map[string]string{"pruebas.cometa": "fn prueba_a()\n\tmientras verdadero\n\t\tcontinuar\n\nfn prueba_b()\n\timprimir(1)\n"})
-	report, code := probar(entry, "", 2*time.Second, true)
+	report, code := probar(entry, "", 2*time.Second, true, "")
 	if code != exitTimeout || report.Tests[0].Status != "tiempo_agotado" || report.Tests[1].Status != "omitida" {
 		t.Fatalf("unexpected report %+v code %d", report, code)
 	}
 	entry = writeProject(t, map[string]string{"pruebas.cometa": "usar std/pruebas\nfn prueba_x()\n\tpruebas.igual(1, \"a\")\n"})
-	report, code = probar(entry, "", time.Minute, true)
+	report, code = probar(entry, "", time.Minute, true, "")
 	if code != exitCompile || report.Status != "error_compilacion" || len(report.Diagnostics) != 1 || report.Diagnostics[0].File != "pruebas.cometa" || report.Diagnostics[0].Line != 3 {
 		t.Fatalf("unexpected report %+v code %d", report, code)
 	}
@@ -110,7 +111,7 @@ fn prueba_sin_avanzar()
 	pruebas.pixel(0, 0, .Negro)
 `,
 	})
-	report, code := probar(entry, "", 5*time.Minute, true)
+	report, code := probar(entry, "", 5*time.Minute, true, "")
 	status := map[string]testResult{}
 	for _, r := range report.Tests {
 		status[r.Name] = r
@@ -124,5 +125,143 @@ fn prueba_sin_avanzar()
 	// The screen of an earlier test is not visible to the next one.
 	if r := status["prueba_sin_avanzar"]; r.Status != "error" || r.Line != 22 {
 		t.Fatalf("prueba_sin_avanzar: %+v", r)
+	}
+}
+
+// Tests can press keys, move the pointer, wheel, type and use a gamepad through
+// the same entrada and ui helpers the game reads.
+func TestProbarEntradaSimulada(t *testing.T) {
+	if testing.Short() {
+		t.Skip("desktop rendering")
+	}
+	entry := writeProject(t, map[string]string{
+		"juego.cometa": `usar std/pincel/graficos
+usar std/pincel/entrada
+usar std/pincel/ui
+
+pub tipo Juego
+	pub contexto ui.Contexto
+	pub nombre cadena
+	pub x entero
+	pub pulsaciones entero
+	pub soltadas entero
+	pub clic decimal = -1
+	pub rueda decimal
+	pub mandos entero
+	pub boton_a bool
+	pub palanca decimal
+
+	pub fn actualizar(dt decimal)
+		si entrada.tecla_mantenida(.D)
+			@x += 1
+		si entrada.tecla_presionada(.Espacio)
+			@pulsaciones += 1
+		si entrada.tecla_soltada(.Espacio)
+			@soltadas += 1
+		si entrada.raton_presionado(.Izquierdo)
+			@clic = entrada.posicion_raton().x
+		@rueda += entrada.rueda().y
+		@mandos = entrada.mandos()
+		@boton_a = entrada.mando_boton(0, .A)
+		@palanca = entrada.mando_eje(0, .IzquierdoX)
+		con ui.cuadro(@contexto)
+			@nombre = ui.campo_texto("nombre", @nombre)
+
+	pub fn pintar()
+		graficos.limpiar(.Negro)
+		ui.pintar(@contexto)
+`,
+		"pruebas.cometa": `usar juego
+usar std/pruebas
+usar std/pincel/ui
+
+fn prueba_teclas()
+	var j = juego.Juego {contexto: ui.crear()}
+	pruebas.avanzar(j, 2)
+	pruebas.igual(0, j.x)
+	pruebas.mantener(.D)
+	pruebas.avanzar(j, 3)
+	pruebas.igual(3, j.x)
+	pruebas.soltar(.D)
+	pruebas.avanzar(j, 2)
+	pruebas.igual(3, j.x)
+	pruebas.pulsar(.Espacio)
+	pruebas.avanzar(j, 3)
+	pruebas.igual(1, j.pulsaciones)
+	pruebas.igual(1, j.soltadas)
+
+fn prueba_la_entrada_no_pasa_a_la_siguiente_prueba()
+	var j = juego.Juego {contexto: ui.crear()}
+	pruebas.avanzar(j, 2)
+	pruebas.igual(0, j.x)
+
+fn prueba_raton_y_rueda()
+	var j = juego.Juego {contexto: ui.crear()}
+	pruebas.raton(40, 5)
+	pruebas.pulsar_raton(.Izquierdo)
+	pruebas.rueda(0, -2)
+	pruebas.avanzar(j, 1)
+	pruebas.igual(40, j.clic)
+	pruebas.casi_igual(-2.0, j.rueda)
+	pruebas.avanzar(j, 2)
+	pruebas.casi_igual(-2.0, j.rueda, mensaje = "la rueda dura un cuadro")
+
+fn prueba_mando()
+	var j = juego.Juego {contexto: ui.crear()}
+	pruebas.avanzar(j, 1)
+	pruebas.igual(0, j.mandos)
+	pruebas.mantener_mando(.A)
+	pruebas.eje_mando(.IzquierdoX, 0.5)
+	pruebas.avanzar(j, 1)
+	pruebas.igual(1, j.mandos)
+	pruebas.afirmar(j.boton_a, "botón A")
+	pruebas.casi_igual(0.5, j.palanca)
+
+fn prueba_texto()
+	var j = juego.Juego {contexto: ui.crear()}
+	pruebas.avanzar(j, 1)
+	pruebas.pulsar(.Tab)
+	pruebas.avanzar(j, 2)
+	pruebas.texto("hola")
+	pruebas.avanzar(j, 1)
+	pruebas.igual("hola", j.nombre)
+`,
+	})
+	report, code := probar(entry, "", 5*time.Minute, true, "")
+	if code != 0 {
+		t.Fatalf("unexpected report %+v code %d", report, code)
+	}
+	if report.Passed != 5 {
+		t.Fatalf("unexpected report %+v", report)
+	}
+}
+
+// Tests never touch the player's saved data: each run starts from an empty
+// folder unless --datos names one, which is kept.
+func TestProbarIsolatesSavedData(t *testing.T) {
+	entry := writeProject(t, map[string]string{"pruebas.cometa": `usar std/pruebas
+usar std/pincel/datos
+
+fn prueba_mejor()
+	var antes = datos.leer_entero("mejor") o 0
+	datos.guardar_entero("mejor", antes + 1) atrapar |error|
+		pruebas.fallar(error)
+	pruebas.igual(1, antes + 1, "partida")
+`})
+	for run := 0; run < 2; run++ {
+		if report, code := probar(entry, "", 5*time.Minute, true, ""); code != 0 {
+			t.Fatalf("run %d without --datos: %+v", run, report)
+		}
+	}
+	saved := filepath.Join(t.TempDir(), "guardado")
+	if report, code := probar(entry, "", 5*time.Minute, true, saved); code != 0 {
+		t.Fatalf("first run with --datos: %+v", report)
+	}
+	data, err := os.ReadFile(filepath.Join(saved, "datos.json"))
+	if err != nil || !strings.Contains(string(data), `"mejor": "1"`) {
+		t.Fatalf("datos.json = %q, %v", data, err)
+	}
+	if report, code := probar(entry, "", 5*time.Minute, true, saved); code != exitTestsFailed {
+		t.Fatalf("second run with --datos should see the saved value: %+v", report)
 	}
 }

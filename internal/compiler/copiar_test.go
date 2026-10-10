@@ -6,6 +6,7 @@ import (
 )
 
 func TestStructCopiar(t *testing.T) {
+	t.Parallel()
 	source := `tipo Arma
 	dano entero
 
@@ -31,7 +32,7 @@ fn inicio()
 	// La copia es superficial: los objetos anidados se comparten.
 	b.arma.dano = 50
 	imprimir(a.arma.dano)
-	// Las listas comparten sus elementos pero agregar a una copia de la lista no afecta a la otra.
+	// Las listas también se comparten: agregar desde la copia se ve en el original.
 	b.items.agregar("escudo")
 	imprimir(a.items.longitud())
 	var caja = Caja<entero> {valor: 1}
@@ -48,10 +49,11 @@ fn inicio()
 	if err != nil {
 		t.Fatal(err)
 	}
-	runGeneratedGo(t, got, "Ana 10 | Bea 3\n50\n1\n1 2\n99\n10\n")
+	runGeneratedGo(t, got, "Ana 10 | Bea 3\n50\n2\n1 2\n99\n10\n")
 }
 
 func TestStructCopiarErrors(t *testing.T) {
+	t.Parallel()
 	cases := []struct{ name, source, want string }{
 		{"args", "tipo A\n\tx entero\nfn inicio()\n\tvar a = A {}\n\tvar b = a.copiar(1)\n", "no acepta argumentos"},
 		{"library type", "usar std/mate\nfn inicio()\n\tvar v = mate.Vec2 {}\n\tvar w = v.copiar()\n", "copiar"},

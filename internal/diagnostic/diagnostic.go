@@ -15,6 +15,30 @@ type Located interface {
 	Diagnostic() (string, ast.Pos, string, string)
 }
 
+// The stages of the frontend, as reported by Error.Diagnostic.
+const (
+	Lexer    = "lexer"
+	Parser   = "parser"
+	Sema     = "sema" // name binding and type checking
+	Frontend = "frontend"
+)
+
+// Error is one problem found in a source file by any stage of the frontend.
+type Error struct {
+	Stage    string
+	Filename string
+	Pos      ast.Pos
+	Message  string
+}
+
+func (e *Error) Error() string {
+	return fmt.Sprintf("%s:%d:%d: %s", e.Filename, e.Pos.Line, e.Pos.Column, e.Message)
+}
+
+func (e *Error) Diagnostic() (string, ast.Pos, string, string) {
+	return e.Filename, e.Pos, e.Stage, e.Message
+}
+
 type List []error
 
 func (l List) Error() string {
@@ -62,10 +86,15 @@ func (l List) Err() error {
 			}
 		}
 	}
+	// Located diagnostics go first, by position; the rest follow by text. Mixing
+	// both criteria in one comparison would not be a consistent order.
 	sort.SliceStable(out, func(i, j int) bool {
 		a, aok := out[i].(Located)
 		b, bok := out[j].(Located)
-		if !aok || !bok {
+		if aok != bok {
+			return aok
+		}
+		if !aok {
 			return out[i].Error() < out[j].Error()
 		}
 		af, ap, as, am := a.Diagnostic()
@@ -111,5 +140,5 @@ func (e limitError) Diagnostic() (string, ast.Pos, string, string) {
 	if d, ok := e.at.(Located); ok {
 		file, pos, _, _ = d.Diagnostic()
 	}
-	return file, pos, "frontend", "se alcanzó el límite de 100 errores; corrija los errores anteriores"
+	return file, pos, Frontend, "se alcanzó el límite de 100 errores; corrija los errores anteriores"
 }

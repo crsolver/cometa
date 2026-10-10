@@ -4,6 +4,7 @@ import "testing"
 
 // imprimir must spell enum variants and results the Cometa way, not as Go structs.
 func TestPrintEnumsAndResults(t *testing.T) {
+	t.Parallel()
 	source := `enum Evento
 	Cargar
 	Texto cadena

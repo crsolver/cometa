@@ -6,6 +6,7 @@ import (
 )
 
 func TestGameObjectFromImportedModule(t *testing.T) {
+	t.Parallel()
 	entry, loader := memoryProject(t, map[string]string{
 		"main.cometa":    "usar std/pincel\nusar partida\nfn inicio()\n\tpincel.ejecutar(partida.Partida {}, titulo = \"Modular\") atrapar |e| imprimir(e)\n",
 		"partida.cometa": "usar std/pincel/graficos\npub tipo Partida\n\tpub fn actualizar(dt decimal) imprimir(dt)\n\tpub fn pintar() graficos.limpiar(.Negro)\npub fn iniciar() imprimir(0)\n",
@@ -16,6 +17,7 @@ func TestGameObjectFromImportedModule(t *testing.T) {
 }
 
 func TestGameInvalidConfigurationRuntime(t *testing.T) {
+	t.Parallel()
 	generated, err := Compile("game.cometa", []byte(pincelImports+minimalGame))
 	if err != nil {
 		t.Fatal(err)
@@ -48,6 +50,7 @@ func main(){
 }
 
 func TestGameInterfaceAndStartupErrors(t *testing.T) {
+	t.Parallel()
 	for _, source := range []string{
 		"tipo T\n\tpub fn actualizar(dt decimal) imprimir(dt)\nfn inicio()\n\tpincel.ejecutar(T {}) atrapar |e| imprimir(e)\n",
 		"tipo T\n\tpub fn actualizar(dt cadena) imprimir(dt)\n\tpub fn pintar() imprimir(0)\nfn inicio()\n\tpincel.ejecutar(T {}) atrapar |e| imprimir(e)\n",

@@ -3,13 +3,12 @@
 package main
 
 import (
-	"github.com/crsolver/cometa/internal/stdlib"
 	"encoding/json"
 	"fmt"
+	"github.com/crsolver/cometa/internal/stdlib"
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 )
 
 type Func struct {
@@ -38,75 +37,47 @@ type Module struct {
 	Funciones  []Func   `json:"funciones"`
 }
 
-// Build assembles every importable module from the stdlib catalog.
+// Build assembles every importable module from the stdlib catalog, sorted by
+// name, with the types of each module sorted too.
 func Build() []Module {
-	byNamespace := map[string]*Module{}
-	var names []string
-	for _, f := range stdlib.Functions {
-		if byNamespace[f.Namespace] == nil {
-			byNamespace[f.Namespace] = &Module{
-				Nombre: f.Namespace,
-				Ruta:   stdlib.ModulePath(f.Namespace),
-				Doc:    stdlib.NamespaceDocs[f.Namespace],
-			}
-			names = append(names, f.Namespace)
-		}
-		m := byNamespace[f.Namespace]
-		m.Funciones = append(m.Funciones, Func{
+	function := func(f stdlib.Function) Func {
+		return Func{
 			Nombre:  f.Name,
-			Firma:   f.Name + "(" + stdlib.QualifiedSignature(f.Signature),
-			Doc:     stdlib.FunctionDocs[f.Namespace+"."+f.Name],
+			Firma:   f.Name + stdlib.QualifiedSignature(f.Signature),
+			Doc:     f.Doc,
 			Dibujo:  f.Draw,
 			Recurso: f.Resource,
-		})
-	}
-	sort.Strings(names)
-
-	var typeNames []string
-	for name := range stdlib.TypeModules {
-		typeNames = append(typeNames, name)
-	}
-	sort.Strings(typeNames)
-	for _, name := range typeNames {
-		m := byNamespace[stdlib.TypeModules[name]]
-		if m == nil {
-			continue
 		}
-		t := Type{Nombre: name, Doc: stdlib.TypeDocs[name], Interfaz: name == "Juego"}
-		if name == "Juego" {
-			t.Campos = []string{"fn actualizar(dt decimal)", "fn pintar()"}
-		}
-		for _, field := range strings.Split(stdlib.Fields[stdlib.Symbol(name)], "\n") {
-			if field != "" {
-				t.Campos = append(t.Campos, field)
+	}
+	modules := make([]Module, 0, len(stdlib.Modules))
+	for _, m := range stdlib.Modules {
+		module := Module{Nombre: m.Name, Ruta: m.Path, Doc: m.Doc, Tipos: []Type{}}
+		for _, t := range m.Types {
+			out := Type{Nombre: t.Name, Doc: t.Doc, Interfaz: t.Interface, Campos: append([]string(nil), t.Fields...)}
+			for c := range t.Constants {
+				out.Constantes = append(out.Constantes, "."+c)
 			}
-		}
-		for c := range stdlib.Constants[stdlib.Symbol(name)] {
-			t.Constantes = append(t.Constantes, "."+c)
-		}
-		sort.Strings(t.Constantes)
-		for _, method := range stdlib.Methods {
-			if method.Namespace == stdlib.Symbol(name) {
-				t.Metodos = append(t.Metodos, Func{
-					Nombre: method.Name,
-					Firma:  method.Name + "(" + stdlib.QualifiedSignature(method.Signature),
-					Doc:    stdlib.MethodDocs[name+"."+method.Name],
-				})
+			sort.Strings(out.Constantes)
+			for _, method := range t.Methods {
+				if t.Interface {
+					// What a program must write is listed with the fields.
+					out.Campos = append(out.Campos, "fn "+method.Name+method.Signature)
+					continue
+				}
+				out.Metodos = append(out.Metodos, function(method))
 			}
+			module.Tipos = append(module.Tipos, out)
 		}
-		m.Tipos = append(m.Tipos, t)
-	}
-	if m := byNamespace["mate"]; m != nil {
-		m.Constantes = append(m.Constantes, "pi decimal = 3.141592653589793")
-	}
-
-	modules := make([]Module, 0, len(names))
-	for _, n := range names {
-		if byNamespace[n].Tipos == nil {
-			byNamespace[n].Tipos = []Type{}
+		sort.Slice(module.Tipos, func(i, j int) bool { return module.Tipos[i].Nombre < module.Tipos[j].Nombre })
+		for _, c := range m.Constants {
+			module.Constantes = append(module.Constantes, c.Name+" "+c.Type+" = "+c.Value)
 		}
-		modules = append(modules, *byNamespace[n])
+		for _, f := range m.Functions {
+			module.Funciones = append(module.Funciones, function(f))
+		}
+		modules = append(modules, module)
 	}
+	sort.Slice(modules, func(i, j int) bool { return modules[i].Nombre < modules[j].Nombre })
 	return modules
 }
 

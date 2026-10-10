@@ -9,7 +9,7 @@ import (
 )
 
 // TestStdlibDocsShowInHoverAndCompletion checks that the Spanish doc
-// comments written into stdlib.FunctionDocs/MethodDocs (internal/stdlib/docs.go)
+// comments of the catalog (the Doc of each entry in internal/stdlib/mod_*.go)
 // actually reach the editor: as documentation text under a function's hover,
 // and in the Documentation panel of its completion item.
 func TestStdlibDocsShowInHoverAndCompletion(t *testing.T) {

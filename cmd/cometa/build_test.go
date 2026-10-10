@@ -207,3 +207,91 @@ func TestCaptureGameScreen(t *testing.T) {
 		t.Fatalf("captured a program without a game: %v", err)
 	}
 }
+
+// Typed text, the wheel and gamepad 0 can be scripted as well.
+func TestCaptureWithTextWheelAndGamepad(t *testing.T) {
+	if testing.Short() {
+		t.Skip("desktop rendering")
+	}
+	dir := t.TempDir()
+	input := filepath.Join(dir, "game.cometa")
+	script := filepath.Join(dir, "guion.txt")
+	game := `usar std/pincel
+usar std/pincel/graficos
+usar std/pincel/entrada
+usar std/pincel/ui
+tipo Partida
+	contexto ui.Contexto
+	nombre cadena
+	rueda decimal
+	a bool
+	eje decimal
+	pub fn actualizar(dt decimal)
+		@rueda += entrada.rueda().y
+		@a = entrada.mando_boton(0, .A)
+		@eje = entrada.mando_eje(0, .IzquierdoX)
+		con ui.cuadro(@contexto)
+			@nombre = ui.campo_texto("nombre", @nombre)
+	pub fn pintar()
+		graficos.limpiar(.Negro)
+		graficos.rectangulo(@nombre.longitud(), 0, 1, 1, .Rojo)
+		si @rueda == -1
+			graficos.rectangulo(0, 0, 1, 1, .Verde)
+		si @a
+			graficos.rectangulo(1, 0, 1, 1, .Azul)
+fn inicio()
+	pincel.ejecutar(Partida {contexto: ui.crear()}, 8, 1) atrapar |e| imprimir(e)
+`
+	if err := os.WriteFile(input, []byte(game), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(script, []byte("2 Tab\n5 texto \"ab c\" rueda 0 -1\n6 +MandoA eje IzquierdoX 1\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	output := filepath.Join(dir, "shot.png")
+	if err := run([]string{"captura", input, "-o", output, "--cuadros", "8", "--entrada", script}); err != nil {
+		t.Fatal(err)
+	}
+	file, err := os.Open(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	img, err := png.Decode(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// "ab c" has 4 characters, so the red mark sits at x = 4; the wheel moved
+	// once (green at 0) and button A is held (blue at 1).
+	for x, want := range map[int]string{0: "verde", 1: "azul", 4: "rojo", 6: "negro"} {
+		r, g, b, _ := img.At(x, 0).RGBA()
+		got := "negro"
+		switch {
+		case r>>8 > 200 && g>>8 < 100:
+			got = "rojo"
+		case g>>8 > 100 && r>>8 < 100 && b>>8 < 150:
+			got = "verde"
+		case b>>8 > 100:
+			got = "azul"
+		}
+		if got != want {
+			t.Errorf("pixel %d = %s, want %s", x, got, want)
+		}
+	}
+}
+
+// A go that does not run (a leftover of another installation) earlier on PATH
+// must not hide a working one, and PATH wins over the installer's folder.
+func TestPickGoSkipsBrokenInstallations(t *testing.T) {
+	works := map[string]bool{"b/go": true, "c/go": true}
+	usable := func(path string) bool { return works[path] }
+	if path, broken := pickGo([]string{"a/go", "b/go", "a/go", "c/go"}, usable); path != "b/go" || len(broken) != 1 || broken[0] != "a/go" {
+		t.Fatalf("pickGo = %q, %v", path, broken)
+	}
+	if path, broken := pickGo([]string{"a/go", "d/go"}, usable); path != "" || len(broken) != 2 {
+		t.Fatalf("pickGo sin candidatos válidos = %q, %v", path, broken)
+	}
+	if path, broken := pickGo(nil, usable); path != "" || broken != nil {
+		t.Fatalf("pickGo sin candidatos = %q, %v", path, broken)
+	}
+}

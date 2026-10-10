@@ -1,10 +1,10 @@
 package sema
 
 import (
-	"github.com/crsolver/cometa/internal/ast"
-	"github.com/crsolver/cometa/internal/stdlib"
-	"fmt"
 	"sort"
+	"unicode"
+
+	"github.com/crsolver/cometa/internal/ast"
 )
 
 type InterfaceInfo struct {
@@ -50,6 +50,22 @@ func declName(d ast.Decl) string {
 	return ""
 }
 
+// claimGoName records name among the names of one Go namespace. Generated Go
+// capitalizes the first letter of types and members, so two Cometa names that
+// differ only there cannot coexist; it reports the earlier one.
+func claimGoName(taken map[string]string, name string) (earlier string, clash bool) {
+	runes := []rune(name)
+	if len(runes) > 0 {
+		runes[0] = unicode.ToUpper(runes[0])
+	}
+	key := string(runes)
+	if earlier, ok := taken[key]; ok && earlier != name {
+		return earlier, true
+	}
+	taken[key] = name
+	return "", false
+}
+
 func (c *checker) setScope(d ast.Decl) {
 	c.typeScope = map[string]Type{}
 	for _, p := range c.model.TypeParams[d] {
@@ -68,327 +84,6 @@ func (m *Model) declaration(name string) ast.Decl {
 		return d.Decl
 	}
 	return nil
-}
-
-func (c *checker) check(program *ast.Program) (*Model, error) {
-	c.globalState = map[string]int{}
-	for name := range program.InvalidNames {
-		c.invalid[name] = true
-	}
-	if err := c.installGameAPI(); err != nil {
-		return nil, err
-	}
-	c.model.Game.Modules = program.NativeModules
-	c.model.Game.Used = len(program.NativeModules) > 0
-	// Collect identities before resolving any signatures, including forward references.
-	for _, d := range program.Decls {
-		if c.invalid[declName(d)] {
-			continue
-		}
-		err := func() error {
-			name := declName(d)
-			if stdlib.Reserved(name) {
-				return c.fail(d.Position(), "el nombre %q está reservado por el runtime", name)
-			}
-			if c.model.declaration(name) != nil {
-				return c.fail(d.Position(), "el tipo %q ya fue declarado", name)
-			}
-			switch d := d.(type) {
-			case *ast.TypeDecl:
-				c.model.Types[name] = &TypeInfo{Decl: d, Fields: map[string]FieldInfo{}, Methods: map[string]FuncInfo{}}
-			case *ast.EnumDecl:
-				c.model.Enums[name] = &EnumInfo{Decl: d, Type: Type{Kind: Enum, Name: name}, Variants: map[string]VariantInfo{}}
-			case *ast.InterfaceDecl:
-				c.model.Interfaces[name] = &InterfaceInfo{Decl: d, Methods: map[string]FuncInfo{}}
-			case *ast.GlobalDecl:
-				if c.model.Globals[name] != nil {
-					return c.fail(d.Pos, "la global %q ya fue declarada", name)
-				}
-				c.model.Globals[name] = &GlobalInfo{Decl: d, Constant: d.Constant}
-			}
-
-			return nil
-		}()
-		if err != nil {
-			c.report(err)
-			c.invalid[declName(d)] = true
-		}
-	}
-	for _, d := range program.Decls {
-		if c.invalid[declName(d)] {
-			continue
-		}
-		err := func() error {
-			seen := map[string]bool{}
-			for _, p := range declParams(d) {
-				if stdlib.Reserved(p.Name) || seen[p.Name] || p.Name == "_" || c.model.declaration(p.Name) != nil || p.Name == declName(d) {
-					return c.fail(p.Pos, "parámetro de tipo duplicado o en conflicto %q", p.Name)
-				}
-				seen[p.Name] = true
-				t := Type{Kind: TypeParameter, Name: p.Name, Owner: fmt.Sprintf("%s@%d", declName(d), d.Position().Line)}
-				c.model.TypeParams[d] = append(c.model.TypeParams[d], t)
-				c.model.Constraints[paramKey(t)] = Type{Kind: Interface} // universal constraint
-			}
-
-			return nil
-		}()
-		if err != nil {
-			c.report(err)
-			c.invalid[declName(d)] = true
-		}
-	}
-	for _, d := range program.Decls {
-		if c.invalid[declName(d)] {
-			continue
-		}
-		err := func() error {
-			c.setScope(d)
-			for i, p := range declParams(d) {
-				if p.Constraint == nil {
-					continue
-				}
-				t, err := c.resolveType(*p.Constraint)
-				if err != nil {
-					return err
-				}
-				if t.Kind != Interface {
-					return c.fail(p.Pos, "la restricción debe ser una interfaz")
-				}
-				c.model.Constraints[paramKey(c.model.TypeParams[d][i])] = t
-			}
-
-			return nil
-		}()
-		if err != nil {
-			c.report(err)
-			c.invalid[declName(d)] = true
-		}
-	}
-	for _, d := range program.Decls {
-		if c.invalid[declName(d)] {
-			continue
-		}
-		err := func() error {
-			broken := false
-			c.setScope(d)
-			switch d := d.(type) {
-			case *ast.TypeDecl:
-				info := c.model.Types[d.Name]
-				for _, f := range d.Fields {
-					err := func() error {
-						if _, exists := info.Fields[f.Name]; exists {
-							return c.fail(f.Pos, "el campo %q ya fue declarado", f.Name)
-						}
-						t, err := c.resolveType(f.Type)
-						if err != nil {
-							return err
-						}
-						if f.Embedded && (t.Kind != Named || stdlib.IsType(t.Name)) {
-							return c.fail(f.Pos, "solo se pueden embeber tipos de estructura declarados")
-						}
-						info.Fields[f.Name] = FieldInfo{Decl: f, Type: t}
-
-						return nil
-					}()
-					if err != nil {
-						c.report(err)
-						broken = true
-					}
-				}
-				for _, method := range d.Methods {
-					err := func() error {
-						if _, exists := info.Methods[method.Name]; exists {
-							return c.fail(method.Pos, "el método %q ya fue declarado", method.Name)
-						}
-						if _, exists := info.Fields[method.Name]; exists {
-							return c.fail(method.Pos, "el miembro %q ya fue declarado como campo", method.Name)
-						}
-						sig, err := c.signature(method)
-						if err != nil {
-							return err
-						}
-						info.Methods[method.Name] = sig
-
-						return nil
-					}()
-					if err != nil {
-						c.report(err)
-						broken = true
-					}
-				}
-			case *ast.EnumDecl:
-				info := c.model.Enums[d.Name]
-				info.Type.Args = c.model.TypeParams[d]
-				for i, v := range d.Variants {
-					err := func() error {
-						if _, exists := info.Variants[v.Name]; exists || v.Name == "_" {
-							return c.fail(v.Pos, "variante duplicada o reservada %q", v.Name)
-						}
-						payload := Type{Kind: Void}
-						if v.Payload != nil {
-							var err error
-							payload, err = c.resolveType(*v.Payload)
-							if err != nil {
-								return err
-							}
-						}
-						info.Variants[v.Name] = VariantInfo{Decl: v, Tag: i + 1, Payload: payload}
-
-						return nil
-					}()
-					if err != nil {
-						c.report(err)
-						broken = true
-					}
-				}
-			case *ast.InterfaceDecl:
-				info := c.model.Interfaces[d.Name]
-				for _, method := range d.Methods {
-					err := func() error {
-						if _, exists := info.Methods[method.Name]; exists {
-							return c.fail(method.Pos, "el método %q ya fue declarado", method.Name)
-						}
-						sig, err := c.signature(method)
-						if err != nil {
-							return err
-						}
-						info.Methods[method.Name] = sig
-
-						return nil
-					}()
-					if err != nil {
-						c.report(err)
-						broken = true
-					}
-				}
-				for _, ref := range d.Embeds {
-					err := func() error {
-						t, err := c.resolveType(ref)
-						if err != nil {
-							return err
-						}
-						if t.Kind != Interface {
-							return c.fail(ref.Pos, "solo se puede incrustar una interfaz")
-						}
-						info.Embeds = append(info.Embeds, t)
-
-						return nil
-					}()
-					if err != nil {
-						c.report(err)
-						broken = true
-					}
-				}
-			case *ast.FuncDecl:
-				if c.model.declaration(d.Name) != nil {
-					return c.fail(d.Pos, "el nombre %q ya fue declarado como tipo", d.Name)
-				}
-				if _, exists := c.model.Functions[d.Name]; exists {
-					return c.fail(d.Pos, "la función %q ya fue declarada", d.Name)
-				}
-				if c.model.Globals[d.Name] != nil {
-					return c.fail(d.Pos, "el nombre %q ya fue declarado como global", d.Name)
-				}
-				sig, err := c.signature(d)
-				if err != nil {
-					return err
-				}
-				sig.TypeParams = c.model.TypeParams[d]
-				for _, p := range sig.TypeParams {
-					sig.Constraints = append(sig.Constraints, c.model.Constraints[paramKey(p)])
-				}
-				if d.Name == "inicio" && (len(d.Params) > 0 || sig.Return.Kind != Void || len(sig.TypeParams) > 0) {
-					return c.fail(d.Pos, "inicio debe declararse como fn inicio() sin parámetros ni resultado")
-				}
-				c.model.Functions[d.Name] = sig
-			case *ast.GlobalDecl:
-				if c.model.declaration(d.Name) != nil {
-					return c.fail(d.Pos, "el nombre %q ya fue declarado como tipo", d.Name)
-				}
-				if _, exists := c.model.Functions[d.Name]; exists {
-					return c.fail(d.Pos, "el nombre %q ya fue declarado como función", d.Name)
-				}
-			}
-
-			if broken {
-				return errInvalid
-			}
-			return nil
-		}()
-		if err != nil {
-			c.report(err)
-			c.invalid[declName(d)] = true
-		}
-	}
-	c.propagateInvalidTypes()
-	if err := c.flattenInterfaces(); err != nil {
-		c.report(err)
-	}
-	if err := c.validateTypeUses(); err != nil {
-		c.report(err)
-	}
-	if err := c.checkExpansions(); err != nil {
-		c.report(err)
-		// Expansion failures make recursive generic instantiation unsafe.
-		for d, params := range c.model.TypeParams {
-			if len(params) > 0 {
-				c.invalid[declName(d)] = true
-			}
-		}
-	}
-	if err := c.checkRequiredCycles(program); err != nil {
-		c.report(err)
-	}
-	c.propagateInvalidTypes()
-	for _, d := range program.Decls {
-		if c.invalid[declName(d)] {
-			continue
-		}
-		if global, ok := d.(*ast.GlobalDecl); ok {
-			if err := c.checkGlobal(global.Name); err != nil {
-				c.report(err)
-			}
-		}
-	}
-	for _, d := range program.Decls {
-		if c.invalid[declName(d)] {
-			continue
-		}
-		switch d := d.(type) {
-		case *ast.TypeDecl:
-			if err := c.checkFieldDefaults(d); err != nil {
-				c.report(err)
-			}
-			for _, method := range d.Methods {
-				if err := c.checkFunction(method, c.model.Types[d.Name]); err != nil {
-					c.report(err)
-				}
-			}
-		case *ast.FuncDecl:
-			if err := c.checkFunction(d, nil); err != nil {
-				c.report(err)
-			}
-		}
-	}
-	if err := c.safeCheck(func() error { return c.checkInitializationCycles(program) }); err != nil {
-		c.report(err)
-	}
-	if err := c.validateTypeUses(); err != nil {
-		c.report(err)
-	}
-	if err := c.checkExpansions(); err != nil {
-		c.report(err)
-		// Expansion failures make recursive generic instantiation unsafe.
-		for d, params := range c.model.TypeParams {
-			if len(params) > 0 {
-				c.invalid[declName(d)] = true
-			}
-		}
-	}
-	if err := c.safeCheck(func() error { return c.checkGame(program) }); err != nil {
-		c.report(err)
-	}
-	return c.model, nil
 }
 
 func (c *checker) resolveType(ref ast.TypeRef) (Type, error) {
@@ -677,7 +372,7 @@ func (c *checker) checkConstraints(params, args []Type, pos ast.Pos) error {
 	for i, p := range params {
 		constraint := substitute(c.model.Constraints[paramKey(p)], b)
 		if !c.model.Assignable(args[i], constraint) {
-			return c.fail(pos, "%s no satisface la restricción %s de %s", args[i].String(), constraint.String(), p.Name)
+			return c.fail(pos, "%s no satisface la restricción %s de %s%s", args[i].String(), constraint.String(), p.Name, c.unmet(args[i], constraint))
 		}
 	}
 	return nil

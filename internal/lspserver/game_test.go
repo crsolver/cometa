@@ -2,9 +2,9 @@ package lspserver
 
 import (
 	"context"
+	"github.com/crsolver/cometa/internal/stdlib"
 	"github.com/owenrumney/go-lsp/lsp"
 	"github.com/owenrumney/go-lsp/servertest"
-	"github.com/crsolver/cometa/internal/stdlib"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -205,12 +205,7 @@ func TestGameMethodHover(t *testing.T) {
 	}
 }
 func TestRemovedGameCompletions(t *testing.T) {
-	for _, name := range []string{"mat", "vectores", "colisiones"} {
-		if list := gameNamespaceCompletion(name + "."); list != nil {
-			t.Fatalf("obsolete namespace %s", name)
-		}
-	}
-	for _, item := range gameTopCompletion("").Items {
+	for _, item := range builtinTypeCompletion("").Items {
 		switch item.Label {
 		case "mat", "vectores", "colisiones", "ConfigJuego", "configurar":
 			t.Fatalf("obsolete completion: %s", item.Label)

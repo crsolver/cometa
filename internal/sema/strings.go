@@ -5,12 +5,6 @@ import (
 	"github.com/crsolver/cometa/internal/diagnostic"
 )
 
-var stringMethodOrder = []string{
-	"longitud", "esta_vacia", "contiene", "buscar_indice", "empieza_con",
-	"termina_con", "mayusculas", "minusculas", "recortar", "reemplazar",
-	"dividir", "obtener", "subcadena", "a_entero", "a_decimal",
-}
-
 func StringMethods() map[string]FuncInfo {
 	stringType := Type{Kind: String}
 	number := Type{Kind: Integer}
@@ -37,28 +31,33 @@ func StringMethods() map[string]FuncInfo {
 	add("subcadena", []ast.Param{{Name: "inicio"}, {Name: "fin"}}, []Type{number, number}, optionalString)
 	add("a_entero", nil, nil, optionalNumber)
 	add("a_decimal", nil, nil, optionalDecimal)
+	fill := []ast.Param{{Name: "ancho"}, {Name: "relleno", Default: &ast.LiteralExpr{Kind: "cadena", Value: `" "`}}}
+	add("rellenar_izquierda", fill, []Type{number, stringType}, stringType)
+	add("rellenar_derecha", fill, []Type{number, stringType}, stringType)
+	add("repetir", []ast.Param{{Name: "veces"}}, []Type{number}, stringType)
 	return methods
 }
 
-func StringMethodNames() []string { return append([]string(nil), stringMethodOrder...) }
-
 func StringMethodDocumentation(name string) string {
 	return map[string]string{
-		"longitud":      "Devuelve la cantidad de puntos de código Unicode.",
-		"esta_vacia":    "Indica si la cadena está vacía.",
-		"contiene":      "Indica si la cadena contiene el texto indicado.",
-		"buscar_indice": "Devuelve el primer índice Unicode, o .Ninguno si no existe.",
-		"empieza_con":   "Indica si la cadena comienza con el prefijo.",
-		"termina_con":   "Indica si la cadena termina con el sufijo.",
-		"mayusculas":    "Convierte la cadena a mayúsculas Unicode.",
-		"minusculas":    "Convierte la cadena a minúsculas Unicode.",
-		"recortar":      "Elimina el espacio Unicode de ambos extremos.",
-		"reemplazar":    "Reemplaza todas las coincidencias no superpuestas.",
-		"dividir":       "Divide la cadena conservando las partes vacías.",
-		"obtener":       "Devuelve el punto de código del índice, o .Ninguno.",
-		"subcadena":     "Devuelve el rango [inicio, fin), o .Ninguno si no es válido.",
-		"a_entero":      "Convierte el texto a entero, o devuelve .Ninguno si no es un entero válido (sin espacios; usa recortar() antes).",
-		"a_decimal":     "Convierte el texto a decimal (con punto, por ejemplo \"3.5\"), o devuelve .Ninguno si no es un número finito válido.",
+		"longitud":           "Devuelve la cantidad de puntos de código Unicode.",
+		"esta_vacia":         "Indica si la cadena está vacía.",
+		"contiene":           "Indica si la cadena contiene el texto indicado.",
+		"buscar_indice":      "Devuelve el primer índice Unicode, o .Ninguno si no existe.",
+		"empieza_con":        "Indica si la cadena comienza con el prefijo.",
+		"termina_con":        "Indica si la cadena termina con el sufijo.",
+		"mayusculas":         "Convierte la cadena a mayúsculas Unicode.",
+		"minusculas":         "Convierte la cadena a minúsculas Unicode.",
+		"recortar":           "Elimina el espacio Unicode de ambos extremos.",
+		"reemplazar":         "Reemplaza todas las coincidencias no superpuestas.",
+		"dividir":            "Divide la cadena conservando las partes vacías.",
+		"obtener":            "Devuelve el punto de código del índice, o .Ninguno.",
+		"subcadena":          "Devuelve el rango [inicio, fin), o .Ninguno si no es válido.",
+		"a_entero":           "Convierte el texto a entero, o devuelve .Ninguno si no es un entero válido (sin espacios; usa recortar() antes).",
+		"a_decimal":          "Convierte el texto a decimal (con punto, por ejemplo \"3.5\"), o devuelve .Ninguno si no es un número finito válido.",
+		"rellenar_izquierda": "Añade `relleno` por la izquierda hasta que la cadena tenga `ancho` letras; si ya las tiene, la devuelve igual. Para un marcador: cadena(puntos).rellenar_izquierda(7, \"0\").",
+		"rellenar_derecha":   "Añade `relleno` por la derecha hasta que la cadena tenga `ancho` letras; útil para alinear columnas.",
+		"repetir":            "Devuelve la cadena repetida `veces` veces; con 0 o menos, la cadena vacía.",
 	}[name]
 }
 
@@ -69,7 +68,7 @@ func (c *checker) checkStringCall(call *ast.CallExpr, member *ast.MemberExpr) (T
 	}
 	result, err := c.bindArguments(call, signature)
 	if err == nil {
-		c.model.StringCalls[call] = member.Name
+		c.model.Builtins[call] = Builtin{Kind: StringMethod, Name: member.Name}
 	}
 	return result, err
 }

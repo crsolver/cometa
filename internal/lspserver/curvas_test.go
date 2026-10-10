@@ -2,8 +2,8 @@ package lspserver
 
 import (
 	"context"
-	"github.com/owenrumney/go-lsp/lsp"
 	"github.com/crsolver/cometa/internal/stdlib"
+	"github.com/owenrumney/go-lsp/lsp"
 	"strings"
 	"testing"
 )

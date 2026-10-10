@@ -8,6 +8,7 @@ import (
 )
 
 func TestRetroAPI(t *testing.T) {
+	t.Parallel()
 	source := "usar std/pincel/retro como r\nfn pintar()\n\tr.texto(\"¡Niño!\", 0, 0)\n\tr.icono(.Corazon, color = .Rojo, y = 8, x = 0)\n\tr.glifo(255, 8, 8, atlas = .ASCII)\n"
 	got, err := Compile("retro.cometa", []byte(source))
 	if err != nil {
@@ -48,10 +49,11 @@ func TestRetroAPI(t *testing.T) {
 }
 
 func TestRetroRenderingRuntime(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("desktop rendering")
 	}
-	generated, err := Compile("retro.cometa", []byte("usar std/pincel/retro\nfn pintar() retro.texto(\"hola\", 0, 0)\n"))
+	generated, err := Compile("retro.cometa", []byte("usar std/pincel/retro\nusar std/pincel/rejilla\nfn pintar()\n\tretro.texto(\"hola\", 0, 0)\n\trejilla.dibujar(rejilla.nueva(1, 1), retro.hoja())\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +72,7 @@ func (*retroCheck) Update() error {
  _hgcamara=_hgCamara2D{Zoom:1}
  white:=_hgColor{255,255,255,255}
  if len([]rune(_hgretroCharacters))!=256 {panic("invalid mapping length")}
- for r,want:=range map[rune]int64{'ñ':164,'Ñ':165,'á':160,'é':130,'í':161,'ó':162,'ú':163,'ü':129,'¿':168,'¡':173,'"':34,92:92,'?':63} {
+ for r,want:=range map[rune]int64{'ñ':164,'Ñ':165,'á':160,'é':130,'í':161,'ó':162,'ú':163,'ü':129,'¿':168,'¡':173,'"':34,92:92,'?':63,'É':144,'Ü':154,'Á':65,'Í':73,'Ó':79,'Ú':85,'À':65,'õ':111} {
   if _hgretroCodes[r]!=want {panic(fmt.Sprintf("bad character mapping %c",r))}
  }
  var layout [][3]int64
@@ -82,25 +84,43 @@ func (*retroCheck) Update() error {
   data,_:=base64.StdEncoding.DecodeString(_hgretroData[atlas])
   original,_,err:=image.Decode(bytes.NewReader(data));if err!=nil{panic(err)}
   for index:=int64(0);index<256;index++ {
+   // Mirrored glyphs must stay inside the same cell, read backwards.
+   for _,flip:=range [][2]bool{{false,false},{true,false},{false,true},{true,true}} {
    for _,scale:=range []int64{1,4} {
     _hgscreen.Fill(color.NRGBA{0,0,255,255})
-    _hgretroGlifo(index,3,5,scale,_hgColor{255,0,0,255},atlas)
+    _hgretroGlifo(index,3,5,scale,_hgColor{255,0,0,255},atlas,flip[0],flip[1])
     pixels:=make([]byte,48*48*4);_hgscreen.ReadPixels(pixels)
     for y:=0;y<48;y++ {for x:=0;x<48;x++ {
      want:=color.NRGBA{0,0,255,255}
      if x>=3&&y>=5&&x<3+8*int(scale)&&y<5+8*int(scale) {
-      sx,sy:=int(index%16)*8+(x-3)/int(scale),int(index/16)*8+(y-5)/int(scale)
+      lx,ly:=(x-3)/int(scale),(y-5)/int(scale)
+      if flip[0]{lx=7-lx}
+      if flip[1]{ly=7-ly}
+      sx,sy:=int(index%16)*8+lx,int(index/16)*8+ly
       r,_,_,_:=original.At(sx,sy).RGBA();if r!=0{want=color.NRGBA{255,0,0,255}}
      }
      at:=(y*48+x)*4
-     if pixels[at]!=want.R||pixels[at+1]!=want.G||pixels[at+2]!=want.B||pixels[at+3]!=want.A{panic(fmt.Sprintf("pixel mismatch atlas %d glyph %d scale %d at %d,%d",atlas,index,scale,x,y))}
+     if pixels[at]!=want.R||pixels[at+1]!=want.G||pixels[at+2]!=want.B||pixels[at+3]!=want.A{panic(fmt.Sprintf("pixel mismatch atlas %d glyph %d scale %d flip %v at %d,%d",atlas,index,scale,flip,x,y))}
     }}
+   }
    }
   }
  }
- for _,index:=range []int64{-1,256}{mustPanic(func(){_hgretroGlifo(index,0,0,1,white,0)})}
+ // retro.hoja exposes the same cells as a sheet: a tinted grid drawn with it matches retro.glifo.
+ for atlas:=_hgAtlas(0);atlas<2;atlas++ {
+  for _,index:=range []int64{3,65,175,255} {
+   red:=_hgColor{255,0,0,255}
+   _hgscreen.Clear();_hgretroGlifo(index,8,8,2,red,atlas,false,false)
+   glyph:=make([]byte,48*48*4);_hgscreen.ReadPixels(glyph)
+   _hgscreen.Clear();_hgrejillaDibujar(_hgrejillaNueva(1,1,index),_hgretroHoja(atlas),_hgVec2{8,8},_hgVec2{2,2},red,nil,0,struct { tag int; payload1 *_hgRejilla }{})
+   sheet:=make([]byte,48*48*4);_hgscreen.ReadPixels(sheet)
+   if !bytes.Equal(glyph,sheet)||!bytes.Contains(sheet,[]byte{255,0,0,255}) {panic(fmt.Sprintf("sheet mismatch atlas %d glyph %d",atlas,index))}
+  }
+ }
+ if h:=_hgretroHoja(0);h.cols*h.rows!=256 {panic("retro sheet must have 256 frames")}
+ for _,index:=range []int64{-1,256}{mustPanic(func(){_hgretroGlifo(index,0,0,1,white,0,false,false)})}
  for _,scale:=range []int64{0,-1}{mustPanic(func(){_hgretroTexto("",0,0,scale,white)})}
- mustPanic(func(){_hgretroGlifo(0,0,0,1,white,2)})
+ mustPanic(func(){_hgretroGlifo(0,0,0,1,white,2,false,false)})
  screen:=_hgscreen;_hgscreen=nil
  mustPanic(func(){_hgretroTexto("",0,0,1,white)})
  _hgscreen=screen

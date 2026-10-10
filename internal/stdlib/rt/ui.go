@@ -1,0 +1,131 @@
+package rt
+
+import (
+	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/text/v2"
+	"image"
+	"math"
+)
+
+// Pincel adapter. Update samples input; Draw only replays the completed nodes.
+var _hgUILastTick uint64
+var _hgUIHasTick bool
+
+func _hgUIBegin(c *_hgContexto) {
+	_hgUIRequire(_hgupdating, "cuadro solo se permite desde actualizar")
+	_hgUIRequire(!_hgUIHasTick || _hgUILastTick != _hgtick, "solo un cuadro por tick")
+	_hgUILastTick = _hgtick
+	_hgUIHasTick = true
+	// Goes through the entrada helpers so `cometa captura --entrada` drives the UI too.
+	tecla := func(k ebiten.Key) bool { return _hgteclaPresionada(_hgTecla(k)) }
+	izquierdo := _hgBotonRaton(ebiten.MouseButtonLeft)
+	var chars []rune
+	if _hgguionActivo {
+		chars = _hgsimTexto
+	} else {
+		chars = ebiten.AppendInputChars(nil)
+	}
+	c.begin(_hgtamano(), _hgUIInput{pointer: _hgposicionRaton(), wheel: _hgrueda(), press: _hgratonPresionado(izquierdo), release: _hgratonSoltado(izquierdo), down: _hgratonMantenido(izquierdo), tab: tecla(ebiten.KeyTab), shift: _hgteclaMantenida(_hgTecla(ebiten.KeyShift)), activate: tecla(ebiten.KeyEnter) || tecla(ebiten.KeySpace), left: tecla(ebiten.KeyArrowLeft) || tecla(ebiten.KeyArrowDown), right: tecla(ebiten.KeyArrowRight) || tecla(ebiten.KeyArrowUp), chars: chars, backspace: tecla(ebiten.KeyBackspace), delete: tecla(ebiten.KeyDelete), home: tecla(ebiten.KeyHome), end: tecla(ebiten.KeyEnd)}, _hgUIMeasure)
+}
+func _hguiFuente(font *_hgFuente, size float64) *_hgTema {
+	_hgUIRequire(font != nil && _hgUIFinite(size) && size > 0, "fuente o tamaño inválido")
+	t := _hgUIDefaultTheme()
+	t.font = font
+	t.size = size
+	return &t
+}
+func _hgUIMeasure(value string, t _hgTema) float64 {
+	if t.font != nil {
+		return text.Advance(value, &text.GoTextFace{Source: t.font.source, Size: t.size})
+	}
+	return float64(len([]rune(value))) * 8 * float64(t.scale)
+}
+func _hguiImagen(img *_hgImagen, w, h *_hgMedida, tint _hgColor) {
+	_hgUIRequire(img != nil, "imagen ausente")
+	c, i := _hgUILeaf(4, "", "", w, h, true)
+	b := img.bounds()
+	c.nodes[i].img = img
+	c.nodes[i].tint = tint
+	c.nodes[i].extent = _hgVec2{float64(b.Dx()), float64(b.Dy())}
+}
+func _hgUIClip(screen *ebiten.Image, r _hgRect) *ebiten.Image {
+	b := image.Rect(int(math.Ceil(r.Pos.X)), int(math.Ceil(r.Pos.Y)), int(math.Floor(r.Pos.X+r.Tamano.X)), int(math.Floor(r.Pos.Y+r.Tamano.Y))).Intersect(screen.Bounds())
+	if b.Empty() {
+		return nil
+	}
+	return screen.SubImage(b).(*ebiten.Image)
+}
+func _hguiPintar(c *_hgContexto) {
+	_hgdraw()
+	_hgUIRequire(c != nil, "contexto ausente")
+	screen, camera := _hgscreen, _hgcamara
+	defer func() { _hgscreen = screen; _hgcamara = camera }()
+	_hgcamara = _hgCamara2D{Zoom: 1}
+	for _, n := range c.previous {
+		if n.parent < 0 {
+			continue
+		}
+		clip := _hgUIIntersect(n.clip, n.rect)
+		target := _hgUIClip(screen, clip)
+		if target == nil {
+			continue
+		}
+		_hgscreen = target
+		r := n.rect
+		t := n.theme
+		fill := t.Fondo
+		if n.kind >= 8 {
+			fill = t.Normal
+			if n.id == c.hover {
+				fill = t.Sobre
+			}
+			if n.id == c.active {
+				fill = t.Presionado
+			}
+			if !n.enabled {
+				fill = t.Deshabilitado
+			}
+		}
+		if n.kind == 2 || n.kind >= 8 {
+			_hgrectangulo(r.Pos, r.Tamano, fill, _hgVec2{}, 0)
+		}
+		if n.kind == 4 {
+			if r.Tamano.X > 0 && r.Tamano.Y > 0 {
+				_hgimagenRect(n.img, r, _hgVec2{}, 0, n.tint, _hgColor{})
+			}
+			continue
+		}
+		if n.kind == 10 {
+			w := math.Min(4, r.Tamano.X)
+			_hgrectangulo(_hgVec2{r.Pos.X + (r.Tamano.X-w)*n.value, r.Pos.Y}, _hgVec2{w, r.Tamano.Y}, t.Texto, _hgVec2{}, 0)
+		}
+		if n.kind == 6 {
+			_hgrectangulo(r.Pos, r.Tamano, t.Fondo, _hgVec2{}, 0)
+			_hgrectangulo(r.Pos, _hgVec2{r.Tamano.X * n.value, r.Tamano.Y}, t.Sobre, _hgVec2{}, 0)
+		}
+		if n.kind == 7 {
+			_hgrectangulo(r.Pos, r.Tamano, t.Normal, _hgVec2{}, 0)
+		}
+		if n.kind >= 8 && n.id == c.focus && n.enabled {
+			_hgrectangulo(r.Pos, _hgVec2{r.Tamano.X, 1}, t.Foco, _hgVec2{}, 0)
+			_hgrectangulo(_hgVec2{r.Pos.X, r.Pos.Y + r.Tamano.Y - 1}, _hgVec2{r.Tamano.X, 1}, t.Foco, _hgVec2{}, 0)
+			_hgrectangulo(r.Pos, _hgVec2{1, r.Tamano.Y}, t.Foco, _hgVec2{}, 0)
+			_hgrectangulo(_hgVec2{r.Pos.X + r.Tamano.X - 1, r.Pos.Y}, _hgVec2{1, r.Tamano.Y}, t.Foco, _hgVec2{}, 0)
+		}
+		textColor := t.Texto
+		if n.kind == 3 && n.tint.A > 0 {
+			textColor = n.tint
+		}
+		for i, line := range n.lines {
+			p := _hgVec2{r.Pos.X + n.pad.Izquierda, r.Pos.Y + n.pad.Arriba + float64(i)*_hgUILineHeight(t)}
+			if t.font == nil {
+				_hgretroTexto(line, int64(math.Round(p.X)), int64(math.Round(p.Y)), t.scale, textColor)
+			} else {
+				_hgtexto(line, t.font, p, t.size, textColor, _hgVec2{}, 0)
+			}
+		}
+		if n.kind == 11 && n.id == c.focus && n.enabled {
+			_hgrectangulo(_hgVec2{r.Pos.X + n.pad.Izquierda + n.caretX, r.Pos.Y + n.pad.Arriba}, _hgVec2{1, _hgUILineHeight(t)}, t.Texto, _hgVec2{}, 0)
+		}
+	}
+}

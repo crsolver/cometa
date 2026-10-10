@@ -6,6 +6,7 @@ import (
 )
 
 func TestCasosOverScalars(t *testing.T) {
+	t.Parallel()
 	source := `fn nombre(n entero) cadena
 	casos n
 		1 => "uno"
@@ -59,6 +60,7 @@ fn inicio()
 }
 
 func TestCasosOverScalarsErrors(t *testing.T) {
+	t.Parallel()
 	cases := []struct{ name, source, want string }{
 		{"missing wildcard", "fn inicio()\n\tcasos 1\n\t\t1 => imprimir(1)\n", "requiere una rama final '_'"},
 		{"wrong type", "fn inicio()\n\tvar n = 1\n\tcasos n\n\t\t\"a\" => imprimir(1)\n\t\t_ => imprimir(2)\n", "el valor debe ser entero, no cadena"},
@@ -82,6 +84,7 @@ func TestCasosOverScalarsErrors(t *testing.T) {
 }
 
 func TestCasosWithRanges(t *testing.T) {
+	t.Parallel()
 	source := `const mayoria entero = 18
 const jubilacion = 65
 
@@ -148,6 +151,7 @@ fn inicio()
 }
 
 func TestCasosWithRangeErrors(t *testing.T) {
+	t.Parallel()
 	arms := func(body string) string {
 		return "const a entero = 3\nconst s cadena = \"x\"\nfn inicio()\n\tvar n = 1\n\tcasos n\n" + body + "\t\t_ => imprimir(0)\n"
 	}
@@ -178,6 +182,7 @@ func TestCasosWithRangeErrors(t *testing.T) {
 }
 
 func TestCasosWithConstantLabels(t *testing.T) {
+	t.Parallel()
 	source := `const aire entero = 0
 const ladrillo entero = 1
 const moneda entero = 2
@@ -221,6 +226,7 @@ fn inicio()
 }
 
 func TestCasosWithConstantLabelErrors(t *testing.T) {
+	t.Parallel()
 	cases := []struct{ name, source, want string }{
 		{"duplicate value", "const a entero = 1\nconst b entero = 1\nfn inicio()\n\tvar n = 1\n\tcasos n\n\t\ta, b => imprimir(1)\n\t\t_ => imprimir(2)\n", "duplicado"},
 		{"duplicate with literal", "const a entero = 1\nfn inicio()\n\tvar n = 1\n\tcasos n\n\t\ta => imprimir(1)\n\t\t1 => imprimir(2)\n\t\t_ => imprimir(3)\n", "duplicado"},

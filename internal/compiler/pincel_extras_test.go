@@ -2,10 +2,8 @@ package compiler
 
 import (
 	"io/fs"
-	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 )
@@ -13,6 +11,7 @@ import (
 // Compiles and runs a console program: rejilla, azar.semilla and the new
 // mate helpers need no window, so their behavior can be checked directly.
 func TestRejillaAndMathHelpersRun(t *testing.T) {
+	t.Parallel()
 	entry, loader := memoryProject(t, map[string]string{"main.cometa": `usar std/mate
 usar std/azar
 usar std/pincel/rejilla
@@ -23,6 +22,10 @@ fn inicio()
 	imprimir(mapa.filas())
 	imprimir(mapa.obtener(1, 1))
 	imprimir(mapa.obtener(5, 1))
+	var celdas = mapa.buscar(1)
+	imprimir(celdas.longitud())
+	imprimir(celdas[2].x + celdas[2].y * 10)
+	imprimir(mapa.buscar(9).esta_vacia())
 	imprimir(mapa.poner(2, 0, 7))
 	imprimir(mapa.poner(9, 9, 1))
 	imprimir(mapa.choca(mate.Rect {pos: {15, 0}, tamano: {4, 4}}, {16, 16}, [1]))
@@ -62,7 +65,7 @@ fn inicio()
 		t.Fatal(err)
 	}
 	want := strings.Join([]string{
-		"3", "3", "Alguno(1)", "Ninguno", "verdadero", "falso",
+		"3", "3", "Alguno(1)", "Ninguno", "3", "22", "verdadero", "verdadero", "falso",
 		"verdadero", "falso", "verdadero", "falso", "falso",
 		"Alguno(-1)", "Alguno(4)", "verdadero",
 		"-1", "1", "1024", "5", "90.000", "1.5708",
@@ -71,8 +74,88 @@ fn inicio()
 	runGeneratedGo(t, generated, want)
 }
 
+// A map file saved by tools/mapa-editor is embedded with recursos.texto and
+// read one layer at a time with rejilla.desde_csv.
+func TestRejillaDesdeCsvRuns(t *testing.T) {
+	t.Parallel()
+	entry, loader := memoryProject(t, map[string]string{
+		"niveles/uno.mapa.txt": "\xEF\xBB\xBF// Mapa de prueba\r\n# suelo\r\n// color: Gris\r\n1, 1, 1\r\n1,-1,1\r\n\r\n# objetos\r\n-1,-1,175\r\n-1,3,-1\r\n@ jugador 1,1\r\n",
+		"main.cometa": `usar std/pincel/recursos
+usar std/pincel/rejilla
+
+var nivel = recursos.texto("niveles/uno.mapa.txt")
+
+fn inicio()
+	var suelo = rejilla.desde_csv(nivel)
+	imprimir(suelo.columnas())
+	imprimir(suelo.filas())
+	imprimir(suelo.obtener(1, 1))
+	var objetos = rejilla.desde_csv(nivel, capa = "objetos")
+	imprimir(objetos.obtener(2, 0))
+	imprimir(objetos.obtener(1, 1))
+	var suelta = rejilla.desde_csv("7,8\n9,0x0A\n# otra\n1,2\n")
+	imprimir(suelta.filas())
+	imprimir(suelta.obtener(1, 1))
+`})
+	generated, err := CompileProject(entry, loader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runGeneratedGo(t, generated, strings.Join([]string{"3", "2", "Alguno(-1)", "Alguno(175)", "Alguno(3)", "2", "Alguno(10)"}, "\n")+"\n")
+
+	entry, loader = memoryProject(t, map[string]string{
+		"roto.txt":    "\xff\xfe",
+		"main.cometa": "usar std/pincel/recursos\nvar nivel = recursos.texto(\"roto.txt\")\nfn inicio()\n\timprimir(nivel)\n",
+	})
+	if _, err := CompileProject(entry, loader); err == nil || !strings.Contains(err.Error(), "UTF-8") {
+		t.Fatalf("falta el diagnóstico de texto inválido: %v", err)
+	}
+}
+
+// retro.cargar_mapa loads every layer of an editor file at once; its layers are live grids
+// and its marks («@ nombre columna,fila») come back by name, in file order.
+func TestRetroMapaRuns(t *testing.T) {
+	t.Parallel()
+	entry, loader := memoryProject(t, map[string]string{
+		"uno.mapa.txt": "# suelo\n1,1,1\n1,-1,1\n\n# suelo.color\n0xFF0000,-1,-1\n-1,-1,255\n\n# objetos\n-1,-1,175\n-1,3,-1\n\n@ enemigo 2,1\n@ puerta norte 1,0\n@ enemigo 0,1\n",
+		"main.cometa": `usar std/pincel/retro
+
+var nivel = retro.cargar_mapa("uno.mapa.txt")
+
+fn inicio()
+	imprimir(nivel.columnas())
+	imprimir(nivel.filas())
+	imprimir(nivel.capas())
+	imprimir(nivel.capa("objetos").obtener(2, 0))
+	imprimir(nivel.colores("suelo").obtener(0, 0))
+	imprimir(nivel.colores("objetos").obtener(2, 0))
+	nivel.capa("objetos").poner(2, 0, -1)
+	imprimir(nivel.capa("objetos").obtener(2, 0))
+	repetir (nivel.marcas("enemigo")) |celda|
+		imprimir("${celda.x},${celda.y}")
+	imprimir(nivel.marcas("puerta norte")[0].x)
+	imprimir(nivel.marcas("llave").longitud())
+	imprimir(nivel.capa("techo").filas())
+`})
+	generated, err := CompileProject(entry, loader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := runGoExpectingFailure(t, generated)
+	for _, want := range []string{"3\n2\n[\"suelo\", \"objetos\"]\nAlguno(175)\nAlguno(16711680)\nAlguno(-1)\nAlguno(-1)\n2,1\n0,1\n1\n0\n", `el mapa no tiene una capa "techo" (capas: suelo, objetos)`} {
+		if !strings.Contains(out, want) {
+			t.Errorf("falta %q en la salida:\n%s", want, out)
+		}
+	}
+}
+
 func TestRejillaErrorsAreClear(t *testing.T) {
+	t.Parallel()
 	cases := []struct{ name, body, want string }{
+		{"csv not a number", `rejilla.desde_csv("1,2\n3,x")`, `"x" (línea 2, columna 2)`},
+		{"csv ragged rows", `rejilla.desde_csv("1,2\n3")`, "la línea 2 tiene 1 valores"},
+		{"csv missing layer", `rejilla.desde_csv("# suelo\n1,2", capa = "objetos")`, `no hay una capa "objetos" con filas (capas del texto: suelo)`},
+		{"csv empty", `rejilla.desde_csv("// nada\n")`, "no tiene ninguna fila"},
 		{"unknown symbol", `rejilla.desde_texto(["#?"], ["#": 1])`, `el símbolo "?"`},
 		{"ragged rows", `rejilla.desde_texto(["##", "#"], ["#": 1])`, "la fila 2 mide 1"},
 		{"bad size", `rejilla.nueva(0, 2)`, "deben ser positivas"},
@@ -85,11 +168,7 @@ func TestRejillaErrorsAreClear(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			dir := t.TempDir()
-			if err := os.WriteFile(filepath.Join(dir, "main.go"), generated, 0o600); err != nil {
-				t.Fatal(err)
-			}
-			out := runGoExpectingFailure(t, filepath.Join(dir, "main.go"))
+			out := runGoExpectingFailure(t, generated)
 			if !strings.Contains(out, tc.want) {
 				t.Errorf("falta %q en la salida:\n%s", tc.want, out)
 			}
@@ -104,12 +183,8 @@ func TestRejillaErrorsAreClear(t *testing.T) {
 // temporary folder.
 func configDir(t *testing.T) string {
 	t.Helper()
-	goName := "go"
-	if runtime.GOOS == "windows" {
-		goName += ".exe"
-	}
 	for _, name := range []string{"GOCACHE", "GOMODCACHE", "GOPATH"} {
-		out, err := exec.Command(filepath.Join(runtime.GOROOT(), "bin", goName), "env", name).Output()
+		out, err := exec.Command(goTool(), "env", name).Output()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -197,12 +272,14 @@ fn inicio()
 
 // The extras fixture uses every new drawing, gamepad and quit function.
 func TestPincelExtrasFixtureCompiles(t *testing.T) {
+	t.Parallel()
 	if _, err := CompileProject(filepath.Join("testdata", "programas", "pincel_extras.cometa"), nil); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestNewKeyConstants(t *testing.T) {
+	t.Parallel()
 	source := `usar std/pincel
 usar std/pincel/entrada
 tipo P
@@ -224,6 +301,7 @@ fn inicio()
 
 // mover stops flush against solid cells, slides along the other axis and never tunnels through a thin wall.
 func TestRejillaMover(t *testing.T) {
+	t.Parallel()
 	entry, loader := memoryProject(t, map[string]string{"main.cometa": `usar std/mate
 usar std/pincel/rejilla
 
@@ -274,12 +352,16 @@ var apoyo = cielo.mover(mate.Rect {pos: {2, 0}, tamano: {10, 10}}, plataformas =
 
 // Camera helpers invert the drawing transform and use the default 320x180 logical screen; timers need no window.
 func TestCamaraYTemporizador(t *testing.T) {
+	t.Parallel()
 	entry, loader := memoryProject(t, map[string]string{"main.cometa": `usar std/mate
 usar std/pincel/graficos
 usar std/pincel/tiempo
 
 fn ver(v mate.Vec2) cadena
 	"${v.x.formato(1)},${v.y.formato(1)}"
+
+tipo Escena
+	camara graficos.Camara2D
 
 fn inicio()
 	var cam = graficos.Camara2D {pos: {100, 50}, origen: {160, 90}, zoom: 2}
@@ -295,6 +377,10 @@ fn inicio()
 	imprimir(ver(origen.limitada({pos: {0, 0}, tamano: {100, 50}}).pos))
 	imprimir(ver(origen.siguiendo({10, 0}, 0.5).pos))
 	imprimir(ver(origen.sacudida(0).pos))
+	// A camera made without a zoom shows the world at its real size.
+	var libre = graficos.Camara2D {pos: {3, 4}}
+	var escena = Escena {}
+	imprimir("${libre.zoom.formato(1)} ${escena.camara.zoom.formato(1)}")
 	var t = tiempo.temporizador(1)
 	imprimir(t.avanzar(0.6))
 	imprimir(t.avanzar(0.6))
@@ -315,9 +401,43 @@ fn inicio()
 	}
 	want := strings.Join([]string{
 		"100.0,50.0", "20.0,5.0", "0.0,0.0", "33.0,44.0", "20.0,5.0 160.0,90.0",
-		"80.0,45.0", "50.0,25.0", "5.0,0.0", "0.0,0.0",
+		"80.0,45.0", "50.0,25.0", "5.0,0.0", "0.0,0.0", "1.0 1.0",
 		"falso", "verdadero", "verdadero", "falso", "0.0 1.0", "falso 0.0", "verdadero",
 		"verdadero", "falso 0.4",
 	}, "\n") + "\n"
 	runGeneratedGo(t, generated, want)
+}
+
+// tiempo.ahora and the timers need no window: a program that calls neither
+// fps nor tps stays free of Ebitengine and runs as a plain console program.
+func TestTiempoAhoraRunsWithoutWindow(t *testing.T) {
+	t.Parallel()
+	entry, loader := memoryProject(t, map[string]string{"main.cometa": `usar std/pincel/tiempo
+
+fn inicio()
+	var antes = tiempo.ahora()
+	var suma = 0
+	repetir (0..2000000) |i| suma += i % 7
+	var despues = tiempo.ahora()
+	imprimir(antes >= 0.0)
+	imprimir(despues > antes)
+	imprimir(despues - antes < 30.0)
+	imprimir(tiempo.temporizador(1).avanzar(2))
+`})
+	generated, err := CompileProject(entry, loader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(generated), "ebiten") {
+		t.Fatal("tiempo.ahora no debe arrastrar Ebitengine")
+	}
+	runGeneratedGo(t, generated, "verdadero\nverdadero\nverdadero\nverdadero\n")
+
+	entry, loader = memoryProject(t, map[string]string{"main.cometa": "usar std/pincel/tiempo\n\nfn inicio()\n\timprimir(tiempo.fps())\n"})
+	if generated, err = CompileProject(entry, loader); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(generated), "ebiten.ActualFPS") {
+		t.Fatal("tiempo.fps debe seguir usando Ebitengine")
+	}
 }

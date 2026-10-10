@@ -6,6 +6,7 @@ import (
 )
 
 func TestRemovedGameConfiguration(t *testing.T) {
+	t.Parallel()
 	_, err := Compile("game.cometa", []byte("usar std/pincel\nfn inicio() pincel.configuracion()\n"))
 	if err == nil || !strings.Contains(err.Error(), "configuracion") {
 		t.Fatalf("removed API: %v", err)
@@ -13,6 +14,7 @@ func TestRemovedGameConfiguration(t *testing.T) {
 }
 
 func TestGameValueMethodsRuntime(t *testing.T) {
+	t.Parallel()
 	source := `interfaz Medida
 	fn longitud() decimal
 var orden decimal = 0
@@ -51,6 +53,7 @@ fn pintar() imprimir(0)
 }
 
 func TestGameConfigurationAndTransformsRuntime(t *testing.T) {
+	t.Parallel()
 	generated, err := Compile("game.cometa", []byte(pincelImports+minimalGame))
 	if err != nil {
 		t.Fatal(err)

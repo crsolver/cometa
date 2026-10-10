@@ -1,6 +1,9 @@
 // Repetir acciones con repetir y mientras.
 
 fn inicio()
+	// Con un número, repetir hace eso mismo esa cantidad de veces.
+	repetir (3) imprimir("¡Hola!")
+
 	// Un rango cuenta desde el primer número hasta antes del segundo.
 	imprimir("Cuenta del 1 al 5:")
 	repetir (1..6) |numero|
@@ -8,13 +11,17 @@ fn inicio()
 
 	// Si el cuerpo es corto, puede ir en la misma línea.
 	imprimir("Cuenta atrás:")
-	repetir (3..0) |numero| imprimir(numero)
+	repetir (3..0, paso = -1) |numero| imprimir(numero)
 	imprimir("¡Despegue!")
 
 	// repetir también recorre listas.
 	var frutas = ["manzana", "pera", "uva"]
 	repetir (frutas) |fruta, indice|
 		imprimir("${indice}: ${fruta}")
+
+	// Y recorre un texto letra por letra.
+	repetir ("sol") |letra|
+		imprimir(letra)
 
 	// continuar salta a la siguiente vuelta; romper termina el bucle.
 	imprimir("Números pares hasta encontrar uno mayor que 8:")

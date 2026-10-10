@@ -14,12 +14,12 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode"
 
+	"github.com/crsolver/cometa/internal/ast"
 	"github.com/crsolver/cometa/internal/codegen"
 	"github.com/crsolver/cometa/internal/compiler"
 	"github.com/crsolver/cometa/internal/diagnostic"
-	"github.com/crsolver/cometa/internal/ast"
+	"github.com/crsolver/cometa/internal/sema"
 )
 
 // exitCode is returned from run to choose the process exit status.
@@ -63,17 +63,17 @@ type testReport struct {
 	Message     string           `json:"mensaje,omitempty"`
 }
 
-const probarUsage = "uso: cometa probar <pruebas.cometa> [--json] [--tiempo SEGUNDOS] [--filtro texto]"
+const probarUsage = "uso: cometa probar <pruebas.cometa> [--json] [--tiempo SEGUNDOS] [--filtro texto] [--datos carpeta]"
 
 func runProbar(args []string) error {
-	var input, filter string
+	var input, filter, data string
 	asJSON := false
 	seconds := 30
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--json":
 			asJSON = true
-		case "--tiempo", "--filtro":
+		case "--tiempo", "--filtro", "--datos":
 			flag := args[i]
 			i++
 			if i >= len(args) {
@@ -81,6 +81,10 @@ func runProbar(args []string) error {
 			}
 			if flag == "--filtro" {
 				filter = args[i]
+				break
+			}
+			if flag == "--datos" {
+				data = args[i]
 				break
 			}
 			n, err := strconv.Atoi(args[i])
@@ -98,7 +102,7 @@ func runProbar(args []string) error {
 	if input == "" || filepath.Ext(input) != ".cometa" {
 		return fmt.Errorf("%s", probarUsage)
 	}
-	report, code := probar(input, filter, time.Duration(seconds)*time.Second, asJSON)
+	report, code := probar(input, filter, time.Duration(seconds)*time.Second, asJSON, data)
 	if asJSON {
 		out, _ := json.MarshalIndent(report, "", "  ")
 		fmt.Println(string(out))
@@ -111,14 +115,16 @@ func runProbar(args []string) error {
 	return nil
 }
 
-func probar(input, filter string, limit time.Duration, asJSON bool) (report testReport, code exitCode) {
+// probar runs the prueba_* functions of input. std/pincel/datos works on the
+// data folder, or on an empty temporary one when data is "".
+func probar(input, filter string, limit time.Duration, asJSON bool, data string) (report testReport, code exitCode) {
 	project, err := compiler.AnalyzeProject(input, nil)
 	var generated []byte
 	if err == nil {
-		generated, err = codegen.GenerateWithOptions(project.Root.Path, project.Program, project.Model, codegen.Options{LineDirectives: true})
+		generated, err = project.Generate(codegen.Options{LineDirectives: true})
 	}
 	if err != nil {
-		return compileFailure(err, filepath.Dir(input)), exitCompile
+		return compileFailure(project.DisplayPaths(err), filepath.Dir(input)), exitCompile
 	}
 	var names []string
 	for _, decl := range project.Root.Program.Decls {
@@ -153,14 +159,19 @@ func probar(input, filter string, limit time.Duration, asJSON bool) (report test
 	if runtime.GOOS == "windows" {
 		exe += ".exe"
 	}
-	if err = goBuild(dir, generated, map[string]string{"harness.go": harnessSource(names, bytes.Contains(generated, []byte("func _hgpruebasBucle(")))}, exe); err != nil {
+	if err = goBuild(dir, generated, map[string]string{"harness.go": harnessSource(project.Model, names, bytes.Contains(generated, []byte("func _hgpruebasBucle(")))}, exe); err != nil {
 		return testReport{Status: "error", Message: err.Error()}, exitInternal
 	}
 	resultsPath := filepath.Join(dir, "resultados.jsonl")
 	ctx, cancel := context.WithTimeout(context.Background(), limit)
 	defer cancel()
+	dataVariable, cleanup, err := dataEnv(data)
+	defer cleanup()
+	if err != nil {
+		return testReport{Status: "error", Message: err.Error()}, exitInternal
+	}
 	child := exec.CommandContext(ctx, exe)
-	child.Env = append(os.Environ(), "COMETA_PROBAR_SALIDA="+resultsPath)
+	child.Env = append(os.Environ(), "COMETA_PROBAR_SALIDA="+resultsPath, dataVariable)
 	child.Stdout = os.Stdout
 	if asJSON {
 		child.Stdout = os.Stderr // stdout stays reserved for the JSON report
@@ -313,7 +324,7 @@ func printReport(report testReport) {
 // assertions are recognised through the PruebaFallo method on their panic value.
 // With visual tests (pruebas.avanzar) the tests run inside a hidden game loop,
 // which Ebitengine needs before it can paint and read pixels.
-func harnessSource(names []string, visual bool) string {
+func harnessSource(model *sema.Model, names []string, visual bool) string {
 	reset, start := "", "run()"
 	if visual {
 		reset = "_hgpruebasReiniciar()"
@@ -324,9 +335,7 @@ func harnessSource(names []string, visual bool) string {
 	}
 	var list strings.Builder
 	for _, name := range names {
-		runes := []rune(name)
-		runes[0] = unicode.ToUpper(runes[0])
-		fmt.Fprintf(&list, "\t\t\t{%q, %s},\n", name, string(runes))
+		fmt.Fprintf(&list, "\t\t\t{%q, %s},\n", name, codegen.FunctionName(model, name))
 	}
 	return `package main
 
@@ -381,4 +390,3 @@ func _hpRun(f func()) (status, message, trace string) {
 }
 `
 }
-

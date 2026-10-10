@@ -6,6 +6,7 @@ import (
 )
 
 func TestRetroStartupArguments(t *testing.T) {
+	t.Parallel()
 	for _, args := range []string{
 		"g",
 		"g, retro = verdadero",
@@ -35,6 +36,7 @@ func TestRetroStartupArguments(t *testing.T) {
 }
 
 func TestCRTPresentationRuntime(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("desktop rendering")
 	}

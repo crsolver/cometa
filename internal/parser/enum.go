@@ -149,6 +149,9 @@ func (p *parser) parseMatch() (*ast.MatchExpr, error) {
 					arm.TypePattern, arm.NamePos = &ref, ref.Pos
 				}
 			}
+			if p.at(token.Pipe) {
+				return p.error(p.current(), "la ligadura no se escribe en la rama, sino en la cabecera: `casos valor |nombre|`")
+			}
 			if _, err = p.expect(token.Arrow, "se esperaba '=>' después del patrón"); err != nil {
 				return err
 			}

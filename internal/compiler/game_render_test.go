@@ -7,6 +7,7 @@ import (
 
 // Run one hidden desktop tick: pixel readback needs Ebitengine's graphics loop.
 func TestGameDrawingVariantsRuntime(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip("desktop rendering")
 	}

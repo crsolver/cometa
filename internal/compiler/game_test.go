@@ -17,6 +17,7 @@ const pincelImports = "usar std/mate\nusar std/azar\nusar std/pincel\nusar std/p
 const minimalGame = "fn actualizar(dt decimal)\n\timprimir(dt)\nfn pintar()\n\tgraficos.rectangulo_v(mate.Vec2 {}, mate.Vec2 {x: 10, y: 10}, .Rojo)\n"
 
 func TestGameGeneration(t *testing.T) {
+	t.Parallel()
 	source := `tipo Jugador
 	pos mate.Vec2
 	vel mate.Vec2
@@ -51,6 +52,7 @@ fn inicio()
 }
 
 func TestGameGolden(t *testing.T) {
+	t.Parallel()
 	file := filepath.Join("testdata", "juego.cometa")
 	data, err := os.ReadFile(file)
 	if err != nil {
@@ -60,16 +62,11 @@ func TestGameGolden(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want, err := os.ReadFile(filepath.Join("testdata", "juego.go.golden"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(bytes.ReplaceAll(got, []byte("\r\n"), []byte("\n")), bytes.ReplaceAll(want, []byte("\r\n"), []byte("\n"))) {
-		t.Fatal("generated game differs from golden")
-	}
+	checkGolden(t, filepath.Join("testdata", "juego.go.golden"), got)
 }
 
 func TestGameErrors(t *testing.T) {
+	t.Parallel()
 	for _, tt := range []struct{ name, source, want string }{
 		{"resource local", "fn actualizar(dt decimal)\n\tvar img = recursos.imagen(\"foo.png\")\nfn pintar() imprimir(0)\n", "inicializador global directo"},
 		{"resource expression", "var p = \"foo.png\"\nvar img = recursos.imagen(p)\n" + minimalGame, "cadena literal"},
@@ -87,7 +84,44 @@ func TestGameErrors(t *testing.T) {
 	}
 }
 
+func TestQualifiedLibraryConstants(t *testing.T) {
+	t.Parallel()
+	source := "usar std/pincel/retro\n" + pincelImports + `
+fn flecha(arriba bool) retro.Icono
+	casos arriba
+		verdadero => retro.Icono.Arriba
+		falso => retro.Icono.Abajo
+
+fn inicio()
+	var tecla = entrada.Tecla.Espacio
+	var rojo = color.Color.Rojo
+	var elegido = si rojo == .Rojo color.Color.Azul sino rojo
+	imprimir(tecla == .Espacio)
+	imprimir(.Azul != elegido)
+	imprimir(elegido == color.Color.Azul)
+	imprimir(flecha(verdadero) == retro.Icono.Arriba)
+`
+	got, err := Compile("constantes.cometa", []byte(source))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"_hgTecla(ebiten.KeySpace)", "_hgColor{255, 0, 0, 255}"} {
+		if !strings.Contains(string(got), want) {
+			t.Fatalf("falta %s en el Go generado", want)
+		}
+	}
+	_, err = Compile("constantes.cometa", []byte(pincelImports+"fn inicio()\n\tvar tecla = entrada.Tecla.Espacio\n\timprimir(tecla == .Espacioo)\n"))
+	if err == nil || !strings.Contains(err.Error(), "constante inválida .Espacioo") {
+		t.Fatalf("error inesperado: %v", err)
+	}
+	_, err = Compile("constantes.cometa", []byte("usar std/pincel/retro\nfn inicio()\n\tvar flecha = retro.Icono.Arribaa\n"))
+	if err == nil || !strings.Contains(err.Error(), `la constante "Arribaa" no existe en retro.Icono; ¿quisiste decir "Arriba"?`) {
+		t.Fatalf("error inesperado: %v", err)
+	}
+}
+
 func TestAllGameSignatures(t *testing.T) {
+	t.Parallel()
 	const imports = "usar std/mate/curvas\nusar std/mate/ruido\nusar std/pincel/retro\nusar std/pincel/ui\nusar std/pincel/lienzo\nusar std/pincel/rejilla\nusar std/pincel/datos\nusar std/pruebas\nusar std/consola\n" + pincelImports
 	var all strings.Builder
 	// Signature defaults are parsed and checked by the same checker as user calls.
@@ -147,6 +181,7 @@ func TestAllGameSignatures(t *testing.T) {
 }
 
 func TestEmbeddedImageAndModulePaths(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	sub := filepath.Join(dir, "assets")
 	if err := os.Mkdir(sub, 0700); err != nil {
@@ -186,6 +221,7 @@ func TestEmbeddedImageAndModulePaths(t *testing.T) {
 }
 
 func TestGameVectorValuesAndDefaultsRuntime(t *testing.T) {
+	t.Parallel()
 	source := `tipo Jugador
 	pos mate.Vec2
 var jugador = Jugador {}
@@ -231,8 +267,8 @@ func publicTypeSource(t ast.TypeRef) string {
 }
 
 func publicLibraryType(name string) string {
-	if owner := stdlib.TypeModules[stdlib.PublicName(name)]; owner != "" {
-		return owner + "." + stdlib.PublicName(name)
+	if t, ok := stdlib.LookupType(name); ok {
+		return t.Module().Name + "." + t.Name
 	}
 	return name
 }

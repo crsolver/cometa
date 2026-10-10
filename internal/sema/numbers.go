@@ -29,7 +29,7 @@ func (c *checker) checkNumberCall(call *ast.CallExpr, member *ast.MemberExpr) (T
 	}
 	result, err := c.bindArguments(call, signature)
 	if err == nil {
-		c.model.NumberCalls[call] = member.Name
+		c.model.Builtins[call] = Builtin{Kind: NumberMethod, Name: member.Name}
 	}
 	return result, err
 }

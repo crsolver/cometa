@@ -5,15 +5,20 @@ import (
 	"encoding/base64"
 	"fmt"
 	"github.com/crsolver/cometa/internal/ast"
+	"github.com/crsolver/cometa/internal/diagnostic"
 	"github.com/crsolver/cometa/internal/sema"
 	"image"
 	_ "image/jpeg"
 	_ "image/png"
 	"io"
+	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
+	"unicode/utf8"
 
 	"github.com/go-text/typesetting/font"
 	"github.com/go-text/typesetting/font/opentype"
@@ -22,12 +27,22 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/audio/wav"
 )
 
-// loadAssets reads embedded resources through loader, so in-memory projects
-// can provide them as well as source files.
-func loadAssets(filename string, model *sema.Model, loader SourceLoader) error {
-	model.Assets = map[*ast.CallExpr]sema.Asset{}
+// assetUse is one resource constructor of a program, such as
+// recursos.imagen("heroe.png"), with its path resolved against the module
+// that wrote it.
+type assetUse struct {
+	call     *ast.CallExpr
+	kind     string // catalog name of the constructor: imagen, fuente, sonido...
+	path     string // as written in the source
+	source   string // file that contains the call
+	resolved string
+	err      error // the path could not be resolved
+}
+
+// assetUses lists the resources of a checked program in source order.
+func assetUses(filename string, model *sema.Model) []assetUse {
 	var calls []*ast.CallExpr
-	for call, f := range model.Game.Calls {
+	for call, f := range model.Stdlib.Calls {
 		if f.Resource {
 			calls = append(calls, call)
 		}
@@ -42,27 +57,101 @@ func loadAssets(filename string, model *sema.Model, loader SourceLoader) error {
 		}
 		return a.Column < b.Column
 	})
-	for _, call := range calls {
-		f := model.Game.Calls[call]
-		path, _ := strconv.Unquote(call.Args[0].(*ast.LiteralExpr).Value)
-		source := call.Pos.Filename
-		if source == "" {
-			source = filename
+	uses := make([]assetUse, len(calls))
+	for i, call := range calls {
+		use := assetUse{call: call, kind: model.Stdlib.Calls[call].Name}
+		use.path, _ = strconv.Unquote(call.Args[0].(*ast.LiteralExpr).Value)
+		use.source = call.Pos.Filename
+		if use.source == "" {
+			use.source = filename
 		}
-		resolved, err := CanonicalPath(filepath.Join(filepath.Dir(source), filepath.FromSlash(path)))
+		use.resolved, use.err = CanonicalPath(filepath.Join(filepath.Dir(use.source), filepath.FromSlash(use.path)))
+		uses[i] = use
+	}
+	return uses
+}
+
+func (u assetUse) fail(err error) error {
+	return &diagnostic.Error{Stage: diagnostic.Sema, Filename: u.source, Pos: u.call.Args[0].Position(), Message: fmt.Sprintf("recurso %q: %v", u.path, err)}
+}
+
+// loadAssets reads, validates and stores the embedded resources of a program
+// through loader, so in-memory projects can provide them as well as source
+// files. Only code generation needs it: it decodes every image, font and sound.
+func loadAssets(filename string, model *sema.Model, loader SourceLoader) error {
+	model.Assets = map[*ast.CallExpr]sema.Asset{}
+	for _, use := range assetUses(filename, model) {
+		err := use.err
 		var data []byte
 		if err == nil {
-			data, err = loader(resolved)
+			data, err = loader(use.resolved)
 		}
 		if err == nil {
-			err = validateAsset(f.Name, path, data)
+			err = validateAsset(use.kind, use.path, data)
 		}
 		if err != nil {
-			return &sema.Error{Filename: source, Pos: call.Args[0].Position(), Message: fmt.Sprintf("recurso %q: %v", path, err)}
+			return use.fail(err)
 		}
-		model.Assets[call] = sema.Asset{Path: path, Data: base64.StdEncoding.EncodeToString(data)}
+		model.Assets[use.call] = sema.Asset{Path: use.path, Data: base64.StdEncoding.EncodeToString(data)}
 	}
 	return nil
+}
+
+// AssetCache remembers resource files that were already validated, by size
+// and modification time. An editor analyzes a project on every keystroke; with
+// the cache each image or sound is decoded once, not once per keystroke.
+type AssetCache struct {
+	mu      sync.Mutex
+	entries map[string]assetEntry
+}
+
+type assetEntry struct {
+	size    int64
+	modTime time.Time
+	err     error
+}
+
+// CheckAssets reports the first resource of an analyzed project that is
+// missing or invalid, without keeping any data. Files on disk are validated
+// through cache; anything else (an in-memory project) is validated directly.
+func (p *Project) CheckAssets(cache *AssetCache) error {
+	if p.Root == nil || p.Model == nil {
+		return nil
+	}
+	for _, use := range assetUses(p.Root.Path, p.Model) {
+		if use.err != nil {
+			return use.fail(use.err)
+		}
+		if err := cache.validate(use, p.loader); err != nil {
+			return use.fail(err)
+		}
+	}
+	return nil
+}
+
+func (c *AssetCache) validate(use assetUse, loader SourceLoader) error {
+	info, statErr := os.Stat(use.resolved)
+	if statErr == nil {
+		c.mu.Lock()
+		entry, ok := c.entries[use.kind+"\x00"+use.resolved]
+		c.mu.Unlock()
+		if ok && entry.size == info.Size() && entry.modTime.Equal(info.ModTime()) {
+			return entry.err
+		}
+	}
+	data, err := loader(use.resolved)
+	if err == nil {
+		err = validateAsset(use.kind, use.path, data)
+	}
+	if statErr == nil {
+		c.mu.Lock()
+		if c.entries == nil {
+			c.entries = map[string]assetEntry{}
+		}
+		c.entries[use.kind+"\x00"+use.resolved] = assetEntry{size: info.Size(), modTime: info.ModTime(), err: err}
+		c.mu.Unlock()
+	}
+	return err
 }
 
 func validateAsset(kind, path string, data []byte) error {
@@ -106,6 +195,11 @@ func validateAsset(kind, path string, data []byte) error {
 			return fmt.Errorf("sonido vacío")
 		}
 		return err
+	case "texto", "cargar_mapa":
+		if !utf8.Valid(data) {
+			return fmt.Errorf("se requiere texto en UTF-8")
+		}
+		return nil
 	}
 	return fmt.Errorf("tipo de recurso desconocido")
 }
