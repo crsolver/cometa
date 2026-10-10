@@ -30,11 +30,11 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 - **Problema:** una actualización de Ebitengine podría cambiar el formato del pánico sin que ninguna prueba lo detecte.
 - **Posible solución:** una prueba opcional (activada por variable de entorno) que ejecute con `cometa captura` un juego que falle y compruebe el mensaje traducido; correrla en CI.
 
-### Los flujos de CI y de publicación no se han ejecutado
+### `TestHuertoRenderingRuntime` falla a veces en el CI de Linux
 
-- **Observado:** `.github/workflows/ci.yml` y `release.yml`, junto con `.goreleaser.yaml`, se escribieron sin poder ejecutarlos.
-- **Problema:** el trabajo de Linux supone que una pantalla virtual (`xvfb`) basta para la prueba de captura con ventana oculta, y el empaquetado de los `.vsix` por plataforma no se ha probado.
-- **Posible solución:** publicar una etiqueta de prueba (`v0.0.1-rc1`) en un repositorio de ensayo y corregir lo que falle.
+- **Observado:** en la ejecución de CI de `main` del 1 de octubre de 2026 (`b52dcd2`, un commit que solo tocaba `release.yml`). El programa generado terminó con `signal: segmentation fault` bajo `xvfb`, después de los avisos `libEGL warning: DRI3 error`. El commit anterior había pasado con el mismo código.
+- **Problema:** el CI de Linux queda en rojo sin que haya cambiado nada, y `release.yml` no ejecuta las pruebas, así que una etiqueta se publica igual.
+- **Posible solución:** forzar el renderizado por software en el trabajo de Linux (`LIBGL_ALWAYS_SOFTWARE=1`) o reintentar una vez las pruebas con ventana oculta, y hacer que la publicación dependa de un CI en verde.
 
 ### `cometa nuevo` no ofrece plantillas más allá de consola y un juego mínimo
 

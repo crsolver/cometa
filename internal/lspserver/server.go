@@ -12,7 +12,7 @@ import (
 	"github.com/crsolver/cometa/internal/compiler"
 )
 
-const serverVersion = "0.1.0"
+const serverVersion = "0.1.1"
 
 type Handler struct {
 	projectMu sync.Mutex
