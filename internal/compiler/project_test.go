@@ -145,7 +145,10 @@ func TestProjectPhysicalIdentity(t *testing.T) {
 func TestProjectFailures(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct{ name, root, a, b, want string }{
-		{"missing", "usar ausente\n", "", "", "no se pudo importar"},
+		{"missing", "usar ausente\n", "", "", "no existe el archivo ausente.cometa (se buscó en la carpeta de main.cometa)"},
+		{"missing in folder", "usar sub/ausente\n", "", "", "no existe el archivo sub/ausente.cometa (se buscó desde la carpeta de main.cometa)"},
+		{"missing in dependency", "usar a\n", "usar ausente\n", "", "(se buscó en la carpeta de a.cometa) (cadena: main.cometa -> a.cometa -> ausente.cometa)"},
+		{"cycle chain", "usar a\n", "usar main\n", "", "ciclo de importaciones: main.cometa -> a.cometa -> main.cometa"},
 		{"cycle", "usar a\n", "usar main\n", "", "ciclo"},
 		{"self", "usar main\n", "", "", "ciclo"},
 		{"duplicate", "usar a\nusar ./a como otro\n", "", "", "duplicada"},

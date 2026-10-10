@@ -1,7 +1,9 @@
 package compiler
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -194,7 +196,7 @@ func AnalyzeProject(entry string, loader SourceLoader) (*Project, error) {
 				continue
 			}
 			p.Reverse[target] = append(p.Reverse[target], path)
-			chain := strings.Join(append(append([]string{}, stack...), target), " -> ")
+			chain := p.importChain(rootDisplay, stack, targetDisplay)
 			if active[target] {
 				errors.Add(projectError(imp.PathPos, "ciclo de importaciones: %s", chain))
 				m.Imports[imp.Alias] = p.Modules[target]
@@ -209,7 +211,12 @@ func AnalyzeProject(entry string, loader SourceLoader) (*Project, error) {
 			dependency, err := load(target, targetDisplay)
 			if err != nil {
 				if dependency == nil {
-					errors.Add(projectError(imp.PathPos, "no se pudo importar %s: %v (cadena: %s)", imp.Path, err, chain))
+					message := importFailure(imp.Path, filepath.Base(m.Display), err)
+					if len(stack) > 1 {
+						// With a single step the diagnostic already points at the only `usar` involved.
+						message += fmt.Sprintf(" (cadena: %s)", chain)
+					}
+					errors.Add(projectError(imp.PathPos, "%s", message))
 					m.Imports[imp.Alias] = &Module{Path: target, Display: targetDisplay, Unavailable: true, Declarations: map[string]*Declaration{}}
 					continue
 				}
@@ -355,6 +362,44 @@ func declarationName(d ast.Decl) (string, ast.Pos) {
 
 func projectError(pos ast.Pos, format string, args ...any) error {
 	return &diagnostic.Error{Stage: diagnostic.Sema, Filename: pos.Filename, Pos: pos, Message: fmt.Sprintf(format, args...)}
+}
+
+// importFailure explains why the file of a `usar` could not be read, without
+// the operating system's own wording or absolute paths.
+func importFailure(path, importer string, err error) string {
+	file := path + ".cometa"
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		where := "en"
+		if strings.Contains(path, "/") {
+			where = "desde"
+		}
+		return fmt.Sprintf("no existe el archivo %s (se buscó %s la carpeta de %s)", file, where, importer)
+	case errors.Is(err, fs.ErrPermission):
+		return fmt.Sprintf("no hay permiso para leer el archivo %s", file)
+	}
+	var pathError *fs.PathError
+	if errors.As(err, &pathError) {
+		err = pathError.Err
+	}
+	return fmt.Sprintf("no se pudo leer el archivo %s: %v", file, err)
+}
+
+// importChain spells the modules being loaded, and the one that failed, as
+// paths relative to the folder of the entry file.
+func (p *Project) importChain(rootDisplay string, stack []string, targetDisplay string) string {
+	base := filepath.Dir(rootDisplay)
+	var names []string
+	for _, path := range stack {
+		names = append(names, p.DisplayPath(path))
+	}
+	names = append(names, targetDisplay)
+	for i, name := range names {
+		if rel, err := filepath.Rel(base, name); err == nil {
+			names[i] = filepath.ToSlash(rel)
+		}
+	}
+	return strings.Join(names, " -> ")
 }
 
 // Display removes private linkage symbols from diagnostics and editor details.

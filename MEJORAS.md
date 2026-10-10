@@ -16,12 +16,6 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 - **Problema:** en el código el campo se llama `Posicion` (`lobo.Posicion`, `Lobo {Posicion: {...}}`); `posicion` en minúscula no existe y copiarlo de la salida da un error.
 - **Posible solución:** imprimir el nombre del campo embebido con la capitalización del tipo.
 
-### El error de un `usar` que no encuentra el archivo mezcla inglés y rutas repetidas
-
-- **Observado:** al escribir la lectura `21-modulos` del curso `04-intermedio`. Con `usar tienda3` y sin ese archivo, el error es «no se pudo importar tienda3: open c:\...\tienda3.cometa: The system cannot find the file specified. (cadena: c:\...\d.cometa -> c:\...\tienda3.cometa)».
-- **Problema:** es el error más probable al empezar con módulos (un nombre mal escrito), y el mensaje incluye el texto del sistema operativo en inglés, la palabra `open` y la misma ruta absoluta dos veces. La «cadena» de importación no aporta nada cuando solo hay un salto.
-- **Posible solución:** «no existe el archivo tienda3.cometa (se buscó en la carpeta de d.cometa)», y mostrar la cadena solo cuando tenga más de un salto.
-
 ### Un campo de estructura omitido no usa el valor predeterminado de un campo enum de dentro
 
 - **Observado:** al escribir el ejercicio `25-escenas` del curso `04-intermedio`. Con `tipo Carrera` que declara `escena Escena = .Menu` y `tipo Partida` que declara `carrera solucion.Carrera`, el literal `juego.Partida {}` falla con «el campo carrera.escena requiere inicialización explícita». `solucion.Carrera {}` sí compila.
