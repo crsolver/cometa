@@ -501,7 +501,7 @@ func _hgrejillaDesdeCsv(texto, capa string) *_hgRejilla {
 	width, rows, actual := 0, 0, ""
 	for n, linea := range strings.Split(strings.TrimPrefix(texto, "\xEF\xBB\xBF"), "\n") {
 		linea = strings.TrimSpace(linea)
-		if linea == "" || strings.HasPrefix(linea, "//") {
+		if linea == "" || strings.HasPrefix(linea, "//") || strings.HasPrefix(linea, "@") {
 			continue
 		}
 		if strings.HasPrefix(linea, "#") {

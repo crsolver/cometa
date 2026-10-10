@@ -1,7 +1,7 @@
 // Pincel: un mapa hecho con el editor de mapas.
 // Aprenderás a cargar un archivo .mapa.txt (creado con `cometa mapa`), a
-// dibujarlo tal como se ve en el editor y a consultar sus capas para mover al
-// héroe y recoger objetos.
+// dibujarlo tal como se ve en el editor, a consultar sus capas para mover al
+// héroe y recoger objetos, y a leer una marca para saber dónde empieza.
 //
 // Mueve al héroe con las flechas o WASD y recoge las llaves. Escape sale.
 usar std/pincel
@@ -59,7 +59,10 @@ tipo Partida
 			retro.texto("¡Las tienes todas!", 168, 188, color = .Amarillo)
 
 fn inicio()
-	var partida = Partida {x: 2, y: 2}
+	// El héroe empieza en la celda que lleva la marca «jugador». Las marcas
+	// se ponen en el editor con la herramienta Marca y no se dibujan.
+	var salida = cripta.marcas("jugador")[0]
+	var partida = Partida {x: entero(salida.x), y: entero(salida.y)}
 	// Cuenta las llaves que se pusieron en el editor: buscar devuelve la
 	// columna y la fila de cada celda que tiene ese icono.
 	partida.total = cripta.capa("objetos").buscar(llave).longitud()

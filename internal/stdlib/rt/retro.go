@@ -8,6 +8,7 @@ import (
 	"image"
 	"image/color"
 	"log"
+	"strconv"
 	"strings"
 )
 
@@ -91,10 +92,12 @@ func _hgretroHoja(atlas _hgAtlas) *_hgHoja {
 	return _hgretroHojas[atlas]
 }
 
-// A map saved by tools/mapa-editor: layers bottom to top, each with its icons and (optionally) one color per cell.
+// A map saved by tools/mapa-editor: layers bottom to top, each with its icons and (optionally) one color per cell,
+// plus the named marks («@ nombre columna,fila» lines) in the order they were placed.
 type _hgMapa struct {
 	nombres        []string
 	capas, colores []*_hgRejilla
+	marcas         map[string][]_hgVec2
 }
 
 func _hgretroCargarMapa(encoded, path string) (m *_hgMapa) {
@@ -104,11 +107,14 @@ func _hgretroCargarMapa(encoded, path string) (m *_hgMapa) {
 		}
 	}()
 	texto := string(_hgbytes(encoded, path))
-	m = &_hgMapa{}
+	m = &_hgMapa{marcas: map[string][]_hgVec2{}}
 	tiene := map[string]bool{}
-	for _, linea := range strings.Split(texto, "\n") {
+	for n, linea := range strings.Split(texto, "\n") {
 		if linea = strings.TrimSpace(strings.TrimPrefix(linea, "\xEF\xBB\xBF")); strings.HasPrefix(linea, "#") {
 			tiene[strings.TrimSpace(linea[1:])] = true
+		} else if strings.HasPrefix(linea, "@") {
+			nombre, celda := _hgretroMarca(linea, n+1)
+			m.marcas[nombre] = append(m.marcas[nombre], celda)
 		}
 	}
 	for _, linea := range strings.Split(texto, "\n") {
@@ -135,6 +141,21 @@ func _hgretroCargarMapa(encoded, path string) (m *_hgMapa) {
 	}
 	return m
 }
+
+// _hgretroMarca reads a «@ nombre columna,fila» line; the name is everything before the last word.
+func _hgretroMarca(linea string, n int) (string, _hgVec2) {
+	campos := strings.Fields(linea[1:])
+	if len(campos) >= 2 {
+		if cx, cy, ok := strings.Cut(campos[len(campos)-1], ","); ok {
+			x, errX := strconv.ParseInt(cx, 10, 64)
+			y, errY := strconv.ParseInt(cy, 10, 64)
+			if errX == nil && errY == nil {
+				return strings.Join(campos[:len(campos)-1], " "), _hgVec2{float64(x), float64(y)}
+			}
+		}
+	}
+	panic(fmt.Sprintf("línea %d: una marca se escribe «@ nombre columna,fila», no %q", n, linea))
+}
 func (m *_hgMapa) Columnas() int64 { return m.capas[0].cols }
 func (m *_hgMapa) Filas() int64    { return m.capas[0].rows }
 func (m *_hgMapa) Capas() *[]string {
@@ -158,6 +179,12 @@ func (m *_hgMapa) Colores(nombre string) *_hgRejilla {
 		m.colores[i] = _hgrejillaNueva(m.capas[i].cols, m.capas[i].rows, -1)
 	}
 	return m.colores[i]
+}
+
+// Marcas returns a fresh list, so the game can change it without touching the map.
+func (m *_hgMapa) Marcas(nombre string) *[]_hgVec2 {
+	celdas := append([]_hgVec2{}, m.marcas[nombre]...)
+	return &celdas
 }
 func _hgretroMapa(m *_hgMapa, x, y, scale int64, capa string, tinte _hgColor) {
 	_hgdraw()

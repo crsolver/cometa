@@ -33,6 +33,7 @@
   button:disabled{opacity:.4;cursor:default}
   input[type=number]{width:64px}
   #name{width:120px}
+  #markname{flex:1;min-width:0}
   .tools{display:flex;flex-wrap:wrap;gap:4px}
   .row{display:flex;gap:6px;align-items:center;margin:6px 0;flex-wrap:wrap}
   #preview{width:48px;height:48px;background:#000;outline:1px solid #444}
@@ -88,8 +89,15 @@
       <button data-tool="fill" title="Rellenar (G)">Rellenar</button>
       <button data-tool="rect" title="Rectángulo (R)">Rectángulo</button>
       <button data-tool="pick" title="Cuentagotas (I)">Cuentagotas</button>
+      <button data-tool="mark" title="Marca (M)">Marca</button>
     </div>
     <div class="row"><small>Clic derecho borra · Alt+clic toma el icono y el color de la celda</small></div>
+    <h2>Marcas</h2>
+    <div class="row">
+      <input id="markname" type="text" list="marknames" value="jugador" placeholder="Nombre: jugador, enemigo…" spellcheck="false">
+      <datalist id="marknames"></datalist>
+    </div>
+    <div class="row"><small>Con la herramienta Marca, un clic le pone este nombre a la celda<br>y el clic derecho se lo quita. El juego las lee con <code>marcas</code>.</small></div>
   </aside>
   <section id="center">
     <div id="scroll"><canvas id="map"></canvas></div>
@@ -110,12 +118,13 @@
     <div class="row"><label>Zoom <input id="zoom" type="range" min="1" max="8" value="3"> <span id="zoomv"></span>×</label></div>
     <div class="row"><label><input id="showgrid" type="checkbox" checked> Mostrar rejilla</label></div>
     <div class="row"><label><input id="dim" type="checkbox"> Atenuar las otras capas</label></div>
+    <div class="row"><label><input id="showmarks" type="checkbox" checked> Mostrar marcas</label></div>
     <details>
       <summary>Cómo usar el mapa en Cometa</summary>
-      <p>Guarda el <b>.mapa.txt</b> junto a tu juego y cárgalo con <code>retro.cargar_mapa</code>. Se dibuja igual que aquí, y cada capa es una rejilla que el juego puede consultar y cambiar.</p>
+      <p>Guarda el <b>.mapa.txt</b> junto a tu juego y cárgalo con <code>retro.cargar_mapa</code>. Se dibuja igual que aquí, y cada capa es una rejilla que el juego puede consultar y cambiar. Las marcas no se dibujan: le dicen al juego en qué celda va el jugador, un enemigo o una puerta.</p>
 <pre id="usage"></pre>
-      <p>O exporta el <b>.cometa</b>: es un módulo con dos funciones por capa, que el alumno puede leer y cambiar a mano.</p>
-      <p><small>Atajos: <kbd>B</kbd> pintar, <kbd>E</kbd> borrar, <kbd>G</kbd> rellenar, <kbd>R</kbd> rectángulo, <kbd>I</kbd> cuentagotas, <kbd>Ctrl</kbd>+<kbd>Z</kbd>/<kbd>Y</kbd> deshacer y rehacer, <kbd>Ctrl</kbd>+<kbd>S</kbd> guardar. El mapa se conserva en el navegador entre sesiones.</small></p>
+      <p>O exporta el <b>.cometa</b>: es un módulo con dos funciones por capa y una para las marcas, que el alumno puede leer y cambiar a mano.</p>
+      <p><small>Atajos: <kbd>B</kbd> pintar, <kbd>E</kbd> borrar, <kbd>G</kbd> rellenar, <kbd>R</kbd> rectángulo, <kbd>I</kbd> cuentagotas, <kbd>M</kbd> marca, <kbd>Ctrl</kbd>+<kbd>Z</kbd>/<kbd>Y</kbd> deshacer y rehacer, <kbd>Ctrl</kbd>+<kbd>S</kbd> guardar. El mapa se conserva en el navegador entre sesiones.</small></p>
     </details>
   </aside>
 </main>
@@ -124,7 +133,8 @@
 // Formato .mapa.txt y exportación a Cometa. No toca la página: se puede probar por separado.
 // Es el mismo formato que lee rejilla.desde_csv: una fila por línea, valores separados por
 // comas, «# nombre» antes de cada capa y «//» para comentarios. Los colores de la capa
-// «suelo» van en otra capa, «suelo.color», con un número 0xRRGGBB por celda.
+// «suelo» van en otra capa, «suelo.color», con un número 0xRRGGBB por celda. Las marcas
+// van una por línea, «@ nombre columna,fila», y no pertenecen a ninguna capa.
 const EMPTY = -1;
 const COLOR_SUFFIX = '.color';
 const RESERVED = new Set(['pub', 'con', 'usar', 'interfaz', 'como', 'o', 'atrapar', 'intentar', 'retornar', 'enum', 'casos', 'tipo', 'fn', 'si', 'osi', 'var', 'const', 'sino', 'entero', 'decimal', 'cadena', 'bool', 'repetir', 'mientras', 'continuar', 'romper', 'verdadero', 'falso', 'imprimir', 'inicio', 'columnas', 'filas', 'desde_filas', 'rejilla']);
@@ -144,8 +154,10 @@ function newLayer(name, cols, rows) {
   return { name, visible: true, cells: new Array(cols * rows).fill(EMPTY), colors: new Array(cols * rows).fill(EMPTY) };
 }
 function newMap(cols, rows, names) {
-  return { cols, rows, layers: names.map(name => newLayer(name, cols, rows)) };
+  return { cols, rows, layers: names.map(name => newLayer(name, cols, rows)), marks: [] };
 }
+// El nombre de una marca va entre comillas en el módulo exportado y antes de la celda en el archivo.
+const cleanMarkName = name => name.replace(/["\\$]/g, '').replace(/^[@#\s]+/, '').trim().replace(/\s+/g, ' ');
 
 const hex = v => v < 0 ? String(v) : '0x' + v.toString(16).toUpperCase().padStart(6, '0');
 
@@ -156,15 +168,17 @@ function writeMap(map) {
     out.push('', '# ' + layer.name); rows(layer.cells, String);
     out.push('', '# ' + layer.name + COLOR_SUFFIX); rows(layer.colors, hex);
   }
+  if (map.marks.length) out.push('', '// Marcas: «@ nombre columna,fila». El juego las lee con mapa.marcas("nombre").', ...map.marks.map(m => `@ ${m.name} ${m.x},${m.y}`));
   return out.join('\n') + '\n';
 }
 
 // Lanza un Error con la línea y la columna si un valor no es un entero. Las capas más
-// pequeñas que la mayor se completan con celdas vacías. legacyColor(nombre) da el color
+// pequeñas que la mayor se completan con celdas vacías, y una marca fuera del mapa también
+// es un error. legacyColor(nombre) da el color
 // de las capas de archivos antiguos, que solo anotaban «// color: Nombre».
 function readMap(text, legacyColor) {
   if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
-  const sections = [];
+  const sections = [], marks = [];
   let current = null;
   text.split('\n').forEach((raw, n) => {
     const line = raw.trim();
@@ -172,6 +186,12 @@ function readMap(text, legacyColor) {
     if (line.startsWith('//')) {
       const m = /^\/\/\s*color:\s*(\S+)/.exec(line);
       if (m && current && !current.rows.length) current.legacy = m[1];
+      return;
+    }
+    if (line.startsWith('@')) {
+      const m = /^@\s*(.+?)\s+(\d+)\s*,\s*(\d+)$/.exec(line), name = m && cleanMarkName(m[1]);
+      if (!name) throw new Error(`Línea ${n + 1}: una marca se escribe «@ nombre columna,fila».`);
+      marks.push({ name, x: +m[2], y: +m[3], line: n + 1 });
       return;
     }
     if (line.startsWith('#')) {
@@ -203,14 +223,19 @@ function readMap(text, legacyColor) {
       if (v !== EMPTY) target.colors[y * cols + x] = l.colors?.[y]?.[x] ?? fallback;
     }));
   });
+  for (const { name, x, y, line } of marks) {
+    if (x >= cols || y >= rows) throw new Error(`Línea ${line}: la marca «${name}» (${x}, ${y}) queda fuera del mapa de ${cols} × ${rows}.`);
+    map.marks.push({ name, x, y });
+  }
   return map;
 }
 
-// Un módulo con dos funciones públicas por capa (iconos y colores). Solo usa rejilla.nueva
-// y poner, y deja los números a la vista para que se puedan editar a mano.
+// Un módulo con dos funciones públicas por capa (iconos y colores) y, si hay marcas, una
+// función marcas(nombre). Solo usa rejilla.nueva y poner, y deja los números a la vista
+// para que se puedan editar a mano.
 function exportCometa(map, name) {
   const module = identifier(name || 'nivel', new Set());
-  const used = new Set();
+  const used = new Set(map.marks.length ? ['marcas', 'mate'] : []);
   const layers = map.layers.map(l => ({ ...l, fn: identifier(l.name, used) }));
   for (const l of layers) l.colorFn = identifier(l.fn + '_color', used);
   const first = layers[0];
@@ -227,6 +252,7 @@ function exportCometa(map, name) {
     `//\tvar ${first.fn} = ${module}.${first.fn}()`,
     `//\tvar ${first.colorFn} = ${module}.${first.colorFn}()`,
     `//\trejilla.dibujar(${first.fn}, retro.hoja(), colores = ${first.colorFn})`,
+    ...(map.marks.length ? ['usar std/mate'] : []),
     'usar std/pincel/rejilla',
     '',
     `pub const columnas entero = ${map.cols}`,
@@ -240,6 +266,13 @@ function exportCometa(map, name) {
   for (const layer of layers) {
     grid(`// Capa «${layer.name}»: iconos.`, layer.fn, layer.cells);
     grid(`// Capa «${layer.name}»: colores.`, layer.colorFn, layer.colors);
+  }
+  if (map.marks.length) {
+    const cells = new Map();
+    for (const m of map.marks) cells.set(m.name, [...(cells.get(m.name) || []), `{${m.x}, ${m.y}}`]);
+    out.push('', '// Marcas: la columna y la fila (x, y) de las celdas que llevan ese nombre.', 'pub fn marcas(nombre cadena) [mate.Vec2]', '\tcasos nombre');
+    for (const [name, list] of cells) out.push(`\t\t"${name}" => [${list.join(', ')}]`);
+    out.push('\t\t_ => []');
   }
   out.push('', 'fn desde_filas(valores [[entero]]) rejilla.Rejilla', '\tvar resultado = rejilla.nueva(columnas, filas, -1)', '\trepetir (valores) |fila, y|', '\t\trepetir (fila) |valor, x|', '\t\t\tresultado.poner(x, y, valor)', '\tresultado');
   return out.join('\n') + '\n';
@@ -327,6 +360,7 @@ function draw() {
     for (let y = 0; y <= map.rows; y++) { ctx.moveTo(0, y * s + .5); ctx.lineTo(mapCanvas.width, y * s + .5); }
     ctx.stroke();
   }
+  if ($('showmarks').checked) drawMarks(s);
   if (stroke?.rect) {
     const r = rectOf(stroke.rect);
     ctx.fillStyle = 'rgba(63,210,255,.25)'; ctx.fillRect(r.x * s, r.y * s, r.w * s, r.h * s);
@@ -335,6 +369,22 @@ function draw() {
     if (!stroke && (tool === 'paint' || tool === 'fill' || tool === 'rect')) { ctx.globalAlpha = .6; drawTile(ctx, color, tile, hover.x * s, hover.y * s, s); ctx.globalAlpha = 1; }
     ctx.strokeStyle = '#ffd23f'; ctx.strokeRect(hover.x * s + .5, hover.y * s + .5, s - 1, s - 1);
   }
+}
+// Una marca es un recuadro con su nombre encima; no forma parte del dibujo del juego.
+function drawMarks(s) {
+  ctx.font = 'bold 11px system-ui,sans-serif'; ctx.textBaseline = 'top'; ctx.lineWidth = 2;
+  for (const m of map.marks) {
+    ctx.strokeStyle = '#ff5fd2'; ctx.strokeRect(m.x * s + 2, m.y * s + 2, s - 4, s - 4);
+    if (zoom < 2) continue;
+    const w = ctx.measureText(m.name).width + 6;
+    const x = Math.max(0, Math.min(m.x * s, mapCanvas.width - w)), y = m.y ? m.y * s - 13 : s; // en la primera fila, debajo
+    ctx.fillStyle = 'rgba(20,20,26,.85)'; ctx.fillRect(x, y, w, 14);
+    ctx.fillStyle = '#ff9be6'; ctx.fillText(m.name, x + 3, y + 1);
+  }
+  ctx.lineWidth = 1;
+}
+function drawMarkNames() {
+  $('marknames').replaceChildren(...[...new Set(map.marks.map(m => m.name))].sort().map(name => new Option(name)));
 }
 function drawPalette() {
   const s = T * PALETTE_ZOOM;
@@ -414,7 +464,7 @@ function restore(from, to) {
 function updateHistory() { $('undo').disabled = !undoStack.length; $('redo').disabled = !redoStack.length; }
 function persist() { try { localStorage.setItem(KEY, JSON.stringify({ name: $('name').value, map, layer, zoom })); } catch (e) {} }
 function changed() { requestDraw(); persist(); updateUsage(); }
-function refresh() { layoutMap(); drawLayers(); drawPalette(); updateUsage(); }
+function refresh() { layoutMap(); drawLayers(); drawPalette(); drawMarkNames(); updateUsage(); }
 function load(next, name) {
   if (map) remember();
   map = next; layer = 0;
@@ -423,7 +473,8 @@ function load(next, name) {
 }
 function updateUsage() {
   const first = map.layers[0], id = identifier(first.name, new Set()), file = fileName() + '.mapa.txt';
-  $('usage').textContent = `usar std/pincel/retro\n\nvar nivel = retro.cargar_mapa("${file}")\n\n// en pintar():\nretro.mapa(nivel)\n\n// para saber qué hay en una celda:\nvar ${id} = nivel.capa("${first.name}")\nsi (${id}.obtener(x, y) o -1) == ${tile}\n\t...`;
+  $('usage').textContent = `usar std/pincel/retro\n\nvar nivel = retro.cargar_mapa("${file}")\n\n// en pintar():\nretro.mapa(nivel)\n\n// para saber qué hay en una celda:\nvar ${id} = nivel.capa("${first.name}")\nsi (${id}.obtener(x, y) o -1) == ${tile}\n\t...`
+    + (map.marks.length ? `\n\n// la columna y la fila de una marca:\nvar celda = nivel.marcas("${map.marks[0].name}")[0]` : '');
 }
 const fileName = () => identifier($('name').value || 'nivel', new Set());
 
@@ -463,7 +514,17 @@ function pick(c) {
   }
 }
 function showCell(c) {
-  $('cellinfo').textContent = c ? `Celda (${c.x}, ${c.y}) · ` + map.layers.map(l => `${l.name}: ${tileName(l.cells[c.y * map.cols + c.x], l.colors[c.y * map.cols + c.x])}`).join(' · ') : '';
+  $('cellinfo').textContent = c ? `Celda (${c.x}, ${c.y}) · ` + map.layers.map(l => `${l.name}: ${tileName(l.cells[c.y * map.cols + c.x], l.colors[c.y * map.cols + c.x])}`).concat(map.marks.filter(m => m.x === c.x && m.y === c.y).map(m => `marca: ${m.name}`)).join(' · ') : '';
+}
+// Cada celda lleva una sola marca: poner otra la sustituye.
+function placeMark(c, remove) {
+  const name = cleanMarkName($('markname').value), at = map.marks.findIndex(m => m.x === c.x && m.y === c.y);
+  if (!remove && !name) { notice('Escribe un nombre para la marca.', true); return; }
+  if (remove ? at < 0 : at >= 0 && map.marks[at].name === name) return;
+  remember();
+  if (at >= 0) map.marks.splice(at, 1);
+  if (!remove) map.marks.push({ name, x: c.x, y: c.y });
+  notice(''); drawMarkNames(); showCell(c); changed();
 }
 mapCanvas.addEventListener('contextmenu', e => e.preventDefault());
 mapCanvas.addEventListener('pointerdown', e => {
@@ -471,6 +532,7 @@ mapCanvas.addEventListener('pointerdown', e => {
   if (!c || (e.button !== 0 && e.button !== 2)) return;
   e.preventDefault();
   if (e.button === 0 && (e.altKey || tool === 'pick')) { pick(c); return; }
+  if (tool === 'mark') { placeMark(c, e.button === 2); return; }
   mapCanvas.setPointerCapture(e.pointerId);
   remember();
   const value = e.button === 2 || tool === 'erase' ? EMPTY : tile;
@@ -523,8 +585,8 @@ $('resize').addEventListener('click', () => {
   const cols = Math.round(+$('cols').value), rows = Math.round(+$('rows').value);
   if (!(cols >= 1 && cols <= 256 && rows >= 1 && rows <= 256)) { notice('El tamaño debe estar entre 1 y 256 celdas por lado.', true); layoutMap(); return; }
   if (cols === map.cols && rows === map.rows) return;
-  const lost = map.layers.some(l => l.cells.some((v, i) => v !== EMPTY && (i % map.cols >= cols || Math.floor(i / map.cols) >= rows)));
-  if (lost && !confirm('El tamaño nuevo recorta celdas pintadas. ¿Continuar?')) { layoutMap(); return; }
+  const lost = map.layers.some(l => l.cells.some((v, i) => v !== EMPTY && (i % map.cols >= cols || Math.floor(i / map.cols) >= rows))) || map.marks.some(m => m.x >= cols || m.y >= rows);
+  if (lost && !confirm('El tamaño nuevo recorta celdas pintadas o marcas. ¿Continuar?')) { layoutMap(); return; }
   remember();
   for (const l of map.layers) {
     const next = newLayer(l.name, cols, rows);
@@ -533,12 +595,15 @@ $('resize').addEventListener('click', () => {
     }
     l.cells = next.cells; l.colors = next.colors;
   }
+  map.marks = map.marks.filter(m => m.x < cols && m.y < rows);
   map.cols = cols; map.rows = rows;
-  notice(''); layoutMap(); changed();
+  notice(''); layoutMap(); drawMarkNames(); changed();
 });
 $('zoom').addEventListener('input', e => { zoom = +e.target.value; layoutMap(); persist(); });
 $('showgrid').addEventListener('change', requestDraw);
 $('dim').addEventListener('change', requestDraw);
+$('showmarks').addEventListener('change', requestDraw);
+$('markname').addEventListener('change', () => setTool('mark'));
 $('addlayer').addEventListener('click', () => {
   remember();
   const names = new Set(map.layers.map(l => l.name));
@@ -560,7 +625,7 @@ function copy(text, what) {
   navigator.clipboard.writeText(text).then(() => notice(what + ' copiado al portapapeles.'), () => notice('No se pudo copiar al portapapeles.', true));
 }
 function openText(text, name) {
-  try { load(readMap(text, rgbOf), name); notice(`Abierto: ${map.cols} × ${map.rows}, ${map.layers.length} capa(s).`); }
+  try { load(readMap(text, rgbOf), name); notice(`Abierto: ${map.cols} × ${map.rows}, ${map.layers.length} capa(s), ${map.marks.length} marca(s).`); }
   catch (e) { notice(e.message, true); }
 }
 function openFile(file) {
@@ -568,7 +633,7 @@ function openFile(file) {
   file.text().then(text => openText(text, file.name.replace(/(\.mapa)?\.[^.]*$/, '')));
 }
 $('new').addEventListener('click', () => {
-  if (map.layers.some(l => l.cells.some(v => v !== EMPTY)) && !confirm('¿Empezar un mapa vacío? (Se puede deshacer.)')) return;
+  if ((map.marks.length || map.layers.some(l => l.cells.some(v => v !== EMPTY))) && !confirm('¿Empezar un mapa vacío? (Se puede deshacer.)')) return;
   load(newMap(map.cols, map.rows, ['suelo', 'objetos'])); notice('');
 });
 $('open').addEventListener('click', () => $('file').click());
@@ -591,7 +656,7 @@ window.addEventListener('keydown', e => {
     else if (key === 's') { e.preventDefault(); $('save').click(); }
     return;
   }
-  const shortcut = { b: 'paint', e: 'erase', g: 'fill', r: 'rect', i: 'pick' }[key];
+  const shortcut = { b: 'paint', e: 'erase', g: 'fill', r: 'rect', i: 'pick', m: 'mark' }[key];
   if (shortcut) setTool(shortcut);
 });
 
@@ -603,6 +668,7 @@ function start() {
     map = saved.map; layer = Math.min(saved.layer || 0, map.layers.length - 1); zoom = saved.zoom || zoom;
     // Los mapas guardados por la primera versión tenían un color por capa.
     for (const l of map.layers) l.colors ||= l.cells.map(v => v === EMPTY ? EMPTY : rgbOf(l.color));
+    map.marks ||= [];
     $('name').value = saved.name || 'nivel';
   } else {
     // 40 × 25 celdas llenan la ventana de retro.ejecutar (320 × 200).

@@ -75,7 +75,7 @@ var retroModule = Module{
 		},
 		{
 			Name: "Mapa",
-			Doc:  "Un mapa de tiles hecho con el editor de mapas y cargado con retro.cargar_mapa: varias capas de iconos del atlas dungeon, cada celda con su color. Se dibuja con retro.mapa.",
+			Doc:  "Un mapa de tiles hecho con el editor de mapas y cargado con retro.cargar_mapa: varias capas de iconos del atlas dungeon, cada celda con su color, y marcas con nombre para situar al jugador, los enemigos o las puertas. Se dibuja con retro.mapa.",
 			Methods: []Function{
 				{Name: "columnas", Signature: "() entero", GoName: "columnas",
 					Doc: "La cantidad de columnas del mapa."},
@@ -87,6 +87,8 @@ var retroModule = Module{
 					Doc: "La rejilla de iconos de la capa `nombre`, para consultarla o cambiarla (`obtener`, `poner`, `choca`, `mover`). Es la misma que se dibuja: poner -1 en una celda la borra del mapa. Una capa que no existe detiene el programa con la lista de capas."},
 				{Name: "colores", Signature: "(nombre cadena) Rejilla", GoName: "colores",
 					Doc: "La rejilla de colores de la capa `nombre`: un número 0xRRGGBB por celda (rojo * 65536 + verde * 256 + azul); -1 usa el tinte."},
+				{Name: "marcas", Signature: "(nombre cadena) [Vec2]", GoName: "marcas",
+					Doc: "Las celdas (columna y fila) que llevan la marca `nombre`, puesta con la herramienta Marca del editor, en el orden en que se colocaron: `nivel.marcas(\"jugador\")[0]` es donde empieza el jugador. Un nombre que el mapa no usa da una lista vacía."},
 			},
 		},
 	},

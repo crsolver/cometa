@@ -540,9 +540,9 @@ Ver [el ejemplo del laberinto](../examples/pincel/11_mapa.cometa).
 
 ### Editor de mapas
 
-`cometa mapa` abre el editor de mapas en el navegador, sin instalar nada (en el repositorio es `tools/mapa-editor/index.html`). La paleta es el atlas dungeon de `std/pincel/retro`: eliges un icono (por su dibujo o buscando su nombre, como `Llave`) y lo pintas en la rejilla. Cada celda lleva su propio color, elegido de la paleta de `color.Color`. Tiene pintar, borrar, rellenar, rectángulo y cuentagotas, capas con nombre, deshacer y rehacer, y conserva el mapa en el navegador entre sesiones.
+`cometa mapa` abre el editor de mapas en el navegador, sin instalar nada (en el repositorio es `tools/mapa-editor/index.html`). La paleta es el atlas dungeon de `std/pincel/retro`: eliges un icono (por su dibujo o buscando su nombre, como `Llave`) y lo pintas en la rejilla. Cada celda lleva su propio color, elegido de la paleta de `color.Color`. Tiene pintar, borrar, rellenar, rectángulo y cuentagotas, capas con nombre, marcas, deshacer y rehacer, y conserva el mapa en el navegador entre sesiones.
 
-**Guardar .mapa.txt** escribe un archivo de texto: una fila por línea, los índices del atlas separados por comas (`-1` es una celda vacía), una línea `# nombre` antes de cada capa y `//` para comentarios. Los colores de la capa `suelo` van en otra capa, `suelo.color`, con un número `0xRRGGBB` por celda. Se puede editar a mano y volver a abrir.
+**Guardar .mapa.txt** escribe un archivo de texto: una fila por línea, los índices del atlas separados por comas (`-1` es una celda vacía), una línea `# nombre` antes de cada capa y `//` para comentarios. Los colores de la capa `suelo` van en otra capa, `suelo.color`, con un número `0xRRGGBB` por celda. Las marcas van al final, una por línea: `@ nombre columna,fila`. Se puede editar a mano y volver a abrir.
 
 ```text
 # suelo
@@ -554,6 +554,9 @@ Ver [el ejemplo del laberinto](../examples/pincel/11_mapa.cometa).
 0x52524C,0x52524C,0x52524C,0x52524C
 0x52524C,0x443F41,0x443F41,0x4772BF
 0x4772BF,0x4772BF,0x4772BF,0x4772BF
+
+@ jugador 1,1
+@ enemigo 2,1
 ```
 
 En el juego, `retro.cargar_mapa` carga el archivo (como los demás recursos, en una variable global con la ruta literal) y `retro.mapa` lo dibuja con sus iconos y colores, tal como se ve en el editor:
@@ -575,15 +578,26 @@ retro.Mapa.filas() entero
 retro.Mapa.capas() [cadena]
 retro.Mapa.capa(nombre cadena) rejilla.Rejilla
 retro.Mapa.colores(nombre cadena) rejilla.Rejilla
+retro.Mapa.marcas(nombre cadena) [mate.Vec2]
 ```
 
 `retro.mapa` pinta todas las capas, de abajo arriba; con `capa = "suelo"` pinta solo esa, para dibujar algo entre dos capas. `Mapa.capa(nombre)` devuelve la rejilla de iconos de una capa, la misma que se dibuja: sirve para consultar celdas y colisiones (`obtener`, `choca`, `mover`) y para cambiar el mapa mientras se juega (`nivel.capa("objetos").poner(x, y, -1)` borra un objeto). El valor de cada celda es el índice del atlas, el mismo que usan `retro.glifo` y los iconos con nombre. Una capa que no existe detiene el programa con la lista de capas.
 
 `Mapa.colores(nombre)` devuelve la rejilla de colores de la capa, con un número `0xRRGGBB` por celda; las celdas con `-1` usan `tinte`. `color.a_entero(.Rojo)` da ese número y `color.desde_entero(n)` lo convierte en un color: `colores.poner(x, y, color.a_entero(.Rojo))`.
 
+Una **marca** le pone nombre a una celda sin dibujar nada en ella: dónde empieza el jugador, dónde aparece cada enemigo, a qué celda lleva una puerta. En el editor, escribe el nombre en «Marcas», elige la herramienta Marca (tecla M) y haz clic en la celda; el clic derecho la quita. El mismo nombre puede estar en varias celdas. `Mapa.marcas(nombre)` devuelve la columna y la fila de cada una, en el orden en que se pusieron, así que también sirven para trazar la ruta de una patrulla. Un nombre que el mapa no usa da una lista vacía.
+
+```cometa
+var salida = nivel.marcas("jugador")[0]
+var jugador = Jugador {x: entero(salida.x), y: entero(salida.y)}
+
+repetir (nivel.marcas("enemigo")) |celda|
+	enemigos.agregar(Enemigo {pos: celda * 8})
+```
+
 Las piezas de abajo también están disponibles por separado: `recursos.texto` incorpora cualquier archivo de texto, `rejilla.desde_csv(texto, capa = "suelo")` lee una capa como `Rejilla`, `retro.hoja()` da el atlas como hoja y el parámetro `colores` de `rejilla.dibujar` recibe una rejilla de colores.
 
-**Exportar .cometa** escribe en su lugar un módulo con `pub const columnas`, `pub const filas` y dos funciones por capa (`pub fn suelo() rejilla.Rejilla` y `pub fn suelo_color() rejilla.Rejilla`) con los números a la vista, que se importa con `usar nivel` y no necesita el archivo de texto. Ver [el ejemplo de la cripta](../examples/pincel/16_editor_mapas.cometa).
+**Exportar .cometa** escribe en su lugar un módulo con `pub const columnas`, `pub const filas` y dos funciones por capa (`pub fn suelo() rejilla.Rejilla` y `pub fn suelo_color() rejilla.Rejilla`) con los números a la vista, más `pub fn marcas(nombre cadena) [mate.Vec2]` si el mapa tiene marcas. Se importa con `usar nivel` y no necesita el archivo de texto. Ver [el ejemplo de la cripta](../examples/pincel/16_editor_mapas.cometa).
 
 ## Sonidos sin archivos
 

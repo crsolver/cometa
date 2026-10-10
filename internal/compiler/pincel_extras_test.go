@@ -79,7 +79,7 @@ fn inicio()
 func TestRejillaDesdeCsvRuns(t *testing.T) {
 	t.Parallel()
 	entry, loader := memoryProject(t, map[string]string{
-		"niveles/uno.mapa.txt": "\xEF\xBB\xBF// Mapa de prueba\r\n# suelo\r\n// color: Gris\r\n1, 1, 1\r\n1,-1,1\r\n\r\n# objetos\r\n-1,-1,175\r\n-1,3,-1\r\n",
+		"niveles/uno.mapa.txt": "\xEF\xBB\xBF// Mapa de prueba\r\n# suelo\r\n// color: Gris\r\n1, 1, 1\r\n1,-1,1\r\n\r\n# objetos\r\n-1,-1,175\r\n-1,3,-1\r\n@ jugador 1,1\r\n",
 		"main.cometa": `usar std/pincel/recursos
 usar std/pincel/rejilla
 
@@ -112,11 +112,12 @@ fn inicio()
 	}
 }
 
-// retro.cargar_mapa loads every layer of an editor file at once; its layers are live grids.
+// retro.cargar_mapa loads every layer of an editor file at once; its layers are live grids
+// and its marks («@ nombre columna,fila») come back by name, in file order.
 func TestRetroMapaRuns(t *testing.T) {
 	t.Parallel()
 	entry, loader := memoryProject(t, map[string]string{
-		"uno.mapa.txt": "# suelo\n1,1,1\n1,-1,1\n\n# suelo.color\n0xFF0000,-1,-1\n-1,-1,255\n\n# objetos\n-1,-1,175\n-1,3,-1\n",
+		"uno.mapa.txt": "# suelo\n1,1,1\n1,-1,1\n\n# suelo.color\n0xFF0000,-1,-1\n-1,-1,255\n\n# objetos\n-1,-1,175\n-1,3,-1\n\n@ enemigo 2,1\n@ puerta norte 1,0\n@ enemigo 0,1\n",
 		"main.cometa": `usar std/pincel/retro
 
 var nivel = retro.cargar_mapa("uno.mapa.txt")
@@ -130,6 +131,10 @@ fn inicio()
 	imprimir(nivel.colores("objetos").obtener(2, 0))
 	nivel.capa("objetos").poner(2, 0, -1)
 	imprimir(nivel.capa("objetos").obtener(2, 0))
+	repetir (nivel.marcas("enemigo")) |celda|
+		imprimir("${celda.x},${celda.y}")
+	imprimir(nivel.marcas("puerta norte")[0].x)
+	imprimir(nivel.marcas("llave").longitud())
 	imprimir(nivel.capa("techo").filas())
 `})
 	generated, err := CompileProject(entry, loader)
@@ -137,7 +142,7 @@ fn inicio()
 		t.Fatal(err)
 	}
 	out := runGoExpectingFailure(t, generated)
-	for _, want := range []string{"3\n2\n[\"suelo\", \"objetos\"]\nAlguno(175)\nAlguno(16711680)\nAlguno(-1)\nAlguno(-1)\n", `el mapa no tiene una capa "techo" (capas: suelo, objetos)`} {
+	for _, want := range []string{"3\n2\n[\"suelo\", \"objetos\"]\nAlguno(175)\nAlguno(16711680)\nAlguno(-1)\nAlguno(-1)\n2,1\n0,1\n1\n0\n", `el mapa no tiene una capa "techo" (capas: suelo, objetos)`} {
 		if !strings.Contains(out, want) {
 			t.Errorf("falta %q en la salida:\n%s", want, out)
 		}

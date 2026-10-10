@@ -1,6 +1,6 @@
 // Mapa de Cometa (tools/mapa-editor): una fila por línea, valores separados por comas.
 // Cada capa tiene los índices del atlas dungeon (-1 es una celda vacía) y, en la capa
-// «.color», el color 0xRRGGBB de cada celda. Se lee con rejilla.desde_csv.
+// «.color», el color 0xRRGGBB de cada celda. Se carga con retro.cargar_mapa.
 
 # suelo
 209,209,209,209,209,209,209,209,209,209,209,209,209,209,209,209,209,209,209,209,209,209,209,209,209,209,209,209,209,209,209,209,209,209,209,209,209,209,209,209
@@ -101,3 +101,6 @@
 -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1
 -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1
 -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1
+
+// Marcas: «@ nombre columna,fila». El juego las lee con mapa.marcas("nombre").
+@ jugador 2,2
