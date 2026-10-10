@@ -263,6 +263,12 @@ func (c *checker) checkMatch(m *ast.MatchExpr, value bool, expected *Type) (Type
 // Check final expressions with their expected type before asking for a block
 // result, so contextual struct/list literals work through nested branches.
 func (c *checker) checkValueBlock(body []ast.Stmt, expected *Type) (Type, error) {
+	return c.checkValueBlockAt(body, expected, nil)
+}
+
+// A function body that produces nothing is reported at the declared result
+// (missing), because its last statement is not what is wrong.
+func (c *checker) checkValueBlockAt(body []ast.Stmt, expected *Type, missing *ast.Pos) (Type, error) {
 	before := c.damaged
 	defer c.bindingScope()()
 	outer := c.vars
@@ -365,7 +371,9 @@ func (c *checker) checkValueBlock(body []ast.Stmt, expected *Type) (Type, error)
 		}
 	}
 	pos := ast.Pos{Line: 1, Column: 1}
-	if len(body) > 0 {
+	if missing != nil {
+		pos = *missing
+	} else if len(body) > 0 {
 		pos = body[len(body)-1].Position()
 	}
 	name := "un valor"

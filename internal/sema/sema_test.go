@@ -1,9 +1,11 @@
 package sema
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
+	"github.com/crsolver/cometa/internal/diagnostic"
 	"github.com/crsolver/cometa/internal/lexer"
 	"github.com/crsolver/cometa/internal/parser"
 )
@@ -82,5 +84,19 @@ func TestAllPathsProduceDeclaredType(t *testing.T) {
 	source := "fn f(n entero) entero\n\tsi (n < 0) 0\n\tosi (n == 0) 1\n\tsino 2\n"
 	if err := checkSource(source); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestMissingResultPointsAtDeclaredType(t *testing.T) {
+	err := checkSource("fn sx(x decimal) entero\n\timprimir(\"\")\n")
+	var found *diagnostic.Error
+	if !errors.As(err, &found) {
+		t.Fatalf("se esperaba un diagnóstico; got %v", err)
+	}
+	if !strings.Contains(found.Message, "debe producir entero en todos los caminos") {
+		t.Fatalf("mensaje inesperado: %v", err)
+	}
+	if found.Pos.Line != 1 || found.Pos.Column != 18 {
+		t.Fatalf("el error debe marcar el tipo declarado (1:18); got %d:%d", found.Pos.Line, found.Pos.Column)
 	}
 }

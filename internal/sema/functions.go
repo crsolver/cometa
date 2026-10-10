@@ -161,7 +161,11 @@ func (c *checker) checkFunction(function *ast.FuncDecl, receiver *TypeInfo) erro
 	}
 	c.returnType = expected
 	if expected.Kind != Void {
-		actual, err := c.checkValueBlock(function.Body, &expected)
+		var declared *ast.Pos
+		if function.ReturnType != nil {
+			declared = &function.ReturnType.Pos
+		}
+		actual, err := c.checkValueBlockAt(function.Body, &expected, declared)
 		if err != nil {
 			return err
 		}
