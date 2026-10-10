@@ -196,6 +196,7 @@ func (w walker) stmt(stmt Stmt) {
 		}
 		w.expr(s.Iterable)
 		w.expr(s.RangeEnd)
+		w.expr(s.Step)
 		w.stmts(s.Body)
 	default:
 		panic("ast.Inspect: unknown statement")

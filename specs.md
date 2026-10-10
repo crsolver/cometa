@@ -678,12 +678,13 @@ repetir ("año") |letra, indice|
 	imprimir("${indice}: ${letra}") // 0: a, 1: ñ, 2: o
 ```
 
-Los rangos `inicio..final` solo se permiten dentro de los paréntesis de `repetir`; no son valores que puedan guardarse, pasarse a funciones o incluirse en listas. Ambos límites deben ser expresiones `entero` y se evalúan una sola vez, de izquierda a derecha, antes del ciclo. El inicio se incluye y el final se excluye. El paso es `1` si el inicio es menor y `-1` si es mayor; límites iguales producen cero iteraciones. Se permiten límites negativos; los límites decimales se rechazan. La variable del ciclo es `entero`; una segunda variable opcional recibe el índice desde `0`. Modificar estas variables dentro del cuerpo no altera la progresión del rango.
+Los rangos `inicio..final` solo se permiten dentro de los paréntesis de `repetir`; no son valores que puedan guardarse, pasarse a funciones o incluirse en listas. Ambos límites deben ser expresiones `entero` y se evalúan una sola vez, de izquierda a derecha, antes del ciclo. El inicio se incluye y el final se excluye. Un rango cuenta hacia adelante de uno en uno: si el inicio es igual o mayor que el final no hay ninguna vuelta, de modo que `repetir (0..lista.longitud() - 1)` no hace nada con una lista vacía. Para contar hacia atrás o saltar valores se escribe el paso después del rango, `repetir (inicio..final, paso = n)`: con un paso negativo el ciclo baja mientras el valor sea mayor que el final, y con uno positivo sube mientras sea menor. El paso es una expresión `entero` que se evalúa una vez, después de los límites; un paso `0` es un error. La dirección nunca se deduce de los límites: `repetir (5..0)` con dos límites literales se rechaza al compilar con la sugerencia de escribir `paso = -1`. Se permiten límites negativos; los límites decimales se rechazan. La variable del ciclo es `entero`; una segunda variable opcional recibe el índice desde `0`. Modificar estas variables dentro del cuerpo no altera la progresión del rango.
 
 ```cometa
 repetir (0..5) |i| imprimir(i) // 0, 1, 2, 3, 4
-repetir (5..0) |i|
+repetir (5..0, paso = -1) |i|
 	imprimir(i) // 5, 4, 3, 2, 1
+repetir (0..10, paso = 2) |i| imprimir(i) // 0, 2, 4, 6, 8
 repetir (0..3) imprimir("hola") // sin variables: repite 3 veces
 repetir (0..2) |valor, indice|
 	imprimir(valor) // 0.5, 1.5

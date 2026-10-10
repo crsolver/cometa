@@ -176,6 +176,7 @@ func (c *checker) checkRepeat(stmt *ast.RepeatStmt) error {
 				c.report(c.fail(stmt.RangeEnd.Position(), "el final del rango debe ser entero, no %s", end.String()))
 				c.damaged++
 			}
+			c.checkRangeStep(stmt)
 		} else if err != nil {
 			elementType = Type{Kind: Invalid}
 		} else if iterable.Kind == Integer {
@@ -235,6 +236,39 @@ func (c *checker) checkRepeat(stmt *ast.RepeatStmt) error {
 		c.checkStmt(statement)
 	}
 	return nil
+}
+
+// checkRangeStep validates the `paso` of a range. A range never changes
+// direction at run time: without a step it counts up, so literal bounds written
+// backwards are reported instead of silently giving no turns.
+func (c *checker) checkRangeStep(stmt *ast.RepeatStmt) {
+	if stmt.Step == nil {
+		start, _ := c.scalarLiteralKey(stmt.Iterable, 0)
+		end, _ := c.scalarLiteralKey(stmt.RangeEnd, 0)
+		from, okFrom := integerKey(start)
+		to, okTo := integerKey(end)
+		if okFrom && okTo && from > to {
+			c.report(c.fail(stmt.Pos, "el rango %d..%d no da ninguna vuelta porque el inicio es mayor que el fin; para contar hacia atrás escribe repetir (%d..%d, paso = -1)", from, to, from, to))
+			c.damaged++
+		}
+		return
+	}
+	step, err := c.checkExpr(stmt.Step)
+	if err != nil {
+		c.report(err)
+		c.damaged++
+		return
+	}
+	if step.Kind != Integer {
+		c.report(c.fail(stmt.Step.Position(), "el paso del rango debe ser entero, no %s", step.String()))
+		c.damaged++
+		return
+	}
+	key, _ := c.scalarLiteralKey(stmt.Step, 0)
+	if n, ok := integerKey(key); ok && n == 0 {
+		c.report(c.fail(stmt.Step.Position(), "el paso de un rango no puede ser 0"))
+		c.damaged++
+	}
 }
 
 func (c *checker) checkNestedBlock(body []ast.Stmt) {

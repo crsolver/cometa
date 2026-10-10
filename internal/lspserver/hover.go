@@ -214,6 +214,9 @@ func hoverInStatements(statements []ast.Stmt, model *sema.Model, position ast.Po
 			if info, ok := hoverInExpression(stmt.RangeEnd, model, position, lines, receiverName); ok {
 				return info, true
 			}
+			if info, ok := hoverInExpression(stmt.Step, model, position, lines, receiverName); ok {
+				return info, true
+			}
 			if stmt.RangeEnd != nil && (stmt.ElementPos == position || stmt.IndexPos == position) {
 				name := stmt.Element
 				if stmt.IndexPos == position {

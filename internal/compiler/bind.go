@@ -259,6 +259,7 @@ func (b *binder) statements(body []ast.Stmt, parent map[string]bool) {
 		case *ast.RepeatStmt:
 			s.Iterable = b.expr(s.Iterable, scope)
 			s.RangeEnd = b.expr(s.RangeEnd, scope)
+			s.Step = b.expr(s.Step, scope)
 			b.statements(s.Body, copyScope(scope, s.Element, s.Index))
 		case *ast.ExprStmt:
 			s.Expr = b.expr(s.Expr, scope)

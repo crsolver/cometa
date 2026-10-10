@@ -86,7 +86,7 @@ tipo Partida
 
 	fn rebotar_en_ladrillos()
 		// Se recorre al revés para poder eliminar sin saltarse elementos.
-		repetir (@ladrillos.longitud()..0) |n|
+		repetir (@ladrillos.longitud()..0, paso = -1) |n|
 			var i = n - 1
 			si @ladrillos.obtener(i) |ladrillo|
 				si ladrillo.caja.colision_circulo(@bola, radio)

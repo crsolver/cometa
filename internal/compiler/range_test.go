@@ -14,11 +14,11 @@ fn limite(c Contador, n entero) entero
 	n
 fn inicio()
 	repetir (0..5) |i| imprimir(i)
-	repetir (3..0) |i, indice| imprimir(i + indice)
+	repetir (3..0, paso = -1) |i, indice| imprimir(i + indice)
 	repetir (2..2) |i| imprimir("incorrecto")
 	repetir (-2..1) |i| imprimir(i)
 	repetir (0..2) |i| imprimir(i)
-	repetir (3..0) |i| imprimir(i)
+	repetir (3..0, paso = -1) |i| imprimir(i)
 	var c = Contador {n: 0}
 	var final = 3
 	repetir (limite(c, 0)..limite(c, final)) |i|
@@ -26,7 +26,7 @@ fn inicio()
 		casos E.A
 			_ =>
 				si i == 0 continuar
-				repetir (2..0) |j|
+				repetir (2..0, paso = -1) |j|
 					casos E.A
 						_ => romper
 				imprimir(i)
@@ -46,6 +46,9 @@ func TestRangesAreOnlyLoopSyntax(t *testing.T) {
 		"var rango = 0..5", "imprimir(0..5)", "var lista = [0..5]",
 		"repetir (..5) |i| imprimir(i)", "repetir (0..) |i| imprimir(i)",
 		"repetir (0..2..5) |i| imprimir(i)", "repetir (0...5) |i| imprimir(i)",
+		"repetir (3..0) |i| imprimir(i)", "repetir (0..3, paso = 0) |i| imprimir(i)",
+		"repetir (0..3, paso = 1.5) |i| imprimir(i)", "repetir (0..3, salto = 1) |i| imprimir(i)",
+		"repetir (0..3, paso) |i| imprimir(i)", "repetir (3, paso = 1) |i| imprimir(i)",
 	} {
 		t.Run(body, func(t *testing.T) {
 			if _, err := Compile("rango.cometa", []byte("fn inicio()\n\t"+body+"\n")); err == nil {
@@ -59,7 +62,7 @@ func TestRangeLoopWithoutVariablesCompiles(t *testing.T) {
 	t.Parallel()
 	for _, body := range []string{
 		"repetir (0..3) imprimir(0)",
-		"repetir (3..0)\n\t\timprimir(0)",
+		"repetir (3..0, paso = -1)\n\t\timprimir(0)",
 	} {
 		if _, err := Compile("rango.cometa", []byte("fn inicio()\n\t"+body+"\n")); err != nil {
 			t.Fatalf("%q: %v", body, err)
@@ -86,4 +89,24 @@ fn inicio()
 		si (i == 1) romper
 		imprimir("vuelta ${i}")
 `, "hola\nhola\nhola\nuna vez\n0\n1\n0 0\nvuelta 0\n")
+}
+
+func TestRangeStep(t *testing.T) {
+	t.Parallel()
+	runCometa(t, `const alto = 3
+fn paso_de(n entero) entero
+	imprimir("paso")
+	n
+fn inicio()
+	var vacia [entero] = []
+	repetir (0..vacia.longitud() - 1) |i| imprimir("incorrecto")
+	var n = -2
+	repetir (0..n) |i| imprimir("incorrecto")
+	repetir (alto..n) imprimir("incorrecto")
+	repetir (0..7, paso = 3) |i, indice| imprimir("${i} ${indice}")
+	repetir (5..0, paso = -2) |i| imprimir(i)
+	repetir (alto..n, paso = paso_de(-1) * 2) |i| imprimir(i)
+	repetir (0..3, paso = -1) |i| imprimir("incorrecto")
+	repetir (3..0, paso = 1) |i| imprimir("incorrecto")
+`, "0 0\n3 1\n6 2\n5\n3\n1\npaso\n3\n1\n-1\n")
 }

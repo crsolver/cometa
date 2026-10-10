@@ -11,7 +11,7 @@ fn inicio()
 
 	// Si el cuerpo es corto, puede ir en la misma línea.
 	imprimir("Cuenta atrás:")
-	repetir (3..0) |numero| imprimir(numero)
+	repetir (3..0, paso = -1) |numero| imprimir(numero)
 	imprimir("¡Despegue!")
 
 	// repetir también recorre listas.

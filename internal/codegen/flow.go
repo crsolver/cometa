@@ -959,11 +959,12 @@ func (g *generator) flowLoop(s *ast.RepeatStmt, indent int) {
 	if s.RangeEnd != nil {
 		end = g.flowExpr(s.RangeEnd, indent)
 	}
-	step := ""
-	if end != "" {
-		step = g.freshName()
-		g.line(indent, "%s := int64(1)", step)
-		g.line(indent, "if %s > %s { %s = -1 }", start, end, step)
+	// The direction is never chosen from the bounds: without `paso` a range
+	// counts up, and one whose start is not below its end gives no turns.
+	step := "1"
+	if s.Step != nil {
+		step = g.flowExpr(s.Step, indent)
+		g.line(indent, "if %s == 0 { panic(\"el paso de un rango no puede ser 0\") }", step)
 	}
 	if needsLoopLabel(s.Body, false) {
 		g.loopLabel = g.freshName()
@@ -983,7 +984,11 @@ func (g *generator) flowLoop(s *ast.RepeatStmt, indent int) {
 		}
 	} else if end != "" {
 		current, index := g.freshName(), g.freshName()
-		g.line(indent, "for %s, %s := %s, int64(0); (%s > 0 && %s < %s) || (%s < 0 && %s > %s); %s, %s = %s + %s, %s + 1 {", current, index, start, step, current, end, step, current, end, current, index, current, step, index)
+		condition := fmt.Sprintf("%s < %s", current, end)
+		if s.Step != nil {
+			condition = fmt.Sprintf("(%s > 0 && %s < %s) || (%s < 0 && %s > %s)", step, current, end, step, current, end)
+		}
+		g.line(indent, "for %s, %s := %s, int64(0); %s; %s, %s = %s + %s, %s + 1 {", current, index, start, condition, current, index, current, step, index)
 		if s.Element != "" {
 			g.line(indent+1, "%s := %s", localName(s.Element), current)
 		}

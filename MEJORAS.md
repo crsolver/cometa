@@ -16,12 +16,6 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 - **Problema:** `docs/pruebas.md` dice que la tecla «se suelta al cuadro siguiente», pero no que una nueva pulsación en ese mismo cuadro se pierde. La prueba falla con un número de pasos menor sin ninguna pista de por qué.
 - **Posible solución:** que `pulsar` sobre una tecla que se está soltando cuente como pulsación nueva, o documentar que entre dos pulsaciones de la misma tecla hace falta un cuadro libre.
 
-### `repetir (0..n)` cuenta hacia atrás cuando `n` es negativo
-
-- **Observado:** al revisar el generador de código. Un rango cuyo inicio es mayor que el fin se recorre hacia atrás (`repetir (5..0)`), y eso también pasa cuando el fin sale de una cuenta: con una lista vacía, `repetir (0..lista.longitud() - 1) |i|` recorre `0..-1`, ejecuta el cuerpo una vez con `i = 0` y `lista[i]` falla con «índice fuera de rango».
-- **Problema:** quien escribe `0..n` espera cero vueltas cuando `n` es menor que cero, como en casi todos los lenguajes; el recorrido hacia atrás aparece sin haberlo pedido y el fallo llega en otra línea.
-- **Posible solución:** que la dirección no se decida al ejecutar: un rango ascendente vacío no da vueltas, y el recorrido hacia atrás se pide de forma explícita (por ejemplo `repetir (5..0, paso = -1)` o `repetir (0..5).invertido()`).
-
 ## Herramientas
 
 ### El Go generado guarda cada operando en una variable temporal

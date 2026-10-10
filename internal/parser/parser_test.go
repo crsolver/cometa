@@ -31,7 +31,7 @@ func TestParsesGlobalVariablesAndConstants(t *testing.T) {
 }
 
 func TestParsesRangeLoop(t *testing.T) {
-	tokens, err := lexer.Lex("rango.cometa", "fn inicio()\n\trepetir ((1 + 2)..-5) |i| imprimir(i)\n")
+	tokens, err := lexer.Lex("rango.cometa", "fn inicio()\n\trepetir ((1 + 2)..-5, paso = -1) |i| imprimir(i)\n")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,6 +45,9 @@ func TestParsesRangeLoop(t *testing.T) {
 	}
 	if _, ok := loop.RangeEnd.(*ast.UnaryExpr); !ok {
 		t.Fatalf("end = %T, want unary expression", loop.RangeEnd)
+	}
+	if _, ok := loop.Step.(*ast.UnaryExpr); !ok {
+		t.Fatalf("step = %T, want unary expression", loop.Step)
 	}
 	if loop.Element != "i" || len(loop.Body) != 1 {
 		t.Fatalf("unexpected loop: %#v", loop)

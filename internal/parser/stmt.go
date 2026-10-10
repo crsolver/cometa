@@ -143,6 +143,23 @@ func (p *parser) parseRepeatStmt() (ast.Stmt, error) {
 			if err != nil {
 				return nil, err
 			}
+			// `, paso = n` is the only way to count backwards or to skip values.
+			if p.match(token.Comma) {
+				name, nameErr := p.expect(token.Ident, "se esperaba 'paso = ...' después de la coma del rango")
+				if nameErr != nil {
+					return nil, nameErr
+				}
+				if name.Lexeme != "paso" {
+					return nil, p.error(name, "un rango solo acepta 'paso = ...' después de la coma, no '"+name.Lexeme+"'")
+				}
+				if _, err = p.expect(token.Assign, "se esperaba '=' después de 'paso'"); err != nil {
+					return nil, err
+				}
+				stmt.Step, err = p.parseExpression(0)
+				if err != nil {
+					return nil, err
+				}
+			}
 		}
 		if _, err = p.expect(token.RParen, "se esperaba ')' después de la lista o rango del ciclo"); err != nil {
 			return nil, err
