@@ -16,12 +16,6 @@ Asperezas del lenguaje y de la biblioteca encontradas al escribir ejemplos o pro
 - **Problema:** en el código el campo se llama `Posicion` (`lobo.Posicion`, `Lobo {Posicion: {...}}`); `posicion` en minúscula no existe y copiarlo de la salida da un error.
 - **Posible solución:** imprimir el nombre del campo embebido con la capitalización del tipo.
 
-### Un campo de estructura omitido no usa el valor predeterminado de un campo enum de dentro
-
-- **Observado:** al escribir el ejercicio `25-escenas` del curso `04-intermedio`. Con `tipo Carrera` que declara `escena Escena = .Menu` y `tipo Partida` que declara `carrera solucion.Carrera`, el literal `juego.Partida {}` falla con «el campo carrera.escena requiere inicialización explícita». `solucion.Carrera {}` sí compila.
-- **Problema:** el campo tiene un valor predeterminado, así que no debería exigir nada; el error contradice la regla de `specs.md` («un campo con valor predeterminado queda exento de la regla de inicialización obligatoria»). Hay que escribir `carrera solucion.Carrera = solucion.Carrera {}` en el tipo de fuera.
-- **Posible solución:** al crear la estructura anidada omitida, aplicar los valores predeterminados de sus campos igual que en un literal vacío explícito.
-
 ### En las pruebas, dos `pruebas.pulsar` en cuadros seguidos cuentan como una sola pulsación
 
 - **Observado:** en las pruebas de `25-escenas`. `pruebas.pulsar(.Derecha)` seguido de `pruebas.avanzar(juego, 1)`, repetido tres veces, solo produce un `entrada.tecla_presionada`. Con `pruebas.avanzar(juego, 2)` después de cada pulsación funcionan las tres.

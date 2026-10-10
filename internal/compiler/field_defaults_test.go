@@ -57,6 +57,45 @@ fn inicio()
 `, "1\nverdadero\n")
 }
 
+// An omitted struct field is built like an empty literal of its type, so the
+// defaults of its own fields cover what would otherwise need a value (an enum,
+// a result).
+func TestFieldDefaultsInOmittedStructField(t *testing.T) {
+	t.Parallel()
+	entry, loader := memoryProject(t, map[string]string{
+		"main.cometa": `usar solucion
+tipo Partida
+	carrera solucion.Carrera
+	puntos entero
+tipo Sala
+	partida Partida
+fn inicio()
+	var a = Partida {}
+	var b = Partida {}
+	a.carrera.vueltas.agregar(1)
+	imprimir(a.carrera.escena == .Menu)
+	imprimir(a.carrera.vueltas.longitud())
+	imprimir(b.carrera.vueltas.longitud())
+	var sala = Sala {}
+	imprimir(sala.partida.carrera.escena == .Menu)
+	imprimir(sala.partida.carrera.estado o 0)
+`,
+		"solucion.cometa": `pub enum Escena
+	Menu
+	Jugando
+pub tipo Carrera
+	pub escena Escena = .Menu
+	pub estado entero! = .Ok(7)
+	pub vueltas [entero]
+`,
+	})
+	generated, err := CompileProject(entry, loader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runGeneratedGo(t, generated, "verdadero\n1\n0\nverdadero\n7\n")
+}
+
 func TestFieldDefaultBreaksRequiredCycle(t *testing.T) {
 	t.Parallel()
 	// Without a default, a required self-referential field is rejected as a cycle
@@ -85,6 +124,7 @@ func TestInvalidFieldDefaults(t *testing.T) {
 		{"tipo T\n\tcampo bool = 5\nfn inicio()\n\tT {}\n", "debe ser"},
 		{"tipo Base<T>\n\tvalor T\ntipo T\n\tBase<entero> = algo\nfn inicio()\n\tT {}\n", "embebidos no admiten"},
 		{"tipo Caja<T>\n\tcontenido T = 0\nfn inicio()\n\tCaja<entero> {}\n", "debe ser"},
+		{"enum E\n\tA\ntipo Dentro\n\ta E = .A\n\tb E\ntipo Fuera\n\tdentro Dentro\nfn inicio()\n\tFuera {}\n", "el campo dentro.b requiere inicialización"},
 	}
 	for _, tt := range cases {
 		t.Run(tt.source, func(t *testing.T) {

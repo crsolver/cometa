@@ -332,6 +332,9 @@ func (c *checker) missingDefault(t Type, path string) string {
 	if t.Kind == Named {
 		info := c.model.StructInfo(t)
 		for _, field := range info.Decl.Fields {
+			if field.Default != nil {
+				continue
+			}
 			if c.model.Types[t.Name].Fields[field.Name].Type.Kind == TypeParameter {
 				return path + "." + field.Name
 			}
